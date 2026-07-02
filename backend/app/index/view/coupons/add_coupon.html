@@ -1,0 +1,73 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navCoupon" class="navCoupon1">
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="portlet box">
+            <div class="portlet-body form">
+                <form action="{:Url('CouponsController/saveCoupon')}" id="form_sample_2" class="form-horizontal" method="post" enctype="multipart/form-data" onsubmit = "return checkinfo();">
+
+                    <div class="control-group">
+                        <label class="control-label">类型</label>
+                        <div class="controls">
+                            <select name="purpose" class="controls-content">
+                                {foreach $cate as $item}
+                                <option value="{$item}" >{$item}</option>
+                                {/foreach}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label"><span>*</span> 用户昵称</label>
+                        <div class="controls">
+                            <input name="nickname" type="text" class="controls-content" id="title" value=""/>
+                            <span class="help-block">用户昵称</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">用户头像</label>
+                        <div class="controls">
+                            {include file="public/block_uploadimg_one" arr="info" arr_value="" name="commonuploadpic1" size="50*50" quality="100kb" }
+                        </div>
+                    </div>
+
+
+                    <div class="control-group">
+                        <label class="control-label">提交时间</label>
+                        <div class="controls">
+                            <div class="controls-content datetimepicker_datetime">
+                                <input type="text"  value="" name="edittime" id="datetimepicker" data-date-format="yyyy-mm-dd hh:ii">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">内容</label>
+                        <div class="controls">
+                            <textarea class="controls-content" id="evaluate_content" name="evaluate_content"></textarea>
+                        </div>
+                    </div>
+
+
+                    <div class="form-actions form_nobg">
+                        <button type="submit" class="btn btn-primary">确定</button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+
+
+
+</script>
+
+{include file="public/foot_more" /}

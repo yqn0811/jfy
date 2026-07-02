@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="zh-CN">
+ <head> 
+  <meta charset="UTF-8"> 
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+  <title>产品列表页</title> 
+  <script src="../javascript/reload.js"></script> 
+  <script src="./navigation/resource_5173910000.js"></script> 
+  <link href="./navigation/all.min.css" rel="stylesheet"> 
+  <script>tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#165DFF',
+        success: '#00B42A',
+        warning: '#FF7D00',
+        danger: '#F53F3F',
+        info: '#86909C',
+        light: '#F2F3F5',
+        dark: '#1D2129',
+        'gray-100': '#F7F8FA',
+        'gray-200': '#E5E6EB',
+        'gray-300': '#C9CDD4',
+        'gray-400': '#86909C',
+        'gray-500': '#4E5969',
+        'gray-600': '#272E3B',
+        'gray-700': '#1D2129'
+      },
+      spacing: {
+        '5.5': '1.375rem',
+        '7.5': '1.875rem',
+        '12.5': '3.125rem'
+      },
+      fontFamily: {
+        inter: ['Inter', 'system-ui', 'sans-serif']
+      },
+      boxShadow: {
+        'card': '0 2px 8px 0 rgba(0, 0, 0, 0.08)',
+        'dropdown': '0 4px 16px 0 rgba(0, 0, 0, 0.12)'
+      }
+    }
+  }
+};</script> 
+  <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+.active-menu {
+                background-color: #165DFF!important;
+                color: white !important;
+                position: relative;
+            }
+            .product-grid {
+                display: grid;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 1.5rem;
+            }
+            @media (max-width: 1279px) {
+                .product-grid {
+                    grid-template-columns: repeat(4, minmax(0, 1fr));
+                }
+            }
+            @media (max-width: 1023px) {
+                .product-grid {
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                }
+            }
+            @media (max-width: 639px) {
+                .product-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 1rem;
+                }
+            }
+            @media (max-width: 420px) {
+                .product-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .product-list {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .product-list-item {
+                display: flex;
+                align-items: center;
+                padding: 1rem;
+                border-radius: 0.5rem;
+                background-color: white;
+                box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
+            }
+            .transition-transform-opacity {
+                transition-property: transform, opacity;
+            }
+            .scale-hover {
+                @apply hover:scale-[1.02] transition-all duration-200;
+            }
+            .btn-primary {
+                @apply bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors duration-200 flex items-center justify-center gap-2;
+            }
+            .btn-outline {
+                @apply border border-gray-200 text-gray-600 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors duration-200 flex items-center justify-center gap-2;
+            }
+            .badge {
+                @apply text-xs font-medium px-2 py-1 rounded-full;
+            }
+            .badge-published {
+                @apply bg-success/10 text-success;
+            }
+            .badge-draft {
+                @apply bg-warning/10 text-warning;
+            }
+            .badge-missing {
+                @apply bg-danger/10 text-danger;
+            }
+            .modal-mask {
+                @apply fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4;
+            }
+            .modal-mask.hidden {
+                display: none;
+            }
+            .modal-content {
+                @apply bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-auto;
+            }
+            .checkbox-primary {
+                @apply w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary;
+            }
+            .input-primary {
+                @apply w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all;
+            }
+            .textarea-primary {
+                @apply w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all min-h-[100px] resize-none;
+            }
+            .upload-area {
+                @apply border-2 border-dashed border-gray-200 rounded-md p-6 text-center hover:border-primary/50 transition-colors duration-200 cursor-pointer bg-gray-50/50;
+            }
+            .upload-area.drag-over {
+                @apply border-primary bg-primary/5;
+            }
+            .image-grid {
+                @apply grid grid-cols-4 gap-3 mt-4;
+            }
+            .image-item {
+                @apply relative aspect-square rounded-md overflow-hidden bg-gray-100;
+            }
+            .image-item img {
+                @apply w-full h-full object-cover;
+            }
+            .image-item-actions {
+                @apply absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2;
+            }
+            .image-item:hover .image-item-actions {
+                opacity: 1;
+            }
+        }
+    </style> 
+ </head> 
+ <body class="bg-gray-100 font-inter text-gray-700"> 
+  <div class="flex h-screen"> 
+   <!-- 左侧分类管理侧边栏 --> 
+   <iframe id="navigation" src class width="250" height="100%"> </iframe> 
+   <!-- 右侧产品列表区域 --> 
+   <div class="flex-1 overflow-auto"> 
+    <!-- 与公共区域页面iframe容器的内边距 --> 
+    <div class="p-4"> 
+     <!-- 工具栏区域 --> 
+     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6"> 
+      <div class="flex items-center gap-2"> 
+       <h1 class="text-[clamp(1.5rem,3vw,1.75rem)] font-semibold text-gray-700"> 产品列表 </h1> 
+       <span class="text-gray-400 text-sm"> (当前分类: 床上用品) </span> 
+      </div> 
+      <div class="flex flex-wrap gap-3 w-full sm:w-auto"> 
+
+       <div class="relative"> 
+        <input type="text" placeholder="搜索产品..." class="input-primary pl-10 pr-4 py-2 w-full sm:w-[200px]"> 
+        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"> </i> 
+       </div> 
+       <button class="btn-primary" id="btn-new-product"> <i class="fas fa-plus"> </i> <span> 新建产品 </span> </button> 
+      </div> 
+     </div> 
+     <!-- 批量操作栏 --> 
+     <div id="batch-actions" class="hidden bg-white p-4 rounded-lg mb-6 shadow-card"> 
+      <div class="flex flex-wrap items-center justify-between gap-4"> 
+       <div class="flex items-center gap-2"> 
+        <input type="checkbox" id="select-all" class="checkbox-primary"> 
+        <label for="select-all" class="text-sm text-gray-600"> 全选 (3项) </label> 
+       </div> 
+       <div class="flex flex-wrap gap-3"> 
+        <button class="btn-outline"> <i class="fas fa-trash-alt"> </i> <span> 批量删除 </span> </button> 
+        <div class="relative"> 
+         <button class="btn-outline"> <i class="fas fa-arrows-alt"> </i> <span> 移动分类 </span> <i class="fas fa-chevron-down ml-1 text-xs"> </i> </button> 
+        </div> 
+        <button class="btn-outline"> <i class="fas fa-file-export"> </i> <span> 导出数据 </span> </button> 
+       </div> 
+      </div> 
+     </div> 
+     <!-- 产品列表区域 --> 
+     <div id="product-container" class="product-grid"> 
+      <!-- 产品卡片 1 --> 
+      <div class="product-card bg-white rounded-lg shadow-card overflow-hidden scale-hover group"> 
+       <div class="relative aspect-[4/3] bg-gray-100"> 
+        <img src="./navigation/4e1a4c8f428b926c2e2449096fefb575.png" alt="13707系列四件套" class="w-full h-full object-cover"> 
+        <div class="absolute top-2 right-2"> 
+         <span class="badge badge-published"> 已发布 </span> 
+        </div> 
+        <div class="abso
+lute top-2 left-2"> 
+         <input type="checkbox" class="product-checkbox checkbox-primary"> 
+        </div> 
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform-opacity duration-200"> 
+         <div class="flex justify-end gap-2"> 
+          <button class="edit-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white" data-id="1"> <i class="fas fa-edit" style="padding-bottom:0px"> </i> </button> 
+          <button class="delete-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"> <i class="fas fa-trash-alt"> </i> </button> 
+         </div> 
+        </div> 
+       </div> 
+       <div class="p-4"> 
+        <h3 class="font-medium text-gray-700 mb-1 line-clamp-1"> 13707系列四件套 </h3> 
+        <p class="text-sm text-gray-400 mb-2 line-clamp-2"> 纯棉材质，柔软舒适，多种颜色可选，适合现代家居风格 </p> 
+        <div class="flex justify-between items-center"> 
+         <span class="text-xs text-gray-400"> 花色图: 8张 </span> 
+         <span class="text-xs text-gray-400"> 详情图: 3张 </span> 
+        </div> 
+       </div> 
+      </div> 
+      <!-- 产品卡片 2 --> 
+      <div class="product-card bg-white rounded-lg shadow-card overflow-hidden scale-hover group"> 
+       <div class="relative aspect-[4/3] bg-gray-100"> 
+        <img src="./navigation/eda6929f3e117886854b6055433e6cd7.png" alt="轻奢风枕套一对" class="w-full h-full object-cover"> 
+        <div class="absolute top-2 right-2"> 
+         <span class="badge badge-draft"> 草稿 </span> 
+        </div> 
+        <div class="absolute top-2 left-2"> 
+         <input type="checkbox" class="product-checkbox checkbox-primary"> 
+        </div> 
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform-opacity duration-200"> 
+         <div class="flex justify-end gap-2"> 
+          <button class="edit-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white" data-id="2"> <i class="fas fa-edit"> </i> </button> 
+          <button class="delete-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"> <i class="fas fa-trash-alt"> </i> </button> 
+         </div> 
+        </div> 
+       </div> 
+       <div class="p-4"> 
+        <h3 class="font-medium text-gray-700 mb-1 line-clamp-1"> 轻奢风枕套一对 </h3> 
+        <p class="text-sm text-gray-400 mb-2 line-clamp-2"> 丝滑面料，简约设计，舒适透气，提升睡眠质量 </p> 
+        <div class="flex justify-between items-center"> 
+         <span class="text-xs text-gray-400"> 花色图: 5张 </span> 
+         <span class="text-xs text-gray-400"> 详情图: 2张 </span> 
+        </div> 
+       </div> 
+      </div> 
+      <!-- 产品卡片 3 --> 
+      <div class="product-card bg-white rounded-lg shadow-card overflow-hidden scale-hover group"> 
+       <div class="relative aspect-[4/3] bg-gray-100"> 
+        <img src="./navigation/9c991b4ceef87031f884723f78759462.png" alt="冬季保暖 quilt" class="w-full h-full object-cover"> 
+        <div class="absolute top-2 right-2"> 
+         <span class="badge badge-missing"> 缺图 </span> 
+        </div> 
+        <div class="absolute top-2 left-2"> 
+         <input type="checkbox" class="product-checkbox checkbox-primary"> 
+        </div> 
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform-opacity duration-200"> 
+         <div class="flex justify-end gap-2"> 
+          <button class="edit-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white" data-id="3"> <i class="fas fa-edit"> </i> </button> 
+          <button class="delete-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"> <i class="fas fa-trash-alt"> </i> </button> 
+         </div> 
+        </div> 
+       </div> 
+       <div class="p-4"> 
+        <h3 class="font-medium t
+ext-gray-700 mb-1 line-clamp-1"> 冬季保暖 quilt </h3> 
+        <p class="text-sm text-gray-400 mb-2 line-clamp-2"> 加厚保暖，轻盈不压身，适合冬季使用，多种尺寸可选 </p> 
+        <div class="flex justify-between items-center"> 
+         <span class="text-xs text-gray-400"> 花色图: 2张 </span> 
+         <span class="text-xs text-danger"> 详情图: 0张 </span> 
+        </div> 
+       </div> 
+      </div> 
+      <!-- 产品卡片 4 --> 
+      <div class="product-card bg-white rounded-lg shadow-card overflow-hidden scale-hover group"> 
+       <div class="relative aspect-[4/3] bg-gray-100"> 
+        <img src="./navigation/dbfcbcc617ede956f1b81cb451836aae.png" alt="60支长绒棉床单" class="w-full h-full object-cover"> 
+        <div class="absolute top-2 right-2"> 
+         <span class="badge badge-published"> 已发布 </span> 
+        </div> 
+        <div class="absolute top-2 left-2"> 
+         <input type="checkbox" class="product-checkbox checkbox-primary"> 
+        </div> 
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform-opacity duration-200"> 
+         <div class="flex justify-end gap-2"> 
+          <button class="edit-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white" data-id="4"> <i class="fas fa-edit"> </i> </button> 
+          <button class="delete-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"> <i class="fas fa-trash-alt"> </i> </button> 
+         </div> 
+        </div> 
+       </div> 
+       <div class="p-4"> 
+        <h3 class="font-medium text-gray-700 mb-1 line-clamp-1"> 60支长绒棉床单 </h3> 
+        <p class="text-sm text-gray-400 mb-2 line-clamp-2"> 高支高密，柔软亲肤，透气舒适，适合四季使用 </p> 
+        <div class="flex justify-between items-center"> 
+         <span class="text-xs text-gray-400"> 花色图: 6张 </span> 
+         <span class="text-xs text-gray-400"> 详情图: 4张 </span> 
+        </div> 
+       </div> 
+      </div> 
+      <!-- 产品卡片 5 --> 
+      <div class="product-card bg-white rounded-lg shadow-card overflow-hidden scale-hover group"> 
+       <div class="relative aspect-[4/3] bg-gray-100"> 
+        <img src="./navigation/0419c22dc503dca1ad92f1c11b58cf1c.png" alt="北欧风靠垫套" class="w-full h-full object-cover"> 
+        <div class="absolute top-2 right-2"> 
+         <span class="badge badge-draft"> 草稿 </span> 
+        </div> 
+        <div class="absolute top-2 left-2"> 
+         <input type="checkbox" class="product-checkbox checkbox-primary"> 
+        </div> 
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform-opacity duration-200"> 
+         <div class="flex justify-end gap-2"> 
+          <button class="edit-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white" data-id="5"> <i class="fas fa-edit"> </i> </button> 
+          <button class="delete-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"> <i class="fas fa-trash-alt"> </i> </button> 
+         </div> 
+        </div> 
+       </div> 
+       <div class="p-4"> 
+        <h3 class="font-medium text-gray-700 mb-1 line-clamp-1"> 北欧风靠垫套 </h3> 
+        <p class="text-sm text-gray-400 mb-2 line-clamp-2"> 简约设计，多种图案可选，适合沙发、床等多种场景 </p> 
+        <div class="flex justify-between items-center"> 
+         <span class="text-xs text-gray-400"> 花色图: 10张 </span> 
+         <span class="text-xs text-gray-400"> 详情图: 3张 </span> 
+        </div> 
+       </div> 
+      </div> 
+      <!-- 产品卡片 6 --> 
+      <div class="product-card bg-white rounded-lg shadow-card overflow-hidden scale-hover group"> 
+       <div class="relative aspect-[4/3] bg-gray-100"> 
+        <img src="./navigation/97b8ec0af907b68f59bd6e458956574b.png" alt="有机棉毛巾三件套" class="w-full h-full object-cover"> 
+        <div class="absolute top-2 right-2"> 
+         <span class="badge badge-published"> 已发布 </span> 
+        </div> 
+        <div class="absolute top-2 left-2"> 
+         <input type="checkbox" class="product-checkbox checkbox-primary"> 
+        </div> 
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform-opacity duration-200"> 
+         <div class="flex justify-end gap-2"> 
+          <button class="edit-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white" data-id="6"> <i class="fas fa-edit"> </i> </button> 
+          <button class="delete-product p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"> <i class="fas fa-trash-alt"> </i> </button> 
+         </div> 
+        </div> 
+       </div> 
+       <div class="p-4"> 
+        <h3 class="font-medium text-gray-700 mb-1 line-clamp-1"> 有机棉毛巾三件套 </h3> 
+        <p class="text-sm text-gray-400 mb-2 line-clamp-2"> 有机棉材质，环保健康，吸水性强，柔软舒适 </p> 
+        <div class="flex justify-between items-center"> 
+         <span class="text-xs text-gray-400"> 花色图: 5张 </span> 
+         <span class="text-xs text-gray-400"> 详情图: 2张 </span> 
+        </div> 
+       </div> 
+      </div> 
+     </div> 
+     <!-- 分页区域 --> 
+     <div class="mt-8 flex justify-center"> 
+      <div class="flex items-center gap-1"> 
+       <button class="w-10 h-10 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled> <i class="fas fa-chevron-left text-xs"> </i> </button> 
+       <button class="w-10 h-10 flex items-center justify-center rounded-md bg-primary text-white"> 1 </button> 
+       <button class="w-10 h-10 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-50"> 2 </button> 
+       <button class="w-10 h-10 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-50"> 3 </button> 
+       <span class="text-gray-400"> ... </span> 
+       <button class="w-10 h-10 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-50"> 8 </button> 
+       <button class="w-10 h-10 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-50"> <i class="fas fa-chevron-right text-xs"> </i> </button> 
+      </div> 
+     </div> 
+    </div> 
+   </div> 
+   <!-- 产品编辑器弹窗 --> 
+   <div id="product-editor-modal" class="modal-mask hidden"> 
+    <div class="modal-content"> 
+     <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10"> 
+      <h2 class="text-xl font-semibold text-gray-700" id="modal-title"> 编辑产品 </h2> 
+      <button id="close-modal" class="text-gray-400 hover:text-gray-600 p-2"> <i class="fas fa-times"> </i> </button> 
+     </div> 
+     <div class="p-6"> 
+      <form id="product-form"> 
+       <div class="grid grid-cols-1 md:grid-cols-2 gap-6"> 
+        <!-- 左侧信息编辑区 --> 
+        <div class="space-y-6"> 
+         <div> 
+          <label class="block text-sm font-medium text-gray-600 mb-2"> 产品名称 </label> 
+          <input type="text" id="product-name" class="input-primary" placeholder="输入产品名称"> 
+         </div> 
+         <div> 
+          <label class="block text-sm font-medium text-gray-600 mb-2"> 产品简介 </label> 
+          <textarea id="product-desc" class="textarea-primary" placeholder="输入产品简介">
+        </textarea> 
+         </div> 
+         <div> 
+         </div> 
+         <div> 
+          <label class="block text-sm font-medium text-gray-600 mb-2"> 产品状态 </label> 
+          <div class="flex items-center gap-4"> 
+           <label class="inline-flex items-center gap-2"> <input type="radio" name="product-status" value="published" class="text-primary" checked> <span> 已发布 </span> </label> 
+           <label class="inline-flex items-center gap-2"> <input type="radio" name="product-status" value="draft" class="text-primary"> <span> 草稿 </span> </label> 
+          </div> 
+         </div> 
+        </div> 
+        <!-- 右侧图片上传区 --> 
+        <div class="space-y-8"> 
+         <!-- 花色图上传 --> 
+         <div> 
+          <div class="flex justify-between items-center mb-4"> 
+           <label class="block text-sm font-medium text-gray-600"> 花色图 <span class="text-gray-400 text-xs"> (最多上传10张) </span> </label> 
+           <button type="button" class="text-primary text-sm hover:underline"> <i class="fas fa-sort mr-1"> </i> 排序 </button> 
+          </div> 
+          <div id="color-images-upload" class="upload-area"> 
+           <div class="space-y-2"> 
+            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400"> </i> 
+            <p class="text-sm text-gray-500"> 点击或拖拽文件到此处上传 </p> 
+            <p class="text-xs text-gray-400"> 支持 JPG, PNG, GIF (最大 10MB) </p> 
+           </div> 
+          </div> 
+          <div class="image-grid" id="color-images-preview"> 
+           <div class="image-item"> 
+            <img src="./navigation/35c310b5ca18e7d5f040b20174371851.png" alt="花色图1"> 
+            <div class="image-item-actions"> 
+             <button class="p-1.5 bg-white rounded-full text-gray-700 hover:bg-gray-100"> <i class="fas fa-arrows-alt text-xs"> </i> </button> 
+             <button class="p-1.5 bg-white rounded-full text-gray-700 hover:bg-gray-100"> <i class="fas fa-edit text-xs"> </i> </button> 
+             <button class="p-1.5 bg-white rounded-full text-danger hover:bg-gray-100"> <i class="fas fa-trash-alt text-xs"> </i> </button> 
+            </div> 
+           </div> 
+           <div class="image-item"> 
+            <img src="./navigation/9d4f0b489efbab0958f9d34a12e94792.png" alt="花色图2"> 
+            <div class="image-item-actions"> 
+             <button class="p-1.5 bg-white rounded-full text-gray-700 hover:bg-gray-100"> <i class="fas fa-arrows-alt text-xs"> </i> </button> 
+             <button class="p-1.5 bg-white rounded-full text-gray-700 hover:bg-gray-100"> <i class="fas fa-edit text-xs"> </i> </button> 
+             <button class="p-1.5 bg-white rounded-full text-danger hover:bg-gray-100"> <i class="fas fa-trash-alt text-xs"> </i> </button> 
+            </div> 
+           </div> 
+          </div> 
+         </div> 
+         <!-- 详情图上传 --> 
+         <div> 
+          <div class="flex justify-between items-center mb-4"> 
+           <label class="block text-sm font-medium text-gray-600"> 详情图 <span class="text-gray-400 text-xs"> (最多上传5张) </span> </label> 
+           <button type="button" class="text-primary text-sm hover:underline"> <i class="fas fa-sort mr-1"> </i> 排序 </button> 
+          </div> 
+          <div id="detail-images-upload" class="upload-area"> 
+           <div class="space-y-2"> 
+            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400"> </i> 
+            <p class="text-sm text-gray-500"> 点击或拖拽文件到此处上传 </p> 
+            <p class="text-xs text-gray-400"> 支持 JPG, PNG, GIF (最大 10MB) </p> 
+           </div> 
+          </div> 
+          <div class="image-grid" id="detail-images-preview"> 
+           <div class="image-item"> 
+            <img src="./navigation/a6f7d88aa61f7d594dd96f7343acaf5e.png" alt="详情图1"> 
+            <div class="image-item-actions"> 
+             <button class="p-1.5 bg-white rounded-full text-gray-700 hover:bg-gray-100"> <i class="fas fa-arrows-alt text-xs"> </i> </button> 
+             <button class="p-1.5 bg-white rounded-full text-gray-700 hover:bg-gray-100"> <i class="fas fa-edit text-xs"> </i> </button> 
+             <button class="p-1.5 bg-white rounded-full text-danger hover:bg-gray-100"> <i class="fas fa-trash-alt text-xs"> </i> </button> 
+            </div> 
+           </div> 
+          </div> 
+         </div> 
+        </div> 
+       </div> 
+      </form> 
+     </div> 
+     <div class="p-6 border-t border-gray-100 flex justify-end gap-3 sticky bottom-0 bg-white z-10"> 
+      <button id="cancel-product" class="btn-outline"> 取消 </button> 
+      <button id="save-product" class="btn-primary"> <i class="fas fa-save"> </i> <span> 保存产品 </span> </button> 
+     </div> 
+    </div> 
+   </div> 
+   <script>// 监听子页面大小变化，调整iframe的高度
+ytGetIframeResize(document.getElementById('navigation'));
+// 当页面大小或者内容发生变化时，通知导航页面跳转iframe高度
+ytSendPageSize();
+// 页面加载完成后执行
+document.addEventListener('DOMContentLoaded', function () {
+  // 获取DOM元素
+  var productContainer = document.getElementById('product-container');
+  // var viewGridBtn = document.getElementById('view-grid');
+  // var viewListBtn = document.getElementById('view-list');
+  var batchActions = document.getElementById('batch-actions');
+  var productCheckboxes = document.querySelectorAll('.product-checkbox');
+  var selectAllCheckbox = document.getElementById('select-all');
+  var productEditorModal = document.getElementById('product-editor-modal');
+  var closeModalBtn = document.getElementById('close-modal');
+  var cancelProductBtn = document.getElementById('cancel-product');
+  var saveProductBtn = document.getElementById('save-product');
+  var btnNewProduct = document.getElementById('btn-new-product');
+  var editProductBtns = document.querySelectorAll('.edit-product');
+  var modalTitle = document.getElementById('modal-title');
+  var productNameInput = document.getElementById('product-name');
+  var productDescInput = document.getElementById('product-desc');
+  /*
+  // 视图切换功能
+  viewGridBtn.addEventListener('click', function () {
+    productContainer.classList.remove('product-list');
+    productContainer.classList.add('product-grid');
+    viewGridBtn.classList.add('bg-primary', 'text-white');
+    viewGridBtn.classList.remove('text-gray-500', 'hover:bg-gray-50');
+    viewListBtn.classList.remove('bg-primary', 'text-white');
+    viewListBtn.classList.add('text-gray-500', 'hover:bg-gray-50');
+    ytSendPageSize();
+  });
+  viewListBtn.addEventListener('click', function () {
+    productContainer.classList.remove('product-grid');
+    productContainer.classList.add('product-list');
+    viewListBtn.classList.add('bg-primary', 'text-white');
+    viewListBtn.classList.remove('text-gray-500', 'hover:bg-gray-50');
+    viewGridBtn.classList.remove('bg-primary', 'text-white');
+    viewGridBtn.classList.add('text-gray-500', 'hover:bg-gray-50');
+    // 转换为列表视图时修改产品项样式
+    document.querySelectorAll('.product-card').forEach(function (card) {
+      card.classList.add('product-list-item');
+      card.classList.remove('scale-hover');
+    });
+    ytSendPageSize();
+  });
+  */
+  // 批量选择功能
+  productCheckboxes.forEach(function (checkbox) {
+    checkbox.addEventListener('change', updateBatchActions);
+  });
+  selectAllCheckbox.addEventListener('change', function () {
+    var _this = this;
+    productCheckboxes.forEach(function (checkbox) {
+      checkbox.checked = _this.checked;
+    });
+    updateBatchActions();
+  });
+  function updateBatchActions() {
+    var checkedCount = document.querySelectorAll('.product-checkbox:checked').length;
+    if (checkedCount > 0) {
+      batchActions.classList.remove('hidden');
+      batchActions.querySelector('label').textContent = "\u5168\u9009 (".concat(checkedCount, "\u9879)");
+    } else {
+      batchActions.classList.add('hidden');
+    }
+    // 更新全选 checkbox 状态
+    selectAllCheckbox.checked = checkedCount > 0 && checkedCount === productCheckboxes.length;
+    ytSendPageSize();
+  }
+  // 模态框控制
+  function openModal() {
+    productEditorModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    ytSendPageSize();
+  }
+  function closeModal() {
+    productEditorModal.classList.add('hidden');
+    document.body.style.overflow = '';
+    ytSendPageSize();
+  }
+  // 新建产品按钮
+  btnNewProduct.addEventListener('click', function () {
+    modalTitle.textContent = '新建产品';
+    productNameInput.value = '';
+    productDescInput.value = '';
+    openModal();
+  });
+  // 编辑产品按钮
+  editProductBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var productId = this.getAttribute('data-id');
+      modalTitle.textContent = '编辑产品';
+      // 这里可以根据产品ID加载产品数据
+      // 示例数据
+      if (productId === '1') {
+        productNameInput.value = '13707系列四件套';
+        productDescInput.value = '纯棉材质，柔软舒适，多种颜色可选，适合现代家居风格';
+      } else if (productId === '2') {
+        productNameInput.value = '轻奢风枕套一对';
+        productDescInput.value = '丝滑面料，简约设计，舒适透气，提升睡眠质量';
+      } else if (productId === '3') {
+        productNameInput.value = '冬季保暖 quilt';
+        productDescInput.value = '加厚保暖，轻盈不压身，适合冬季使用，多种尺寸可选';
+      }
+      openModal();
+    });
+  });
+  // 关闭模态框
+  closeModalBtn.addEventListener('click', closeModal);
+  cancelProductBtn.addEventListener('click', closeModal);
+  // 点击模态框外部关闭
+  productEditorModal.addEventListener('click', function (e) {
+    if (e.target === this) {
+      closeModal();
+    }
+  });
+  // 保存产品
+  saveProductBtn.addEventListener('click', function () {
+    // 这里可以添加保存产品的逻辑
+    alert('产品保存成功！');
+    closeModal();
+  });
+  // 上传区域拖拽效果
+  var uploadAreas = document.querySelectorAll('.upload-area');
+  uploadAreas.forEach(function (area) {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (eventName) {
+      area.addEventListener(eventName, preventDefaults, false);
+    });
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    ['dragenter', 'dragover'].forEach(function (eventName) {
+      area.addEventListener(eventName, highlight, false);
+    });
+    ['dragleave', 'drop'].forEach(function (eventName) {
+      area.addEventListener(eventName, unhighlight, false);
+    });
+    function highlight() {
+      area.classList.add('drag-over');
+    }
+    function unhighlight() {
+      area.classList.remove('drag-over');
+    }
+    area.addEventListener('drop', handleDrop, false);
+    function handleDrop(e) {
+      var dt = e.dataTransfer;
+      var files = dt.files;
+      handleFiles(files);
+    }
+  });
+  function handleFiles(files) {
+    // 这里可以添加文件上传逻辑
+    console.log('上传文件:', files);
+    alert("\u5DF2\u9009\u62E9".concat(files.length, "\u4E2A\u6587\u4EF6\uFF0C\u51C6\u5907\u4E0A\u4F20"));
+  }
+  // 监听窗口大小变化，更新iframe高度
+  window.addEventListener('resize', function () {
+    ytSendPageSize();
+  });
+});</script> 
+  </div>  
+ </body>
+</html>

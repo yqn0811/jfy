@@ -1,0 +1,2031 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <link rel='stylesheet' href='/pic/src/element.css'>
+  <link rel='stylesheet' href='/pic/src/iconfont/iconfont.css'>
+  <link rel='stylesheet' href='/assets/cssv3/iconfont.css'>
+  <link rel='stylesheet' href='/pic/src/css/common.css?v={$Think.VERSION_APP}'>
+  <script type="text/javascript" src="/assets/jsv3/jquery.js"></script>
+
+</head>
+<style>
+  #selection-groupid .radio .icon-x-mulemore:before{
+    border-radius: 0% !important;
+  }
+  .liact_single #radio-right .radio span{
+    border-radius: 50% !important;
+  }
+  .radio-right-more .radio span{
+    width: 17px;
+    height: 17px;
+    background: #FFFFFF;
+    border: 1px solid #C7CDDB;
+    border-radius: 3px;
+    display: block;
+  }
+  .radio-right-more .radio span:before{
+    left: 0px;
+    position: absolute;
+    /* top: 1px; */
+    color: #fff;
+    background: #2E95FF;
+    border-radius: 0% !important;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 10px !important;
+  }
+  #radio-right .radio span{
+    position: relative;
+  }
+  #radio-right .radio span:before{
+    left: 0px;
+    position: absolute;
+    /* top: 1px; */
+    color: #fff;
+    background: #2E95FF;
+    border-radius: 50%;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 10px !important;
+  }
+  .checkbox {
+    width: 18px;
+    height: 18px;
+    position: relative;
+    margin-right: 3px;
+  }
+
+  /* .checkbox .checked {
+      background-position: 1px 0px;
+      background: #4068f9;
+  } */
+
+  .selection-search {
+    position: relative;
+  }
+
+  .selection-search input {
+    width: 95%;
+
+    outline: none !important;
+  }
+
+  input::focus {
+    outline: none;
+  }
+
+  .selection-search-cancle {
+    position: absolute;
+  }
+
+  .navModel6 {
+    display: block !important;
+  }
+
+  /* 带搜索单选 */
+  .basic-grey .Companies {
+    position: relative;
+  }
+
+  .basic-grey .Companies ul {
+    position: absolute;
+    top: 34px;
+    height: 210px;
+    width: 80%;
+    overflow-y: auto !important;
+    border: 1px solid #eaeaea;
+    display: none;
+    float: left;
+    background-color: #fff;
+    z-index: 1;
+  }
+
+  .basic-grey .Companies ul li {
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+
+  .basic-grey .Companies ul li a {
+    color: #555;
+  }
+
+  .basic-grey .Companies ul li:hover,
+  .basic-grey .Companies ul li.li_act:hover {
+    background-color: #6954F0;
+    cursor: pointer;
+    color: #fff;
+  }
+
+  .basic-grey .Companies ul li:hover a,
+  .basic-grey .Companies ul li.li_act:hover a {
+    color: #fff;
+  }
+
+  .basic-grey .Companies ul li.top {
+    position: absolute;
+    top: 0;
+  }
+
+  .basic-grey .Companies ul li.li_act {
+    background-color: #e6e2ff;
+  }
+
+  .basic-grey .Companies ul li.li_act a {
+    color: #6954F0;
+  }
+
+  /*弹出层*/
+  #popLayer {
+    background-color: #FFFFFF;
+    z-index: 99999999;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    filter: alpha(opacity=80);
+    transform: all ease 0.3s;
+    max-width: 100%;
+    margin: 0 auto;
+
+    background: #FFFFFF;
+    border-radius: 5px;
+  }
+
+  #popBox .close {
+    text-align: right;
+    margin-right: 5px;
+    background-color: #F8F8F8;
+  }
+
+  /*关闭按钮*/
+  #popBox .close a {
+    text-decoration: none;
+    color: #2D2C3B;
+  }
+
+  .popclose {
+    font-weight: 700;
+    line-height: 1;
+    color: #000;
+    text-shadow: 0 1px 0 #fff;
+    opacity: .5;
+  }
+
+  .popLayer-header {
+    height: 44px;
+    line-height: 44px;
+    background: #EEF1F6;
+    border-radius: 5px 5px 0px 0px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .selector-layui {
+    top: 10% !important;
+    height: 635px;
+  }
+
+  .anniu {
+    margin-left: 220px;
+    line-height: 34px;
+  }
+
+  .anniu-input {
+    width: 420px;
+    display: inline-flex;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .anniu span {
+    color: #c7cddb;
+    font-size: 13px;
+    margin-left: 60px;
+  }
+
+  .selection-search {
+    padding: 0 10px;
+    margin-top: 12px;
+    margin-bottom: 10px;
+    margin-left: 12px;
+    display: flex;
+    align-items: center;
+    width: 340px;
+    height: 34px;
+    line-height: 34px;
+    background: #FFFFFF;
+    border: 1px solid #DEE1E7;
+    border-radius: 3px;
+  }
+
+  .selection-search input {
+    border: none;
+    background-color: transparent;
+    outline: none;
+    box-shadow: none;
+  }
+
+  input {
+    outline: none;
+  }
+
+  input:focus {
+    outline: 3px solid white !important;
+  }
+
+  .selection-search input[type=text]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .selection-search input::placeholder {
+    padding: 0 5px;
+    font-size: 13px;
+    font-family: Microsoft YaHei;
+    font-weight: 400;
+    color: #C7CDDB;
+  }
+
+  .selection-search i {
+    color: #C2C7CE;
+    font-size: 18px;
+  }
+
+  #selcet-dx {
+    cursor: pointer;
+  }
+
+  .selection-list {
+    width: 100%;
+    /* margin-top: 20px; */
+    margin-bottom: 10px;
+  }
+
+  #selection-groupid li {
+    width: 95%;
+    background: #fff;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    margin: 5px 0;
+  }
+
+  #selection-groupid li:nth-child(2n+1) {
+    background-color: #F5F6F8;
+  }
+
+  .div.checker span {
+    background-position: -24px 0 !important;
+  }
+
+  .selection-message-left {
+    display: flex;
+    align-items: center;
+  }
+
+  .selection-message {
+    margin-left: 10px;
+  }
+
+  .selection-message-top-title {
+    width: 25px;
+    height: 15px;
+    background: #3D9DE9;
+    border-radius: 2px;
+    font-size: 10px;
+    font-family: Microsoft YaHei;
+    font-weight: 400;
+    color: #FFFFFF;
+    padding: 0 5px;
+  }
+
+  .selection-message-top-txt {
+    width: 25px;
+    height: 15px;
+    background: #FFC107;
+    border-radius: 2px;
+    font-size: 10px;
+    font-family: Microsoft YaHei;
+    font-weight: 400;
+    color: #242D4E;
+    padding: 0 5px;
+  }
+
+  .selection-message-user {
+    font-size: 13px;
+    font-family: Microsoft YaHei;
+    font-weight: 400;
+    color: #242D4E;
+    margin-left: 6px;
+    text-decoration: none;
+  }
+
+  /*  */
+  .selection-message-right .duoxuan .checked {
+    background-position: 1px 0px;
+    border-radius: 50%;
+    background: #4068f9;
+  }
+
+  .selection-message-right .duoxuan .checked:after {
+    content: '';
+    top: 5px;
+    left: 5px;
+    position: absolute;
+    background: transparent;
+    border: #fff solid 2px;
+    border-top: none;
+    border-right: none;
+    height: 6px;
+    width: 10px;
+    -moz-transform: rotate(-45deg);
+    -ms-transform: rotate(-45deg);
+    -webkit-transform: rotate(-45deg);
+  }
+
+  .selection-message-right .duoxuan span {
+    background-image: none !important;
+    background-color: #fff;
+    width: 20px;
+    height: 20px;
+    border: 1px solid #d7dbe5;
+  }
+
+  .selector-first-end {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 33px;
+    margin-bottom: 15px;
+  }
+
+  .selection-cancel-btn {
+    width: 84px;
+    height: 34px;
+    background: #E6ECF6;
+    border-radius: 3px;
+    font-size: 13px;
+    font-family: Microsoft YaHei;
+    font-weight: 400;
+    color: #242D4E;
+    border: none;
+  }
+
+  .selection-sure-btn {
+    width: 84px;
+    height: 34px;
+    background: #2E95FF;
+    border-radius: 3px;
+    font-size: 13px;
+    font-family: Microsoft YaHei;
+    font-weight: 400;
+    color: #fff;
+    margin-left: 14px;
+    border: none;
+  }
+
+  .popLayer-wrapper {
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: vertical;
+    -webkit-flex-direction: column;
+    -ms-flex-direction: column;
+    /*布局方向是垂直的*/
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+  }
+
+  .poplayer-window-fiexed {
+    /* height: 100px;
+    line-height: 100px; */
+    text-align: center;
+  }
+
+  .selector-first-end {
+    height: 40px;
+    line-height: 40px;
+    text-align: center;
+  }
+
+  .selector-first-tabs {
+    -webkit-box-flex: 1;
+    -webkit-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
+    width: 100%;
+
+  }
+
+  .selection-message-right .radio .checked {
+    background-position: 1px 0px;
+    border-radius: 50%;
+    background: #4068f9;
+    position: relative;
+    width: 20px;
+    display: block;
+    height: 20px;
+  }
+
+  .selection-message-right .radio .checked:after {
+    content: '';
+    top: 5px;
+    left: 5px;
+    position: absolute;
+    background: transparent;
+    border: #fff solid 2px;
+    border-top: none;
+    border-right: none;
+    height: 6px;
+    width: 10px;
+    -moz-transform: rotate(-45deg);
+    -ms-transform: rotate(-45deg);
+    -webkit-transform: rotate(-45deg);
+  }
+
+  #radio-right .radio span {
+    width: 20px;
+    display: block;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid #ccc;
+  }
+
+  #radio-right .radio span input {
+    outline: none;
+    border: none;
+    background: none;
+    appearance: none;
+    margin: 0;
+    box-sizing: none;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    margin: 0;
+    vertical-align: text-bottom;
+    margin-right: 0.1rem;
+  }
+
+  #selection-groupid {
+    margin: 0;
+    padding-inline-start: 0;
+    padding-left: 11px;
+  }
+
+  .selection-person img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
+
+  #selection-groupid-more {
+    width: 50%;
+  }
+
+  #selection-groupid-more li {
+    width: 90%;
+    background: #fff;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 10px;
+    margin: 5px 0;
+    list-style: none;
+  }
+
+  .li_act_multipart {
+    width: 100%;
+  }
+
+  .li_act_multipart #radio-right .radio span {
+    width: 20px;
+    display: block;
+    height: 20px;
+    border-radius: 0%;
+    border: 1px solid #ccc;
+  }
+
+  .li_act_multipart .selection-message-right .radio .checked {
+    background-position: 1px 0px;
+    border-radius: 0%;
+    background: #4068f9;
+    position: relative;
+    width: 20px;
+    display: block;
+    height: 20px;
+  }
+
+  .selector-first-tabs {
+    width: 100%;
+    display: flex;
+  }
+
+  .li_act_multipart {
+    width: 50%;
+  }
+
+  .srelection-content-end {
+
+    width: 78%;
+    height: 533px;
+    overflow: auto;
+    overflow-x: hidden;
+  }
+
+  .selection-list {
+    overflow: auto;
+    height: 597px;
+    overflow-x: hidden;
+  }
+
+  .activesw {
+    background-color: #eaf4ff !important;
+  }
+
+  #srelection-con-sure li {
+    width: 95%;
+    background: #fff;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    margin: 5px 0;
+  }
+  .selection-message-right{
+    padding-right: 10px;
+  }
+  .muletd {
+    margin: 10px 0;
+    display: block;
+  }
+
+  .dellistitem:before {
+    display: none !important;
+  }
+
+  .dellistitem {
+    color: #000;
+  }
+
+  table,
+  th,
+  td {
+    border-collapse: 1px solid blue;
+  }
+
+  .selection-message {
+    text-align: left !important;
+  }
+
+  .alertWord {
+    color: grey;
+    font-size: 10px;
+    text-align: center;
+    width: 95%;
+    height: 15px;
+    margin: 10px 0;
+  }
+  #loading {
+    display: none;
+    width: 100%;
+    font-size: 20px;
+    line-height: 700px;
+    text-align: center;
+  }
+</style>
+
+<body>
+<div id="MorepopLayer" data-type="1" class="layui-layer layui-layer-iframe selector-layui">
+  <div class="popLayer-wrapper">
+    <div class="poplayer-window-fiexed">
+      <div class="selection-search">
+        <i class="iconfont icon-search search-icon-poLayer"></i>
+        <input type="search" id="mySearch" autofocus onclick="mySelection()" placeholder="请输入关键字搜索"
+               onkeydown="entersearch()">
+
+      </div>
+    </div>
+    <div class="selector-first-tabs">
+      <div class="selection-list">
+        <!--<ul id="selection-groupid-more" class="list01 selection-groupid">
+                        </ul>-->
+        <div id="loading">数据加载中...</div>
+        <ul id="selection-groupid" class="list01 selection-groupid">
+        </ul>
+      </div>
+      <input type="text" value="" id="alert-select-name" style="display: none;">
+      <div class="srelection-content-end">
+        <ul id="srelection-con-sure"></ul>
+      </div>
+    </div>
+    <input type="hidden" value="" class="daeler">
+    <!-- <div class="popup_select">
+                        已选择：<span></span>
+                    </div> -->
+    <!-- <div class="popup_con">
+                        <div data-id='-1' data-nickname='总平台'>总平台</div>
+                    </div> -->
+  </div>
+</div>
+<div class="selector-first-end">
+  <button class="selection-cancel-btn" onclick="formCancle(); return false;">取消</button>
+  <button type="primary" id="sure-qd" class="selection-sure-btn" onclick="formClose()">确定</button>
+</div>
+</body>
+
+</html>
+<script>
+  function debounce(func, delay) {
+    //防抖函数
+    let timer;
+    return function() {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        func.apply(this, arguments);
+      }, delay);
+    };
+  }
+  var count = 10;
+  var html = '';
+  var saveRes;
+  var flag = 0;
+  var finalFlag = 0;
+  var rightFlag=0;
+  $(function () {
+    let type = getQueryVariable('type');
+    let page_url = getQueryVariable('input')
+    //console.log(page_url)
+    let multstyr = ''
+    let mailarr = getQueryVariable('mailarr') || ''
+    let mailarrNmae = getQueryVariable('getQueryVariable') || ''
+    let mialmuleopenid = getQueryVariable('mialmuleopenid') || ''
+    let get_html = getQueryVariable('gethtml');
+    let get_openid = getQueryVariable('openid') || ''
+    let brethid = getQueryVariable('breth') || ''
+    let get_dealerType = getQueryVariable('get_dealer') || ''
+    console.log(get_dealerType)
+    let get_dealeraddType = getQueryVariable('get_dealeraddType') || ''
+    //console.log(get_dealeraddType)
+    let get_beizhu = getQueryVariable('get_beizhu') || ''
+    //console.log(get_beizhu)
+    let beizhuStr = ""
+    //console.log(beizhuStr)
+    // console.log(get_html)
+    // console.log(get_openid)
+    // console.log(brethid)
+    // console.log(multstyr)
+    //get_type stuff
+    let get_type = getQueryVariable('get_type')
+    //console.log(get_type)
+    let mulqarr = multstyr ? multstyr.split(",") : []
+    // console.log(mulqarr)
+    let mailmuleStr = mailarr ? mailarr.split(",") : []
+    // console.log(mailmuleStr)
+    //console.log(page_url)
+    let mailarropenidStr = get_openid ? get_openid.split(",") : []
+    // console.log(mailarropenidStr)
+    let brethidArrStr = brethid ? brethid.split(",") : []
+    // console.log(brethidArrStr)
+    let beizhustrArr = beizhuStr ? beizhuStr.split(",") : []
+    for (var i = 0; i < beizhustrArr.length; i++){
+      beizhustrArr[i] = UrlDecode(beizhustrArr[i])
+    }
+    //console.log(beizhustrArr)
+    let beizhuArrnewdArr = []
+    var beizhustrArrlen = beizhustrArr.length
+    //console.log(beizhustrArrlen)
+    for (var i = 0; i < beizhustrArrlen; i++) {
+      var mulid = mulqarr[i];
+      // console.log(mulid)
+      //mulidstr.push(mulid);
+      var beizhuVal = UrlDecode(beizhustrArr[i])
+      //console.log(beizhuVal)
+      let beizhuArrnewdx = {
+        mulid,
+        beizhuVal
+      }
+      //console.log(beizhuArrnewdx)
+      beizhuArrnewdArr.push(beizhuArrnewdx)
+    }
+    //console.log(beizhuArrnewdArr)
+    mySelection(type, page_url, mulqarr, mailmuleStr, get_html, mailarropenidStr, brethidArrStr, get_dealerType, get_dealeraddType, get_beizhu, beizhustrArr, beizhuStr, beizhuArrnewdArr)
+    if(type!='multipart'&&get_html!='mail'){
+      $(".selection-list").scroll(debounce(function(){
+        //绑定滚动事件
+        var scrollTop = $(".selection-list").scrollTop()
+        var boxHeight = $(".selection-list").height()
+        boxHeight -= 10
+        var docHeight = $(".selection-groupid").height()
+        if(scrollTop + boxHeight + 1 >= docHeight){
+          ayscHTML(saveRes,page_url)
+          $("#selection-groupid").html(html)
+
+          $(".selection-groupid li").each(function (i) {
+            $(this).click(function () {
+              $("#radio-right .radio span").removeClass("iconfont icon-x-gou");
+              $("#radio-right .radio span").eq(i).addClass("iconfont icon-x-gou");
+              html = $("#selection-groupid").html()
+              var seleusername = $(this).find('a').text();
+            });
+          });
+          //点击搜索
+          $('.search-icon-poLayer').click(function () {
+            var key = $("#mySearch").val();
+            $('#selection-groupid li').attr('id');
+            search();
+          });
+        }
+      },100))
+    }
+
+    /*if(type=='multipart'||get_html=='mail'){
+        $(".selection-list").scroll(debounce(function(){
+            //绑定滚动事件
+            var scrollTop = $(".selection-list").scrollTop()
+            var boxHeight = $(".selection-list").height()
+            boxHeight -= 10
+            var docHeight = $(".selection-groupid").height()
+            if(scrollTop + boxHeight + 1 >= docHeight){
+                console.log('触底了')
+                myselearr = saveRes.data;
+                ayscMultipartHTML(saveRes,beizhustrArr,mulqarr,mailmuleStr,mailarropenidStr,brethidArrStr,beizhuArrnewdArr)
+                $("#selection-groupid").html(html)
+                $("#srelection-con-sure").html('');
+                $("#selection-groupid li").each(function (i) {
+                    let id = $(this).data('id');
+                    let openids = $(this).attr('data-value')
+                    var arr = $(".selection-groupid li .icon-x-gou");
+                    let beizhumuild = beizhuArrnewdArr.map(item => {
+                        // 每一项的id
+                        return item.mulid
+                        return item.beizhuVal
+                    })
+
+                    if ($(this).find('.icon-x-gou').length > 0 || beizhumuild.includes(myselearr[i].id + '')) {
+                        $(this).addClass("activesw");
+                        var indexXb = beizhumuild.indexOf(myselearr[i].id + '')
+                        var new_html = '';
+                        new_html += `<li class="li_act li_act_right" data-beizhu="` + beizhustrArr[indexXb] + `" data-value="` + myselearr[i].openid + `" id="` + $(this).data('id') + `"><div class="selection-message-left" id="` + $(this).data('id') + `"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><input type="hidden" data-id="`+ id +`" value="` + (beizhustrArr[indexXb] ? beizhustrArr[indexXb] :'') + `
+                            "  /><div class="selection-message-right" id="radio-right"><span class="fr pointer popclose"><i class="iconfont icon-x-guanbi" onclick="delteem(` + id + `)"></i></span></div></li>`
+                        //console.log(html)
+                        $("#srelection-con-sure").append(new_html);
+                    }
+                    else {
+                        $('#' + id).remove()
+                        $(".selection-groupid li").eq(i).removeClass("activesw");
+                    }
+
+
+                    $(this).click(function () {
+                        //console.log(i)
+                        $("#radio-right .radio span").eq(i).toggleClass("iconfont icon-x-gou");
+                        html = $("#selection-groupid").html()
+                        $('.selection-groupid li').attr('id');
+
+                        let id = $(this).data('id');
+
+                        var arr = $(".selection-groupid li .icon-x-gou");
+                        console.log($(this).find('.icon-x-gou').length > 0)
+                        if ($(this).find('.icon-x-gou').length > 0) {
+                            $(this).addClass("activesw");
+                            var new_html = '';
+                            new_html += `<li class="li_act li_act_right" data-beizhu="` + beizhustrArr[indexXb] + `" data-value="` + myselearr[i].openid + `" id="` + $(this).data('id') + `"><div class="selection-message-left" id="` + $(this).data('id') + `"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><input data-id="`+ id +`" type="hidden" value="`+ (beizhustrArr[indexXb] ? beizhustrArr[indexXb] :'') + `
+                                " /><div class="selection-message-right" id="radio-right"><span class="fr pointer popclose"><i class="iconfont icon-x-guanbi" onclick="delteem(` + id + `)"></i></span></div></li>`
+                            $("#srelection-con-sure").append(new_html);
+                        }
+                        else {
+                            $('#' + id).remove()
+                            $(".selection-groupid li").eq(i).removeClass("activesw");
+                        }
+
+                    });
+                });
+                //$("#srelection-con-sure").html('')
+
+                $('.search-icon-poLayer').click(function () {
+                    var key = $("#mySearch").val();
+                    mysearchers();
+                    if (id != $("#srelection-con-sure li").eq(i).attr('id')) {
+                        var new_html = '';
+                        new_html += `<li class="li_act li_act_right" data-value="` + myselearr[i].openid + `" id="` + $(this).data('id') + `"><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><input type="hidden" value="" /><div class="selection-message-right" id="radio-right"><span class="fr pointer popclose" @click=""><i class="iconfont icon-x-guanbi" onclick="delteem(` + id + `)"></i></span></div></li>`
+                        //console.log(html)
+                        $("#srelection-con-sure").append(new_html);
+                    }
+                    else {
+                        alert("请不要重复插入")
+                    }
+                });
+            }
+        },100))
+    }*/
+  });
+  function ayscMultipartHTML(res,beizhustrArr,mulqarr,mailmuleStr,mailarropenidStr,brethidArrStr,beizhuArrnewdArr){
+    var myselearr = res.data;
+    if(flag==0){
+      //首次输出
+      if(myselearr.length>=count){
+        for (var i = 0; i < count; i++) {
+          html += `<li class=" li_act_multipart" data-beizhu="` + beizhustrArr[indexXb] + `" data-value="` + myselearr[i].openid + `" data-id="` + myselearr[i].id + `"><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><div class="selection-message-right radio-right-more" id="radio-right"><div class="radio"><span`
+
+          if (mulqarr.length > 0 || mailmuleStr.length > 0 || mailarropenidStr.length > 0 || brethidArrStr.length > 0 || beizhuArrnewdArr.length > 0) {
+            let beizhumuild = beizhuArrnewdArr.map(item => {
+              // 每一项的id
+              return item.mulid
+              return item.beizhuVal
+            })
+            if (beizhumuild.includes(myselearr[i].id + '') || mulqarr.includes(myselearr[i].id + '') || mailmuleStr.includes(myselearr[i].id + '') || mailarropenidStr.includes(myselearr[i].openid + '') || brethidArrStr.includes(myselearr[i].id + '')) {
+              var indexXb = beizhumuild.indexOf(myselearr[i].id + '')
+              html += ` class="iconfont icon-x-gou" data-beizhu = "` + beizhustrArr[indexXb] + ` `
+            }
+          }
+          html += `><input type="checkbox"  name="sex" value="` + myselearr[i].nickname + `" onclick=""></span></div></div></li>`
+        }
+      }
+      else{
+        for (var i = 0; i < myselearr.length; i++) {
+          html += `<li class=" li_act_multipart" data-beizhu="` + beizhustrArr[indexXb] + `" data-value="` + myselearr[i].openid + `" data-id="` + myselearr[i].id + `"><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><div class="selection-message-right radio-right-more" id="radio-right"><div class="radio"><span`
+
+          if (mulqarr.length > 0 || mailmuleStr.length > 0 || mailarropenidStr.length > 0 || brethidArrStr.length > 0 || beizhuArrnewdArr.length > 0) {
+            let beizhumuild = beizhuArrnewdArr.map(item => {
+              // 每一项的id
+              return item.mulid
+              return item.beizhuVal
+            })
+            if (beizhumuild.includes(myselearr[i].id + '') || mulqarr.includes(myselearr[i].id + '') || mailmuleStr.includes(myselearr[i].id + '') || mailarropenidStr.includes(myselearr[i].openid + '') || brethidArrStr.includes(myselearr[i].id + '')) {
+              var indexXb = beizhumuild.indexOf(myselearr[i].id + '')
+              html += ` class="iconfont icon-x-gou" data-beizhu = "` + beizhustrArr[indexXb] + ` `
+            }
+          }
+          html += `><input type="checkbox"  name="sex" value="` + myselearr[i].nickname + `" onclick=""></span></div></div></li>`
+        }
+      }
+      flag=1;
+    }
+    else if(flag==1){
+      if(count+10>myselearr.length){
+        if(finalFlag==0){
+          for (var i = count; i < myselearr.length; i++) {
+            html += `<li class=" li_act_multipart" data-beizhu="` + beizhustrArr[indexXb] + `" data-value="` + myselearr[i].openid + `" data-id="` + myselearr[i].id + `"><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><div class="selection-message-right radio-right-more" id="radio-right"><div class="radio"><span`
+
+            if (mulqarr.length > 0 || mailmuleStr.length > 0 || mailarropenidStr.length > 0 || brethidArrStr.length > 0 || beizhuArrnewdArr.length > 0) {
+              let beizhumuild = beizhuArrnewdArr.map(item => {
+                // 每一项的id
+                return item.mulid
+                return item.beizhuVal
+              })
+              if (beizhumuild.includes(myselearr[i].id + '') || mulqarr.includes(myselearr[i].id + '') || mailmuleStr.includes(myselearr[i].id + '') || mailarropenidStr.includes(myselearr[i].openid + '') || brethidArrStr.includes(myselearr[i].id + '')) {
+                var indexXb = beizhumuild.indexOf(myselearr[i].id + '')
+                html += ` class="iconfont icon-x-gou" data-beizhu = "` + beizhustrArr[indexXb] + ` `
+              }
+            }
+            html += `><input type="checkbox"  name="sex" value="` + myselearr[i].nickname + `" onclick=""></span></div></div></li>`
+          }
+          html+='<div class="alertWord">已经到底了</div>'
+          finalFlag = 1;
+        }
+      }
+      else{
+        for (var i = count; i < count+10; i++) {
+          html += `<li class=" li_act_multipart" data-beizhu="` + beizhustrArr[indexXb] + `" data-value="` + myselearr[i].openid + `" data-id="` + myselearr[i].id + `"><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><div class="selection-message-right radio-right-more" id="radio-right"><div class="radio"><span`
+
+          if (mulqarr.length > 0 || mailmuleStr.length > 0 || mailarropenidStr.length > 0 || brethidArrStr.length > 0 || beizhuArrnewdArr.length > 0) {
+            let beizhumuild = beizhuArrnewdArr.map(item => {
+              // 每一项的id
+              return item.mulid
+              return item.beizhuVal
+            })
+            if (beizhumuild.includes(myselearr[i].id + '') || mulqarr.includes(myselearr[i].id + '') || mailmuleStr.includes(myselearr[i].id + '') || mailarropenidStr.includes(myselearr[i].openid + '') || brethidArrStr.includes(myselearr[i].id + '')) {
+              var indexXb = beizhumuild.indexOf(myselearr[i].id + '')
+              html += ` class="iconfont icon-x-gou" data-beizhu = "` + beizhustrArr[indexXb] + ` `
+            }
+          }
+          html += `><input type="checkbox"  name="sex" value="` + myselearr[i].nickname + `" onclick=""></span></div></div></li>`
+        }
+        count+=10;
+      }
+    }
+
+  }
+
+
+
+  function ayscHTML(res,page_url){
+    var user = res.data;
+    if(flag==0){
+      if(user.length>=count){
+        for (var i = 0; i < count; i++) {
+          html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+          if (page_url == res.data[i]['id']) {
+            html += ` class="iconfont icon-x-gou"`
+          }
+          html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+        }
+      }
+      else if(user.length<count){
+        for (var i = 0; i < user.length; i++) {
+          html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+          if (page_url == res.data[i]['id']) {
+            html += ` class="iconfont icon-x-gou"`
+          }
+          html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+        }
+        //console.log(html)
+      }
+      flag=1;
+    }
+    else if(flag==1){
+      if(count+10>user.length){
+        if(finalFlag==0){
+          for (var i = count; i < user.length; i++) {
+            html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+            if (page_url == res.data[i]['id']) {
+              html += ` class="iconfont icon-x-gou"`
+            }
+            html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+          }
+          html += '<div class="alertWord">已经到底了</div>'
+          finalFlag=1;
+        }
+        else{}
+      }
+      else{
+        //html = html.substring(0,html.length-37)
+        for (var i = count; i < count+10; i++) {
+          html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+          if (page_url == res.data[i]['id']) {
+            html += ` class="iconfont icon-x-gou"`
+          }
+          html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+        }
+        count += 10;
+      }
+    }
+
+    //html += '<div class="alertWord">下拉获取更多内容</div>'
+    //console.log(count)
+  };
+  function getQueryVariable(variable) {
+    var query = window.location.search.substring(1);
+    var vars = query.split("&");
+    for (var i = 0; i < vars.length; i++) {
+      var pair = vars[i].split("=");
+      // console.log(vars)
+      if (pair[0] == variable) { return pair[1]; }
+    }
+    return (false);
+  };
+  // 点击搜索按钮搜索
+  function mySelection(type, page_url, mulqarr, mailmuleStr, get_html, mailarropenidStr, brethidArrStr, get_dealerType, get_dealeraddType, get_beizhu, beizhustrArr, beizhuStr, beizhuArrnewdArr) {
+    var key = $("#mySearch").val();
+    // var get_type = $("#selcet-dx").attr('data-item')
+    // console.log("type")
+    // console.log(get_type)
+    // console.log("key")
+    // console.log(get_dealeraddType)
+    if (get_dealeraddType == 'add_fx' || get_dealeraddType == 'all_stock' || get_dealeraddType == 'cate_stock' || get_dealeraddType == 'account_notice') {
+      $("#loading").show();
+      $.ajax({
+        url: "{:Url('WxuserController/userSelectionData')}",
+        type: "post",
+        dataType: 'json',
+        data: {
+          key: key,
+          get_type: get_dealeraddType,
+        },
+        success: function (res) {
+          $("#loading").hide();
+          var user = res.data
+          // var html = ''
+
+          // for (var i = 0; i < user.length; i++) {
+          // 	html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+
+          // 	if (page_url == res.data[i]['id']) {
+          // 		html += ` class="iconfont icon-x-gou"`
+          // 	}
+
+          // 	html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+          // }
+          saveRes = res;
+          ayscHTML(res,page_url);
+          $("#selection-groupid").html(html)
+          $("#groupid").html(html)
+          //console.log($("#groupid").html(html))
+          $('.loader').show();
+          $('.popup_create').show()
+
+          $(".selection-groupid li").each(function (i) {
+            $(this).click(function () {
+              // console.log(i)
+              // console.log($(".selection-groupid li"))
+              $("#radio-right .radio span").removeClass("iconfont icon-x-gou");
+              $("#radio-right .radio span").eq(i).addClass("iconfont icon-x-gou");
+              html = $("#selection-groupid").html()
+              var seleusername = $(this).find('a').text();
+              //console.log($(this).find('a').text())
+              //document.getElementById("selcet-dx").value=$(this).find('a').text()
+            });
+
+          });
+          $('.srelection-content-end').hide();
+          //点击搜索
+          $('.search-icon-poLayer').click(function () {
+            var key = $("#mySearch").val();
+            //console.log(key)
+            $('#selection-groupid li').attr('id');
+            //console.log(id)
+            search();
+          });
+        }
+      })
+    }
+    else if (get_dealerType == 'fx') {
+      $.ajax({
+        url: "{:Url('WxuserController/userSelectionData')}",
+        type: "post",
+        dataType: 'json',
+        data: {
+          key: key,
+          get_type: get_dealerType,
+        },
+        success: function (res) {
+          var user = res.data
+          // console.log(user)
+          var html = ''
+          for (var i = 0; i < user.length; i++) {
+            html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+
+            if (page_url == res.data[i]['id']) {
+              html += ` class="iconfont icon-x-gou"`
+            }
+
+            html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+          }
+          $("#selection-groupid").html(html)
+          $("#groupid").html(html)
+          //console.log($("#groupid").html(html))
+          $('.loader').show();
+          $('.popup_create').show()
+
+          $(".selection-groupid li").each(function (i) {
+            $(this).click(function () {
+              // console.log(i)
+              // console.log($(".selection-groupid li"))
+              $("#radio-right .radio span").removeClass("iconfont icon-x-gou");
+              $("#radio-right .radio span").eq(i).addClass("iconfont icon-x-gou");
+              var seleusername = $(this).find('a').text();
+              //console.log($(this).find('a').text())
+              //document.getElementById("selcet-dx").value=$(this).find('a').text()
+            });
+
+          });
+          $('.srelection-content-end').hide();
+          //点击搜索
+          $('.search-icon-poLayer').click(function () {
+            var key = $("#mySearch").val();
+            //console.log(key)
+            $('#selection-groupid li').attr('id');
+            //console.log(id)
+            search();
+          });
+        }
+      })
+    }
+    else if(get_dealerType == 'fx_td'){
+      $.ajax({
+        url: "{:Url('WxuserController/userSelectionData')}",
+        type: "post",
+        dataType: 'json',
+        data: {
+          key: key,
+          get_type: get_dealerType,
+        },
+        success: function (res) {
+          var user = res.data
+          // console.log(user)
+          // var html = ''
+          // for (var i = 0; i < user.length; i++) {
+          // 	html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+
+          // 	if (page_url == res.data[i]['id']) {
+          // 		html += ` class="iconfont icon-x-gou"`
+          // 	}
+
+          // 	html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+          // }
+          saveRes = res;
+          ayscHTML(res,page_url);
+          $("#selection-groupid").html(html)
+          $("#groupid").html(html)
+          //console.log($("#groupid").html(html))
+          $('.loader').show();
+          $('.popup_create').show()
+
+          $(".selection-groupid li").each(function (i) {
+            $(this).click(function () {
+              // console.log(i)
+              // console.log($(".selection-groupid li"))
+              $("#radio-right .radio span").removeClass("iconfont icon-x-gou");
+              $("#radio-right .radio span").eq(i).addClass("iconfont icon-x-gou");
+              html = $("#selection-groupid").html()
+              var seleusername = $(this).find('a').text();
+              //console.log($(this).find('a').text())
+              //document.getElementById("selcet-dx").value=$(this).find('a').text()
+            });
+
+          });
+          $('.srelection-content-end').hide();
+          //点击搜索
+          $('.search-icon-poLayer').click(function () {
+            var key = $("#mySearch").val();
+            //console.log(key)
+            $('#selection-groupid li').attr('id');
+            //console.log(id)
+            search();
+          });
+        }
+      })
+    }
+    else if(get_dealerType == 'group_leader'){
+      $.ajax({
+        url: "{:Url('WxuserController/userSelectionData')}",
+        type: "post",
+        dataType: 'json',
+        data: {
+          key: key,
+          get_type: get_dealerType,
+        },
+        success: function (res) {
+          var user = res.data
+          // console.log(user)
+          var html = ''
+          for (var i = 0; i < user.length; i++) {
+            html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+
+            if (page_url == res.data[i]['id']) {
+              html += ` class="iconfont icon-x-gou"`
+            }
+
+            html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+          }
+          $("#selection-groupid").html(html)
+          $("#groupid").html(html)
+          //console.log($("#groupid").html(html))
+          $('.loader').show();
+          $('.popup_create').show()
+
+          $(".selection-groupid li").each(function (i) {
+            $(this).click(function () {
+              // console.log(i)
+              // console.log($(".selection-groupid li"))
+              $("#radio-right .radio span").removeClass("iconfont icon-x-gou");
+              $("#radio-right .radio span").eq(i).addClass("iconfont icon-x-gou");
+              var seleusername = $(this).find('a').text();
+              //console.log($(this).find('a').text())
+              //document.getElementById("selcet-dx").value=$(this).find('a').text()
+            });
+
+          });
+          $('.srelection-content-end').hide();
+          //点击搜索
+          $('.search-icon-poLayer').click(function () {
+            var key = $("#mySearch").val();
+            //console.log(key)
+            $('#selection-groupid li').attr('id');
+            //console.log(id)
+            search();
+          });
+        }
+      })
+    }
+    else if(get_dealerType == 'add_group_leader'){
+      $.ajax({
+        url: "{:Url('WxuserController/userSelectionData')}",
+        type: "post",
+        dataType: 'json',
+        data: {
+          key: key,
+          get_type: get_dealerType,
+        },
+        success: function (res) {
+          var user = res.data
+          // console.log(user)
+          var html = ''
+          for (var i = 0; i < user.length; i++) {
+            html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+
+            if (page_url == res.data[i]['id']) {
+              html += ` class="iconfont icon-x-gou"`
+            }
+
+            html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+          }
+          $("#selection-groupid").html(html)
+          $("#groupid").html(html)
+          //console.log($("#groupid").html(html))
+          $('.loader').show();
+          $('.popup_create').show()
+
+          $(".selection-groupid li").each(function (i) {
+            $(this).click(function () {
+              // console.log(i)
+              // console.log($(".selection-groupid li"))
+              $("#radio-right .radio span").removeClass("iconfont icon-x-gou");
+              $("#radio-right .radio span").eq(i).addClass("iconfont icon-x-gou");
+              var seleusername = $(this).find('a').text();
+              //console.log($(this).find('a').text())
+              //document.getElementById("selcet-dx").value=$(this).find('a').text()
+            });
+
+          });
+          $('.srelection-content-end').hide();
+          //点击搜索
+          $('.search-icon-poLayer').click(function () {
+            var key = $("#mySearch").val();
+            //console.log(key)
+            $('#selection-groupid li').attr('id');
+            //console.log(id)
+            search();
+          });
+        }
+      })
+    }
+    else if(get_dealerType == 'group_leader'){
+      $.ajax({
+        url: "{:Url('WxuserController/userSelectionData')}",
+        type: "post",
+        dataType: 'json',
+        data: {
+          key: key,
+          get_type: get_dealerType,
+        },
+        success: function (res) {
+          var user = res.data
+          // console.log(user)
+          var html = ''
+          for (var i = 0; i < user.length; i++) {
+            html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+
+            if (page_url == res.data[i]['id']) {
+              html += ` class="checked"`
+            }
+
+            html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+          }
+          $("#selection-groupid").html(html)
+          $("#groupid").html(html)
+          //console.log($("#groupid").html(html))
+          $('.loader').show();
+          $('.popup_create').show()
+
+          $(".selection-groupid li").each(function (i) {
+            $(this).click(function () {
+              // console.log(i)
+              // console.log($(".selection-groupid li"))
+              $("#radio-right .radio span").removeClass("checked");
+              $("#radio-right .radio span").eq(i).addClass("checked");
+              var seleusername = $(this).find('a').text();
+              //console.log($(this).find('a').text())
+              //document.getElementById("selcet-dx").value=$(this).find('a').text()
+            });
+
+          });
+          $('.srelection-content-end').hide();
+          //点击搜索
+          $('.search-icon-poLayer').click(function () {
+            var key = $("#mySearch").val();
+            //console.log(key)
+            $('#selection-groupid li').attr('id');
+            //console.log(id)
+            search();
+          });
+        }
+      })
+    }
+    else if(get_dealerType == 'add_group_leader'){
+      $.ajax({
+        url: "{:Url('WxuserController/userSelectionData')}",
+        type: "post",
+        dataType: 'json',
+        data: {
+          key: key,
+          get_type: get_dealerType,
+        },
+        success: function (res) {
+          var user = res.data
+          // console.log(user)
+          var html = ''
+          for (var i = 0; i < user.length; i++) {
+            html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+
+            if (page_url == res.data[i]['id']) {
+              html += ` class="checked"`
+            }
+
+            html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+          }
+          $("#selection-groupid").html(html)
+          $("#groupid").html(html)
+          //console.log($("#groupid").html(html))
+          $('.loader').show();
+          $('.popup_create').show()
+
+          $(".selection-groupid li").each(function (i) {
+            $(this).click(function () {
+              // console.log(i)
+              // console.log($(".selection-groupid li"))
+              $("#radio-right .radio span").removeClass("checked");
+              $("#radio-right .radio span").eq(i).addClass("checked");
+              var seleusername = $(this).find('a').text();
+              //console.log($(this).find('a').text())
+              //document.getElementById("selcet-dx").value=$(this).find('a').text()
+            });
+
+          });
+          $('.srelection-content-end').hide();
+          //点击搜索
+          $('.search-icon-poLayer').click(function () {
+            var key = $("#mySearch").val();
+            //console.log(key)
+            $('#selection-groupid li').attr('id');
+            //console.log(id)
+            search();
+          });
+        }
+      })
+    }
+    else {
+      $("#loading").show();
+      $.ajax({
+        url: "{:Url('WxuserController/userSelectionData')}",
+        type: "get",
+        dataType: 'json',
+        data: {
+          key: key
+        },
+        success: function (res) {
+          $("#loading").hide()
+          console.log(666666666666)
+          // console.log(res)
+          var myselearr = res.data.data;
+          // console.log(myselearr)
+          // $("#selection-groupid").html('')
+          // var html = ``;
+          // // console.log(shop_sell.length)
+          if (type == 'single') {
+            // 	// 遍历插入
+            // 	for (var i = 0; i < res.data.length; i++) {
+            // 		//
+            // 		html += `<li class="li_act" data-id="` + myselearr[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span `
+
+            // 		if (page_url == res.data[i]['id']) {
+            // 			html += ` class="iconfont icon-x-gou"`
+            // 		}
+
+            // 		html += `><input data-id="` + myselearr[i].id + `" type="radio"  name="sex" value="` + myselearr[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+            // 	}
+            // console.log(html)
+            //console.log('进if (type == single)')
+            saveRes = res;
+            ayscHTML(res,page_url);
+            $("#selection-groupid").html(html)
+            $(".selection-groupid li").each(function (i) {
+              $(this).click(function () {
+                // console.log(i)
+                // console.log($(".selection-groupid li"))
+                $("#radio-right .radio span").removeClass("iconfont icon-x-gou");
+                $("#radio-right .radio span").eq(i).addClass("iconfont icon-x-gou");
+                html = $("#selection-groupid").html()
+                var seleusername = $(this).find('a').text();
+                //console.log($(this).find('a').text())
+                //document.getElementById("selcet-dx").value=$(this).find('a').text()
+              });
+
+            });
+            $('.srelection-content-end').hide();
+            //点击搜索
+            $('.search-icon-poLayer').click(function () {
+              var key = $("#mySearch").val();
+              //console.log(key)
+              $('#selection-groupid li').attr('id');
+              //console.log(id)
+              search();
+            });
+            //回车搜索
+
+          } else if (type == 'multipart' || get_html == 'mail') {
+            var myselearr = res.data.data
+            html='';
+            for (var i = 0; i < myselearr.length; i++) {
+              html += `<li class=" li_act_multipart" data-beizhu="` + beizhustrArr[indexXb] + `" data-value="` + myselearr[i].openid + `" data-id="` + myselearr[i].id + `"><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><div class="selection-message-right radio-right-more" id="radio-right"><div class="radio"><span`
+
+              if (mulqarr.length > 0 || mailmuleStr.length > 0 || mailarropenidStr.length > 0 || brethidArrStr.length > 0 || beizhuArrnewdArr.length > 0) {
+                let beizhumuild = beizhuArrnewdArr.map(item => {
+                  // 每一项的id
+                  return item.mulid
+                  return item.beizhuVal
+                })
+                if (beizhumuild.includes(myselearr[i].id + '') || mulqarr.includes(myselearr[i].id + '') || mailmuleStr.includes(myselearr[i].id + '') || mailarropenidStr.includes(myselearr[i].openid + '') || brethidArrStr.includes(myselearr[i].id + '')) {
+                  var indexXb = beizhumuild.indexOf(myselearr[i].id + '')
+                  //console.log(beizhumuild.indexOf(myselearr[i].id + ''))
+                  html += ` class="iconfont icon-x-gou" data-beizhu = "` + beizhustrArr[indexXb] + ` `
+                }
+              }
+              html += `><input type="checkbox"  name="sex" value="` + myselearr[i].nickname + `" onclick=""></span></div></div></li>`
+            }
+            $("#selection-groupid").html(html)
+            $("#srelection-con-sure").html('')
+            $("#selection-groupid li").each(function (i) {
+              let id = $(this).data('id');
+              let openids = $(this).attr('data-value')
+              //console.log(openids)
+              var arr = $(".selection-groupid li .icon-x-gou");
+              //var hxbeizhu = $("#beizhu").val()
+              //console.log($(this).find('.checked').length > 0)
+              // console.log(beizhuStr)
+              // console.log(beizhustrArr)
+              // for(var t = 0; t < beizhustrArr.length; t++){
+              // 	console.log(beizhustrArr[t])
+
+              // }
+              // let beizhunewArr = []
+              // let mialmulemoredx = {
+              // 	id,
+              // 	name
+              // }
+              let beizhumuild = beizhuArrnewdArr.map(item => {
+                // 每一项的id
+                return item.mulid
+                return item.beizhuVal
+                //console.log(item.id)
+              })
+              // console.log(beizhumuild)
+              // console.log(beizhumuild.includes(myselearr[i].id + ''))
+              if ($(this).find('.icon-x-gou').length > 0 || beizhumuild.includes(myselearr[i].id + '')) {
+                $(this).addClass("activesw");
+                var indexXb = beizhumuild.indexOf(myselearr[i].id + '')
+                //console.log(beizhumuild.indexOf(myselearr[i].id + ''))
+                // var beizhulen = beizhustrArr.length
+                var new_html = '';
+                new_html += `<li class="li_act li_act_right" data-beizhu="` + beizhustrArr[indexXb] + `" data-value="` + myselearr[i].openid + `" id="` + $(this).data('id') + `"><div class="selection-message-left" id="` + $(this).data('id') + `"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><input type="hidden" data-id="`+ id +`" value="` + (beizhustrArr[indexXb] ? beizhustrArr[indexXb] :'') + `
+									"  /><div class="selection-message-right" id="radio-right"><span class="fr pointer popclose"><i class="iconfont icon-x-guanbi" onclick="delteem(` + id + `)"></i></span></div></li>`
+                //console.log(html)
+                $("#srelection-con-sure").append(new_html);
+              }
+              else {
+                $('#' + id).remove()
+                $(".selection-groupid li").eq(i).removeClass("activesw");
+
+              }
+
+
+              $(this).click(function () {
+                //console.log(i)
+                $("#radio-right .radio span").eq(i).toggleClass("iconfont icon-x-gou");
+                html = $("#selection-groupid").html()
+                $('.selection-groupid li').attr('id');
+
+                let id = $(this).data('id');
+
+                var arr = $(".selection-groupid li .icon-x-gou");
+                console.log($(this).find('.icon-x-gou').length > 0)
+                if ($(this).find('.icon-x-gou').length > 0) {
+                  $(this).addClass("activesw");
+                  var new_html = '';
+                  new_html += `<li class="li_act li_act_right" data-beizhu="` + beizhustrArr[indexXb] + `" data-value="` + myselearr[i].openid + `" id="` + $(this).data('id') + `"><div class="selection-message-left" id="` + $(this).data('id') + `"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><input data-id="`+ id +`" type="hidden" value="`+ (beizhustrArr[indexXb] ? beizhustrArr[indexXb] :'') + `
+										" /><div class="selection-message-right" id="radio-right"><span class="fr pointer popclose"><i class="iconfont icon-x-guanbi" onclick="delteem(` + id + `)"></i></span></div></li>`
+                  //console.log(html)
+                  $("#srelection-con-sure").append(new_html);
+                }
+                else {
+                  $('#' + id).remove()
+                  $(".selection-groupid li").eq(i).removeClass("activesw");
+                }
+              });
+            });
+            //$("#srelection-con-sure").html('')
+
+            $('.search-icon-poLayer').click(function () {
+              var key = $("#mySearch").val();
+              mysearchers();
+              if (id != $("#srelection-con-sure li").eq(i).attr('id')) {
+                var html = '';
+                html += `<li class="li_act li_act_right" data-value="` + myselearr[i].openid + `" id="` + $(this).data('id') + `"><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><input type="hidden" value="" /><div class="selection-message-right" id="radio-right"><span class="fr pointer popclose" @click=""><i class="iconfont icon-x-guanbi" onclick="delteem(` + id + `)"></i></span></div></li>`
+                //console.log(html)
+                $("#srelection-con-sure").append(html);
+              }
+              else {
+                alert("请不要重复插入")
+              }
+            });
+          }
+        }
+      })
+    }
+  }
+  var parent_id = ''
+  var parent_nickname = ''
+  //回车搜索
+  function entersearch() {
+    var key = $("#mySearch").val();
+    let get_dealerType = getQueryVariable('get_dealer') || ''
+    var event = window.event || arguments.callee.caller.arguments[0];
+    //console.log(event)
+    let type = getQueryVariable('type');
+    //判断type
+    console.log(type)
+    if (event.keyCode == 13) {
+      if (type == 'single' && get_dealerType == 'fx') {
+        search();
+      }
+      else if (type == 'multipart') {
+        mysearchers();
+      }
+      else if (type == 'single') {
+        mysearchs()
+      }
+    }
+  }
+  function search() {
+    let get_dealerType = getQueryVariable('get_dealer') || ''
+    var key = $("#mySearch").val();
+    $("#loading").show();
+    $.ajax({
+      url: "{:Url('WxuserController/userSelectionData')}",
+      type: "post",
+      dataType: 'json',
+      data: {
+        key: key,
+        get_type: get_dealerType,
+      },
+      success: function (res) {
+        $("#loading").hide();
+        var user = res.data
+
+        // for (var i = 0; i < user.length; i++) {
+        // 	html += `<li class="li_act" data-id="` + user[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + user[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + user[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + user[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span`
+
+        // 	// if (page_url == res.data[i]['id']) {
+        // 	// 	html += ` class="iconfont icon-x-gou"`
+        // 	// }
+
+        // 	html += `><input data-id="` + user[i].id + `" type="radio"  name="sex" value="` + user[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+        // }
+        html = ''
+        count = 10;
+        flag = 0;
+        finalFlag = 0;
+        ayscHTML(res,0)
+        $("#selection-groupid").html(html)
+        $("#groupid").html(html)
+        $('.loader').show();
+        $('.popup_create').show()
+
+        $(".selection-groupid li").each(function (i) {
+          $(this).click(function () {
+            // console.log(i)
+            // console.log($(".selection-groupid li"))
+            $("#radio-right .radio span").removeClass("iconfont icon-x-gou");
+            $("#radio-right .radio span").eq(i).addClass("iconfont icon-x-gou");
+            html = $("#selection-groupid").html();
+            var seleusername = $(this).find('a').text();
+            //console.log($(this).find('a').text())
+            //document.getElementById("selcet-dx").value=$(this).find('a').text()
+          });
+        });
+        // $('.srelection-content-end').hide();
+        //点击搜索
+        // $('.search-icon-poLayer').click(function () {
+        // 	var key = $("#mySearch").val();
+        // 	//console.log(key)
+        // 	$('#selection-groupid li').attr('id');
+        // 	//console.log(id)
+        // 	search();
+        // });
+      }
+    })
+  }
+  //单选搜索功能
+  function mysearchs() {
+    var key = $("#mySearch").val();
+    console.log(key)
+    let get_dealerTypefirst = $("#mySearch").attr('get_dealer')
+    let key_type = $("#mySearch").attr('get_dealer')
+    console.log(key_type)
+    $.ajax({
+      url: "{:Url('WxuserController/userSelectionData')}",
+      type: "get",
+      dataType: 'json',
+      data: {
+        key: key,
+      },
+      success: function (res) {
+        console.log(res)
+        var myselearr = res.data;
+        console.log(myselearr)
+        $("#selection-groupid").html('')
+        var html = ``;
+        // console.log(shop_sell.length)
+        // 遍历插入
+        for (var i = 0; i < res.data.length; i++) {
+          //
+          html += `<li class="li_act liact_single" data-id="` + myselearr[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span><input data-id="` + myselearr[i].id + `" type="radio"  name="sex" value="` + myselearr[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+        }
+        // console.log(html)
+        $("#selection-groupid").html(html)
+        $(".selection-groupid li").each(function (i) {
+          $(this).click(function () {
+
+            // console.log(i)
+            // console.log($(".selection-groupid li"))
+            $("#radio-right .radio span").removeClass("iconfont icon-x-gou");
+            $("#radio-right .radio span").eq(i).addClass("iconfont icon-x-gou");
+            var seleusername = $(this).find('a').text();
+            //console.log($(this).find('a').text())
+            //document.getElementById("selcet-dx").value=$(this).find('a').text()
+          });
+
+        });
+      }
+    })
+  }
+  //多选搜索功能
+  function mysearchers() {
+    var key = $("#mySearch").val();
+    $.ajax({
+      url: "{:Url('WxuserController/userSelectionData')}",
+      type: "get",
+      dataType: 'json',
+      data: {
+        key: key,
+      },
+      success: function (res) {
+        // console.log(res)
+        var myselearr = res.data;
+        //console.log(myselearr)
+        $("#selection-groupid").html('')
+        var html = ``;
+        // console.log(shop_sell.length)
+        // 遍历插入
+        for (var i = 0; i < res.data.length; i++) {
+          //
+          let id = $('.selection-groupid li').attr('id');
+          html += `<li class="li_act_multipart" data-value="` + myselearr[i].value + `" data-id="` + myselearr[i].id + `" ><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><div class="radio"><span><input type="radio"  name="sex" value="` + myselearr[i].nickname + `" onclick="TestChange()"></span></div></div></li>`
+        }
+        // console.log(html)
+        $("#selection-groupid").html(html)
+        $(".selection-groupid li").each(function (i) {
+          $(this).click(function () {
+            console.log(i)
+            $("#radio-right .radio span").eq(i).toggleClass("iconfont icon-x-gou icon-x-mulemore");
+            $('.selection-groupid li').data('id');
+
+            let id = $('.selection-groupid li').data('id');
+            //console.log(id)
+            var arr = $(".selection-groupid li .icon-x-gou");
+            // console.log($(this).find('.checked').length > 0)
+            // console.log("swwwwwwwww")
+            if ($(this).find('.icon-x-gou').length > 0) {
+              $(this).addClass("activesw");
+              //console.log(id != $(this).attr('id'))
+              if (id != $("#srelection-con-sure li").eq(i).attr('id')) {
+                var html = '';
+                html += `<li class="li_act li_act_right" data-value="` + myselearr[i].value + `" id="` + $(this).data('id') + `"><div class="selection-message-left"><div class="selection-person"><img src="` + myselearr[i].avatar + `" alt=""></div><div class="selection-message"><div class="selection-message-top"><span class="selection-message-top-title">` + '昵称' + `</span><a id="selection-user-mess" class="selection-user selection-message-user" href="javascript:void(0)">` + myselearr[i].nickname + `</a></div><div class="selection-message-bottom"><span class="selection-message-top-txt">` + '手机' + `</span><span class="selection-message-user">` + myselearr[i].mobile + `</span></div></div></div><div class="selection-message-right" id="radio-right"><span class="fr pointer popclose" @click=""><i class="iconfont icon-x-guanbi" onclick="delteem(` + id + `)"></i></span></div></li>`
+                //console.log(html)
+                $("#srelection-con-sure").append(html);
+              }
+              else {
+                alert("请不要重复插入")
+              }
+            }
+            else {
+              $('#' + id).remove()
+              $(".selection-groupid li").eq(i).removeClass("activesw");
+            }
+
+          });
+        });
+      }
+    })
+  }
+
+  var parent_id = ''
+  var parent_nickname = ''
+  $(document).on("click", "#selection-groupid li", function () {
+    // $(".popup_con div").css('background-color', '')
+    // $(this).css('background-color', 'rgba(168, 166, 166, 0.1)')
+    parent_id = $(this).data('id');
+    // console.log(parent_id)
+    parent_nickname = $(".selection-groupid li .icon-x-gou input").val();
+    // console.log(parent_nickname)
+  })
+  // 判断是否被选
+  function formCancle() {
+    var index = parent.layer.getFrameIndex(window.name); //先得到当前iframe层的索引
+    parent.layer.close(index); //再执行关闭
+  }
+  function formClose() {
+    let item_id = parent.$(".daeler").val()
+    let class_id = 'parent_id' + item_id
+
+    // console.log('////////')
+    // console.log(item_id)
+    // console.log('////////')
+    // console.log(class_id)
+
+    //确认按钮
+    var arr = $(".selection-groupid li .icon-x-gou");
+    var seleusername = $(".selection-groupid li .icon-x-gou input").val();
+    var seleuserid = $(".selection-groupid li .icon-x-gou input").attr('data-id');
+    // console.log($(".selection-groupid li .checked input").val())
+    console.log(seleusername)
+    if (arr.length == 0) {
+      alert("请选择管理人员")
+    }
+    else {
+      let type = getQueryVariable('type');
+      let get_html = getQueryVariable('gethtml');
+      let get_dealerType = getQueryVariable('get_dealer') || ''
+      let get_dealeraddType = getQueryVariable('get_dealeraddType') || ''
+      if (get_dealerType == 'fx') {
+        var fxup = parent.$(".fxup").attr('data-fxup')
+        if(fxup == 'fxup'){
+          item_id = parent.$(".fxup").attr('data-id')
+          if (!parent_id || parent_id == item_id) {
+            alert('请选择要绑定的分销商');
+            return false;
+          }
+          $.ajax({
+            url: "{:Url('WxuserController/changeUserParentFxsUser')}",
+            type: "post",
+            dataType: 'json',
+            data: {
+              suid: item_id,
+              new_fxs_id: parent_id
+            },
+            success: function (res) {
+              if(res.code == 1){
+                parent.$(".con2_show4").html(parent_nickname)
+              }else{
+                alert(res.msg);
+                return false
+              }
+            }
+          })
+        }else{
+          parent.$(".btn-outline-info").attr('data-id', parent_id)
+          if (!parent_id || parent_id == item_id) {
+            alert('请选择要绑定的分销商');
+            return false;
+          }
+          $.ajax({
+            url: "{:Url('Fx/changeBindFxs')}",
+            type: "post",
+            dataType: 'json',
+            data: {
+              suid: item_id,
+              parent_id: parent_id
+            },
+            success: function (res) {
+              var res = JSON.parse(res)
+              if (res.error == 1) {
+                alert(res.msg);
+                return false
+              }
+              $('.' + class_id).html(parent_nickname)
+              parent.location.href = "{:Url('Fx/dealer')}"
+            }
+          })
+          $(".popup_con").empty();
+          $("#key").val('')
+          parent.$("#selcet-dx").attr('data-id')
+          parent.$(".pop_set").val(seleusername)
+          parent.$("#selcet-dx").val(seleusername)
+          // console.log($("#selcet-dx").val(seleusername))
+          parent.$("#groupId").val(seleuserid)
+          parent.$("#selcet-dx").attr('data-id', seleuserid)
+        }
+      }
+      else if (type == 'single') {
+        parent.$("#selcet-dx").attr('data-id')
+        parent.$(".pop_set").val(seleusername)
+        console.log(parent.$("#selcet-dx").val(seleusername))
+        parent.$("#groupId").val(seleuserid)
+        console.log(seleuserid)
+        parent.$("#selcet-dx").attr('data-id', seleuserid)
+      }
+      else {
+        var htmltable = '';
+        var muleusername = $('#srelection-con-sure li')
+        var muleusernameli = $('#srelection-con-sure').length
+        //console.log($('#srelection-con-sure li').length)
+        //console.log($(".selection-message-left").attr("id"))
+        if (muleusername.length > 0 && parent.$('#muletaBle').length == 0) {
+          // console.log($("#muletaBle").find("tr").length)
+          htmltable += `<table id="muletaBle" style="border: 1px solid #F0F3F5;" border="1"><thead><th  width="300">用户信息</th><th  width="200">用户备注</th><th  width="150">操作</th></thead><tbody id="yhmess"></tobdy></table>`;
+          parent.$(".control-group-moreinput").append(htmltable)
+
+        }
+        var html = ''
+        parent.$("#yhmess").html('')
+        // console.log("11111111")
+        // console.log(muleusername.length)
+        // console.log("11111111")
+        // console.log($("#yhmess tr").length)
+        // for(var i = 0; i < $("#yhmess tr").length; i++){
+        // 	var beizhu = $("#beizhu").eq(i).val()
+        // 	console.log($("#beizhu").eq(i).val())
+        // 	console.log("///////////////")
+        // }
+        let beizhuStr = ""
+        //console.log(beizhuStr)
+        let beizhustrArr = beizhuStr ? beizhuStr.split(",") : []
+        //console.log(beizhustrArr)
+        var muleusernameAEEidArr = []
+        for (var i = 0; i < muleusername.length; i++) {
+          var id = $("#srelection-con-sure li").eq(i).attr('id');
+          muleusernameAEEidArr.push(id)
+          console.log(muleusernameAEEidArr)
+          // console.log(id)
+          // console.log("swwwwww")
+          // console.log($(".muleclassid").attr('value', id))
+          //console.log(beizhustrArr)
+          let mailarr = getQueryVariable('mailarr') || ''
+          let multstyr = []
+          let mulqarr = []
+
+          //console.log(mulqarr[i])
+          var lateVla = $("#srelection-con-sure li input").eq(i).val()
+          var lateId = $("#srelection-con-sure li input").eq(i).attr('data-id')
+          console.log($("#srelection-con-sure li input").eq(i).val())
+          console.log($("#srelection-con-sure li input").eq(i).attr('data-id'))
+
+          $(".selection-message-right").hide()
+          if (get_html== 'manage') {
+            $(".selection-person").hide()
+            $(".selection-message-top-title").hide()
+            $(".selection-message-bottom").hide()
+          }
+          html += `<tr class="muletr" data-id="` + id + `" style="vertical-align: middle;padding:0.75rem;vertical-align: middle;text-align: center;"  ><td  style="vertical-align: middle;padding:0.75rem;vertical-align: middle;text-align: center;"  class="muletd" ><input  class="muleclassid" name="user_id[]"  id=""  value="` + id + `"  type="hidden" />` + $('#srelection-con-sure li').eq(i).html() + `</td><td><input type="text" data-id="` + id + `" id="beizhu" name="names[]" value="`+(lateVla && lateId ==id ? lateVla :'')+`"/></td><td><div class="selection-message-right" id="radio-right"><a style="color:#000;" class="iconfont  dellistitem" onclick="delList(` + id + `)">` + '删除' + `</a></div></td></tr>`
+
+        }
+        console.log(beizhustrArr)
+        parent.$("#yhmess").append(html)
+        console.log($("#yhmess tr"))
+        //通知设置用户
+        var html = ''
+
+        console.log("通知设置用户")
+        console.log($('#srelection-con-sure li').length)
+        if (get_html == 'mail') {
+          parent.$("#xm-label-select-more").html('')
+          let mialmulemorearr = []
+          for (var i = 0; i < muleusername.length; i++) {
+            var id = $("#srelection-con-sure li").eq(i).attr('id');
+            var value = $("#srelection-con-sure li").eq(i).attr('data-value');
+            var name = $("#srelection-con-sure #selection-user-mess").eq(i).text()
+            //拿到选中的name
+            console.log(name)
+            console.log("swwwwww")
+            console.log($("#srelection-con-sure li").eq(i).attr('data-value'))
+            //拿到选中的id
+            console.log(id)
+            console.log("通知设置用户数据显示")
+            // var mailopendid = $("#xm-label-select-more .xm-label-block").eq(i).attr('value')
+            // console.log(mailopendid)
+            // var mailNmae = $("#xm-label-select-more .xm-label-block").eq(i).attr('name')
+            // console.log(mailNmae)
+            let mialmulemoredx = {
+              value,
+              name
+            }
+            mialmulemorearr.push(mialmulemoredx)
+            console.log(mialmulemorearr)
+            // console.log($(".muleclassid").attr('value',id))
+            $(".selection-message-right").hide()
+            html += `<div class="xm-label-block selection-message-left" id="` + id + `" data-value="` + value + `" name="` + name + `" style="background-color: rgb(0, 129, 255);"><span >` + $("#srelection-con-sure #selection-user-mess").eq(i).text() + `</span><i class="xm-iconfont xm-icon-close" onclick="delmoreItem(` + id + `)"></i></div>`
+          }
+          parent.$("#xm-label-select-more").append(html)
+          parent.$('#goods_order_openids').val(JSON.stringify(mialmulemorearr))
+        }
+        // parent.$('#openids').val(JSON.stringify(mialmulemorearr))
+
+        //console.log("huiyuan")
+        //console.log($('#srelection-con-sure li').length)
+        if (get_html == 'mailHuiyuan') {
+          let mialmulehuiyuanarr = []
+          parent.$("#xm-label-select-more-huiyuan").html('')
+          for (var i = 0; i < muleusername.length; i++) {
+            var id = $("#srelection-con-sure li").eq(i).attr('id');
+            var value = $("#srelection-con-sure li").eq(i).attr('data-value');
+            var name = $("#srelection-con-sure #selection-user-mess").eq(i).text()
+            //拿到选中的name
+            console.log(name)
+            console.log($("#srelection-con-sure li").eq(i).attr('data-value'))
+            //拿到选中的id
+            console.log(id)
+            // var mailopendid = $("#xm-label-select-more .xm-label-block").eq(i).attr('value')
+            // console.log(mailopendid)
+            // var mailNmae = $("#xm-label-select-more .xm-label-block").eq(i).attr('name')
+            // console.log(mailNmae)
+            let mialmulemoredx = {
+              value,
+              name
+            }
+            mialmulehuiyuanarr.push(mialmulemoredx)
+            console.log(mialmulehuiyuanarr)
+            // console.log($(".muleclassid").attr('value',id))
+            $(".selection-message-right").hide()
+            html += `<div class="xm-label-block selection-message-left" id="` + id + `" data-value="` + value + `" name="` + name + `" style="background-color: rgb(0, 129, 255);"><span >` + $("#srelection-con-sure #selection-user-mess").eq(i).text() + `</span><i class="xm-iconfont xm-icon-close" onclick="delmoreItem(` + id + `)"></i></div>`
+          }
+          parent.$("#xm-label-select-more-huiyuan").append(html)
+          parent.$('#openids').val(JSON.stringify(mialmulehuiyuanarr))
+        }
+        var html = ''
+        console.log("优惠券添加用户")
+        console.log($('#srelection-con-sure li').length)
+        let baatchArr = []
+        parent.$("#davchMule").html('')
+        for (var i = 0; i < muleusername.length; i++) {
+          var id = $("#srelection-con-sure li").eq(i).attr('id');
+          var value = $("#srelection-con-sure li").eq(i).attr('data-value');
+          var name = $("#srelection-con-sure #selection-user-mess").eq(i).text()
+          //拿到选中的name
+          console.log(name)
+          console.log($("#srelection-con-sure li").eq(i).attr('data-value'))
+          //拿到选中的id
+          console.log(id)
+          let mialmulemoredx = {
+            id,
+            name
+          }
+          baatchArr.push(mialmulemoredx)
+          console.log(baatchArr)
+          // console.log($(".muleclassid").attr('value',id))
+          $(".selection-message-right").hide()
+          html += `<li class="select2-selection__choice" id="` + id + `" data-value="` + value + `" name="` + name + `" ><span class="select2-selection__choice__remove">` + $("#srelection-con-sure #selection-user-mess").eq(i).text() + `</span><i onclick="delmoreItem(` + id + `)">` + '×' + `</i></li>`
+        }
+        parent.$("#davchMule").append(html)
+      }
+      //关闭弹窗
+      this.formCancle()
+    }
+  }
+  // 点击搜索按钮搜索
+  // 点击搜索按钮搜索
+  // function delmoreItem(id) {
+  // 	console.log(id)
+  // 	$('#' + id).remove()
+  // }
+  function delteem(id) {
+    //给id赋值并找到对应id删除
+    $('#' + id).remove()
+    $(".selection-groupid li").each(function (i) {
+      if ($(this).attr('data-id') == id) {
+        $("#radio-right .radio span").eq(i).removeClass("iconfont icon-x-gou");
+        $(".selection-groupid li").eq(i).removeClass("activesw");
+      }
+    })
+  }
+
+  function UrlDecode(zipStr){
+    var uzipStr = '';
+    for (var i = 0; i < zipStr.length; i += 1) {
+      var chr = zipStr.charAt(i);
+      if (chr === '+') {
+        uzipStr += ' ';
+      } else if (chr === '%') {
+        var asc = zipStr.substring(i + 1, i + 3);
+        if (parseInt('0x' + asc) > 0x7f) {
+          uzipStr += decodeURI('%' + asc.toString() + zipStr.substring(i+3, i+9).toString());
+          i += 8;
+        }else{
+          uzipStr += parseInt('0x' + asc);
+          i += 2;
+        }
+      }else{
+        uzipStr += chr;
+      }
+    }
+    return uzipStr;
+  }
+
+
+
+</script>

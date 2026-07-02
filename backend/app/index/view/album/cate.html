@@ -1,0 +1,171 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navAlbum" class="navAlbum1">
+
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box ">
+            <div class="portlet-body">
+
+                <div class="input-box mb-20">
+                    <div class="btn-group mr-10">
+                        <button id="sample_editable_1_new" class="btn btn-primary" onclick="addPackage(0)">
+                            新增分类
+                        </button>
+                    </div>
+                </div>
+
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>排序</th>
+                        <th>名称</th>
+                        <th width="300px;">操作</th>
+                    </tr>
+                    </thead>
+
+                    {if $lists}
+                    {foreach $lists as $item}
+                    <tr>
+                        <td>{$item.id}</td>
+                        <td>{$item.sort}</td>
+                        <td>
+                            {$item.cate_name}
+                        </td>
+                        <td>
+                            <span class="btn btn-outline-primary" href="" onclick="addPackage('{$item.id}')">编辑</span>
+                            <a class="btn btn-outline-danger" onclick="return confirm('该删除操作不可逆，请谨慎操作！'); return false;" href="{:Url('AlbumController/delCate')}?cate_id={$item.id}">删除</a>
+                        </td>
+                    </tr>
+                    {/foreach}
+                    {/if}
+                </table>
+
+                <!-- 分页 -->
+                <div class="fenye_bottomBox">
+                    <div class="fenye_left">
+                        一共查询到<font color="red" style="padding:0 10px;">{$lists->total()}</font>条数据
+                    </div>
+                    <div class="fenye_right">
+                        {$lists|raw}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script type="text/javascript">
+    function del(){
+        if(confirm('该删除操作不可逆，请谨慎操作?')){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    function addPackage(p_id){
+        if(p_id){
+            $.ajax({
+                url:"{:Url('index/AlbumController/editCate')}",
+                type:"GET",
+                dataType:'json',
+                data:{
+                    appletid: 1,
+                    cate_id: p_id,
+                },
+                success:function(result){
+                    if(result.code == 1){
+                        $("#sort").val(result.data.sort)
+                        $("#cate_name").val(result.data.cate_name)
+                        showContent(p_id)
+                    }else{
+                        alert(result.msg)
+                    }
+                }
+            })
+        }else{
+            $("#sort_num").val(0)
+            $("#get_gamecoin").val('')
+            $("#pay_money").val('')
+            showContent(p_id)
+        }
+    }
+
+    function showContent(p_id){
+        layer.open({
+            type: 1,
+            content: $('#checkOut'),
+            title: ["分类信息", "text-align:center;padding:0;font-weight:600;font-size:17px"],
+            area: ["800px", "300px"],
+            btn: ["确定", "取消"],
+            btnAlign: 'c',
+            closeBtn: 0,
+            success: function () {
+                console.log('确定')
+            },
+            yes: function (index){
+                var sort = $("#sort").val()
+                var cate_name = $("#cate_name").val()
+                if(!cate_name){
+                    alert('请输入分类名称')
+                    return false
+                }
+                $.ajax({
+                    url:"{:Url('index/AlbumController/saveCate')}",
+                    type:"post",
+                    dataType:'json',
+                    data:{
+                        appletid: 1,
+                        cate_id: p_id,
+                        sort: sort,
+                        cate_name: cate_name,
+                    },
+                    success:function(result){
+                        if(result.code == 1){
+                            layer.msg("操作成功！", {
+                                time: 1000,
+                            });
+                            setTimeout(() => {
+                                location.reload()
+                            }, 1000);
+                        }else{
+                            alert(result.msg)
+                        }
+                    }
+                })
+            }
+        })
+    }
+</script>
+
+{include file="public/foot_more" /}
+
+<div id="checkOut" class="form-horizontal" style="display: none;padding-top: 40px;">
+    <div class="control-group">
+        <label class="control-label">排序：</label>
+        <div class="controls">
+            <div class="controls-content controls-content-input-group">
+                <input name="sort" id="sort" type="number" min="0" step="1" class="controls-content" style="width: 60%;" value=""/>
+                <span class="help-block">数字越大越靠前</span>
+            </div>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">分类名称：</label>
+        <div class="controls">
+            <div class="controls-content controls-content-input-group">
+                <input name="cate_name" id="cate_name" type="text" class="controls-content" style="width: 60%;" value=""/>
+                <span class="help-block">相册分类名称</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+

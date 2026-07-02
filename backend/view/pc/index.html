@@ -1,0 +1,716 @@
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>家纺云相册 - 您的生意加速器</title>
+    <script src="https://res.gemcoder.com/js/reload.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#3B82F6',
+              secondary: '#10B981',
+              accent: '#8B5CF6',
+              dark: '#1E293B',
+              light: '#F8FAFC'
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif']
+            },
+            spacing: {
+              '128': '32rem'
+            }
+          }
+        }
+      };
+    </script>
+    <style type="text/tailwindcss">
+      @layer utilities {
+          .content-auto {
+              content-visibility: auto;
+          }
+          .text-shadow {
+              text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          .transition-custom {
+              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          .bg-gradient-hero {
+              background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+          }
+      }
+    </style>
+  </head>
+  <body class="font-sans text-dark bg-light antialiased">
+    <!-- [MODULE] a1b_主内容区域 -->
+    <div class="min-h-screen flex flex-col">
+      <!-- [MODULE] c2d_导航栏 -->
+      <header
+        class="bg-white shadow-sm sticky top-0 z-50 transition-all duration-300"
+      >
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between items-center h-16">
+            <div class="flex items-center">
+              <div class="flex-shrink-0 flex items-center">
+                <i class="fas fa-cloud text-primary text-2xl mr-2"> </i>
+                <span class="text-xl font-bold text-primary"> 家纺云相册 </span>
+              </div>
+            </div>
+            <div class="hidden md:block">
+              <div class="ml-10 flex items-baseline space-x-4">
+                <a
+                  href="javascript:void(0);"
+                  class="px-3 py-2 rounded-md text-sm font-medium text-primary border-b-2 border-primary"
+                >
+                  首页
+                </a>
+                <a
+                  href="javascript:void(0);"
+                  class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-primary transition-custom"
+                >
+                  功能介绍
+                </a>
+                <a
+                  href="javascript:void(0);"
+                  class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-primary transition-custom"
+                >
+                  使用教程
+                </a>
+                <a
+                  href="javascript:void(0);"
+                  class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-primary transition-custom"
+                >
+                  价格方案
+                </a>
+                <a
+                  href="javascript:void(0);"
+                  class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-primary transition-custom"
+                >
+                  关于我们
+                </a>
+              </div>
+            </div>
+            <div class="flex items-center">
+              <a
+                href="login.html"
+                class="hidden md:block ml-4 px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90 transition-custom"
+              >
+                登录
+              </a>
+              <button
+                type="button"
+                class="md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none"
+                id="mobile-menu-button"
+              >
+                <i class="fas fa-bars"> </i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <!-- 移动端菜单 -->
+        <div class="md:hidden hidden" id="mobile-menu">
+          <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+            <a
+              href="javascript:void(0);"
+              class="block px-3 py-2 rounded-md text-base font-medium text-primary bg-blue-50"
+            >
+              首页
+            </a>
+            <a
+              href="javascript:void(0);"
+              class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-custom"
+            >
+              功能介绍
+            </a>
+            <a
+              href="javascript:void(0);"
+              class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-custom"
+            >
+              使用教程
+            </a>
+            <a
+              href="javascript:void(0);"
+              class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-custom"
+            >
+              价格方案
+            </a>
+            <a
+              href="javascript:void(0);"
+              class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-primary hover:bg-blue-50 transition-custom"
+            >
+              关于我们
+            </a>
+            <a
+              href="login.html"
+              class="block px-3 py-2 mt-4 rounded-md text-base font-medium text-center text-white bg-primary hover:bg-primary/90 transition-custom"
+            >
+              登录
+            </a>
+          </div>
+        </div>
+      </header>
+      <!-- [/MODULE] c2d_导航栏 -- 包含网站logo、主导航菜单和登录按钮，移动端适配汉堡菜单 -->
+      <!-- [MODULE] e3f_英雄区域 -->
+      <section class="bg-gradient-hero text-white py-20 md:py-28">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="max-w-3xl mx-auto text-center">
+            <h1
+              class="text-4xl md:text-5xl font-extrabold tracking-tight mb-6 leading-tight"
+            >
+              家纺云相册，
+              <span class="text-yellow-300"> 您的生意加速器 </span>
+            </h1>
+            <p class="text-xl md:text-2xl text-blue-100 mb-8">
+              专业的家纺行业图片管理与分享解决方案，让您的产品展示更专业，客户沟通更高效
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+              <a
+                href="javascript:void(0);"
+                class="px-8 py-3 border border-transparent rounded-md shadow-lg text-lg font-medium bg-white text-primary hover:bg-blue-50 transition-custom transform hover:-translate-y-1 duration-300"
+              >
+                免费试用
+              </a>
+              <a
+                href="javascript:void(0);"
+                class="px-8 py-3 border border-white rounded-md shadow-lg text-lg font-medium bg-transparent text-white hover:bg-white/10 transition-custom transform hover:-translate-y-1 duration-300"
+              >
+                了解更多
+                <i class="fas fa-arrow-right ml-2"> </i>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div
+          class="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent"
+        ></div>
+      </section>
+      <!-- [/MODULE] e3f_英雄区域 -- 展示网站核心价值主张，包含主标题、副标题和行动按钮 -->
+      <!-- [MODULE] g4h_功能介绍区域 -->
+      <section class="py-20 bg-white">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="text-center mb-16">
+            <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              核心功能，助力家纺生意腾飞
+            </h2>
+            <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+              专为家纺行业打造的云端相册解决方案，解决您在产品展示、客户沟通中的痛点问题
+            </p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <!-- [MODULE] h5i_功能卡片：极速分享 -->
+            <div
+              class="bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2"
+            >
+              <div class="p-6">
+                <div
+                  class="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mb-6"
+                >
+                  <i class="fas fa-paper-plane text-primary text-2xl"> </i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">
+                  极速分享
+                </h3>
+                <p class="text-gray-600 mb-4">
+                  一键将精美图册分享至微信。告别繁琐打包，让每次推送都专业优雅
+                </p>
+                <a
+                  href="javascript:void(0);"
+                  class="text-primary font-medium inline-flex items-center hover:text-primary/80 transition-custom"
+                >
+                  了解更多
+                  <i class="fas fa-arrow-right ml-1 text-sm"> </i>
+                </a>
+              </div>
+            </div>
+            <!-- [/MODULE] h5i_功能卡片：极速分享 -- 展示极速分享功能，包含图标、标题、描述和了解更多链接 -->
+            <!-- [MODULE] j6k_功能卡片：有序分类 -->
+            <div
+              class="bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2"
+            >
+              <div class="p-6">
+                <div
+                  class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mb-6"
+                >
+                  <i class="fas fa-folder-open text-secondary text-2xl"> </i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">
+                  有序分类
+                </h3>
+                <p class="text-gray-600 mb-4">
+                  建立云端产品库，新品、爆款、花型分类管理。素材一目了然，专业形象深入人心
+                </p>
+                <a
+                  href="javascript:void(0);"
+                  class="text-primary font-medium inline-flex items-center hover:text-primary/80 transition-custom"
+                >
+                  了解更多
+                  <i class="fas fa-arrow-right ml-1 text-sm"> </i>
+                </a>
+              </div>
+            </div>
+            <!-- [/MODULE] j6k_功能卡片：有序分类 -- 展示有序分类功能，包含图标、标题、描述和了解更多链接 -->
+            <!-- [MODULE] l7m_功能卡片：客户畅览 -->
+            <div
+              class="bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2"
+            >
+              <div class="p-6">
+                <div
+                  class="w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center mb-6"
+                >
+                  <i class="fas fa-eye text-accent text-2xl"> </i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">
+                  客户畅览
+                </h3>
+                <p class="text-gray-600 mb-4">
+                  客户点开即看，高清大图流畅展示。沟通意向同步，加速成交决策，省心更省力
+                </p>
+                <a
+                  href="javascript:void(0);"
+                  class="text-primary font-medium inline-flex items-center hover:text-primary/80 transition-custom"
+                >
+                  了解更多
+                  <i class="fas fa-arrow-right ml-1 text-sm"> </i>
+                </a>
+              </div>
+            </div>
+            <!-- [/MODULE] l7m_功能卡片：客户畅览 -- 展示客户畅览功能，包含图标、标题、描述和了解更多链接 -->
+            <!-- [MODULE] n8o_功能卡片：在线协同选款 -->
+            <div
+              class="bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2"
+            >
+              <div class="p-6">
+                <div
+                  class="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mb-6"
+                >
+                  <i class="fas fa-users text-indigo-600 text-2xl"> </i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">
+                  在线协同选款
+                </h3>
+                <p class="text-gray-600 mb-4">
+                  与客户在线完成选款、标注、确认。流程清晰可溯，彻底告别微信刷屏，协作效率倍增
+                </p>
+                <a
+                  href="javascript:void(0);"
+                  class="text-primary font-medium inline-flex items-center hover:text-primary/80 transition-custom"
+                >
+                  了解更多
+                  <i class="fas fa-arrow-right ml-1 text-sm"> </i>
+                </a>
+              </div>
+            </div>
+            <!-- [/MODULE] n8o_功能卡片：在线协同选款 -- 展示在线协同选款功能，包含图标、标题、描述和了解更多链接 -->
+          </div>
+        </div>
+      </section>
+      <!-- [/MODULE] g4h_功能介绍区域 -- 展示家纺云相册的四大核心功能，每个功能以卡片形式呈现，包含图标、标题、描述和了解更多链接 -->
+      <!-- [MODULE] p9q_系统优势区域 -->
+      <section class="py-20 bg-gray-50">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="text-center mb-16">
+            <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              为什么选择家纺云相册
+            </h2>
+            <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+              专为家纺行业打造，解决您在日常业务中的实际痛点
+            </p>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div class="order-2 lg:order-1">
+              <div class="space-y-8">
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <div
+                      class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center"
+                    >
+                      <i class="fas fa-bolt text-primary"> </i>
+                    </div>
+                  </div>
+                  <div class="ml-4">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                      提升工作效率
+                    </h3>
+                    <p class="text-gray-600">
+                      告别传统文件传输方式，减少80%的沟通时间，让您专注于核心业务
+                    </p>
+                  </div>
+                </div>
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <div
+                      class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center"
+                    >
+                      <i class="fas fa-user-tie text-primary"> </i>
+                    </div>
+                  </div>
+                  <div class="ml-4">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                      塑造专业形象
+                    </h3>
+                    <p class="text-gray-600">
+                      专业的图册展示方式，让客户感受到您的专业服务，提升品牌价值
+                    </p>
+                  </div>
+                </div>
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <div
+                      class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center"
+                    >
+                      <i class="fas fa-chart-line text-primary"> </i>
+                    </div>
+                  </div>
+                  <div class="ml-4">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                      加速成交转化
+                    </h3>
+                    <p class="text-gray-600">
+                      简化客户选款流程，缩短决策周期，提高订单转化率
+                    </p>
+                  </div>
+                </div>
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <div
+                      class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center"
+                    >
+                      <i class="fas fa-shield-alt text-primary"> </i>
+                    </div>
+                  </div>
+                  <div class="ml-4">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                      数据安全保障
+                    </h3>
+                    <p class="text-gray-600">
+                      多重备份机制，确保您的珍贵图片资源永不丢失，安全可靠
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="order-1 lg:order-2">
+              <div class="relative">
+                <img
+                  src="https://design.gemcoder.com/staticResource/echoAiSystemImages/c6a917d8537406928f978123b1fa4961.png"
+                  alt="家纺云相册系统界面展示"
+                  class="w-full h-auto rounded-lg shadow-xl z-10 relative"
+                />
+                <div
+                  class="absolute -bottom-6 -left-6 w-64 h-64 bg-primary/10 rounded-full filter blur-3xl opacity-70"
+                ></div>
+                <div
+                  class="absolute -top-6 -right-6 w-64 h-64 bg-secondary/10 rounded-full filter blur-3xl opacity-70"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- [/MODULE] p9q_系统优势区域 -- 展示选择家纺云相册的四大优势：提升工作效率、塑造专业形象、加速成交转化和数据安全保障，配有系统界面展示图 -->
+      <!-- [MODULE] r0s_使用场景展示 -->
+      <section class="py-20 bg-white">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="text-center mb-16">
+            <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              多场景适用，满足您的业务需求
+            </h2>
+            <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+              无论是新品发布、客户选款还是团队协作，家纺云相册都能为您提供完美支持
+            </p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div
+              class="bg-gray-50 rounded-xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-lg"
+            >
+              <div class="h-48 overflow-hidden">
+                <img
+                  src="https://design.gemcoder.com/staticResource/echoAiSystemImages/3315a10701a667cf2de133f45e07e371.png"
+                  alt="新品发布场景"
+                  class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                />
+              </div>
+              <div class="p-6">
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">
+                  新品发布
+                </h3>
+                <p class="text-gray-600 mb-4">
+                  快速创建新品图册，一键分享给所有客户，第一时间展示最新产品
+                </p>
+              </div>
+            </div>
+            <div
+              class="bg-gray-50 rounded-xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-lg"
+            >
+              <div class="h-48 overflow-hidden">
+                <img
+                  src="https://design.gemcoder.com/staticResource/echoAiSystemImages/6941b135e402b156bdd451104172fbb7.png"
+                  alt="客户选款场景"
+                  class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                />
+              </div>
+              <div class="p-6">
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">
+                  客户选款
+                </h3>
+                <p class="text-gray-600 mb-4">
+                  与客户在线实时选款，标注喜好，记录选择过程，避免沟通误解
+                </p>
+              </div>
+            </div>
+            <div
+              class="bg-gray-50 rounded-xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-lg"
+            >
+              <div class="h-48 overflow-hidden">
+                <img
+                  src="https://design.gemcoder.com/staticResource/echoAiSystemImages/87716e7c9cb676b5aa6d647ff29c08dc.png"
+                  alt="团队协作场景"
+                  class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                />
+              </div>
+              <div class="p-6">
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">
+                  团队协作
+                </h3>
+                <p class="text-gray-600 mb-4">
+                  团队成员共享素材库，协同管理产品图片，保持信息同步更新
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- [/MODULE] r0s_使用场景展示 -- 展示家纺云相册的三个主要使用场景：新品发布、客户选款和团队协作，每个场景包含图片、标题和描述 -->
+      <!-- [MODULE] t1u_行动召唤区域 -->
+      <section class="py-20 bg-primary">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="max-w-4xl mx-auto text-center">
+            <h2 class="text-3xl md:text-4xl font-bold text-white mb-6">
+              立即开始使用，让您的家纺生意加速腾飞
+            </h2>
+            <p class="text-xl text-blue-100 mb-10">
+              无需复杂配置，注册即可使用，30天免费试用，满意再付费
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+              <a
+                href="javascript:void(0);"
+                class="px-8 py-4 border border-transparent rounded-md shadow-lg text-lg font-medium bg-white text-primary hover:bg-blue-50 transition-custom transform hover:-translate-y-1 duration-300"
+              >
+                免费注册
+                <i class="fas fa-arrow-right ml-2"> </i>
+              </a>
+              <a
+                href="javascript:void(0);"
+                class="px-8 py-4 border border-white rounded-md shadow-lg text-lg font-medium bg-transparent text-white hover:bg-white/10 transition-custom transform hover:-translate-y-1 duration-300"
+              >
+                预约演示
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- [/MODULE] t1u_行动召唤区域 -- 鼓励用户立即开始使用系统，包含主标题、副标题和两个行动按钮：免费注册和预约演示 -->
+      <!-- [MODULE] v2w_页脚 -->
+      <footer class="bg-gray-900 text-white pt-16 pb-8">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12"
+          >
+            <div>
+              <div class="flex items-center mb-4">
+                <i class="fas fa-cloud text-primary text-2xl mr-2"> </i>
+                <span class="text-xl font-bold"> 家纺云相册 </span>
+              </div>
+              <p class="text-gray-400 mb-6">
+                您的家纺生意加速器，专业的云端图片管理与分享解决方案
+              </p>
+              <div class="flex space-x-4">
+                <a
+                  href="javascript:void(0);"
+                  class="text-gray-400 hover:text-white transition-custom"
+                >
+                  <i class="fab fa-weixin text-xl"> </i>
+                </a>
+                <a
+                  href="javascript:void(0);"
+                  class="text-gray-400 hover:text-white transition-custom"
+                >
+                  <i class="fab fa-weibo text-xl"> </i>
+                </a>
+                <a
+                  href="javascript:void(0);"
+                  class="text-gray-400 hover:text-white transition-custom"
+                >
+                  <i class="fas fa-envelope text-xl"> </i>
+                </a>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold mb-4">产品服务</h3>
+              <ul class="space-y-2">
+                <li>
+                  <a
+                    href="javascript:void(0);"
+                    class="text-gray-400 hover:text-white transition-custom"
+                  >
+                    功能介绍
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="javascript:void(0);"
+                    class="text-gray-400 hover:text-white transition-custom"
+                  >
+                    价格方案
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="javascript:void(0);"
+                    class="text-gray-400 hover:text-white transition-custom"
+                  >
+                    使用教程
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="javascript:void(0);"
+                    class="text-gray-400 hover:text-white transition-custom"
+                  >
+                    常见问题
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold mb-4">关于我们</h3>
+              <ul class="space-y-2">
+                <li>
+                  <a
+                    href="javascript:void(0);"
+                    class="text-gray-400 hover:text-white transition-custom"
+                  >
+                    公司简介
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="javascript:void(0);"
+                    class="text-gray-400 hover:text-white transition-custom"
+                  >
+                    客户案例
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="javascript:void(0);"
+                    class="text-gray-400 hover:text-white transition-custom"
+                  >
+                    新闻动态
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="javascript:void(0);"
+                    class="text-gray-400 hover:text-white transition-custom"
+                  >
+                    联系我们
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold mb-4">联系我们</h3>
+              <ul class="space-y-2">
+                <li class="flex items-start">
+                  <i class="fas fa-map-marker-alt text-primary mt-1 mr-3"> </i>
+                  <span class="text-gray-400">
+                    江苏省南通市崇川区家纺城电商产业园
+                  </span>
+                </li>
+                <li class="flex items-center">
+                  <i class="fas fa-phone-alt text-primary mr-3"> </i>
+                  <span class="text-gray-400"> 400-123-4567 </span>
+                </li>
+                <li class="flex items-center">
+                  <i class="fas fa-envelope text-primary mr-3"> </i>
+                  <span class="text-gray-400"> contact@jiafangyun.com </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="border-t border-gray-800 pt-8">
+            <p class="text-center text-gray-500 text-sm">
+              © 2023 家纺云相册. 保留所有权利.
+            </p>
+          </div>
+        </div>
+      </footer>
+      <!-- [/MODULE] v2w_页脚 -- 包含公司信息、产品服务链接、关于我们链接、联系信息和版权声明 -->
+    </div>
+    <!-- [/MODULE] a1b_主内容区域 -- 家纺云相册系统介绍首页，包含导航栏、英雄区域、功能介绍、系统优势、使用场景、行动召唤和页脚 -->
+    <!-- [JSMOD] x3y_导航栏交互 -->
+    <script id="navbar-script">
+      // 移动端菜单切换
+      var mobileMenuButton = document.getElementById('mobile-menu-button');
+      var mobileMenu = document.getElementById('mobile-menu');
+      mobileMenuButton.addEventListener('click', function () {
+        mobileMenu.classList.toggle('hidden');
+      });
+
+      // 滚动时导航栏样式变化
+      window.addEventListener('scroll', function () {
+        var header = document.querySelector('header');
+        if (window.scrollY > 10) {
+          header.classList.add('shadow-md');
+          header.classList.remove('shadow-sm');
+        } else {
+          header.classList.remove('shadow-md');
+          header.classList.add('shadow-sm');
+        }
+      });
+    </script>
+    <!-- [/JSMOD] x3y_导航栏交互 -- 实现移动端菜单切换和滚动时导航栏样式变化效果 -->
+    <!-- [JSMOD] z4a_平滑滚动 -->
+    <script id="smooth-scroll-script">
+      // 平滑滚动到锚点
+      document.querySelectorAll('a[href^="javascript:void(0);"]').forEach(function (anchor) {
+        anchor.addEventListener('click', function (e) {
+          // 这里可以添加平滑滚动逻辑，如果有需要的话
+        });
+      });
+    </script>
+    <!-- [/JSMOD] z4a_平滑滚动 -- 为导航链接添加平滑滚动效果的基础设置 -->
+    <!-- [JSMOD] b5c_动画效果 -->
+    <script id="animation-script">
+      // 元素进入视口时的动画效果
+      var animateOnScroll = function animateOnScroll() {
+        var elements = document.querySelectorAll('.grid > div, .flex > div');
+        elements.forEach(function (element) {
+          var elementTop = element.getBoundingClientRect().top;
+          var elementVisible = 150;
+          if (elementTop < window.innerHeight - elementVisible) {
+            element.classList.add('opacity-100', 'translate-y-0');
+            element.classList.remove('opacity-0', 'translate-y-4');
+          }
+        });
+      };
+
+      // 初始设置
+      document.querySelectorAll('.grid > div, .flex > div').forEach(function (element) {
+        element.classList.add('transition-all', 'duration-700', 'opacity-0', 'translate-y-4');
+      });
+
+      // 页面加载和滚动时触发动画
+      window.addEventListener('load', animateOnScroll);
+      window.addEventListener('scroll', animateOnScroll);
+    </script>
+    <!-- [/JSMOD] b5c_动画效果 -- 实现元素进入视口时的淡入和上移动画效果 -->
+  </body>
+</html>

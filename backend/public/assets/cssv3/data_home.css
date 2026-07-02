@@ -1,0 +1,752 @@
+.w-20{
+	width: 20%;
+	box-sizing: border-box;
+	position: relative;
+	width: 100%;
+	min-height: 1px;
+	padding-right: 15px;
+	padding-left: 15px;
+	max-width: 20%
+}
+
+.index_chart_content {
+	background: #fff;
+	border-radius: 8px;
+	box-shadow: 0px 0px 23px 2px rgba(54, 124, 253, 0.1)
+}
+
+.index_chart_box {
+	padding: 10px 10px 0;
+	position: relative;
+	height: 350px
+}
+
+.all_visit {
+	position: absolute;
+	right: -90px;
+	bottom: -90px;
+	background-color: rgb(255 255 255 / 0.1);
+	width: 180px;
+	height: 180px;
+	border-radius: 180px
+}
+
+.all_visit_img {
+	position: absolute;
+	left: 30px;
+	top: 30px
+}
+
+.data_card {
+	border-radius: 8px;
+	padding: 25px 30px;
+	overflow: hidden;
+	background: #fff;
+	box-shadow: 0px 0px 23px 2px rgba(54, 124, 253, 0.1)
+}
+
+.num_people {
+	font-size: 36px;
+	font-weight: 700
+}
+
+.num_people span {
+	font-weight: 300
+}
+
+.data_show_card_t1 {
+	font-size: 18px;
+	color: #fff
+}
+
+.data_show_card_t2 {
+	font-size: 36px;
+	font-weight: bold;
+	color: #fff;
+	padding-top: 15px
+}
+
+.data_show_card_t2 a {
+	color: #fff !important;
+}
+
+.data_show_card_t3 {
+	font-size: 14px;
+	color: #fff;
+}
+
+.color-434343 {
+	color: #434343;
+}
+
+.color-363636 {
+	color: #363636;
+}
+
+.color-838383 {
+	color: #838383;
+}
+
+.color-7B8087 {
+	color: #7B8087;
+}
+
+.bg-fff {
+	background-color: #fff;
+}
+
+.order-box {
+	box-shadow: 0px 0px 23px 2px rgba(54, 124, 253, 0.1);
+	background: #fff;
+	height: 419px;
+	border-radius: 8px;
+	padding: 0 5px;
+	box-sizing: border-box;
+}
+
+.order_des {
+	box-shadow: 0px 0px 23px 2px rgba(54, 124, 253, 0.1);
+	border-radius: 8px
+}
+
+.order_navbar1 {
+	position: relative
+}
+
+.choose_date {
+	position: absolute;
+	top: 8px;
+	right: 15px;
+	width: 100px
+}
+
+.choose_date select {
+	width: 100px
+}
+
+.order_li {
+	line-height: 30px;
+	overflow: hidden;
+	margin: 0 0px 21px
+}
+
+.order_li li {
+	float: left;
+	font-size: 14px;
+	color: #434343;
+	margin-left: 15px;
+	padding-top: 10px;
+	padding-bottom: 8px;
+	cursor: pointer;
+	line-height: 26px
+}
+
+.order_li .on {
+	color: #6954F0;
+	border-bottom: 2px solid #6954F0;
+	font-weight: bold
+}
+
+.font-size-26 {
+	font-size: 26px;
+}
+
+.color-ED8E20 {
+	color: #ED8E20;
+}
+
+.color-04C65D {
+	color: #04C65D;
+}
+
+.color-6671E4 {
+	color: #6671E4 !important;
+}
+
+.mb-0 {
+	margin-bottom: 0;
+}
+
+.bg-F9F9F9 {
+	background-color: #F9F9F9;
+}
+
+.line-height-45 {
+	line-height: 45px;
+}
+
+.font-weight-700 {
+	font-weight: 700;
+}
+
+.order_card {
+	padding: 30px 0;
+	border-radius: 4px;
+	border: 2px solid #fff;
+	cursor: pointer
+}
+
+.order_carda:hover {
+	border: 2px solid #6954F0;
+}
+
+.order_card .inline-block {
+	padding-left: 56px
+}
+
+.order2_navbar {
+	padding: 0 6px;
+	border-bottom: 1px solid #eee
+}
+
+.order2_li {
+	margin: 0
+}
+
+.order2_li li {
+	float: left;
+	font-size: 14px;
+	color: #434343;
+	padding: 0 8px 10px;
+	cursor: pointer;
+	line-height: 19px;
+	font-size: 12px;
+	margin-right: 10px
+}
+
+.order2_li .on {
+	color: #6954F0;
+	border-bottom: 1px solid #6954F0;
+	font-weight: 500
+}
+
+.order-table td,
+.order-table th {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 14px;
+	height: 42px;
+	line-height: 42px;
+	padding: 0 10px;
+	box-sizing: border-box
+}
+
+.order-table1 {
+	height: 290px;
+	padding: 0px 20px
+}
+
+.order-table>table>tbody>tr>td {
+	color: #1E2126;
+	border: 1px dashed #eee;
+	font-size: 12px
+}
+
+.order-table>table>tbody>tr:first-of-type td {
+	border: 1px dashed #eee;
+}
+
+.order-table th {
+	color: #434343
+}
+
+.order-table>table {
+	width: 100%;
+	table-layout: fixed
+}
+
+.order-table1>table>thead>tr>th,
+.order-table2>table>thead>tr>th {
+	text-align: left;
+	font-size: 14px
+}
+
+.order-table1>table>thead>tr>th:first-child {
+	width: 70px
+}
+
+.order-table1>table>thead>tr>th:last-child {
+	width: 180px
+}
+
+.order-table1 .btn {
+	padding: 2px 6px;
+	font-size: 12px
+}
+
+.order-table2>table>thead>tr>th:first-child {
+	width: 180px
+}
+
+.collect_table>table>thead>tr>th:first-of-type {
+	width: 20%
+}
+
+.collect_table>table>thead>tr>th:nth-of-type(3) {
+	width: 20%
+}
+
+.collect_table td,
+.all_list_box {
+	width: 120px;
+	height: 120px;
+	position: absolute;
+	margin: auto;
+	left: 0;
+	right: 0;
+	top: -60px;
+	border-radius: 120px
+}
+
+.collect_list {
+	border: 10px solid #6671E4
+}
+
+.sale_list {
+	border: 10px solid #ED8E20
+}
+
+.recharge_list {
+	border: 10px solid #0079FE
+}
+
+.color-0079FE {
+	color: #0079FE
+}
+
+.bottom3 {
+	height: 376px
+}
+
+.order-table2 {
+	height: 290px;
+	padding: 0px 20px
+}
+
+.page-content {
+	background-color: #F1F4F5;
+	padding: 0
+}
+
+.all_visit {
+	border-radius: 180px
+}
+
+.order_li.canvas_li li {
+	margin: 0 20px
+}
+
+.order_li.orderdd_li li {
+	margin-left: 0;
+	margin-right: 20px
+}
+
+.onnew {
+	font-weight: bold
+}
+
+.order_linew {
+	font-weight: bold;
+	line-height: 30px;
+	overflow: hidden;
+	margin: 0 20px 17px
+}
+
+.order_linew li {
+	float: left;
+	font-size: 14px;
+	color: #333333;
+	padding-top: 20px;
+	cursor: pointer;
+	line-height: 20px
+}
+
+.card-block1 {
+	padding: 30px 0;
+	background-color: #F9F9F9;
+	margin: 20px 0;
+	border-radius: 4px
+}
+
+.card-block1new {
+	padding-top: 20px;
+	background-color: #F5F5FA;
+	border-radius: 4px;
+	height: 120px;
+}
+
+.bg-F9F9F9new {
+	background-color: #F5F5FA
+}
+
+.font-weight-700new {
+	font-weight: 700;
+	color: #1E2126;
+}
+
+.text-centernew {
+	text-align: center !important;
+	color: #7B8087;
+}
+
+.data_show_card_t2new a {
+	color: #FFFFFF;
+	font-size: 32px;
+}
+
+.newtableborder th {
+	border-style: dashed;
+	border: 1px dashed #EDEDF4;
+}
+.newtableborder th{
+	font-weight: 400;
+}
+
+.contact {
+	color: #C08A65;
+	font-size: 15px;
+}
+
+.order_li_span .on {
+	color: #6954F0;
+	border-bottom: 2px solid #6954F0;
+	padding-bottom: 14px;
+	font-weight: bold
+}
+
+
+
+
+
+.unit{
+    color:#000;
+    font-weight:500;
+}
+.thead_bc{
+    background-color: #F5F5FA;
+}
+.thead_bc td{
+    color: #1E2126;
+}
+.tbody_bc tr th{
+	background: #38393C;
+	color: #FFFFFF;
+  font-weight: 400 !important;
+}
+
+.border_new{
+    padding-right: 14px;
+    border-right: 1px solid #FFFFFF;
+}
+
+
+/* 如果需要侧边栏跨过底部导航栏，先需要知道导航栏的高度 */
+nav {
+    height: 2.5rem;
+}
+/* 一定要写在class选择器里！等会儿jquery要用到 */
+.sidebarClass {
+    position: fixed;    /* 先给个定位，侧边栏一般是相对于浏览器定位 */
+    top:0;
+    right: 0;    /* 侧边栏有多宽，就-多少，相当于先藏在视窗外边（从左边打开的话就换成left） */
+    width: 0;
+    height: calc(100vh);    /* 减去底部导航栏的高度 */
+    z-index: 9999;    /* 设置一个超大的数字覆盖所有元素，如果层叠不够或者未设置，那么侧边栏可能会被其他元素遮挡 */
+    transition: width 1s;    /* 最关键的一步！利用transition实现过渡效果，这里只需要水平过渡，所以width就行了，后面的时间几秒自行设置 */
+    background-color: #FFFFFF;
+}
+.title_box{
+    background-color: #F5F5FA;
+    height: 2.875rem;
+    line-height: 46px;
+    padding-left: 1.25rem;
+    padding-right: 1.875rem;
+}
+.title_box_world{
+    font-size: 17px;
+    color: #20303F !important;
+}
+.title_box_icon{
+    float: right;
+    color: #20303F !important;
+
+}
+/* 新建一个class，等会儿jquery要用到，原理也是利用transition：width改变就会启动过渡效果 */
+.addWidth {
+    width: 18.125rem;    /* 设置为侧边栏宽度的2倍，才能完全露出 */
+}
+.close_a{
+    z-index: 1001;/* //放置在其他元素的最上层即可实现遮罩功能 */
+    background-color: #333;
+    bottom: 0;
+    top: 0;
+    right: 0;
+    overflow: auto;
+    position: fixed;
+    width: 100%;
+    opacity: 0.5;
+  }
+.box_whole{
+    padding-left: 1.25rem;
+    padding-right: 1.875rem;
+    color: #333333;
+}
+.box_pos{
+    margin-top: 30px;
+    margin-bottom: 16px;
+}
+.con{
+    height: 90px;
+    margin: 0 auto;
+}
+.a_share{
+    width: 5.625rem;
+    background: #F4F6FB;
+    display: inline-block;
+    color: #7B8087;
+    font-size: 14px;
+    text-align: center;
+    line-height: 100%;
+}
+.a{
+    height: 100%;
+    margin-right: 0.625rem;
+}
+.b{
+    height: 100%;
+    margin-left: 0.625rem;
+}
+.con_one{
+    height: 2.5rem;
+    margin: 0 auto;
+}
+.a_one{
+    height: 100%;
+    margin-right: 0.625rem;
+    line-height: 40px;
+}
+.b_one{
+    height: 100%;
+    margin-left: 0.625rem;
+    line-height: 40px;
+}
+.share{
+    width: 3.5rem;
+    display: inline-block;
+    color: #7B8087;
+    font-size: 14px;
+    text-align: center;
+    vertical-align: middle;
+}
+.h{ height: 100%;}
+
+.con_two{
+    height: 3.75rem;
+    margin: 0 auto;
+}
+.box_color_share{
+    height: 1.875rem;
+    width: 1.875rem;
+    border-radius: 50%;
+    margin: 0 auto;
+    margin-bottom: 3px;
+}
+.box_color_c{
+    background: linear-gradient(90deg, #373C46, #484D58);
+}
+.box_color_d{
+    background: linear-gradient(90deg, #002FA4, #1149D2);
+}
+.box_color_e{
+    background: linear-gradient(90deg, #165AE2, #538CFF);
+}
+.box_color_f{
+    background: linear-gradient(90deg, #0DA29D, #0FBBB5);
+}
+.box_color_g{
+    background: linear-gradient(90deg, #0E9069, #0E9082);
+}
+.box_color_h{
+    background: linear-gradient(90deg, #4FA140, #20AD80);
+}
+.box_color_i{
+    background: linear-gradient(90deg, #FCB801, #FCC601);
+}
+.box_color_j{
+    background: linear-gradient(90deg, #AA7646, #D29256);
+}
+.box_color_k{
+    background: linear-gradient(90deg, #FF4400, #FF884F);
+}
+.box_color_l{
+    background: linear-gradient(90deg, #F7201E, #FD674D);
+}
+.box_color_m{
+    background: linear-gradient(90deg, #FE0137, #FF5169);
+}.box_color_n{
+    background: linear-gradient(90deg, #FF3A68, #FF547C);
+}
+.box_color_o{
+    background: linear-gradient(90deg, #722ED1, #7C72E0);
+}
+.box_color_p{
+    background: linear-gradient(90deg, #4068F9, #6954F0);
+}
+
+.box_color_q{
+    background:#EDEDF4;
+}
+
+
+
+
+
+
+/* 新版首页 */
+/* 顶部 */
+.announcement {
+	width: calc(100% - 30px);
+	min-height: 114px;
+	margin-left: 16px;
+	background-color: #FFF3E1;
+	border-radius: 8px;
+	margin-bottom: 20px;
+	border: 1px solid #F3D7AD;
+	padding: 0;
+	line-height: 1.1;
+}
+.announcement_topBox {
+	padding: 14px 20px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	border-bottom: 1px dashed #F3D7AD;
+	line-height: 30px;
+}
+.announcement_topLeft {
+	display: flex;
+	align-items: center;
+	color: #333333;
+}
+.announcement_topLeft .announcement_img {
+	margin-right: 10px;
+}
+.announcement_topLeft .latest {
+	font-size: 16px;
+	font-weight: bold;
+}
+.announcement_topLeft .content {
+	font-size: 14px;
+	max-width: 250px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	word-break: break-all;
+	cursor: pointer;
+}
+.announcement_topRight {
+	display: flex;
+	align-items: center;
+	color: #C08A65;
+	font-size: 15px;
+}
+.announcement_topRight .content_data {
+	font-size: 22px;
+	font-weight: bold;
+}
+.announcement_bottomBox {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	color: #A87756;
+	font-size: 14px;
+	padding: 14px 20px;
+}
+.announcement_bottomBox .w-20-a {
+	width: 20%;
+	min-width: 350px;
+	box-sizing: border-box;
+	padding-right: 15px;
+	line-height: 30px;
+	overflow: hidden;
+}
+/* 第1行数据 */
+.w-20-new{
+	width: 20%;
+	box-sizing: border-box;
+	position: relative;
+	width: 100%;
+	min-height: 1px;
+	padding-right: 15px;
+	padding-left: 14.4px;
+	max-width: 20%;
+}
+.data_cardBox .w-20-new:nth-child(1) .data_card {
+	background: linear-gradient(-53deg, #E25040, #FF7261);
+}
+.data_cardBox .w-20-new:nth-child(2) .data_card {
+	background: linear-gradient(-53deg, #6954F0, #8774FF);
+}
+.data_cardBox .w-20-new:nth-child(3) .data_card {
+	background: linear-gradient(-53deg, #F1A139, #F9B649);
+}
+.data_cardBox .w-20-new:nth-child(4) .data_card {
+	background: linear-gradient(-53deg, #0CCBA5, #0CD0BB);
+}
+.data_cardBox .w-20-new:nth-child(5) .data_card {
+	background: linear-gradient(-53deg, #5877EE, #6786FC);
+}
+/* 第2行数据 */
+.data-size,
+.data-sizeb {
+	display: inline-block;
+	background: #F5F5FA;
+	height: 50px;
+	border-radius: 4px;
+	line-height: 50px;
+	text-align: center;
+	padding: 0px 16px;
+}
+.data-size {
+	margin-right: 10px;
+}
+.icon_size {
+	color: #6954F0;
+	cursor: pointer;
+	font-size: 12px;
+}
+.zxtzj_new {
+	position: absolute;
+	top: 60px;
+	right: 35px;
+	z-index: 9999;
+	font-size: 13px;
+	color: #7B8087;
+}
+.zxtzj_num_new {
+	font-size: 18px;
+	color: #1E2126;
+	font-weight: bold;
+}
+.zxtzj_more_new {
+	font-size: 14px;
+	color: #6954F0;
+	font-weight: 500;
+	position: absolute;
+	top: 0;
+	right: 33px;
+	height: 48px;
+	line-height: 48px;
+	z-index: 9
+}
+.turnover{
+	display: inline-block;
+}
+.turnover_new{
+	color: #6954F0;
+	cursor:pointer;
+	font-size: 13px;
+	margin-left: 4px;
+}

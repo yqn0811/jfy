@@ -1,0 +1,428 @@
+{
+  "pages": [
+    {
+      "path": "pages/selection/selection",
+      "style": {
+        "navigationBarTitleText": "",
+        "navigationBarBackgroundColor": "#F8F8F8",
+        "navigationBarTextStyle": "black",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "相册",
+        "navigationBarBackgroundColor": "#F8F8F8",
+        "navigationBarTextStyle": "black",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/login/login",
+      "style": {
+        "navigationBarTitleText": "",
+        "navigationBarBackgroundColor": "#fff",
+        "navigationBarTextStyle": "black",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/usercenter/index",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationBarBackgroundColor": "#F8F8F8",
+        "navigationBarTextStyle": "black",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "subPackages": [
+    {
+      "root": "pagesOther",
+      "pages": [
+        {
+          "path": "imgBook/imgBook",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "mineImg/mineImg",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "mineLove/mineLove",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "setPage/setPage",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "trash/trash",
+          "style": {
+            "navigationBarTitleText": "回收站",
+            "navigationBarBackgroundColor": "#fff",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "vipPage/vipPage",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "vipBuzz/vipBuzz",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "writePage/writePage",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "filePage/filePage",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "setInfo/setInfo",
+          "style": {
+            "navigationBarTitleText": "填写主页资料",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "picDetail/picDetail",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "videoDetail/videoDetail",
+          "style": {
+            "navigationBarTitleText": "视频详情",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "moreUpload/moreUpload",
+          "style": {
+            "navigationBarTitleText": "大批量上传",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "seeRecoed/seeRecoed",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "seeCollection/seeCollection",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "caseCenter/caseCenter",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "concactPage/concactPage",
+          "style": {
+            "navigationBarTitleText": "联系商家",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "addClass/addClass",
+          "style": {
+            "navigationBarTitleText": "新建分类",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "usageHelp/usageHelp",
+          "style": {
+            "navigationBarTitleText": "使用帮助",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "addProduct/addProduct",
+          "style": {
+            "navigationBarTitleText": "产品信息",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "aiResourcePicker/aiResourcePicker",
+          "style": {
+            "navigationBarTitleText": "AI资源库",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "editCover/editCover",
+          "style": {
+            "navigationBarTitleText": "编辑封面",
+            "navigationBarBackgroundColor": "#F5F5F5",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "permissionSetting/permissionSetting",
+          "style": {
+            "navigationBarTitleText": "权限设置",
+            "navigationBarBackgroundColor": "#F5F5F5",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "batchUpload/batchUpload",
+          "style": {
+            "navigationBarTitleText": "大批量照片上传",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "visitorRecord/visitorRecord",
+          "style": {
+            "navigationBarTitleText": "访客记录",
+            "navigationBarBackgroundColor": "#F8F8F8",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "productDetailsSelf/productDetailsSelf",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "productDetail/productDetail",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "productSelect/productSelect",
+          "style": {
+            "navigationBarTitleText": "添加产品到分类",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "productManage/productManage",
+          "style": {
+            "navigationBarTitleText": "产品管理",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "productSort/productSort",
+          "style": {
+            "navigationBarTitleText": "产品排序",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "pictureSort/pictureSort",
+          "style": {
+            "navigationBarTitleText": "图片排序",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "selectStyle/selectStyle",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#fff",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "styleResult/styleResult",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#fff",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "myStyleList/myStyleList",
+          "style": {
+            "navigationBarTitleText": "我的选款单",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "classManage/classManage",
+          "style": {
+            "navigationBarTitleText": "分类管理",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "classSelect/classSelect",
+          "style": {
+            "navigationBarTitleText": "产品选入分类",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "classSort/classSort",
+          "style": {
+            "navigationBarTitleText": "分类排序",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "signIn/signIn",
+          "style": {
+            "navigationBarTitleText": "我的积分",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "pointsDetail/pointsDetail",
+          "style": {
+            "navigationBarTitleText": "积分明细",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom",
+            "enablePullDownRefresh": true
+          }
+        },
+        {
+          "path": "setting/setting",
+          "style": {
+            "navigationBarTitleText": "设置",
+            "navigationBarBackgroundColor": "#fff",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "feedback/feedback",
+          "style": {
+            "navigationBarTitleText": "意见反馈",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "inviteFriends/inviteFriends",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#FFF7BF",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "caseDetail/caseDetail",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "classDetail/classDetail",
+          "style": {
+            "navigationBarTitleText": "",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
+          "path": "webview/webview",
+          "style": {
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    }
+  ],
+  "uniIdRouter": {}
+}

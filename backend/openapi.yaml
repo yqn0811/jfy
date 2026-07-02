@@ -1,0 +1,1978 @@
+openapi: 3.0.3
+info:
+  title: 家方云后端API文档
+  description: 家方云小程序/公众号后端API接口文档
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: https://your-domain.com/api
+    description: 生产环境
+  - url: https://dev-domain.com/api
+    description: 开发环境
+  - url: http://localhost/api
+    description: 本地环境
+
+tags:
+  - name: 用户相关
+    description: 用户登录、信息管理相关接口
+  - name: 公共接口
+    description: 公共功能接口
+  - name: 相册管理
+    description: 相册和图片管理相关接口
+  - name: 分销系统
+    description: 分销相关接口
+  - name: 会员系统
+    description: 会员等级相关接口
+  - name: 套票系统
+    description: 套票相关接口
+  - name: 卡券系统
+    description: 卡券相关接口
+  - name: 充值订单
+    description: 充值和订单相关接口
+  - name: 排行系统
+    description: 排行榜相关接口
+  - name: 口碑评价
+    description: 口碑评价相关接口
+  - name: 公众号
+    description: 公众号相关接口
+  - name: PC上传
+    description: PC端上传相关接口
+  - name: 调试
+    description: 调试与环境检查接口
+
+security:
+  - bearerAuth: []
+
+paths:
+  /user/openid:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户OpenID
+      description: 通过微信登录code获取用户openid和token
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 微信登录code
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 2000
+                msg: success
+                data:
+                  openid: "xxx"
+                  user_uuid: "xxx"
+                  token: "jwt_token_string"
+                  user:
+                    nickname: "用户昵称"
+                    avatar: "https://example.com/avatar.jpg"
+                    vip_grade: 1
+                    grade_name: "普通会员"
+
+  /user/phone:
+    post:
+      tags:
+        - 用户相关
+      summary: 获取用户手机号
+      description: 通过微信手机号授权code获取用户手机号并绑定
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - code
+                - openid
+              properties:
+                code:
+                  type: string
+                  description: 微信手机号授权code
+                openid:
+                  type: string
+                  description: 用户openid
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/update_info:
+    post:
+      tags:
+        - 用户相关
+      summary: 更新用户信息
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - openid
+              properties:
+                openid:
+                  type: string
+                nickname:
+                  type: string
+                avatar:
+                  type: string
+                wx_ewm:
+                  type: string
+                user_desc:
+                  type: string
+                upload_pwd:
+                  type: string
+                  pattern: '^[0-9]{4}$'
+                  description: 上传密码，4位数字
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/show_info:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户信息
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/all_pics:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户所有照片列表
+      parameters:
+        - name: key
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/all_del_pics:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户回收站照片列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/collect:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户收藏照片列表
+      parameters:
+        - name: key
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      tags:
+        - 用户相关
+      summary: 删除收藏图片
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - collect_ids
+              properties:
+                collect_ids:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/pic/collect:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户收藏照片列表（展示用）
+      parameters:
+        - name: key
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/restore/pic:
+    post:
+      tags:
+        - 用户相关
+      summary: 还原回收站图片
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - pic_ids
+              properties:
+                pic_ids:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/destroy/pic:
+    post:
+      tags:
+        - 用户相关
+      summary: 删除回收站图片（彻底删除）
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - pic_ids
+              properties:
+                pic_ids:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/delete/pic:
+    post:
+      tags:
+        - 用户相关
+      summary: 删除我的照片
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - pic_ids
+              properties:
+                pic_ids:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/add/visit:
+    post:
+      tags:
+        - 用户相关
+      summary: 添加访问记录
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - pic_id
+              properties:
+                pic_id:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/del/visit:
+    post:
+      tags:
+        - 用户相关
+      summary: 删除访问记录
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - visit_ids
+              properties:
+                visit_ids:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/lists/visit:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户访问记录
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/visit/folder:
+    post:
+      tags:
+        - 用户相关
+      summary: 获取足迹相册文件夹
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                fid:
+                  type: integer
+                key:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/visit/pics:
+    post:
+      tags:
+        - 用户相关
+      summary: 获取足迹相册图片列表
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - fid
+              properties:
+                fid:
+                  type: integer
+                key:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/play/record:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户游玩记录
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1, 2]
+            default: 0
+          description: 类型：0全部，1消费，2充值
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/scan_status:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户二维码扫码状态
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /user/bind/distribution:
+    post:
+      tags:
+        - 用户相关
+      summary: 用户绑定分销上级
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - distribution_id
+                - openid
+              properties:
+                distribution_id:
+                  type: integer
+                openid:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /common/upload:
+    post:
+      tags:
+        - 公共接口
+      summary: 上传图片
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                pid:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /common/index:
+    get:
+      tags:
+        - 公共接口
+      summary: 获取首页基础信息
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /common/base:
+    get:
+      tags:
+        - 公共接口
+      summary: 获取公共基础信息
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /common/visit:
+    get:
+      tags:
+        - 公共接口
+      summary: 访问记录
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /common/newgift:
+    post:
+      tags:
+        - 公共接口
+      summary: 获取新礼包列表
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    get:
+      tags:
+        - 公共接口
+      summary: 领取新礼包
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /common/example/folder:
+    get:
+      tags:
+        - 公共接口
+      summary: 获取示例相册文件夹
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /common/example/pictures:
+    get:
+      tags:
+        - 公共接口
+      summary: 获取示例相册图片列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /common/example/set:
+    post:
+      tags:
+        - 公共接口
+      summary: 保存示例相册设置
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/create/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 创建相册文件夹
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - folder_name
+                - folder_type
+              properties:
+                fid:
+                  type: integer
+                folder_name:
+                  type: string
+                folder_type:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/delete/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 删除相册文件夹
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - fid
+                - del_type
+              properties:
+                fid:
+                  type: integer
+                del_type:
+                  type: integer
+                  enum: [1, 2]
+                  description: 1仅删除，2彻底删除
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/lists/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 获取相册文件夹列表
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                fid:
+                  type: integer
+                key:
+                  type: string
+                share_uid:
+                  type: integer
+                link_share_str:
+                  type: string
+                folder_type:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/show/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 获取展示相册文件夹列表（不分页，带收藏）
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                fid:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/report/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 用户举报相册
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/lists/pics:
+    post:
+      tags:
+        - 相册管理
+      summary: 获取相册图片列表
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - fid
+              properties:
+                fid:
+                  type: integer
+                key:
+                  type: string
+                link_share_str:
+                  type: string
+                share_uid:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/all/pics:
+    post:
+      tags:
+        - 相册管理
+      summary: 获取相册内所有图片列表
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - fid
+              properties:
+                fid:
+                  type: integer
+                key:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/visit/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 用户访问相册
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/share/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 用户分享相册
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/upload/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 上传内容到相册
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/set_top/pic:
+    post:
+      tags:
+        - 相册管理
+      summary: 设置图片置顶
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/delete/pic:
+    post:
+      tags:
+        - 相册管理
+      summary: 删除相册图片
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/update/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 更新相册设置
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/move/pics:
+    post:
+      tags:
+        - 相册管理
+      summary: 移动图片（收藏或添加到相册）
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/pics/beizhu:
+    post:
+      tags:
+        - 相册管理
+      summary: 修改图片备注
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/reset/share:
+    post:
+      tags:
+        - 相册管理
+      summary: 重置分享链接
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/pwd/folder:
+    post:
+      tags:
+        - 相册管理
+      summary: 设置文件夹密码
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/user/visit/pwd:
+    post:
+      tags:
+        - 相册管理
+      summary: 使用密码访问相册
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /album/selection/create:
+    post:
+      tags:
+        - 相册管理
+      summary: 创建选款单
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - product_ids
+              properties:
+                product_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: 产品ID数组或逗号分隔的字符串
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 2000
+                msg: 创建成功
+                data:
+                  id: 1
+                  name: "20231027 FST12"
+                  uid: 100
+                  uniacid: 1
+                  create_time: 1698391234
+                  update_time: 1698391234
+
+  /album/selection/detail:
+    post:
+      tags:
+        - 相册管理
+      summary: 获取选款单详情
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - selection_id
+              properties:
+                selection_id:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 2000
+                msg: success
+                data:
+                  info:
+                    id: 1
+                    name: "20231027 FST12"
+                    create_time: 1698391234
+                  list:
+                    - id: 101
+                      product_id: 501
+                      folder_name: "产品名称"
+                      img_url: "http://example.com/image.jpg"
+
+  /distribution/statistics:
+    post:
+      tags:
+        - 分销系统
+      summary: 获取分销用户统计数据
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                date_type:
+                  type: integer
+                date_start:
+                  type: string
+                date_end:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /distribution/junior:
+    get:
+      tags:
+        - 分销系统
+      summary: 获取分销用户下级
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /distribution/orders:
+    post:
+      tags:
+        - 分销系统
+      summary: 获取分销订单列表
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /distribution/sub_transfer:
+    post:
+      tags:
+        - 分销系统
+      summary: 提交分销提现
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - total_money
+                - true_name
+              properties:
+                total_money:
+                  type: number
+                  format: float
+                true_name:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /distribution/base_withdrawal:
+    get:
+      tags:
+        - 分销系统
+      summary: 提现页面基础信息
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /distribution/list_withdrawal:
+    get:
+      tags:
+        - 分销系统
+      summary: 获取分销提现记录
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /distribution/qrcode:
+    get:
+      tags:
+        - 分销系统
+      summary: 获取分销分享二维码
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /grade/lists:
+    get:
+      tags:
+        - 会员系统
+      summary: 获取会员等级列表
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /grade/order/create:
+    post:
+      tags:
+        - 会员系统
+      summary: 创建会员等级购买订单
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /ticket/lists:
+    get:
+      tags:
+        - 套票系统
+      summary: 获取套票列表
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /ticket/info:
+    get:
+      tags:
+        - 套票系统
+      summary: 获取套票详情
+      security: []
+      parameters:
+        - name: id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /ticket/order/create:
+    post:
+      tags:
+        - 套票系统
+      summary: 创建套票订单
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /ticket/order/lists:
+    post:
+      tags:
+        - 套票系统
+      summary: 获取套票订单列表
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /coupon/lists:
+    post:
+      tags:
+        - 卡券系统
+      summary: 获取用户卡券列表
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: integer
+                  enum: [1, 2, 3]
+                  description: 1未使用，2已使用，3已过期
+                page:
+                  type: integer
+                  default: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /coupon/count:
+    post:
+      tags:
+        - 卡券系统
+      summary: 获取用户未使用卡券数量
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /coupon/qrcode/info:
+    post:
+      tags:
+        - 卡券系统
+      summary: 获取用户卡券核销二维码
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - cid
+              properties:
+                cid:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /coupon/use_rule:
+    post:
+      tags:
+        - 卡券系统
+      summary: 获取用户卡券使用规则
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - cid
+              properties:
+                cid:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /coupon/voucher:
+    post:
+      tags:
+        - 卡券系统
+      summary: 获取用户可用的代金券
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - pay_price
+              properties:
+                pay_price:
+                  type: number
+                  format: float
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /recharge/lists:
+    get:
+      tags:
+        - 充值订单
+      summary: 获取充值套餐列表
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /recharge/order/create:
+    post:
+      tags:
+        - 充值订单
+      summary: 创建充值订单
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - rid
+                - pay_price
+              properties:
+                rid:
+                  type: integer
+                pay_price:
+                  type: number
+                  format: float
+                invite_code:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /recharge/order/status:
+    post:
+      tags:
+        - 充值订单
+      summary: 查询订单支付状态
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - order_id
+              properties:
+                order_id:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /order/pay_info:
+    get:
+      tags:
+        - 充值订单
+      summary: 获取订单支付信息
+      security: []
+      parameters:
+        - name: order_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /order/lists:
+    get:
+      tags:
+        - 充值订单
+      summary: 获取用户所有订单列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /pay/callback:
+    post:
+      tags:
+        - 充值订单
+      summary: 支付回调通知
+      description: 此接口由支付平台调用，无需前端调用
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /ranking/games:
+    get:
+      tags:
+        - 排行系统
+      summary: 获取游戏名称数据
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 2000
+                msg: success
+                data: ["卡路里", "游戏币", "积分", "充值"]
+
+  /play/ranking:
+    get:
+      tags:
+        - 排行系统
+      summary: 获取用户游戏排行
+      security: []
+      parameters:
+        - name: game_key
+          in: query
+          schema:
+            type: integer
+        - name: date_index
+          in: query
+          schema:
+            type: integer
+            default: 2
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /cate/evaluate:
+    get:
+      tags:
+        - 口碑评价
+      summary: 获取口碑分类（带数量）
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /scate/evaluate:
+    get:
+      tags:
+        - 口碑评价
+      summary: 获取口碑分类（不带数量）
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /submit/evaluate:
+    get:
+      tags:
+        - 口碑评价
+      summary: 获取用户提交的口碑
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      tags:
+        - 口碑评价
+      summary: 提交口碑
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /account/login:
+    get:
+      tags:
+        - 公众号
+      summary: 获取用户授权信息
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /account/order/create:
+    post:
+      tags:
+        - 公众号
+      summary: 创建订单
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /account/init:
+    post:
+      tags:
+        - 公众号
+      summary: 初始化账号配置
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /web/upload:
+    get:
+      tags:
+        - PC上传
+      summary: 根据链接获取文件夹信息
+      security: []
+      parameters:
+        - name: link
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /web/token/upload:
+    post:
+      tags:
+        - PC上传
+      summary: 获取上传Token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /web/folder/upload:
+    get:
+      tags:
+        - PC上传
+      summary: 获取上传文件夹信息
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Web Token
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /web/folder/pic/upload:
+    post:
+      tags:
+        - PC上传
+      summary: 上传图片
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+
+  /user/home/info:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户公开主页信息
+      description: 通过目标用户ID获取其公开主页信息
+      parameters:
+        - name: target_user_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 2000
+                msg: success
+                data:
+                  nickname: "昵称"
+                  avatar: "https://example.com/avatar.jpg"
+                  company_name: "公司名称"
+                  company_logo: "https://example.com/logo.png"
+                  company_desc: "公司介绍"
+                  contact_mobile: "13800000000"
+                  contact_wechat: "wechat_id"
+                  address_province: "省"
+                  address_city: "市"
+                  address_district: "区"
+                  address_detail: "详细地址"
+                  is_followed: true
+
+  /debug/php:
+    get:
+      tags:
+        - 调试
+      summary: PHP 环境检查
+      description: 返回 PHP 版本与 SAPI，便于调试环境
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 2000
+                msg: success
+                data:
+                  version: "7.2.34"
+                  sapi: "fpm-fcgi"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Token认证，格式：Bearer {token}
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 状态码，2000表示成功
+          example: 2000
+        msg:
+          type: string
+          description: 提示信息
+          example: success
+        data:
+          description: 返回数据
+      required:
+        - code
+        - msg
+        - data
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 错误状态码
+          enum: [4000, 4001, 4100, 4003, 5000]
+        msg:
+          type: string
+          description: 错误信息
+        data:
+          type: object
+      required:
+        - code
+        - msg
+
+    UserInfo:
+      type: object
+      properties:
+        nickname:
+          type: string
+        avatar:
+          type: string
+        user_uuid:
+          type: string
+        is_new_user:
+          type: integer
+        all_space:
+          type: string
+        space_used:
+          type: string
+        grade_name:
+          type: string
+        grade_level:
+          type: integer
+        end_time:
+          type: string
+        join_time:
+          type: string
+        total_pics:
+          type: integer
+        total_collects:
+          type: integer
+
+    LoginResponse:
+      type: object
+      properties:
+        openid:
+          type: string
+        user_uuid:
+          type: string
+        token:
+          type: string
+        user:
+          type: object
+          properties:
+            nickname:
+              type: string
+            avatar:
+              type: string
+            vip_grade:
+              type: integer
+            grade_name:
+              type: string

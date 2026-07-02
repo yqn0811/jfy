@@ -1,0 +1,21 @@
+Starting Collect Test...
+Columns in wd_xcx_user_collect_users:
+id (int(11))
+uid (int(11))
+target_uid (int(11))
+create_time (int(11))
+update_time (int(11))
+delete_time (int(11))
+Created Target User ID: 35
+Created Folder ID: 157
+Using Pic ID: 341
+Testing Add Collect...
+Add Collect calls finished.
+Testing Get Collect Records...
+Total Collects: 25 (Expect >= 3)
+SUCCESS: All types found in collect records.
+Testing Cancel Collect...
+Cancel Collect calls finished.
+SUCCESS: All types removed from collect records.
+Cleanup finished.
+{"msg":"Test finished"}

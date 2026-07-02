@@ -1,0 +1,217 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navFx" class="navFx1">
+
+<style type="text/css">
+    .table tr td.biaotou{
+        padding: 15px !important;
+    }
+    table tr:nth-child(odd){
+        background: #F4F7F9;
+    }
+    .discount_table tr{
+        height: 52px;
+    }
+    .biaotao{
+        text-align: center;
+        padding: 8px 0;
+        color: #343841;
+    }
+    .tds1{
+        text-align: center;
+        padding: 8px 0;
+        color: #5C6270;
+    }
+    .shukdd1{
+        width: 100px;
+        border: 1px dashed #dfe4e7 !important;
+        text-align: center;
+        border-radius: 3px !important;
+        background-color: #F4F7F9 !important;
+    }
+</style>
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box ">
+            <div class="portlet-body">
+                <form action="{:Url('DistributionController/saveBase')}?" id="form_sample_2" class="form-horizontal" method="post" enctype="multipart/form-data" onsubmit="return checkinfo();">
+                    <div class="alert alert-light">基础设置</div>
+
+                    <div class="control-group">
+                        <label class="control-label">状态</label>
+                        <div class="controls">
+                            <div class="controls-content">
+                                <label class="radio">
+                                    <input type="radio" name="status" value="0"  {if $base && $base.status ==0}checked="true"{else}checked=checked{/if} />
+                                    关闭
+                                </label>
+                                <label class="radio">
+                                    <input type="radio" name="status" value="1" {if $base && $base.status ==1}checked="true"{/if}/>
+                                    启用
+                                </label>
+                            </div>
+                            <span class="help-block">分销功能启用状态</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">扫码奖励</label>
+                        <div class="controls">
+                            <div class="controls-content">
+                                <label class="radio">
+                                    <input type="radio" name="scan_get" value="1"  {if $base && $base.scan_get ==1}checked="true"{else}checked=checked{/if} />
+                                    首次
+                                </label>
+                                <label class="radio">
+                                    <input type="radio" name="scan_get" value="2" {if $base && $base.scan_get ==2}checked="true"{/if}/>
+                                    每次
+                                </label>
+                            </div>
+                            <span class="help-block">用户扫分享码获取奖励规则</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label"><span>*</span> 锁客时长</label>
+                        <div class="controls">
+                            <div class="controls-content controls-content-input-group">
+                                <input name="lock_day" id="lock_day" onkeyup="clearNoNumNoDecimal(this)" type="number" min="0" class="controls-content-input-group-lb" value="{if $base}{$base.lock_day}{else}30{/if}" />
+                                <span class="controls-content-input-group-last">天</span>
+                            </div>
+                            <span class="help-block">绑定关系锁定时间</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label"><span>*</span> 佣金比例</label>
+                        <div class="controls">
+                            <div class="controls-content controls-content-input-group">
+                                <input name="commission_bill" id="commission_bill" type="number" min="0.00" step="0.01" class="controls-content-input-group-lb" value="{if $base}{$base.commission_bill}{else}0{/if}" />
+                                <span class="controls-content-input-group-last">%</span>
+                            </div>
+                            <span class="help-block">佣金与订单金额比</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label"><span>*</span> 结算时间</label>
+                        <div class="controls">
+                            <div class="controls-content controls-content-input-group">
+                                <input name="commission_settle" id="commission_settle" onkeyup="clearNoNumNoDecimal(this)" type="number" min="0" max="100" class="controls-content-input-group-lb" value="{if $base}{$base.commission_settle}{else}10{/if}" />
+                                <span class="controls-content-input-group-last">天</span>
+                            </div>
+                            <span class="help-block">订单完成后佣金结算时间</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">分享图</label>
+                        <div class="controls">
+                            {include file="public/block_uploadimg_one" arr="base" arr_value="base.share_thumb" name="commonuploadpic1" size="750*1280" quality="100kb" /}
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">赠送卡券</label>
+                        <div class="controls">
+                            <div class="btn green" onclick="add()" style="background-color:#6954F0;color:#fff">添加</div>
+                            <span class="help-block">选择赠送的卡券</span>
+                        </div>
+                    </div>
+                    <div class="couponadd">
+                        {if $base && $base.coupon_info}
+                        {foreach $base.coupon_info as $k => $v}
+                        <div class="control-group del{$k}">
+                            <label class="control-label"></label>
+                            <div class="controls" style="display: flex;">
+                                <select class="controls-content" name="coupon_id[]" id="coupon_{$k}" >
+                                    {foreach $coupon as $c}
+                                    <option value="{$c.id}" {if $v.coupon_id==$c.id}selected{/if}>{$c.title} </option>
+                                    {/foreach}
+                                </select>
+                                <div class="add" style="display: flex;">
+                                    <span class="ml-5 mr-5">获得</span>
+                                    <input type="number" min="1" name="coupon_num[]" value="{$v.coupon_num}" style="border:1px solid #e7e7eb;margin-left:10px;width:95px;"><span style="line-height: 30px;margin:0 10px;" class="span"> 张 </span>
+                                </div>
+                                <div class="btn btn-outline-danger" onclick="del({$k})">删除</div>
+                            </div>
+                        </div>
+                        {/foreach}
+                        {/if}
+
+                    </div>
+
+                    <div class="alert alert-light">提现设置</div>
+                    <div class="control-group">
+                        <label class="control-label"><span>*</span> 手续费</label>
+                        <div class="controls">
+                            <div class="controls-content controls-content-input-group">
+                                <input name="charge_bill" id="charge_bill" type="number" min="0" step="0.01" class="controls-content-input-group-lb" value="{if $base}{$base.charge_bill}{else}0{/if}" />
+                                <span class="controls-content-input-group-last">%</span>
+                            </div>
+                            <span class="help-block">佣金提现手续费</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label"><span>*</span> 提现限制</label>
+                        <div class="controls">
+                            <div class="controls-content controls-content-input-group">
+                                <input name="withdrawal_rise" id="withdrawal_rise" type="number" min="0" class="controls-content-input-group-lb" value="{if $base}{$base.withdrawal_rise}{else}0{/if}" />
+                                <span class="controls-content-input-group-last">元</span>
+                            </div>
+                            <span class="help-block">满额提现</span>
+                        </div>
+                    </div>
+
+
+
+                    <div class="form-actions form_nobg">
+                        <button type="submit" class="btn btn-primary" >确定</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var i = "{$coupon_count}";
+
+    function add() {
+        var str = '<div class="control-group del' + i + '">\
+                  <label class="control-label"></label>\
+                  <div class="controls" style="display: flex;">\
+                          <select class="controls-content" name="coupon_id[]" id="coupon_' + i + '" >\
+                          {foreach $coupon as $v}\
+                          <option value="{$v.id}" >{$v.title} </option>\
+                          {/foreach}\
+                          </select>\
+                          <div class="add" style="display: flex;">\
+                              <span class="ml-5 mr-5">每人可获得</span>\
+                              <input type="number" min="1" name="coupon_num[]" value="1" style="border:1px solid #e7e7eb;margin-left:10px;width:95px;"><span style="line-height: 30px;margin:0 10px;" class="span"> 张 </span>\
+                          </div>\
+                          <div class="btn btn-outline-danger" onclick="del(' + i + ')">删除</div>\
+                  </div>\
+              </div>';
+        $(".couponadd").append(str);
+        ++i;
+    }
+
+    function del(j) {
+        $(".del" + j).remove();
+    }
+
+    function checkinfo(){
+
+    }
+
+    function clearNoNumNoDecimal(obj) { // 只允许输入数字
+        // 如果出现非法字符就截取掉
+        obj.value = obj.value.replace(/[^\d]/g, '');
+    }
+</script>
+
+{include file="public/foot_more" /}

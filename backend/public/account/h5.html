@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>升级会员</title>
+    <!-- 引入微信JSSDK -->
+    <script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+                "Helvetica", "Arial", sans-serif;
+            background-color: #3d362b;
+            min-height: 100vh;
+            padding-bottom: 100px;
+        }
+
+        /* 顶部导航栏 */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #382e21;
+            color: #fff;
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            z-index: 999;
+            height: 50px;
+        }
+
+        .back-button {
+            width: 24px;
+            height: 24px;
+            margin-right: 12px;
+            cursor: pointer;
+        }
+
+        .back-button img {
+            width: 100%;
+            height: 100%;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /* 内容区域 */
+        .content {
+            margin-top: 50px;
+        }
+
+        /* VIP等级切换 */
+        .vip-level-container {
+            background-color: #3d362b;
+            padding: 20px 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .vip-level-wrapper {
+            display: flex;
+            padding: 0 15px;
+            white-space: nowrap;
+        }
+
+        .vip-level-item {
+            margin-right: 30px;
+            cursor: pointer;
+        }
+
+        .level-text {
+            font-size: 16px;
+            color: #666;
+            padding-bottom: 8px;
+            position: relative;
+        }
+
+        .level-text.active {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        /* VIP内容区域 */
+        .vip-content {
+            background-color: #f7f8fa;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+            overflow: hidden;
+        }
+
+        /* 价格区域 */
+        .price-container {
+            display: flex;
+            padding: 15px;
+            background-color: #fff;
+            margin-top: 10px;
+            gap: 10px;
+        }
+
+        .price-item {
+            flex: 1;
+            text-align: center;
+            padding: 20px 10px;
+            padding-top: 30px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .price-item.highlight {
+            background-color: #f6dda1;
+        }
+
+        .discount-tag {
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #e64340;
+            color: #fff;
+            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 0 0 10px 0;
+        }
+
+        .duration {
+            font-size: 14px;
+            color: #904042;
+            margin-bottom: 5px;
+        }
+
+        .current-price {
+            font-size: 24px;
+            font-weight: bold;
+            color: #904042;
+            margin: 5px 0;
+        }
+
+        .original-price {
+            font-size: 12px;
+            color: #999;
+            text-decoration: line-through;
+        }
+
+        /* 滚动区域 */
+        .scroll-content {
+            max-height: 400px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            background-color: #ffffff;
+        }
+
+        /* 评价区域 */
+        .review-section {
+            background-color: #fff;
+            margin-top: 10px;
+            padding: 15px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .view-all {
+            font-size: 12px;
+            color: #999;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .view-all img {
+            width: 14px;
+            height: 14px;
+            margin-left: 3px;
+        }
+
+        .category-tags {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            padding: 0 10px;
+            box-sizing: border-box;
+        }
+
+        .category-tag {
+            font-size: 11px;
+            color: #666;
+            background-color: #f5f5f5;
+            padding: 5px 10px;
+            border-radius: 12px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        .review-list {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 0 10px;
+            box-sizing: border-box;
+        }
+
+        .review-item {
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .review-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .reviewer-info {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            object-fit: cover;
+        }
+
+        .info-text {
+            flex: 1;
+        }
+
+        .reviewer-name {
+            font-size: 13px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .usage-time,
+        .album-type {
+            font-size: 11px;
+            color: #999;
+            margin-left: 8px;
+        }
+
+        .review-content {
+            font-size: 13px;
+            color: #333;
+            line-height: 1.6;
+            margin-top: 8px;
+        }
+
+        /* 会员权益 */
+        .benefits-section {
+            background-color: #fff;
+            margin-top: 10px;
+            padding: 15px;
+        }
+
+        .benefits-content {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        .vip-tab {
+            width: 48%;
+            height: 60px;
+            background-color: #fdf7e9;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+        }
+
+        .vip-icon {
+            width: 30px;
+            height: 30px;
+            margin-right: 10px;
+        }
+
+        .level-info {
+            flex: 1;
+        }
+
+        .level-label {
+            color: #626160;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .level-des {
+            color: #b0b0af;
+            font-size: 11px;
+            margin-top: 3px;
+        }
+
+        .vip-tip {
+            text-align: center;
+            color: #b0b0af;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+
+        /* 底部升级按钮 */
+        .bottom-upgrade {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #ffe4a3;
+            padding: 15px;
+            cursor: pointer;
+            z-index: 998;
+        }
+
+        .upgrade-text {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .upgrade-des {
+            text-align: center;
+            font-size: 12px;
+            color: #626160;
+            margin-top: 5px;
+        }
+
+        /* 加载提示 */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+        }
+
+        /* 隐藏滚动条 */
+        .vip-level-container::-webkit-scrollbar,
+        .scroll-content::-webkit-scrollbar,
+        .review-list::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <div class="header">
+        <div class="title">升级会员</div>
+    </div>
+
+    <!-- 内容区域 -->
+    <div class="content">
+        <!-- VIP等级切换 -->
+        <div class="vip-level-container">
+            <div class="vip-level-wrapper" id="vipLevelWrapper">
+                <!-- 动态生成 -->
+            </div>
+        </div>
+
+        <div class="vip-content">
+            <!-- 价格区域 -->
+            <div class="price-container">
+                <div class="price-item highlight" id="priceItem1" onclick="selectVip(1)">
+                    <div class="discount-tag" id="discount1" style="display: none"></div>
+                    <div class="duration">1年</div>
+                    <div class="current-price" id="price1">¥0</div>
+                    <div class="original-price" id="originPrice1">¥0</div>
+                </div>
+                <div class="price-item" id="priceItem2" onclick="selectVip(2)">
+                    <div class="discount-tag" id="discount2" style="display: none"></div>
+                    <div class="duration">3个月</div>
+                    <div class="current-price" id="price2">¥0</div>
+                    <div class="original-price" id="originPrice2">¥0</div>
+                </div>
+                <div class="price-item" id="priceItem3" onclick="selectVip(3)">
+                    <div class="discount-tag" id="discount3" style="display: none"></div>
+                    <div class="duration">1个月</div>
+                    <div class="current-price" id="price3">¥0</div>
+                    <div class="original-price" id="originPrice3">¥0</div>
+                </div>
+            </div>
+
+            <div class="scroll-content">
+                <!-- 评价区域 -->
+                <div class="review-section">
+                    <div class="section-header" style="margin-bottom: 0;">
+                        <span class="section-title">会员口碑 (<span id="reviewCount">0</span>)</span>
+                    </div>
+                </div>
+
+                <div class="category-tags" id="categoryTags">
+                    <!-- 动态生成 -->
+                </div>
+
+                <div class="review-list" id="reviewList">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+
+            <!-- 会员权益 -->
+            <div class="benefits-section">
+                <div class="section-header">
+                    <span class="section-title">新客会员权益</span>
+                </div>
+                <div class="benefits-content" id="benefitsContent">
+                    <!-- 动态生成 -->
+                </div>
+                <div class="vip-tip">更多会员权限,敬请期待</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部升级按钮 -->
+    <div class="bottom-upgrade" onclick="toBuy()">
+        <div class="upgrade-text">升级会员</div>
+    </div>
+
+    <script src="./md5.js"></script>
+    <script>
+        // 配置
+        const API_BASE = "https://api.jfyuntu.com/api";
+
+        // 状态管理
+        let state = {
+            vipList: [],
+            cateList: [],
+            evaluateList: [],
+            currentLevel: 0,
+            levelInfo: {},
+            activeVip: 1,
+            payFee: 0,
+            page: 1,
+            activeName: "",
+            code: '',
+            openid: '',
+            is_new_user: '',
+            jssdkReady: false  // JSSDK是否准备就绪
+        };
+
+        function getInitialSelection() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const grade = Number(urlParams.get('grade') || 0);
+            const buyTime = Number(urlParams.get('buy_time') || 1);
+            return {
+                grade,
+                buyTime: [1, 2, 3].includes(buyTime) ? buyTime : 1,
+            };
+        }
+
+        function applyInitialSelection() {
+            const { grade, buyTime } = getInitialSelection();
+            if (!Array.isArray(state.vipList) || state.vipList.length === 0) {
+                return;
+            }
+
+            let targetIndex = 0;
+            if (grade > 0) {
+                const foundIndex = state.vipList.findIndex(
+                    (item) => Number(item.grade_level) === grade
+                );
+                if (foundIndex > -1) {
+                    targetIndex = foundIndex;
+                }
+            }
+
+            state.currentLevel = targetIndex;
+            state.levelInfo = state.vipList[targetIndex] || {};
+            state.activeVip = buyTime;
+
+            if (buyTime === 2) {
+                state.payFee = state.levelInfo.midd_month_fee || 0;
+            } else if (buyTime === 3) {
+                state.payFee = state.levelInfo.month_fee || 0;
+            } else {
+                state.payFee = state.levelInfo.annual_fee || 0;
+            }
+        }
+
+        // 生成签名
+        function getASCII(params) {
+            const keys = Object.keys(params).sort();
+            const arr = [];
+            keys.forEach((key) => {
+                if (
+                    params[key] !== undefined &&
+                    params[key] !== null &&
+                    params[key] !== ""
+                ) {
+                    arr.push(`${key}=${params[key]}`);
+                }
+            });
+            const str = arr.join("&");
+            
+            if(state.openid){
+                let openid = state.openid;
+                let openid_md = md5.hex_md5(state.openid);
+                let res = `${openid_md}${str}${openid_md}`;
+                console.log(res,'=======')
+                return md5.hex_md5(res).toString().toUpperCase();
+            }else{
+                let res = `${str}`;
+                return md5.hex_md5(res).toString().toUpperCase();
+            }
+        }
+
+        // API请求封装
+        async function apiRequest(endpoint, params = {}, method = "GET") {
+            const querys = {
+                timestamp: new Date().getTime(),
+                ...params,
+            };
+
+            const data = {
+                ...querys,
+                sign: getASCII(querys),
+            };
+
+            const url = `${API_BASE}/${endpoint}`;
+
+            try {
+                let response;
+                if (method === "GET") {
+                    const queryString = new URLSearchParams(data).toString();
+                    response = await fetch(`${url}?${queryString}`);
+                } else {
+                    response = await fetch(url, {
+                        method: method,
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(data),
+                    });
+                }
+
+                if (!response.ok) {
+                    throw new Error("Network response was not ok");
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error("API请求失败:", error);
+                alert("请求失败，请稍后重试");
+                return null;
+            }
+        }
+
+        // 初始化微信JSSDK
+        async function initWechatJSSDK() {
+            try {
+                console.log('开始初始化微信JSSDK...');
+                
+                const currentUrl = encodeURIComponent(window.location.href.split('#')[0]);
+                
+                const result = await apiRequest("account/init", {
+                    url: currentUrl
+                },'POST');
+                
+                if (result && result.code === 0 && result.data) {
+                    const config = result.data;
+                    
+                    console.log('获取到JSSDK配置:', config);
+                    
+                    wx.config({
+                        debug: false, // 开发时可设为true，生产环境必须为false
+                        appId: config.appId,
+                        timestamp: config.timestamp,
+                        nonceStr: config.nonceStr,
+                        signature: config.signature,
+                        jsApiList: ['chooseWXPay'] // 需要使用的JS接口列表
+                    });
+
+                    wx.ready(function() {
+                        console.log('微信JSSDK配置成功');
+                        state.jssdkReady = true;
+                    });
+
+                    wx.error(function(res) {
+                        console.error('微信JSSDK配置失败:', res);
+                        state.jssdkReady = false;
+                        alert('微信初始化失败，请刷新页面重试');
+                    });
+                } else {
+                    console.error('获取JSSDK配置失败:', result);
+                    alert('获取微信配置失败，请稍后重试');
+                }
+            } catch (error) {
+                console.error('初始化JSSDK异常:', error);
+                alert('微信初始化异常，请检查网络后重试');
+            }
+        }
+
+        // 获取VIP列表
+        async function getVipList() {
+            const result = await apiRequest("grade/lists");
+            if (result && result.data) {
+                state.vipList = result.data;
+                applyInitialSelection();
+                renderVipLevels();
+                updatePriceDisplay();
+                renderBenefits();
+            }
+        }
+
+        // 获取code并登录
+        async function getCode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('code')) {
+                state.code = urlParams.get('code');
+            }
+            
+            const result = await apiRequest("account/login", {
+                link: 'https://api.jfyuntu.com/account/h5.html',
+                code: state.code
+            });
+            
+            if (result && result.data && result.data.link) {
+                window.location.href = result.data.link;
+                return;
+            }
+            
+            if(result && result.data && result.data.user_info){
+                state.openid = result.data.user_info.openid;
+                state.is_new_user = result.data.user_info.is_new_user;
+                console.log('用户openid:', state.openid);
+            }
+        }
+
+        // 获取评价分类
+        async function getCateList() {
+            const result = await apiRequest("cate/evaluate");
+            if (result && result.data) {
+                state.cateList = result.data;
+                renderCategoryTags();
+                getEvaluateList();
+            }
+        }
+
+        // 获取评价列表
+        async function getEvaluateList() {
+            const result = await apiRequest("submit/evaluate", {
+                name: state.activeName,
+                page: state.page,
+            });
+            if (result && result.data && result.data.data) {
+                state.evaluateList = [...state.evaluateList, ...result.data.data];
+                renderReviewList();
+            }
+        }
+
+        // 渲染VIP等级
+        function renderVipLevels() {
+            const wrapper = document.getElementById("vipLevelWrapper");
+            wrapper.innerHTML = state.vipList
+                .map(
+                    (level, index) => `
+                <div class="vip-level-item" onclick="selectVipLevel(${index})">
+                    <div class="level-text ${
+                      index === state.currentLevel ? "active" : ""
+                    }">
+                        ${level.grade_name || ""}
+                    </div>
+                </div>
+            `
+                )
+                .join("");
+        }
+
+        // 渲染分类标签
+        function renderCategoryTags() {
+            const container = document.getElementById("categoryTags");
+            container.innerHTML = state.cateList
+                .map(
+                    (item) => `
+                <span class="category-tag">${item.name}(${item.count})</span>
+            `
+                )
+                .join("");
+
+            document.getElementById("reviewCount").textContent =
+                state.cateList.reduce((sum, item) => sum + (item.count || 0), 0);
+        }
+
+        // 渲染评价列表
+        function renderReviewList() {
+            const container = document.getElementById("reviewList");
+            if (state.evaluateList.length === 0) {
+                container.innerHTML = '<div class="loading">暂无评价</div>';
+                return;
+            }
+
+            container.innerHTML = state.evaluateList
+                .map((item) => {
+                    const userInfo = item.user_info_data || {};
+                    return `
+                    <div class="review-item">
+                        <div class="reviewer-info">
+                            <img src="${
+                              userInfo.avatar || ""
+                            }" alt="avatar" class="avatar" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\'%3E%3Crect width=\'40\' height=\'40\' fill=\'%23ddd\'/%3E%3C/svg%3E'">
+                            <div class="info-text">
+                                <div>
+                                    <span class="reviewer-name">${
+                                      userInfo.nickname || "匿名用户"
+                                    }</span>
+                                    <span class="usage-time">已使用${
+                                      userInfo.join_days || 0
+                                    }天</span>
+                                    <span class="album-type">${
+                                      item.purpose || ""
+                                    }</span>
+                                </div>
+                                <div class="review-content">${
+                                  item.evaluate_content || ""
+                                }</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                })
+                .join("");
+        }
+
+        // 渲染会员权益
+        function renderBenefits() {
+            const benefits = [
+                {
+                    label: "云空间",
+                    value: state.levelInfo.cloud_size_str || ""
+                },
+                {
+                    label: `支持${state.levelInfo.editor_number || 0}编辑`,
+                    value: ""
+                },
+                {
+                    label: "最大上传文件",
+                    value: `${state.levelInfo.upload_size || 0}M`,
+                },
+                {
+                    label: "上传视频",
+                    value: "会员相册可上传视频"
+                },
+                {
+                    label: "无广告",
+                    value: "你的相册无广告"
+                },
+                {
+                    label: "原图",
+                    value: "支持查看和下载原图"
+                },
+                {
+                    label: "文字备注",
+                    value: "可以给图片添加备注"
+                },
+                {
+                    label: "搜索",
+                    value: "根据备注搜索图片"
+                },
+                {
+                    label: "回收站图片到期时间",
+                    value: "30天"
+                },
+                {
+                    label: "搜集照片",
+                    value: "分享到群搜集制定照片"
+                },
+            ];
+
+            const container = document.getElementById("benefitsContent");
+            container.innerHTML = benefits
+                .map(
+                    (item) => `
+                <div class="vip-tab">
+                    <svg class="vip-icon" viewBox="0 0 24 24" fill="#FFD700" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                    </svg>
+                    <div class="level-info">
+                        <div class="level-label">${item.label}</div>
+                        ${
+                          item.value
+                            ? `<div class="level-des">${item.value}</div>`
+                            : ""
+                        }
+                    </div>
+                </div>
+            `
+                )
+                .join("");
+        }
+
+        // 更新价格显示
+        function updatePriceDisplay() {
+            // 1年
+            document.getElementById("price1").textContent = `¥${
+                state.levelInfo.annual_fee || 0
+            }`;
+            document.getElementById("originPrice1").textContent = `¥${
+                state.levelInfo.market_annual_fee || 0
+            }`;
+            if (state.levelInfo.show_annual_del_str) {
+                document.getElementById("discount1").textContent =
+                    state.levelInfo.show_annual_del_str;
+                document.getElementById("discount1").style.display = "block";
+            }
+
+            // 3个月
+            document.getElementById("price2").textContent = `¥${
+                state.levelInfo.midd_month_fee || 0
+            }`;
+            document.getElementById("originPrice2").textContent = `¥${
+                state.levelInfo.market_midd_month_fee || 0
+            }`;
+            if (state.levelInfo.show_month_del_str) {
+                document.getElementById("discount2").textContent =
+                    state.levelInfo.show_month_del_str;
+                document.getElementById("discount2").style.display = "block";
+            }
+
+            // 1个月
+            document.getElementById("price3").textContent = `¥${
+                state.levelInfo.month_fee || 0
+            }`;
+            document.getElementById("originPrice3").textContent = `¥${
+                state.levelInfo.market_month_fee || 0
+            }`;
+            if (state.levelInfo.show_month_del_str) {
+                document.getElementById("discount3").textContent =
+                    state.levelInfo.show_month_del_str;
+                document.getElementById("discount3").style.display = "block";
+            }
+
+            // 更新选中状态
+            selectVip(state.activeVip);
+        }
+
+        // 选择VIP等级
+        function selectVipLevel(index) {
+            state.currentLevel = index;
+            state.levelInfo = state.vipList[index];
+            state.payFee = state.levelInfo.annual_fee;
+            state.activeVip = 1;
+            renderVipLevels();
+            updatePriceDisplay();
+            renderBenefits();
+        }
+
+        // 选择价格
+        function selectVip(type) {
+            state.activeVip = type;
+
+            // 更新支付金额
+            if (type === 1) {
+                state.payFee = state.levelInfo.annual_fee;
+            } else if (type === 2) {
+                state.payFee = state.levelInfo.midd_month_fee;
+            } else if (type === 3) {
+                state.payFee = state.levelInfo.month_fee;
+            }
+
+            // 更新UI
+            document
+                .getElementById("priceItem1")
+                .classList.toggle("highlight", type === 1);
+            document
+                .getElementById("priceItem2")
+                .classList.toggle("highlight", type === 2);
+            document
+                .getElementById("priceItem3")
+                .classList.toggle("highlight", type === 3);
+        }
+
+        // 购买
+        async function toBuy() {
+            // 检查是否选择了会员等级
+            if (!state.levelInfo.grade_level) {
+                alert("请选择会员等级");
+                return;
+            }
+
+            // 检查是否在微信浏览器中
+            if (!isWechatBrowser()) {
+                alert("请在微信中打开此页面进行支付");
+                return;
+            }
+
+            // 检查JSSDK是否准备就绪
+            if (!state.jssdkReady) {
+                alert("微信支付环境未就绪，请稍后重试");
+                console.error('JSSDK未就绪');
+                return;
+            }
+
+            console.log("正在创建订单...");
+
+            try {
+                // 创建订单
+                const data = {
+                    grade: state.levelInfo.grade_level,
+                    buy_time: state.activeVip,
+                    pay_price: state.payFee,
+                };
+                
+                // 新用户优惠
+                if (state.is_new_user == 1) {
+                    data.pay_price = Number((state.payFee - state.levelInfo.new_buy_annual).toFixed(2));
+                }
+                
+                console.log('创建订单参数:', data);
+                
+                const result = await apiRequest(
+                    "account/order/create", 
+                    data,
+                    "POST"
+                );
+
+                console.log('订单创建结果:', result);
+
+                if (!result || result.code !== 0) {
+                    alert(result?.msg || "订单创建失败");
+                    return;
+                }
+
+                // 后端应该返回支付参数
+                const payData = result.data.data.pay_info;
+
+                // 检查必要的支付参数
+                if (!payData || !payData.appid) {
+                    alert("支付参数错误");
+                    console.error('支付参数不完整:', payData);
+                    return;
+                }
+
+                console.log('支付参数:', payData);
+
+                // 调用微信支付
+                callWechatPay(payData);
+
+            } catch (error) {
+                console.error("创建订单失败:", error);
+                alert("创建订单失败,请重试");
+            }
+        }
+
+        // 使用微信JSSDK调起支付
+        function callWechatPay(payData) {
+            if (typeof wx === 'undefined') {
+                alert('微信环境未就绪,请稍后重试');
+                console.error('wx对象不存在');
+                return;
+            }
+
+            console.log('调起微信支付...');
+
+            wx.chooseWXPay({
+                timestamp: payData.timeStamp, // 注意大小写
+                nonceStr: payData.nonceStr,
+                package: payData.package,
+                signType: payData.signType,
+                paySign: payData.paySign,
+                success: function(res) {
+                    // 支付成功
+                    console.log('支付成功:', res);
+                    handlePaymentSuccess();
+                },
+                cancel: function(res) {
+                    // 用户取消支付
+                    console.log('用户取消支付:', res);
+                    alert("支付已取消");
+                },
+                fail: function(res) {
+                    // 支付失败
+                    console.error('支付失败:', res);
+                    alert("支付失败: " + (res.errMsg || "未知错误"));
+                }
+            });
+        }
+
+        // 处理支付成功
+        async function handlePaymentSuccess() {
+            alert("支付成功!");
+            console.log("支付完成,会员已升级");
+            
+            // 可选: 查询订单状态确认
+            // const orderStatus = await apiRequest("account/order/status", { order_id: xxx });
+            
+            // 可选: 跳转到成功页面
+            // window.location.href = "/pages/success/success";
+            
+            // 或者刷新当前页面
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        }
+
+        // 检查是否在微信浏览器中
+        function isWechatBrowser() {
+            const ua = navigator.userAgent.toLowerCase();
+            return ua.indexOf("micromessenger") !== -1;
+        }
+
+        // 返回
+        function goBack() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.close();
+            }
+        }
+
+        // 初始化
+        async function init() {
+            console.log('页面初始化开始...');
+            
+            // 检查环境
+            if (!isWechatBrowser()) {
+                console.warn("当前不在微信浏览器中");
+                alert("请在微信中打开此页面");
+            }
+            
+            // 按顺序初始化
+            await getVipList();
+            await getCode();
+            await getCateList();
+            
+            // 最后初始化JSSDK
+            await initWechatJSSDK();
+            
+            console.log('页面初始化完成');
+        }
+
+        // 页面加载完成后初始化
+        window.addEventListener("DOMContentLoaded", init);
+    </script>
+</body>
+</html>

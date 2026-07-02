@@ -1,0 +1,82 @@
+openapi: 3.0.3
+info:
+  title: 家方云后端API文档 - 积分签到
+  version: 1.0.0
+tags:
+  - name: 用户相关
+    description: 用户积分签到与积分明细
+paths:
+  /album/selection/create:
+    post:
+      tags:
+        - 相册管理
+      summary: 创建选款单
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - pic_ids
+              properties:
+                pic_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: 图片ID数组或逗号分隔的字符串
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 2000
+                msg: 创建成功
+                data:
+                  id: 1
+                  name: "20231027 FST12"
+                  uid: 100
+                  uniacid: 1
+                  create_time: 1698391234
+                  update_time: 1698391234
+
+  /album/selection/detail:
+    post:
+      tags:
+        - 相册管理
+      summary: 获取选款单详情
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - selection_id
+              properties:
+                selection_id:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                code: 2000
+                msg: success
+                data:
+                  info:
+                    id: 1
+                    name: "20231027 FST12"
+                    create_time: 1698391234
+                  list:
+                    - id: 101
+                      pic_id: 501
+                      pic_name: "图片名称"
+                      img_url: "http://example.com/image.jpg"
+

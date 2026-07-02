@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>云共享相册 · 大批量上传照片</title>
+		<style>
+			* {
+				margin: 0;
+				padding: 0;
+				box-sizing: border-box;
+			}
+
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+					"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+				background: #f5f5f5;
+				min-height: 100vh;
+			}
+
+			.header {
+				background: white;
+				padding: 15px 20px;
+				box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+
+			.header-left {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+
+			.logo {
+				width: 36px;
+				height: 36px;
+				background: linear-gradient(135deg, #07c160 0%, #00d976 100%);
+				border-radius: 8px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				color: white;
+				font-size: 20px;
+			}
+
+			.header-title {
+				font-size: 16px;
+				color: #333;
+			}
+
+			.header-right {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+
+			.share-tip {
+				color: #888;
+				font-size: 14px;
+				display: flex;
+				align-items: center;
+				gap: 5px;
+			}
+
+			.share-tip::before {
+				content: "✓";
+				color: #07c160;
+				font-weight: bold;
+			}
+
+			.copy-btn {
+				background: transparent;
+				border: 1px solid #07c160;
+				color: #07c160;
+				padding: 6px 15px;
+				border-radius: 4px;
+				cursor: pointer;
+				font-size: 14px;
+				transition: all 0.3s;
+			}
+
+			.copy-btn:hover {
+				background: #f0fdf4;
+			}
+
+			.container {
+				display: flex;
+				padding: 30px;
+				gap: 40px;
+				max-width: 1400px;
+				margin: 0 auto;
+			}
+
+			.main-content {
+				flex: 1;
+				background: white;
+				border-radius: 12px;
+				padding: 40px;
+				min-height: 600px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+			}
+
+			.upload-area {
+				text-align: center;
+			}
+
+			.placeholder-icon {
+				width: 180px;
+				height: 140px;
+				background: #f5f5f5;
+				border-radius: 8px;
+				margin: 0 auto 20px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				position: relative;
+			}
+
+			.placeholder-icon::before {
+				content: "";
+				width: 60px;
+				height: 50px;
+				background: #ddd;
+				border-radius: 4px;
+				position: absolute;
+				top: 30px;
+				left: 40px;
+			}
+
+			.placeholder-icon::after {
+				content: "";
+				width: 35px;
+				height: 28px;
+				background: #ccc;
+				border-radius: 3px;
+				position: absolute;
+				bottom: 35px;
+				right: 45px;
+			}
+
+			.upload-tip {
+				color: #999;
+				font-size: 14px;
+			}
+
+			.image-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+				gap: 15px;
+				width: 100%;
+				max-width: 100%;
+				padding: 20px 0;
+			}
+
+			.image-item {
+				position: relative;
+				width: 100%;
+				padding-bottom: 100%;
+				border-radius: 8px;
+				overflow: hidden;
+				box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+				transition: all 0.3s;
+				cursor: pointer;
+			}
+
+			.image-item:hover {
+				transform: translateY(-5px);
+				box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+			}
+
+			.image-item img {
+				position: absolute;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+				object-fit: cover;
+			}
+
+			.image-count-tip {
+				color: #666;
+				font-size: 14px;
+				margin-bottom: 15px;
+				font-weight: 500;
+			}
+
+			.sidebar {
+				width: 320px;
+				display: flex;
+				flex-direction: column;
+				gap: 30px;
+			}
+
+			.album-number {
+				background: white;
+				border-radius: 12px;
+				padding: 20px;
+				text-align: right;
+				font-size: 48px;
+				font-weight: 300;
+				color: #333;
+			}
+
+			.qr-section {
+				background: white;
+				border-radius: 12px;
+				padding: 30px;
+				text-align: center;
+			}
+
+			.qr-code {
+				width: 200px;
+				height: 200px;
+				margin: 0 auto 15px;
+				background: white;
+				border: 1px solid #eee;
+				border-radius: 8px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				position: relative;
+			}
+
+			.qr-code img {
+				width: 100%;
+				height: 100%;
+				object-fit: contain;
+				border-radius: 8px;
+			}
+
+			.qr-placeholder {
+				width: 140px;
+				height: 140px;
+				background: #07c160;
+				border-radius: 50%;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				position: relative;
+			}
+
+			.qr-placeholder::before {
+				content: "";
+				width: 60px;
+				height: 40px;
+				background: white;
+				border-radius: 8px 8px 0 0;
+				position: absolute;
+				bottom: 35px;
+			}
+
+			.qr-placeholder::after {
+				content: "";
+				width: 20px;
+				height: 20px;
+				background: #ffd700;
+				border-radius: 50%;
+				position: absolute;
+				top: 40px;
+				right: 35px;
+			}
+
+			.qr-dots {
+				position: absolute;
+				width: 180px;
+				height: 180px;
+			}
+
+			.dot {
+				position: absolute;
+				width: 3px;
+				height: 3px;
+				background: #333;
+				border-radius: 50%;
+			}
+
+			.qr-tip {
+				color: #666;
+				font-size: 14px;
+			}
+
+			.upload-btn {
+				background: #07c160;
+				color: white;
+				border: none;
+				padding: 15px 40px;
+				border-radius: 8px;
+				font-size: 16px;
+				cursor: pointer;
+				width: 100%;
+				margin-bottom: 10px;
+				transition: all 0.3s;
+			}
+
+			.upload-btn:hover {
+				background: #06ad56;
+				transform: translateY(-2px);
+				box-shadow: 0 4px 12px rgba(7, 193, 96, 0.3);
+			}
+
+			.upload-btn:disabled {
+				background: #ccc;
+				cursor: not-allowed;
+				transform: none;
+			}
+
+			.upload-count {
+				color: #999;
+				font-size: 14px;
+				text-align: center;
+			}
+
+			.upload-progress {
+				color: #07c160;
+				font-size: 14px;
+				text-align: center;
+				margin-top: 10px;
+			}
+
+			input[type="file"] {
+				display: none;
+			}
+
+			.modal {
+				display: none;
+				position: fixed;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+				background: rgba(0, 0, 0, 0.5);
+				z-index: 1000;
+				align-items: center;
+				justify-content: center;
+			}
+
+			.modal.show {
+				display: flex;
+			}
+
+			.modal-content {
+				background: white;
+				border-radius: 12px;
+				padding: 30px;
+				width: 400px;
+				max-width: 90%;
+			}
+
+			.modal-title {
+				font-size: 18px;
+				font-weight: 500;
+				color: #333;
+				margin-bottom: 20px;
+				text-align: center;
+			}
+
+			.modal-input {
+				width: 100%;
+				padding: 12px;
+				border: 1px solid #ddd;
+				border-radius: 6px;
+				font-size: 14px;
+				margin-bottom: 20px;
+			}
+
+			.modal-buttons {
+				display: flex;
+				gap: 10px;
+			}
+
+			.modal-btn {
+				flex: 1;
+				padding: 12px;
+				border: none;
+				border-radius: 6px;
+				font-size: 14px;
+				cursor: pointer;
+				transition: all 0.3s;
+			}
+
+			.modal-btn-confirm {
+				background: #07c160;
+				color: white;
+			}
+
+			.modal-btn-confirm:hover {
+				background: #06ad56;
+			}
+
+			.modal-btn-cancel {
+				background: #f5f5f5;
+				color: #666;
+			}
+
+			.modal-btn-cancel:hover {
+				background: #e0e0e0;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="header">
+			<div class="header-left">
+				<div class="logo">📷</div>
+				<span class="header-title">云共享相册 · 大批量上传照片</span>
+			</div>
+			<div class="header-right">
+				<span class="share-tip">把该链接分享给好友,即可多人一起上传</span>
+				<button class="copy-btn" onclick="copyLink()">复制链接</button>
+			</div>
+		</div>
+
+		<div class="container">
+			<div class="main-content">
+				<div class="upload-area" id="uploadArea">
+					<div id="placeholder">
+						<div class="placeholder-icon"></div>
+						<p class="upload-tip">照片一次性最多选择200张</p>
+					</div>
+					<div id="imageContainer" style="display: none; width: 100%;">
+						<p class="image-count-tip">已上传的照片：</p>
+						<div class="image-grid" id="imageGrid"></div>
+					</div>
+				</div>
+			</div>
+
+			<div class="sidebar">
+				<div class="album-number" id="albumNumber">1</div>
+
+				<div class="qr-section">
+					<div class="qr-code" id="qrCodeContainer">
+						<div class="qr-placeholder">
+							<div class="qr-dots"></div>
+						</div>
+					</div>
+					<p class="qr-tip" id="qrTip">扫码打开相册 1</p>
+				</div>
+
+				<div>
+					<input type="file" id="fileInput" multiple accept="image/*" onchange="handleFiles()" />
+					<button class="upload-btn" id="uploadBtn" onclick="openUploadFlow()">
+						上传照片
+					</button>
+					<button class="upload-btn" id="confirmUploadBtn" onclick="confirmUpload()" disabled>
+						确认上传
+					</button>
+					<p class="upload-count">已上传 <span id="count">0</span>张照片</p>
+					<p class="upload-progress" id="progress"></p>
+				</div>
+			</div>
+		</div>
+
+		<div class="modal" id="passwordModal">
+			<div class="modal-content">
+				<div class="modal-title">请输入相册密码</div>
+				<input type="password" class="modal-input" id="passwordInput" placeholder="请输入密码" />
+				<div class="modal-buttons">
+					<button class="modal-btn modal-btn-cancel" onclick="closePasswordModal()">
+						取消
+					</button>
+					<button class="modal-btn modal-btn-confirm" onclick="confirmPassword()">
+						确认
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			const urlParams = new URLSearchParams(window.location.search);
+			let uploadToken = null;
+			let folderInfo = null;
+			let fid = 14;
+			let uploadedCount = 0;
+			let albumCode = urlParams.get('uploadd_code') || '';
+			let albumPassword = urlParams.get('user_pwd') || null;
+			let folder_name = null;
+			let image_base64 = '';
+				let isUploading = false;
+				let uploadedImages = [];
+				let selectedFiles = [];
+
+			console.log(albumCode,albumPassword)
+			
+			function getCodeFromURL() {
+				return urlParams.get('code') || urlParams.get('uploadd_code');
+			}
+
+			function showPasswordModal() {
+				return new Promise((resolve, reject) => {
+					const modal = document.getElementById('passwordModal');
+					const input = document.getElementById('passwordInput');
+
+					modal.classList.add('show');
+					input.value = '';
+					input.focus();
+
+					window.passwordResolve = resolve;
+					window.passwordReject = reject;
+
+					input.onkeypress = function(e) {
+						if (e.key === 'Enter') {
+							confirmPassword();
+						}
+					};
+				});
+			}
+
+			function closePasswordModal() {
+				const modal = document.getElementById('passwordModal');
+				modal.classList.remove('show');
+				if (window.passwordReject) {
+					window.passwordReject(new Error('用户取消输入'));
+				}
+			}
+
+			function confirmPassword() {
+				const input = document.getElementById('passwordInput');
+				const password = input.value.trim();
+
+				if (!password) {
+					alert('请输入密码');
+					return;
+				}
+
+				const modal = document.getElementById('passwordModal');
+				modal.classList.remove('show');
+
+				if (window.passwordResolve) {
+					window.passwordResolve(password);
+				}
+			}
+
+			async function getUploadToken() {
+				try {
+					const response = await fetch('https://api.jfyuntu.com/api/web/token/upload', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							code: albumCode,
+							password: albumPassword || ''
+						})
+					});
+
+					const result = await response.json();
+
+					if (result.code === 0 && result.data && result.data.token) {
+						return result.data.token;
+					} else {
+						if (String(result.msg || '').includes('密码')) {
+							albumPassword = null;
+						}
+						throw new Error(result.msg || '获取上传凭证失败');
+					}
+				} catch (error) {
+					throw error;
+				}
+			}
+
+			async function getFolderInfo() {
+				try {
+					const response = await fetch(`https://api.jfyuntu.com/api/web/upload?code=${albumCode}`, {
+						method: 'GET',
+						headers: {
+							'Content-Type': 'application/json'
+						},
+					});
+					const data = await response.json();
+
+					if (data.code === 0 && data.data) {
+						if (typeof data.data.has_password !== 'undefined') {
+							data.data.has_password = Number(data.data.has_password);
+						}
+						return data.data;
+					} else {
+						throw new Error(data.msg || '获取文件夹信息失败');
+					}
+				} catch (error) {
+					console.error('获取文件夹信息出错:', error);
+					alert('获取文件夹信息失败,请稍后重试');
+					throw error;
+				}
+			}
+
+			function updatePageDisplay(folderData) {
+				if (folderData.folder_name) {
+					folder_name = folderData.folder_name;
+					document.getElementById('albumNumber').textContent = folderData.folder_name;
+					document.getElementById('qrTip').textContent = `扫码打开相册 ${folderData.folder_name}`;
+				}
+
+				if (folderData.image_base64) {
+					image_base64 = folderData.image_base64;
+					const qrContainer = document.getElementById('qrCodeContainer');
+					qrContainer.innerHTML = '';
+
+					const img = document.createElement('img');
+					img.src = folderData.image_base64.startsWith('data:') ?
+						folderData.image_base64 :
+						`data:image/png;base64,${folderData.image_base64}`;
+					img.alt = '相册二维码';
+
+					qrContainer.appendChild(img);
+				}
+			}
+
+			async function initToken() {
+				try {
+					const codeFromURL = getCodeFromURL();
+					if (codeFromURL) {
+						albumCode = codeFromURL;
+					}
+					folderInfo = await getFolderInfo();
+					if (folderInfo) {
+						updatePageDisplay(folderInfo);
+					}
+				} catch (error) {
+					console.log(error);
+				}
+			}
+
+			function copyLink() {
+				const link = window.location.href;
+				navigator.clipboard
+					.writeText(link)
+					.then(() => {
+						alert("链接已复制到剪贴板!");
+					})
+					.catch((err) => {
+						console.error("复制失败:", err);
+					});
+			}
+
+			function renderImages(imageUrls) {
+				if (!imageUrls || imageUrls.length === 0) return;
+			
+				// 隐藏占位符
+				document.getElementById('placeholder').style.display = 'none';
+			
+				// 显示图片容器
+				const imageContainer = document.getElementById('imageContainer');
+				imageContainer.style.display = 'block';
+			
+				// 移除 main-content 的居中样式
+				const mainContent = document.querySelector('.main-content');
+				mainContent.style.display = 'block';
+				mainContent.style.alignItems = 'flex-start';
+				mainContent.style.justifyContent = 'flex-start';
+			
+				// 获取图片网格容器
+				const imageGrid = document.getElementById('imageGrid');
+			
+				// 添加新图片到数组
+				uploadedImages = [...uploadedImages, ...imageUrls];
+			
+				// 清空当前显示
+				imageGrid.innerHTML = '';
+			
+				// 渲染所有图片
+				uploadedImages.forEach((url, index) => {
+					const imageItem = document.createElement('div');
+					imageItem.className = 'image-item';
+					imageItem.title = `图片 ${index + 1}`;
+			
+					const img = document.createElement('img');
+					img.src = url;
+					img.alt = `上传的图片 ${index + 1}`;
+					img.loading = 'lazy';
+			
+					// 图片加载错误处理
+					img.onerror = function() {
+						console.error('图片加载失败:', url);
+						imageItem.style.background = '#f5f5f5';
+						imageItem.innerHTML =
+							'<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #999;">加载失败</div>';
+					};
+			
+					// 点击图片在新窗口打开
+					imageItem.onclick = function() {
+						window.open(url, '_blank');
+					};
+			
+					imageItem.appendChild(img);
+					imageGrid.appendChild(imageItem);
+				});
+			
+				// 更新图片数量提示
+				document.querySelector('.image-count-tip').textContent = `已上传的照片 (${uploadedImages.length}张)：`;
+			}
+
+			async function handleFiles() {
+					const files = document.getElementById("fileInput").files;
+					if (files.length > 200) {
+						alert("最多只能选择200张照片!");
+						return;
+					}
+
+					if (!uploadToken) {
+						alert("上传凭证未就绪,请先点击上传照片");
+						return;
+					}
+
+					if (isUploading) {
+						alert("正在上传中,请稍候...");
+						return;
+					}
+
+					// 仅保存选择的文件，不立即上传
+					selectedFiles = Array.from(files);
+					const confirmBtn = document.getElementById('confirmUploadBtn');
+					confirmBtn.disabled = selectedFiles.length === 0;
+					document.getElementById("progress").textContent = `已选择 ${selectedFiles.length} 张照片，请点击“确认上传”开始上传`;
+				}
+
+			async function openUploadFlow() {
+					try {
+						const codeFromURL = getCodeFromURL();
+						if (codeFromURL) {
+							albumCode = codeFromURL;
+						}
+
+						if (!folderInfo) {
+							folderInfo = await getFolderInfo();
+							if (folderInfo) {
+								updatePageDisplay(folderInfo);
+							}
+						}
+
+						if (folderInfo && Number(folderInfo.has_password) === 1 && !albumPassword) {
+							albumPassword = await showPasswordModal();
+						}
+
+						if (!uploadToken) {
+							try {
+								uploadToken = await getUploadToken();
+							} catch (e) {
+								if (!albumPassword && folderInfo && Number(folderInfo.has_password) === 1) {
+									albumPassword = await showPasswordModal();
+									uploadToken = await getUploadToken();
+								} else {
+									throw e;
+								}
+							}
+						}
+
+						document.getElementById('fileInput').click();
+					} catch (err) {
+						console.error(err);
+						alert(err.message || '初始化上传失败,请稍后重试');
+					}
+				}
+
+				async function confirmUpload() {
+					try {
+						if (!selectedFiles || selectedFiles.length === 0) {
+							alert('请先选择照片再确认上传');
+							return;
+						}
+						if (isUploading) {
+							alert('正在上传中,请稍候...');
+							return;
+						}
+						isUploading = true;
+						const uploadBtn = document.getElementById('uploadBtn');
+						const confirmBtn = document.getElementById('confirmUploadBtn');
+						uploadBtn.disabled = true;
+						confirmBtn.disabled = true;
+						confirmBtn.textContent = '上传中...';
+						document.getElementById('progress').textContent = `准备上传 ${selectedFiles.length} 张照片...`;
+						const result = await uploadPicturesFormData(selectedFiles);
+						uploadedCount += selectedFiles.length;
+						document.getElementById("count").textContent = uploadedCount;
+						document.getElementById("progress").textContent = '';
+						alert(`成功上传 ${selectedFiles.length} 张照片`);
+					} catch (err) {
+						console.error(err);
+						alert(err.message || '上传失败,请稍后重试');
+						document.getElementById("progress").textContent = '';
+					} finally {
+						isUploading = false;
+						const uploadBtn = document.getElementById('uploadBtn');
+						const confirmBtn = document.getElementById('confirmUploadBtn');
+						uploadBtn.disabled = false;
+						confirmBtn.disabled = true;
+						confirmBtn.textContent = '确认上传';
+						selectedFiles = [];
+						const fileInput = document.getElementById("fileInput");
+						fileInput.value = '';
+					}
+				}
+
+
+			async function uploadPicturesFormData(files) {
+				let successCount = 0;
+				let allUrls = [];
+				const totalFiles = files.length;
+				
+				// 逐个上传文件
+				for (let i = 0; i < files.length; i++) {
+					const formData = new FormData();
+					formData.append('fid', folderInfo.id);
+					formData.append('files', files[i]);
+					
+					// 更新进度显示
+					document.getElementById("progress").textContent = 
+						`正在上传第 ${i + 1}/${totalFiles} 张 (已成功 ${successCount}/${totalFiles})...`;
+					
+					try {
+						const resp = await fetch('https://api.jfyuntu.com/api/web/folder/pic/upload', {
+							method: 'POST',
+							headers: {
+								'authorization-token': `Bearer ${uploadToken}`
+							},
+							body: formData
+						});
+						
+						const data = await resp.json();
+						
+						if (data.code === 0 && data.data && data.data.data) {
+							// 收集成功上传的URLs
+							data.data.data.forEach((item) => {
+								allUrls.push(item.url);
+							});
+							successCount++;
+							
+							// 实时渲染已上传的图片
+							renderImages([...data.data.data.map(item => item.url)]);
+						} else {
+							console.error(`第 ${i + 1} 张图片上传失败:`, data.msg || '未知错误');
+						}
+					} catch (error) {
+						console.error(`第 ${i + 1} 张图片上传出错:`, error);
+					}
+				}
+				
+				// 更新最终进度
+				if (successCount === totalFiles) {
+					document.getElementById("progress").textContent = 
+						`✓ 全部上传完成！成功 ${successCount}/${totalFiles} 张`;
+				} else {
+					document.getElementById("progress").textContent = 
+						`⚠ 上传完成，成功 ${successCount}/${totalFiles} 张`;
+				}
+				
+				// 如果部分失败，抛出提示错误
+				if (successCount < totalFiles) {
+					throw new Error(`部分图片上传失败，成功 ${successCount}/${totalFiles} 张`);
+				}
+				
+				return {
+					success: true,
+					urls: allUrls,
+					successCount: successCount,
+					totalCount: totalFiles
+				};
+			}
+
+			window.addEventListener('DOMContentLoaded', initToken);
+		</script>
+	</body>
+</html>

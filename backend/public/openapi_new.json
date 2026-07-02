@@ -1,0 +1,599 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Product Management API",
+    "version": "1.0.0",
+    "description": "API documentation for Product/Category management"
+  },
+  "servers": [
+    {
+      "url": "http://115.190.245.200",
+      "description": "Production Server"
+    }
+  ],
+  "paths": {
+    "/api/album/products/all": {
+      "post": {
+        "summary": "获取所有产品列表",
+        "description": "获取当前用户的所有产品列表，用于在分类中添加现有产品时选择。",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 0 },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "folder_name": { "type": "string" },
+                          "new_thumb": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/album/category/add_products": {
+      "post": {
+        "summary": "分类添加现有产品",
+        "description": "将现有的一个或多个产品添加到指定分类中（多对多关联）。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fid": {
+                    "type": "integer",
+                    "description": "分类ID"
+                  },
+                  "product_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "description": "产品ID数组"
+                  }
+                },
+                "required": ["fid", "product_ids"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "添加成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 0 },
+                    "msg": { "type": "string", "example": "添加成功" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/album/edit/folder": {
+      "post": {
+        "summary": "编辑分类/产品",
+        "description": "修改分类或产品的名称、描述、可见性等。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fid": {
+                    "type": "integer",
+                    "description": "分类或产品ID (必填)"
+                  },
+                  "folder_name": {
+                    "type": "string",
+                    "description": "新名称"
+                  },
+                  "folder_desc": {
+                    "type": "string",
+                    "description": "新描述"
+                  },
+                  "visible_type": {
+                    "type": "integer",
+                    "description": "可见性：1=公开，2=私密，4=仅分享可见"
+                  },
+                  "layout_type": {
+                    "type": "integer",
+                    "description": "展示布局：1=双列，2=单列"
+                  }
+                },
+                "required": ["fid"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "修改成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 0 },
+                    "msg": { "type": "string", "example": "修改成功" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/album/createAlbumFolder": {
+      "post": {
+        "summary": "创建分类/新建产品",
+        "description": "用于创建新的分类或产品。支持花色图和详情图。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fid": {
+                    "type": "integer",
+                    "description": "父级ID，创建分类时为0，创建产品时为分类ID"
+                  },
+                  "folder_name": {
+                    "type": "string",
+                    "description": "分类或产品名称"
+                  },
+                  "folder_type": {
+                    "type": "integer",
+                    "description": "类型：1=分类，2=产品"
+                  },
+                  "folder_desc": {
+                    "type": "string",
+                    "description": "描述（选填）"
+                  },
+                  "visible_type": {
+                    "type": "integer",
+                    "description": "可见性：1=公开，2=私密（默认1）"
+                  },
+                  "pic_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "花色图ID数组（仅产品有效）"
+                  },
+                  "detail_pic_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "详情图ID数组（仅产品有效）"
+                  }
+                },
+                "required": ["folder_name", "folder_type"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "创建成功的对象信息"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/album/getAlbumFolderLists": {
+      "post": {
+        "summary": "获取分类详情及列表（产品预览）",
+        "description": "获取指定分类的详情信息及其包含的子项（产品）。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fid": {
+                    "type": "integer",
+                    "description": "分类ID"
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "搜索关键字（可选）"
+                  },
+                  "folder_type": {
+                    "type": "integer",
+                    "description": "筛选类型：0=全部，1=分类，2=产品（可选）"
+                  }
+                },
+                "required": ["fid"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "folder_info": {
+                          "type": "object",
+                          "description": "当前分类详情（包含名称、描述、商户信息等）"
+                        },
+                        "lists": {
+                          "type": "object",
+                          "description": "包含的产品列表分页数据"
+                        },
+                        "total_num": {
+                          "type": "integer"
+                        },
+                        "total_folder": {
+                          "type": "integer"
+                        },
+                        "total_album": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/album/getAllProducts": {
+      "post": {
+        "summary": "获取所有产品列表（用于选择）",
+        "description": "获取当前用户所有的产品列表，用于在添加到分类时进行选择。",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "folder_name": {
+                            "type": "string"
+                          },
+                          "new_thumb": {
+                            "type": "string"
+                          },
+                          "son_count": {
+                            "type": "integer",
+                            "description": "包含图片数量"
+                          },
+                          "pid": {
+                            "type": "integer"
+                          },
+                          "isChecked": {
+                            "type": "boolean",
+                            "default": false
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/album/addProductsToCategory": {
+      "post": {
+        "summary": "批量添加产品到分类",
+        "description": "将选中的产品移动/添加到指定分类中。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cate_id": {
+                    "type": "integer",
+                    "description": "目标分类ID"
+                  },
+                  "product_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "要添加的产品ID数组"
+                  }
+                },
+                "required": ["cate_id", "product_ids"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer" },
+                    "msg": { "type": "string" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "added_count": { "type": "integer" },
+                        "parsed_ids": {
+                          "type": "array",
+                          "items": { "type": "integer" }
+                        },
+                        "cate_id": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/album/product/add_categories": {
+      "post": {
+        "summary": "产品分类绑定设置（自动增删）",
+        "description": "仅接收最终分类集合，自动计算并执行新增与移除绑定。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "product_id": {
+                    "type": "integer",
+                    "description": "产品ID"
+                  },
+                  "category_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "description": "最终希望绑定的分类ID数组"
+                  }
+                },
+                "required": ["product_id", "category_ids"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 0 },
+                    "msg": { "type": "string", "example": "操作成功" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ,
+    "/api/album/product/categories": {
+      "post": {
+        "summary": "获取产品所属分类列表",
+        "description": "根据产品ID查询该产品当前绑定的所有分类（含直接与关联）。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "product_id": {
+                    "type": "integer",
+                    "description": "产品ID"
+                  }
+                },
+                "required": ["product_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 0 },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "folder_name": { "type": "string" },
+                          "new_thumb": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/album/set_top/product": {
+      "post": {
+        "summary": "产品置顶/取消置顶",
+        "description": "设置或取消产品的置顶状态，置顶后在列表中排在前面。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "product_id": {
+                    "type": "integer",
+                    "description": "产品ID"
+                  },
+                  "is_top": {
+                    "type": "integer",
+                    "description": "1=置顶，0=取消置顶",
+                    "default": 1
+                  }
+                },
+                "required": ["product_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 0 },
+                    "msg": { "type": "string", "example": "操作成功" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/album/delete/category": {
+      "post": {
+        "summary": "删除分类",
+        "description": "删除指定分类。如果该分类下存在产品（包括直接子级和关联产品），则无法删除。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "category_id": {
+                    "type": "integer",
+                    "description": "分类ID"
+                  }
+                },
+                "required": ["category_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 0 },
+                    "msg": { "type": "string", "example": "删除成功" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 0 },
+                    "msg": { "type": "string", "example": "该分类下存在产品，不可删除" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

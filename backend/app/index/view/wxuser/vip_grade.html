@@ -1,0 +1,94 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navVIP" class="navVIP2">
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box ">
+            <div class="mb-20">
+                <a class="btn btn-primary" href="{:Url('WxuserController/addGrade')}" >
+                    新增等级
+                </a>
+            </div>
+            <div class="portlet-body">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th style="width: 80px;">等级</th>
+                        <th style="width: 200px;">等级名称</th>
+                        <th style="width: 150px;">价格</th>
+                        <th style="width: 150px;">编辑人数</th>
+                        <th style="width: 150px;">云空间</th>
+                        <th style="width: 260px;">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {if $list}
+                    {foreach $list as $item}
+                    <tr>
+                        <td>
+                            <span class="btn btn-sm btn-danger">{$item.grade_level}</span>
+                        </td>
+                        <td>
+                            {$item.grade_name}
+                        </td>
+                        <td>
+                            12个月：{$item.annual_fee}元<br>
+                            3个月：{$item.midd_month_fee}元<br>
+                            1个月：{$item.month_fee}元
+                        </td>
+
+                        <td>
+                            {$item.editor_number}
+                        </td>
+                        <td>
+                            {$item.cloud_size}G
+                        </td>
+                        <td>
+                            <a href="{:Url('WxuserController/addGrade')}?gid={$item.id}"><button class="btn btn-outline-primary">编辑</button></a>
+                            <a class="btn btn-outline-danger" onclick="return confirm('该删除操作不可逆，请谨慎操作?'); return false;" href="{:Url('WxuserController/deleteGrade')}?gid={$item.id}">删除</a>
+<!--                            <a class="btn btn-outline-info" href="{:Url('Wxuser/index')}?grade={$item.grade}">会员</a>-->
+                        </td>
+                    </tr>
+                    {/foreach}
+                    {/if}
+                    </tbody>
+                </table>
+
+                <!-- 分页 -->
+                <div class="fenye_bottomBox">
+                    <div class="fenye_left">
+                        一共查询到<font color="red" style="padding:0 10px;">{$list->count()}</font>条数据
+                    </div>
+                    <div class="fenye_right">
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    function getajax(gid,i){
+        $.ajax({
+            url:"{:Url('Vipset/updatestatus')}",
+            type:"post",
+            dataType:"json",
+            data:{
+                gid:gid,
+                i:i
+            },
+            success:function(e){
+                if(e == 1){
+                    history.go(0);
+                }
+            }
+        })
+    }
+</script>
+
+
+
+{include file="public/foot_more" /}

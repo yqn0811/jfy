@@ -1,0 +1,153 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navRanking" class="navRanking1">
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box ">
+            <div class="portlet-body">
+
+                <div class="tabs_v3">
+                    <ul>
+                        {volist name="terminal_name" id="t_name" key="k"}
+                        <li id="two{$k}" style="width: 100px;" class="{if $op==$k}tabs_v3_active{/if}" onclick="checkTerminal('{$k}')">{$t_name}</li>
+                        {/volist}
+                    </ul>
+                </div>
+
+                <div class="public_select_search_btn_box">
+                    <select id="search_year" onchange="changeYear(value)">
+                        {volist name='show_year' id='item_year'}
+                        <option value="{$item_year}" {if $search_year == $item_year}selected="selected"{/if}>{$item_year}年</option>
+                        {/volist}
+                    </select>
+                    {if $ranking_type == 'month'}
+                    <select id="search_month" onchange="changeMonth(value)">
+                        {volist name='show_month' id='item_month'}
+                        <option value="{$item_month}" {if $search_month == $item_month}selected="selected"{/if} >{$item_month}月份</option>
+                        {/volist}
+                    </select>
+                    {/if}
+                    {if $ranking_type == 'week'}
+                    <select id="search_week" onchange="changeWeek(value)">
+                        {volist name='show_week' id='item_week'}
+                        <option value="{$item_week.week_num}" {if $search_week == $item_week.week_num}selected="selected"{/if} >{$item_week.str}</option>
+                        {/volist}
+                    </select>
+                    {/if}
+<!--                    <input type="text" placeholder="请输入关键词" class="search_box_content" id="se_key" value="{$se_key}" onkeypress="getKey()">-->
+<!--                    <button class="btn btn-primary  mr-10" onclick="search()">搜索</button>-->
+                </div>
+
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>名次</th>
+                        <th>用户</th>
+                        <th>分值</th>
+                        <th>奖励</th>
+                        <th>记录时间</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {if $lists}
+                    {foreach $lists as $item}
+                    <tr>
+                        <td>
+                            {$item->sort_num}
+                        </td>
+                        <td class="text-left pl-30">
+                            <img src="{$item.UserInfo['avatar']}" class="list_avatar_img">
+                            {$item.UserInfo['nickname']}
+                        </td>
+                        <td>
+                            {$item.score_result}
+                        </td>
+                        <td>
+                            {$item.reward_diamond}
+                        </td>
+                        <td>
+                            {$item.create_time}
+                        </td>
+
+                    </tr>
+                    {/foreach}
+                    {/if}
+                    </tbody>
+                </table>
+
+                <!-- 分页 -->
+                <div class="fenye_bottomBox">
+                    <div class="fenye_left">
+                        一共查询到<font color="red" style="padding:0 10px;">{$lists->total()}</font>条数据
+                    </div>
+                    <div class="fenye_right">
+                        {$lists|raw}
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    function getKey(){
+        if(event.keyCode == 13){
+            search();
+        }
+    }
+
+    function changeYear(value){
+        search();
+    }
+
+    function changeMonth(value){
+        search();
+    }
+
+    function changeWeek(value){
+        search();
+    }
+
+    function checkTerminal(op){
+        var search_year =$("#search_year").val();
+        var ranking_type = '{$ranking_type}';
+        if(ranking_type == 'month'){
+            var search_month =$("#search_month").val();
+            location.href = "{:Url('GameRankingController/index')}?op="+"{$op}"+'&search_year='+search_year+'&search_month='+search_month;
+        }else{
+            var search_week =$("#search_week").val();
+            location.href = "{:Url('GameRankingController/index')}?op="+op+'&search_year='+search_year+'&search_week='+search_week;
+        }
+    }
+
+    function search(){
+        var search_year =$("#search_year").val();
+        var ranking_type = '{$ranking_type}';
+        if(ranking_type == 'month'){
+            var search_month =$("#search_month").val();
+            location.href = "{:Url('GameRankingController/index')}?op="+"{$op}"+'&search_year='+search_year+'&search_month='+search_month;
+        }else{
+            var search_week =$("#search_week").val();
+            location.href = "{:Url('GameRankingController/index')}?op="+"{$op}"+'&search_year='+search_year+'&search_week='+search_week;
+        }
+    }
+
+    function daochu() {
+        var key = $.trim($("#se_key").val());
+        var start_get = $("#datetimepicker").val();
+        var end_get = $("#datetimepicker2").val();
+        location.href = "{:Url('AppointmentController/orders')}?op="+"{$op}"+'&key='+key+'&start_get='+start_get+'&end_get='+end_get;
+    }
+
+
+</script>
+
+
+
+{include file="public/foot_more" /}

@@ -1,0 +1,25 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# PHP runtime/dependencies
+backend/vendor/
+backend/runtime/
+backend/public/storage/
+backend/public/uploads/
+backend/public/upimages/
+backend/**/*.log
+backend/app/common/service/pay/1/
+backend/app/common/service/pay/PlatformCert/
+backend/**/*.pem
+backend/**/*.key
+backend/**/*.p12
+backend/**/*.crt
+backend/**/*.cer
+
+# Miniapp dependencies/build outputs
+miniapp/node_modules/
+miniapp/dist/
+miniapp/unpackage/
+miniapp/*.zip

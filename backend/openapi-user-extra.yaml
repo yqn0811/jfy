@@ -1,0 +1,26 @@
+openapi: 3.0.3
+info:
+  title: 家方云后端API文档 - 用户扩展
+  version: 1.0.0
+tags:
+  - name: 用户相关
+    description: 用户登录、信息管理相关接口（扩展）
+paths:
+  /user/home_page_info:
+    get:
+      tags:
+        - 用户相关
+      summary: 获取用户主页信息（公开）
+      parameters:
+        - name: target_user_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'

@@ -1,0 +1,381 @@
+{include file="public/head" /}
+{include file="public/top" /}
+<script src="/assets/jsv3/echarts.js" type="text/javascript" charset="utf-8"></script>
+<link rel="stylesheet" type="text/css" href="/assets/cssv3/data_home.css?v={$Think.VERSION_APP}" />
+<script src="/assets/jsv3/countUp.js" type="text/javascript" charset="utf-8"></script>
+<style>
+    .content_head_title {
+        display: none;
+    }
+
+    .page_content {
+        background: transparent;
+        padding: 4px 0;
+    }
+
+    .page-container {
+        padding-right: 30px;
+    }
+
+    .contentbox {
+        background-color: #191B1F !important;
+    }
+
+    .top-datas {
+        display: flex;
+        flex-wrap: wrap
+    }
+
+    .top-datas .item {
+        width: 386px;
+        height: 146px;
+        padding: 30px;
+        box-sizing: border-box;
+        margin-bottom: 20px;
+        background-size: cover;
+    }
+
+    .top-datas .item:not(:nth-child(4)) {
+        margin-right: 18px;
+    }
+
+    .top-datas .item .title {
+        font-weight: 400;
+        font-size: 18px;
+        color: #FFFFFF;
+    }
+
+    .top-datas .item .number {
+        font-weight: bold;
+        font-size: 36px;
+        color: #FFFFFF;
+    }
+
+    .top-datas .item .number span {
+        font-weight: bold;
+        font-size: 14px;
+        color: #FFFFFF;
+    }
+
+    .index-echarts {
+        background: #2D2E31;
+        box-shadow: 0px 0px 23px 1px rgba(76, 66, 188, 0.04);
+        border-radius: 8px;
+        padding: 20px 0;
+        color: #fff;
+    }
+
+    .index-echarts .label {
+        font-size: 15px;
+        color: #FFFFFF;
+    }
+
+    .text-right {
+        text-align: right;
+    }
+
+    .index-echarts-body {
+        position: relative;
+    }
+
+    .zxtzj_new {
+        top: 20px;
+    }
+
+    .data-size,
+    .data-sizeb {
+        background: linear-gradient(90deg, #00DBAB, #008FC9);
+    }
+
+    .index_chart_box {
+        margin-top: 28px;
+        width: 100%;
+        height: 345px;
+    }
+
+    .order_des {
+        background: #2D2E31;
+        box-shadow: 0px 0px 23px 1px rgba(76, 66, 188, 0.04);
+        border-radius: 8px;
+    }
+
+    .order_des .onnew {
+        font-weight: bold;
+        font-size: 15px;
+        color: #FFFFFF;
+        margin-bottom: 20px;
+    }
+
+    .thead_bc {
+        background: #555659;
+        font-size: 14px;
+
+    }
+
+    .newtableborder th {
+        border: 0;
+        color: #FFFFFF;
+    }
+</style>
+<input type="hidden" id="nowhtml" value="dataShow" class="dataShow1">
+<div class="index-page">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="top-datas">
+                <div class="item" style="background-image: linear-gradient(135deg, #00dbab, #008fc9);">
+                    <div class="title">总访问量</div>
+                    <div class="number" id="num1">{$top_data['total_visit']} <span>人</span></div>
+                </div>
+                <div class="item" style="background-image: linear-gradient(135deg, #6671e4, #00a3ff);">
+                    <div class="title">客户数量</div>
+                    <div class="number" id="num2">{$top_data['total_user_count']} <span>人</span></div>
+                </div>
+                <div class="item" style="background-image: linear-gradient(135deg, #6954f0, #008fc9);">
+                    <div class="title">会员数量</div>
+                    <div class="number" id="num3">{$top_data['total_vip_count']} <span>人</span></div>
+                </div>
+                <div class="item" style="background-image: linear-gradient(135deg, #04c65d, #00dbab);">
+                    <div class="title">相册数量</div>
+                    <div class="number" id="num4">{$top_data['total_current_money']} <span>个</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class=" row">
+        <div class="col-md-12 ">
+            <div class="index-echarts">
+                <div class="row title">
+                    <div class="col-md-8 label">图片相册</div>
+                    <div class="col-md-4 text-right"><span><a href="/index/AlbumController/albumLists" >更多</a> <i class="iconfont icon-x-you"></i></span></div>
+                </div>
+                <div class="row index-echarts-body">
+
+                    <div class="zxtzj_new">
+                        <div class="data-size">30天图片数量：<span class="zxtzj_num_new">{$thirty_data.total_money}</span></div>
+                        <div class="data-sizeb">30天相册数量：<span class="zxtzj_num_new">{$thirty_data.total_count}</span></div>
+                    </div>
+
+                    <div id="chartmain_main" class="index_chart_box"></div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div class="row">
+        <div class="col-md-6 mt-20">
+            <div class="order_des">
+                <ul class="order_linew clearfix">
+                    <li class="onnew">相册排行</li>
+                </ul>
+                <div class="order-table order-table1 mt-15">
+                    <table>
+                        <thead class="thead_bc">
+                            <tr class="newtableborder">
+                                <th>排名</th>
+                                <th>用户昵称</th>
+                                <th style="width:180px;">相册数量</th>
+                            </tr>
+                        </thead>
+                        <tbody class="tbody_bc">
+                            {volist name="$recharge_sort" id="recharge_item" key="k"}
+                            <tr>
+                                <th>{$k}</th>
+                                <th>{$recharge_item->UserInfo['nickname']}</th>
+                                <th>{$recharge_item->total_count}</th>
+                            </tr>
+                            {/volist}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+        <div class="col-md-6  mt-20">
+            <div class="order_des">
+                <ul class="order_linew clearfix">
+                    <li class="onnew">图片排行</li>
+                </ul>
+                <div class="order-table order-table1 mt-15">
+                    <table>
+                        <thead class="thead_bc">
+                            <tr class="newtableborder">
+                                <th>排名</th>
+                                <th>用户昵称</th>
+                                <th style="width:180px;">占用空间</th>
+                                <th style="width:180px;">图片数量</th>
+                            </tr>
+                        </thead>
+                        <tbody class="tbody_bc">
+                        {volist name="$tickets_data" id="tickets_item" key="k"}
+                        <tr>
+                            <th>{$k}</th>
+                            <th>{$tickets_item->UserInfo['nickname']}</th>
+                            <th>{$tickets_item->total_size}</th>
+                            <th>{$tickets_item->total_count}</th>
+                        </tr>
+                        {/volist}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        //数据动态增加
+        var options = {
+            useEasing: true,
+            useGrouping: true,
+            separator: ',',
+            decimal: '.',
+        };
+        var num1 = new CountUp('num1', 0, "{$top_data['total_visit']}", 0, 2, options);
+        var num2 = new CountUp('num2', 0, "{$top_data['total_user_count']}", 0, 2, options);
+        var num3 = new CountUp('num3', 0, "{$top_data['total_vip_count']}", 0, 2, options);
+        var num4 = new CountUp('num4', 0, "{$top_data['total_current_money']}", 0, 2, options);
+        num1.start();
+        num2.start();
+        num3.start();
+        num4.start();
+
+        $(function () {
+            var chart_data = '{$chart_data|raw}'
+            chart_data = JSON.parse(chart_data)
+            init(chart_data)
+        })
+        function init(chart_data) {
+            var myChart = echarts.init(document.getElementById('chartmain_main'));
+            var option = {
+                // color: ['#F6B6B5'],
+                tooltip: {
+                    trigger: 'axis'
+                },
+                legend: {
+                    data: ['相册数量', '图片数量'],
+                    x: 'left',
+                    textStyle: {
+                        color: '#fff'
+                    }
+                },
+                grid: {
+                    show: false,
+                    borderColor: "#fff",
+                    borderWidth: 0,
+                    top: 60,
+                    left: 30,
+                    right: 20,
+                    bottom: 20
+                },
+                xAxis: [
+                    {
+                        type: 'category',
+                        data: chart_data.chart_date,
+                        axisLabel: {
+                            color: '#7B8087'//底部横坐标刻度数字颜色
+                        },
+                        axisTick: {
+                            show: false,
+                        },
+                        axisLine: {
+                            lineStyle: {
+                                color: "#D8DFEA",//横坐标轴的颜色
+                                type: 'dashed'
+                            }
+                        },
+                    }
+                ],
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '相册数量',
+                        nameTextStyle: {
+                            color: "#333333",
+                        },
+                        axisTick: {
+                            show: false,
+                        },
+                        axisLabel: {
+                            color: '#7B8087'
+                        },
+                        axisLine: {
+                            show: false,
+
+                        },
+                        splitLine: {
+                            lineStyle: {
+                                color: "#D8DFEA",
+                                type: 'dashed'
+                            }
+                        }
+                    },
+                    {
+                        type: 'value',
+                        name: '',
+                        position: 'right',
+                        nameTextStyle: {
+                            color: "#333333",
+                        },
+                        axisTick: {
+                            show: false,
+                        },
+                        axisLine: {
+                            show: false
+                        },
+                        axisLabel: {
+                            show: false
+                        },
+                        axisLine: {
+                            show: false
+                        },
+                        splitLine: {
+                            show: false
+                        }
+                    },
+                ],
+                series: [
+                    {
+                        name: '相册数量',
+                        type: 'bar',
+                        barWidth: '40',
+                        data: chart_data.chart_count,
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            textStyle: {
+                                color: '#333333'
+                            },
+                            colorStops: [{
+                                offset: 0, color: 'rgba(246,182,181,0.4)' // 0% 处的颜色
+                            }, {
+                                offset: 1, color: 'rgba(246,182,181,0)' // 100% 处的颜色
+                            }],
+                        }
+                    },
+                    {
+                        name: '图片数量',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: chart_data.chart_money,
+                        symbol: 'none',
+                        lineStyle: {
+                            color: '#00DBAB',
+                            width: 3,
+                            // shadowColor: 'rgba(0,0,0,0.1)',
+                            // shadowBlur: 5,
+                            // shadowOffsetY: 15
+                        },
+
+                        smooth: 0.5,
+                    }
+                ]
+            };
+            myChart.setOption(option);
+        }
+    </script>
+
+    {include file="public/foot_more" /}

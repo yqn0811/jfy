@@ -1,0 +1,2 @@
+ALTER TABLE `wd_xcx_user` ADD COLUMN `latitude` DECIMAL(10, 7) DEFAULT NULL COMMENT '纬度';
+ALTER TABLE `wd_xcx_user` ADD COLUMN `longitude` DECIMAL(10, 7) DEFAULT NULL COMMENT '经度';
