@@ -126,14 +126,35 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout')
+            ->field('id,folder_name,folder_desc,new_thumb,sort,uid')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
-            ->each(function($item) use ($visitorUid, $targetUserId, $is_owner, $shared_ids, $collected_ids){
-                $item->product_count = 0;
-                $item->child_count = $this->getVisibleCategoryChildCount($item->id, $targetUserId, $is_owner, $shared_ids);
-                $item->son_count = $item->child_count;
-                $item->children = $this->getVisibleCategoryChildren($item->id, $targetUserId, $visitorUid, $is_owner, $shared_ids, $collected_ids);
+            ->each(function($item) use ($visitorUid, $targetUserId, $is_visiting_others, $shared_ids, $is_owner, $collected_ids){
+                $bound_ids = \app\common\model\album\WdXcxProductCategoryBind::where('category_id', $item->id)->column('product_id');
+                $direct_ids = \app\common\model\album\WdXcxAlbumFolder::where('pid', $item->id)
+                    ->where('folder_type', 2)
+                    ->column('id');
+                $all_ids = array_unique(array_merge($bound_ids ?: [], $direct_ids ?: []));
+                if (!empty($all_ids)) {
+                    $countQuery = \app\common\model\album\WdXcxAlbumFolder::whereIn('id', $all_ids)
+                        ->where('folder_type', 2)
+                        ->where('uid', $targetUserId);
+                    if ($is_visiting_others && !$is_owner) {
+                        $countQuery->where(function($q) use ($shared_ids) {
+                            $q->where('private_type', 1)
+                              ->whereOr(function($q2) use ($shared_ids){
+                                  if (!empty($shared_ids)) {
+                                      $q2->where('private_type', 4)->whereIn('id', $shared_ids);
+                                  } else {
+                                      $q2->whereRaw('0');
+                                  }
+                              });
+                        });
+                    }
+                    $item->product_count = $countQuery->count();
+                } else {
+                    $item->product_count = 0;
+                }
                 if($item->uid != $visitorUid){
                     $item->folder_name = $item->folder_name;
                 }
@@ -155,7 +176,7 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,layout_type,pic_layout')
+            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $collected_ids){
@@ -198,7 +219,7 @@ class UserService extends BaseService
         ];
     }
 
-    public function getHomeCategories($targetUserId, $visitorUid = 0, $fid = 0)
+    public function getHomeCategories($targetUserId, $visitorUid = 0)
     {
         $user = WdXcxUser::find($targetUserId);
         if (!$user || !$user->is_show_home) {
@@ -223,7 +244,7 @@ class UserService extends BaseService
         }
         $categories = WdXcxAlbumFolder::where('uid', $targetUserId)
             ->where('folder_type', 1)
-            ->where('pid', (int)$fid)
+            ->where('pid', 0)
             ->when(!$is_owner, function($query) use ($shared_ids) {
                 $query->where(function($q) use ($shared_ids){
                     $q->where('private_type', 1)
@@ -236,14 +257,31 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout')
+            ->field('id,folder_name,folder_desc,new_thumb,sort,uid')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $targetUserId, $is_owner, $shared_ids, $collected_ids){
-                $item->product_count = 0;
-                $item->child_count = $this->getVisibleCategoryChildCount($item->id, $targetUserId, $is_owner, $shared_ids);
-                $item->son_count = $item->child_count;
-                $item->children = $this->getVisibleCategoryChildren($item->id, $targetUserId, $visitorUid, $is_owner, $shared_ids, $collected_ids);
+                $bound_ids = \app\common\model\album\WdXcxProductCategoryBind::where('category_id', $item->id)->column('product_id');
+                $direct_ids = \app\common\model\album\WdXcxAlbumFolder::where('pid', $item->id)->where('folder_type', 2)->column('id');
+                $all_ids = array_unique(array_merge($bound_ids ?: [], $direct_ids ?: []));
+                if (!empty($all_ids)) {
+                    $countQuery = \app\common\model\album\WdXcxAlbumFolder::whereIn('id', $all_ids)->where('folder_type', 2)->where('uid', $targetUserId);
+                    if (!$is_owner) {
+                        $countQuery->where(function($q) use ($shared_ids) {
+                            $q->where('private_type', 1)
+                              ->whereOr(function($q2) use ($shared_ids){
+                                  if (!empty($shared_ids)) {
+                                      $q2->where('private_type', 4)->whereIn('id', $shared_ids);
+                                  } else {
+                                      $q2->whereRaw('0');
+                                  }
+                              });
+                        });
+                    }
+                    $item->product_count = $countQuery->count();
+                } else {
+                    $item->product_count = 0;
+                }
                 if($item->uid != $visitorUid){
                     $item->folder_name = $item->folder_name;
                 }
@@ -251,54 +289,6 @@ class UserService extends BaseService
                 $item->is_collect = in_array($item->id, $collected_ids) ? 1 : 0;
             });
         return $categories;
-    }
-
-    private function applyVisibleCategoryScope($query, $isOwner, $sharedIds)
-    {
-        if ($isOwner) {
-            return $query;
-        }
-        return $query->where(function($q) use ($sharedIds){
-            $q->where('private_type', 1)
-              ->whereOr(function($q2) use ($sharedIds){
-                  if (!empty($sharedIds)) {
-                      $q2->where('private_type', 4)->whereIn('id', $sharedIds);
-                  } else {
-                      $q2->whereRaw('0');
-                  }
-              });
-        });
-    }
-
-    private function getVisibleCategoryChildCount($categoryId, $targetUserId, $isOwner, $sharedIds)
-    {
-        $query = WdXcxAlbumFolder::where('uid', $targetUserId)
-            ->where('folder_type', 1)
-            ->where('pid', $categoryId);
-        return $this->applyVisibleCategoryScope($query, $isOwner, $sharedIds)->count();
-    }
-
-    private function getVisibleCategoryChildren($categoryId, $targetUserId, $visitorUid, $isOwner, $sharedIds, $collectedIds)
-    {
-        $query = WdXcxAlbumFolder::where('uid', $targetUserId)
-            ->where('folder_type', 1)
-            ->where('pid', $categoryId)
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type')
-            ->order('sort desc, set_top desc, set_top_time desc, id desc');
-
-        return $this->applyVisibleCategoryScope($query, $isOwner, $sharedIds)
-            ->select()
-            ->each(function($child) use ($targetUserId, $visitorUid, $isOwner, $sharedIds, $collectedIds){
-                $child->product_count = 0;
-                $child->child_count = $this->getVisibleCategoryChildCount($child->id, $targetUserId, $isOwner, $sharedIds);
-                $child->son_count = $child->child_count;
-                $child->children = $this->getVisibleCategoryChildren($child->id, $targetUserId, $visitorUid, $isOwner, $sharedIds, $collectedIds);
-                $child->level = $child->FolderLeval;
-                $child->is_collect = in_array($child->id, $collectedIds) ? 1 : 0;
-                if($child->uid != $visitorUid){
-                    $child->folder_name = $child->folder_name;
-                }
-            });
     }
 
     public function getHomeProducts($targetUserId, $visitorUid = 0, $cateId = 0)
@@ -353,7 +343,7 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,is_hot,layout_type,pic_layout')
+            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,is_hot')
             ->order('is_hot desc, sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $collected_ids){
@@ -1573,33 +1563,12 @@ class UserService extends BaseService
         }
 
         $lists = $query->order('id desc')
-            ->field('id, folder_name, folder_type, new_thumb, pic_ids, detail_pic_ids, create_time')
+            ->field('id, folder_name, new_thumb, create_time')
             ->paginate($limit)->each(function ($item){
-                $thumb = $item->NewThumb;
-                if (!$thumb && $item->folder_type == 2) {
-                    $picIds = [];
-                    if ($item->pic_ids) {
-                        $picIds = array_merge($picIds, explode(',', $item->pic_ids));
-                    }
-                    if ($item->detail_pic_ids) {
-                        $picIds = array_merge($picIds, explode(',', $item->detail_pic_ids));
-                    }
-                    $picIds = array_values(array_filter(array_map('intval', $picIds)));
-                    if (!empty($picIds)) {
-                        $pic = WdXcxPic::withTrashed()
-                            ->whereIn('id', $picIds)
-                            ->orderRaw('FIELD(id, ' . implode(',', $picIds) . ')')
-                            ->find();
-                        if ($pic) {
-                            $thumb = $pic->TruePic;
-                        }
-                    }
-                }
-                $item->imgurl = $thumb;
+                $item->imgurl = $item->NewThumb;
                 $item->pic_name = $item->folder_name;
                 $item->isChecked = false;
                 $item->create_time_str = date('Y/m/d H:i', $item->getData('create_time'));
-                unset($item->pic_ids, $item->detail_pic_ids);
             });
         return $lists;
     }
@@ -2325,7 +2294,7 @@ class UserService extends BaseService
         }
         if ($type === 'homepage') {
             if ($id == $user_id) {
-                return;
+                // 允许记录访问自己的主页
             }
             $targetUser = WdXcxUser::find($id);
             if(!$targetUser){
@@ -2353,9 +2322,6 @@ class UserService extends BaseService
                 } else {
                     throwError('分类不存在');
                 }
-            }
-            if ((int)$folder->uid === (int)$user_id) {
-                return;
             }
             $record = WdXcxAlbumVisitRecord::where([
                 'uid' => $user_id,
@@ -2601,43 +2567,10 @@ class UserService extends BaseService
     public function getUserVisitors($uid, $param = [])
     {
         $page = isset($param['page']) ? (int)$param['page'] : 1;
-        $type = isset($param['type']) ? $param['type'] : 'visitor';
         $limit = 20;
 
-        if ($type === 'visitor' || $type === 'visitors') {
-            $total = WdXcxUserVisitRecord::where('target_uid', $uid)
-                ->where('uid', '<>', $uid)
-                ->distinct(true)
-                ->field('uid')
-                ->select()
-                ->count();
+        $query = WdXcxUserVisitRecord::where('target_uid', $uid);
 
-            $lists = WdXcxUserVisitRecord::where('target_uid', $uid)
-                ->where('uid', '<>', $uid)
-                ->field('MAX(id) as id, uid, MAX(CASE WHEN update_time > 0 THEN update_time ELSE create_time END) as visit_time')
-                ->group('uid')
-                ->order('visit_time desc')
-                ->page($page, $limit)
-                ->select()
-                ->each(function($item) {
-                    $visitor = WdXcxUser::find($item->uid);
-                    $item->visitor_name = $visitor ? ($visitor->nickname ?: $visitor->company_name) : '未知用户';
-                    $item->visitor_avatar = $visitor ? $visitor->avatar : '';
-
-                    $item->time = (int)$item->visit_time;
-                    $item->time_str = Utils::timeAgo($item->time);
-                });
-
-            return [
-                'total' => $total,
-                'current_page' => $page,
-                'per_page' => $limit,
-                'data' => $lists
-            ];
-        }
-
-        $query = WdXcxUserVisitRecord::where('target_uid', $uid)
-            ->where('uid', '<>', $uid);
         $total = $query->count();
 
         $lists = $query->order('update_time desc, create_time desc')
@@ -2659,21 +2592,6 @@ class UserService extends BaseService
             'per_page' => $limit,
             'data' => $lists
         ];
-    }
-
-    public function markVisitRecordsRead($uid)
-    {
-        if (!$uid) {
-            throwError('用户不存在');
-        }
-        $user = WdXcxUser::where('id', $uid)->find();
-        if (!$user) {
-            throwError('用户不存在');
-        }
-        (new WdXcxUser())->ensureHomePreferenceColumns();
-        Db::name('wd_xcx_user')
-            ->where('id', $uid)
-            ->update(['visit_read_time' => time()]);
     }
 
     /**

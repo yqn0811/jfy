@@ -60,7 +60,7 @@ class WebUploadApiController extends ApiBaseController
         if(empty($param['fid'])){
             throwError('相册参数不完整');
         }
-        $this->result($this->upload_service->getUploadFolderInfo($param, request()->userID(), request()->webUploadFolderID()));
+        $this->result($this->upload_service->getUploadFolderInfo($param, request()->userID()));
     }
 
     public function userUploadFolderPic()
@@ -72,9 +72,6 @@ class WebUploadApiController extends ApiBaseController
         $pid = $this->request->post('fid', 0);
         if(!$pid){
             throwError('请选择相册');
-        }
-        if((int)$pid !== (int)request()->webUploadFolderID()){
-            throwError('上传凭证与相册不匹配');
         }
         $uid = request()->userID();
         $folder = WdXcxAlbumFolder::where([

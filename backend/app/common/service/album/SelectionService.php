@@ -9,7 +9,6 @@ use app\common\model\user\WdXcxUser;
 use app\common\service\BaseService;
 use think\App;
 use think\facade\Db;
-use think\facade\Log;
 
 class SelectionService extends BaseService
 {
@@ -156,28 +155,6 @@ class SelectionService extends BaseService
         }
 
         return $summary;
-    }
-
-    private function buildMissingProductSummary(WdXcxAlbumSelection $selection)
-    {
-        if (!$selection->product_id) {
-            return null;
-        }
-
-        return [
-            'id' => (int)$selection->product_id,
-            'name' => '关联产品已删除',
-            'desc' => '',
-            'cover_img' => '',
-            'share_img' => '',
-            'category_ids' => [],
-            'missing' => true,
-        ];
-    }
-
-    private function isProductMissingException(\Throwable $e)
-    {
-        return trim($e->getMessage()) === '产品不存在';
     }
 
     private function buildSelectionPictureItem($pic, $selectionItem = null)
@@ -328,36 +305,7 @@ class SelectionService extends BaseService
             }
         }
 
-        $product = null;
-        $productMissing = false;
-        if ($selection->product_id) {
-            $productOwner = WdXcxAlbumFolder::where('id', $selection->product_id)
-                ->where('folder_type', 2)
-                ->field('id, uid')
-                ->find();
-            if (!$productOwner) {
-                $productMissing = true;
-                Log::warning('[SelectionService] selection product missing', [
-                    'selection_id' => (int)$selection_id,
-                    'product_id' => (int)$selection->product_id,
-                    'message' => '产品不存在',
-                ]);
-            } else {
-                try {
-                    $product = $this->getProductDetail($selection->product_id, $productOwner->uid);
-                } catch (\Throwable $e) {
-                    if (!$this->isProductMissingException($e)) {
-                        throw $e;
-                    }
-                    $productMissing = true;
-                    Log::warning('[SelectionService] selection product missing', [
-                        'selection_id' => (int)$selection_id,
-                        'product_id' => (int)$selection->product_id,
-                        'message' => $e->getMessage(),
-                    ]);
-                }
-            }
-        }
+        $product = $selection->product_id ? $this->getProductDetail($selection->product_id, $selection->customer_uid ?: $selection->uid) : null;
         if ($product) {
             if ($product->folder_type == 2) {
                 $product->img_url = $product->getData('new_thumb');
@@ -383,8 +331,7 @@ class SelectionService extends BaseService
             'customer' => $this->buildUserSummary($customerUid),
             'factory' => $this->buildUserSummary($factoryUid),
             'product' => $product,
-            'product_summary' => $product ? $this->buildProductSummary($product) : $this->buildMissingProductSummary($selection),
-            'product_missing' => $productMissing,
+            'product_summary' => $this->buildProductSummary($product),
             'list' => $list,
             'cover_img' => $coverImg,
             'share_img' => $shareImage,

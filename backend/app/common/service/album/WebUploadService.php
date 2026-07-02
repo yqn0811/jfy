@@ -110,9 +110,6 @@ class WebUploadService extends BaseService
         }
         $result['user_uuid'] = $user->user_uuid;
         $result['user_id'] = $user->id;
-        $result['scope'] = 'web_album_upload';
-        $result['fid'] = (int)$folder->id;
-        $result['owner_id'] = (int)$folder->uid;
         $token = JwtService::createWebToken($result);
         return [
             'token' => $token,
@@ -121,11 +118,8 @@ class WebUploadService extends BaseService
 
     }
 
-    public function getUploadFolderInfo($param, $uid, $tokenFid = 0)
+    public function getUploadFolderInfo($param, $uid)
     {
-        if($tokenFid && (int)$param['fid'] !== (int)$tokenFid){
-            throwError('上传凭证与相册不匹配');
-        }
         $folder = WdXcxAlbumFolder::where('id', $param['fid'])->find();
         if(!$folder){
             throwError('指定的上传码对应的相册不存在');
