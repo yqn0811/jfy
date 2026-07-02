@@ -3,6 +3,21 @@
 .env.*
 !.env.example
 
+# Server-only entry files and ACME challenge folders
+/.htaccess
+/.user.ini
+/404.html
+/index.html
+/.well-known/
+backend/**/.user.ini
+backend/**/.well-known/
+backend/.codex-backups/
+backend/.secrets/
+backend/**/*.bak
+backend/**/*.bak-*
+backend/**/*.bak.*
+backend/**/*.backup
+
 # PHP runtime/dependencies
 backend/vendor/
 backend/runtime/
