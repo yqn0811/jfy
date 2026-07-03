@@ -5,6 +5,7 @@ namespace app\common\service\album;
 use app\common\model\user\WdXcxUser;
 use app\common\service\BaseService;
 use app\index\model\WdXcxPic;
+use app\index\service\TencentCOSService;
 use think\App;
 use think\Exception;
 use think\facade\Log;
@@ -279,6 +280,7 @@ class AiResourceBridgeService extends BaseService
         if (file_put_contents($path, $download['content']) === false) {
             throw new Exception('保存资源库图片失败');
         }
+        $this->uploadLocalizedFileToRemote($path, $dirRelative . '/' . $filename);
         $pic->imgurl = $dirRelative . '/' . $filename;
         $pic->size = strlen($download['content']);
         $pic->type = 1;
@@ -286,6 +288,23 @@ class AiResourceBridgeService extends BaseService
         $pic->file_type = 1;
         $pic->save();
         return $pic;
+    }
+
+    private function uploadLocalizedFileToRemote($localPath, $relativePath)
+    {
+        $config = getRemoteConfig($this->uniacid ?: 1);
+        if ((int)($config['remote'] ?? 1) !== 4 || empty($config['ten_cos'])) {
+            return;
+        }
+        $cosConfig = $config['ten_cos'];
+        $saveKey = $relativePath;
+        if (!empty($cosConfig['folder_name']) && strpos($saveKey, $cosConfig['folder_name'] . '/') !== 0) {
+            $saveKey = rtrim($cosConfig['folder_name'], '/') . '/' . ltrim($saveKey, '/');
+        }
+        $cos = new TencentCOSService($cosConfig, $saveKey);
+        if (!$cos->upload($localPath, false)) {
+            throw new Exception('上传资源库图片到远程附件失败');
+        }
     }
 
     private function downloadResourceImage($url)
