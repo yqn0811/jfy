@@ -753,12 +753,14 @@ class UserApiController extends ApiBaseController
         $params = $this->request->getMore([
             ['target_user_id', 0],
             ['path', ''],
+            ['type', 'home'],
+            ['id', 0],
         ]);
         $targetUserId = $params['target_user_id'];
         if (!$targetUserId) {
             throwError('参数错误');
         }
-        $this->result($this->userService->getHomeShareLink($targetUserId, $params['path']));
+        $this->result($this->userService->getHomeShareLink($targetUserId, $params['path'], $params['type'], $params['id']));
     }
 
     public function getHomeSharePoster()

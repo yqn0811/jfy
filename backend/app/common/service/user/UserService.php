@@ -551,7 +551,7 @@ class UserService extends BaseService
      * @param string $path
      * @return array
      */
-    public function getHomeShareLink($targetUserId, $path = '')
+    public function getHomeShareLink($targetUserId, $path = '', $type = 'home', $id = 0)
     {
         $user = WdXcxUser::find($targetUserId);
         if (!$user || !$user->is_show_home) {
@@ -559,37 +559,84 @@ class UserService extends BaseService
         }
         $inviteCode = isset($user->invite_code) ? $user->invite_code : '';
         $title = ($user->company_name ?: $user->nickname) . '的主页';
-        $miniPath = $this->normalizeMiniProgramPath($path ?: 'pages/index/index');
-        $pagePath = $miniPath['path'];
-        $params = $miniPath['params'];
-        $params['uid'] = (string)$targetUserId;
-        if ($inviteCode) {
-            $params['invite_code'] = (string)$inviteCode;
-        }
-
-        $query = http_build_query($params);
-        $mini_path = $query ? ($pagePath . '?' . $query) : $pagePath;
+        $shareMeta = $this->resolveShareTargetFromPath($path, $type, $id);
+        $type = $shareMeta['type'];
+        $id = $shareMeta['id'];
+        $sharePayload = $this->buildMiniProgramSharePayload($targetUserId, $shareMeta['path'], $type, $id, $inviteCode);
+        $pagePath = $sharePayload['page_path'];
+        $query = $sharePayload['query'];
+        $mini_path = $sharePayload['mini_path'];
+        $linkQuery = $this->buildHomeEntryQuery($targetUserId, $type, $id, $inviteCode);
 
         try {
-            $share_link = (new WxService())->generateUrlLink($pagePath, $query);
+            $share_link = (new WxService())->generateUrlLink($pagePath, $linkQuery);
         } catch (\Throwable $e) {
-            $share_link = (new WxService())->generateShortLink('/' . $mini_path, $title, false);
+            $fallbackPath = $linkQuery ? ('/' . $pagePath . '?' . $linkQuery) : ('/' . $pagePath);
+            $share_link = (new WxService())->generateShortLink($fallbackPath, $title, false);
         }
 
-        $scene = $query ?: ('uid=' . $targetUserId);
+        $scene = $sharePayload['scene'] ?: ($linkQuery ?: ('uid=' . $targetUserId));
         return [
             'share_link' => $share_link,
             'link' => $share_link,
             'url_link' => $share_link,
             'mini_path' => $mini_path,
+            'link_path' => $linkQuery ? ($pagePath . '?' . $linkQuery) : $pagePath,
             'scene' => $scene,
             'title' => $title,
         ];
     }
 
+    private function resolveShareTargetFromPath($path = '', $type = 'home', $id = 0)
+    {
+        $miniPath = $this->normalizeMiniProgramPath($path ?: 'pages/index/index');
+        $pagePath = $miniPath['path'];
+        $params = $miniPath['params'];
+        $type = trim((string)$type) ?: 'home';
+        $id = (int)$id;
+
+        if ($type === 'home' && !empty($params['type'])) {
+            $type = trim((string)$params['type']);
+        }
+        if (!$id && !empty($params['id'])) {
+            $id = (int)$params['id'];
+        }
+        if ($type === 'home') {
+            if (strpos($pagePath, 'classDetail/classDetail') !== false) {
+                $type = 'category';
+            } elseif (strpos($pagePath, 'productDetail/productDetail') !== false) {
+                $type = 'product';
+            } elseif (strpos($pagePath, 'styleResult/styleResult') !== false) {
+                $type = 'selection';
+            }
+        }
+        if (!in_array($type, ['home', 'category', 'product', 'selection'], true)) {
+            $type = 'home';
+        }
+
+        return [
+            'path' => $pagePath . (!empty($params) ? ('?' . http_build_query($params)) : ''),
+            'type' => $type,
+            'id' => $id,
+        ];
+    }
+
+    private function buildHomeEntryQuery($targetUserId, $type = 'home', $id = 0, $inviteCode = '')
+    {
+        $params = ['uid' => (string)$targetUserId];
+        if ($inviteCode) {
+            $params['invite_code'] = (string)$inviteCode;
+        }
+        if ($type !== 'home' && $id) {
+            $params['type'] = (string)$type;
+            $params['id'] = (string)$id;
+        }
+        return http_build_query($params);
+    }
+
     private function normalizeMiniProgramPath($path)
     {
-        $path = trim((string)$path);
+        $path = trim(html_entity_decode((string)$path, ENT_QUOTES, 'UTF-8'));
         $path = ltrim($path, '/');
         if ($path === '') {
             $path = 'pages/index/index';
