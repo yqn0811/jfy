@@ -6,6 +6,7 @@ use app\common\model\user\WdXcxUser;
 use app\common\service\BaseService;
 use app\index\model\WdXcxPic;
 use think\App;
+use think\Exception;
 use think\facade\Log;
 
 class AiResourceBridgeService extends BaseService
@@ -70,19 +71,23 @@ class AiResourceBridgeService extends BaseService
             throwError('资源库图片不存在');
         }
         $fileUrl = removePicStyle(trim((string)$resource['file_url']));
-        $previewUrl = removePicStyle(trim((string)($resource['thumbnail_url'] ?: ($resource['preview_url'] ?: $fileUrl))));
-        $displayUrl = proxyExternalImageUrl($previewUrl ?: $fileUrl);
-        $originalUrl = removePicStyle($fileUrl);
+        $signedUrl = trim((string)($resource['thumbnail_url'] ?: ($resource['preview_url'] ?: $fileUrl)));
 
         $exists = WdXcxPic::where('uid', $uid)
-            ->where('imgurl', $fileUrl)
+            ->where(function($query) use ($fileUrl, $resourceId) {
+                $query->where('imgurl', $fileUrl)
+                    ->whereOr('pic_name', '我的资源库-' . $resourceId)
+                    ->whereOr('pic_name', '我的资源库--' . abs((int)$resourceId));
+            })
             ->find();
         if ($exists) {
+            $this->localizeResourcePicture($exists, $signedUrl, $resourceId);
+            $displayUrl = $exists->TruePic;
             return [
                 'id' => $exists->id,
                 'url' => $displayUrl,
                 'file_url' => $displayUrl,
-                'original_url' => $originalUrl,
+                'original_url' => $fileUrl,
                 'resource_id' => $resourceId,
                 'role' => $role,
             ];
@@ -100,12 +105,14 @@ class AiResourceBridgeService extends BaseService
             'uid' => $uid,
             'file_type' => 1,
         ]);
+        $this->localizeResourcePicture($pic, $signedUrl, $resourceId);
+        $displayUrl = $pic->TruePic;
 
         return [
             'id' => $pic->id,
             'url' => $displayUrl,
             'file_url' => $displayUrl,
-            'original_url' => $originalUrl,
+            'original_url' => $fileUrl,
             'resource_id' => $resourceId,
             'role' => $role,
         ];
@@ -228,6 +235,99 @@ class AiResourceBridgeService extends BaseService
             Log::error('[AiResourceBridge] mark picture deleted failed: ' . $e->getMessage());
             return null;
         }
+    }
+
+    public function localizeImportedPictureByResourceId($uid, $pic, $resourceId)
+    {
+        $this->assertBridgeAllowed($uid);
+        if (!$pic || !$resourceId) {
+            return null;
+        }
+        $user = $this->getBridgeUser($uid);
+        $query = [
+            'b_user_id' => $user->id,
+            'mini_openid' => $user->openid,
+            'unionid' => $user->unionid ?: '',
+        ];
+        $resp = $this->requestAiResource('GET', '/jiafangyun/bridge/resources/' . (int)$resourceId . '?' . http_build_query($query), null);
+        $resource = $resp['resource'] ?? null;
+        if (!$resource) {
+            return null;
+        }
+        $signedUrl = trim((string)($resource['thumbnail_url'] ?: ($resource['preview_url'] ?: ($resource['file_url'] ?? ''))));
+        return $this->localizeResourcePicture($pic, $signedUrl, (int)$resourceId);
+    }
+
+    private function localizeResourcePicture($pic, $signedUrl, $resourceId = 0)
+    {
+        if (!$pic || !$signedUrl) {
+            return null;
+        }
+        $current = trim((string)$pic->imgurl);
+        if ($current === '' || !WdXcxPic::isHttpUrl($current) || !isProxyableExternalImageUrl($current)) {
+            return $pic;
+        }
+        $download = $this->downloadResourceImage($signedUrl);
+        $ext = $this->extensionFromMime($download['mime']);
+        $dirRelative = 'upimages/' . ($this->uniacid ?: 1) . '/' . date('Ymd');
+        $dir = public_path() . $dirRelative;
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new Exception('创建图片目录失败');
+        }
+        $filename = 'ai_resource_' . ($resourceId ?: $pic->id) . '_' . time() . mt_rand(1000, 9999) . '.' . $ext;
+        $path = $dir . '/' . $filename;
+        if (file_put_contents($path, $download['content']) === false) {
+            throw new Exception('保存资源库图片失败');
+        }
+        $pic->imgurl = $dirRelative . '/' . $filename;
+        $pic->size = strlen($download['content']);
+        $pic->type = 1;
+        $pic->uniacid = $this->uniacid ?: 1;
+        $pic->file_type = 1;
+        $pic->save();
+        return $pic;
+    }
+
+    private function downloadResourceImage($url)
+    {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_USERAGENT => 'JiafangyunResourceImport/1.0',
+        ]);
+        $content = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $mime = strtolower(trim(explode(';', (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE))[0]));
+        $errno = curl_errno($ch);
+        $error = curl_error($ch);
+        curl_close($ch);
+        if ($errno || $status < 200 || $status >= 300 || $content === false || $content === '') {
+            throw new Exception($error ?: '下载资源库图片失败');
+        }
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
+            throw new Exception('资源库图片格式不支持');
+        }
+        return [
+            'content' => $content,
+            'mime' => $mime,
+        ];
+    }
+
+    private function extensionFromMime($mime)
+    {
+        $map = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+        ];
+        return $map[$mime] ?? 'jpg';
     }
 
     private function getBridgeUser($uid)
