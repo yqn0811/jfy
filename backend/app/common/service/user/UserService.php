@@ -3041,6 +3041,42 @@ class UserService extends BaseService
         \imagefilledellipse($image, $x2 - $radius, $y2 - $radius, $radius * 2, $radius * 2, $color);
     }
 
+    private function drawPosterAppIcon($image, $x, $y, $size)
+    {
+        $yellow = \imagecolorallocate($image, 255, 218, 46);
+        $dark = \imagecolorallocate($image, 35, 35, 35);
+        $white = \imagecolorallocate($image, 255, 255, 255);
+        $line = \imagecolorallocate($image, 255, 244, 190);
+        $shadow = \imagecolorallocatealpha($image, 0, 0, 0, 118);
+
+        $this->drawRoundedRect($image, $x + 4, $y + 6, $x + $size + 4, $y + $size + 6, 22, $shadow);
+        $this->drawRoundedRect($image, $x, $y, $x + $size, $y + $size, 24, $yellow);
+
+        $innerX = $x + (int)($size * 0.22);
+        $innerY = $y + (int)($size * 0.25);
+        $innerW = (int)($size * 0.56);
+        $innerH = (int)($size * 0.48);
+        $this->drawRoundedRect($image, $innerX, $innerY, $innerX + $innerW, $innerY + $innerH, 10, $white);
+        \imagerectangle($image, $innerX, $innerY, $innerX + $innerW, $innerY + $innerH, $dark);
+        \imagefilledellipse($image, $innerX + 18, $innerY + 17, 10, 10, $yellow);
+        \imageline($image, $innerX + 10, $innerY + $innerH - 12, $innerX + 30, $innerY + $innerH - 30, $dark);
+        \imageline($image, $innerX + 30, $innerY + $innerH - 30, $innerX + 48, $innerY + $innerH - 14, $dark);
+        \imageline($image, $innerX + 48, $innerY + $innerH - 14, $innerX + $innerW - 10, $innerY + $innerH - 34, $dark);
+        \imageline($image, $innerX + 10, $innerY + $innerH - 11, $innerX + $innerW - 10, $innerY + $innerH - 11, $line);
+    }
+
+    private function drawPosterMiniProgramIcon($image, $x, $y, $size)
+    {
+        $miniGreen = \imagecolorallocate($image, 7, 193, 96);
+        $miniWhite = \imagecolorallocate($image, 255, 255, 255);
+        $radius = (int)($size / 2);
+        \imagefilledellipse($image, $x + $radius, $y + $radius, $size, $size, $miniGreen);
+        \imagearc($image, $x + $radius, $y + $radius, (int)($size * 0.56), (int)($size * 0.56), 210, 520, $miniWhite);
+        \imagearc($image, $x + $radius, $y + $radius, (int)($size * 0.82), (int)($size * 0.82), 30, 340, $miniWhite);
+        \imagefilledellipse($image, $x + (int)($size * 0.27), $y + (int)($size * 0.34), 5, 5, $miniWhite);
+        \imagefilledellipse($image, $x + (int)($size * 0.73), $y + (int)($size * 0.66), 5, 5, $miniWhite);
+    }
+
     /**
      * 生成主页分享海报
      * @param $targetUserId
@@ -3096,9 +3132,9 @@ class UserService extends BaseService
 
         $avatarUrl = $user->avatar ?: $user->company_logo;
         $avatarDrawn = false;
-        $avatarSize = 76;
+        $avatarSize = 72;
         $avatarX = 86;
-        $avatarY = 112;
+        $avatarY = 108;
         if ($avatarUrl) {
             try {
                 $avatarImg = $this->createImageFromUrl($avatarUrl);
@@ -3131,8 +3167,8 @@ class UserService extends BaseService
         if (!$nickname) $nickname = '用户';
 
         $textX = $avatarX + $avatarSize + 22;
-        $this->drawText($im, 34, 0, $textX, $avatarY + 36, $colorDark, $font, $this->clipTextByWidth($nickname, $font, 34, 610));
-        $this->drawText($im, 24, 0, $textX, $avatarY + 72, $colorMuted, $font, '邀请你浏览云相册');
+        $this->drawText($im, 34, 0, $textX, $avatarY + 32, $colorDark, $font, $this->clipTextByWidth($nickname, $font, 34, 520));
+        $this->drawText($im, 24, 0, $textX, $avatarY + 66, $colorMuted, $font, '邀请你浏览云相册');
 
         $collTitle = '可访问相册';
         if ($type === 'home') {
@@ -3150,16 +3186,16 @@ class UserService extends BaseService
         }
 
         $titleX = 86;
-        $titleY = 296;
+        $titleY = 250;
         if ($collTitle) {
-            $badgeX = 765;
-            $badgeY = 214;
+            $badgeX = 762;
+            $badgeY = 122;
             $this->drawRoundedRect($im, $badgeX, $badgeY, $badgeX + 174, $badgeY + 44, 22, $colorWarm);
             $this->drawText($im, 22, 0, $badgeX + 24, $badgeY + 30, $colorMuted, $font, '云相册分享');
-            $this->drawText($im, 42, 0, $titleX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, 42, 660));
+            $this->drawText($im, 42, 0, $titleX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, 42, 820));
         }
 
-        $contentY = 336;
+        $contentY = 300;
         $gridX = 86;
         $gridWidth = 863;
         $gridHeight = 835;
@@ -3198,27 +3234,11 @@ class UserService extends BaseService
 
         $dividerY = 1236;
         \imageline($im, 86, $dividerY, 949, $dividerY, $colorLine);
-        $logoPath = $this->app->getRootPath() . 'public/image/logo.png';
-        if (file_exists($logoPath)) {
-            $logoImg = @\imagecreatefrompng($logoPath);
-            if ($logoImg) {
-                \imagecopyresampled($im, $logoImg, 86, 1320, 0, 0, 112, 112, \imagesx($logoImg), \imagesy($logoImg));
-                \imagedestroy($logoImg);
-            }
-        } else {
-            $this->drawRoundedRect($im, 86, 1320, 198, 1432, 20, $colorWarm);
-            $this->drawText($im, 26, 0, 110, 1384, $colorBlack, $font, '相册');
-        }
-        $this->drawText($im, 40, 0, 226, 1362, $colorBlack, $font, '我们的云相册');
-        $miniIconX = 226;
+        $this->drawPosterAppIcon($im, 92, 1322, 96);
+        $this->drawText($im, 40, 0, 218, 1360, $colorBlack, $font, '我们的云相册');
+        $miniIconX = 218;
         $miniIconY = 1390;
-        $miniGreen = \imagecolorallocate($im, 7, 193, 96);
-        $miniWhite = \imagecolorallocate($im, 255, 255, 255);
-        \imagefilledellipse($im, $miniIconX + 18, $miniIconY + 18, 36, 36, $miniGreen);
-        \imagearc($im, $miniIconX + 18, $miniIconY + 18, 20, 20, 210, 520, $miniWhite);
-        \imagearc($im, $miniIconX + 18, $miniIconY + 18, 30, 30, 30, 340, $miniWhite);
-        \imagefilledellipse($im, $miniIconX + 9, $miniIconY + 12, 5, 5, $miniWhite);
-        \imagefilledellipse($im, $miniIconX + 27, $miniIconY + 24, 5, 5, $miniWhite);
+        $this->drawPosterMiniProgramIcon($im, $miniIconX, $miniIconY, 36);
         $this->drawText($im, 28, 0, $miniIconX + 48, 1416, $colorGray, $font, '扫码查看作品详情');
 
         $qrDrawn = false;
