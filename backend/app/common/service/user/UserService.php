@@ -617,7 +617,7 @@ class UserService extends BaseService
     private function buildMiniProgramSharePayload($targetUserId, $path = '', $type = 'home', $id = 0, $inviteCode = '')
     {
         $miniPath = $this->normalizeMiniProgramPath($path ?: 'pages/index/index');
-        $pagePath = $miniPath['path'];
+        $targetPagePath = $miniPath['path'];
         $params = $miniPath['params'];
         $params['uid'] = (string)$targetUserId;
         if ($inviteCode) {
@@ -629,22 +629,39 @@ class UserService extends BaseService
         }
 
         $query = http_build_query($params);
-        $sceneParams = ['uid' => (string)$targetUserId];
+        $sceneParams = ['u' => (string)$targetUserId];
         if ($type !== 'home' && $id) {
-            $sceneParams['id'] = (string)$id;
+            $sceneParams['i'] = (string)$id;
+            $sceneParams['t'] = $this->getMiniProgramSceneType($type);
         }
         if ($type === 'home' && $inviteCode) {
-            $inviteScene = http_build_query($sceneParams + ['invite_code' => (string)$inviteCode]);
+            $inviteScene = http_build_query($sceneParams + ['ic' => (string)$inviteCode]);
             if (strlen($inviteScene) <= 32) {
-                $sceneParams['invite_code'] = (string)$inviteCode;
+                $sceneParams['ic'] = (string)$inviteCode;
             }
         }
+        $pagePath = 'pages/index/index';
         return [
             'page_path' => $pagePath,
+            'target_page_path' => $targetPagePath,
             'query' => $query,
             'scene' => http_build_query($sceneParams),
-            'mini_path' => $query ? ($pagePath . '?' . $query) : $pagePath,
+            'mini_path' => $query ? ($targetPagePath . '?' . $query) : $targetPagePath,
         ];
+    }
+
+    private function getMiniProgramSceneType($type)
+    {
+        if ($type === 'category') {
+            return 'c';
+        }
+        if ($type === 'product') {
+            return 'p';
+        }
+        if ($type === 'selection') {
+            return 's';
+        }
+        return 'h';
     }
 
     private function getShareDisplayMeta($user, $type = 'home', $id = 0)
@@ -696,7 +713,7 @@ class UserService extends BaseService
         $inviteCode = isset($user->invite_code) ? $user->invite_code : '';
         $sharePayload = $this->buildMiniProgramSharePayload($targetUserId, $path, $type, $id, $inviteCode);
         $file_path = public_path() . 'image/ewm';
-        $file_name = 'home_share_' . $type . '_' . $targetUserId . '_' . (int)$id . '_' . md5($sharePayload['mini_path']) . '.jpg';
+        $file_name = 'home_share_' . $type . '_' . $targetUserId . '_' . (int)$id . '_' . md5($sharePayload['page_path'] . '|' . $sharePayload['scene'] . '|' . $sharePayload['mini_path']) . '.jpg';
         $qrcode_path = $file_path . '/' . $file_name;
         
         $data = [
@@ -2866,6 +2883,30 @@ class UserService extends BaseService
         }
     }
 
+    private function getPosterFont()
+    {
+        $rootPath = $this->app->getRootPath();
+        $candidates = [
+            $rootPath . 'public/assets/front/wqy-microhei.ttc',
+            $rootPath . 'public/assets/front/NotoSansCJKsc-Regular.otf',
+            '/usr/share/fonts/wqy-microhei/wqy-microhei.ttc',
+            '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf',
+            '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/noto-cjk/NotoSansCJKsc-Regular.otf',
+            '/System/Library/Fonts/PingFang.ttc',
+            '/System/Library/Fonts/Hiragino Sans GB.ttc',
+            $rootPath . 'public/assets/front/douyuzhuiguangti.ttf',
+        ];
+        foreach ($candidates as $font) {
+            if ($font && file_exists($font)) {
+                return $font;
+            }
+        }
+        return $rootPath . 'public/assets/front/douyuzhuiguangti.ttf';
+    }
+
     private function drawRoundedRect($image, $x1, $y1, $x2, $y2, $radius, $color)
     {
         $x1 = (int)round($x1);
@@ -2903,76 +2944,68 @@ class UserService extends BaseService
     private function generateHomeSharePosterImage($targetUserId, $qrcodeUrl, $type = 'home', $id = 0, $visitorUid = 0, $coverUrl = '')
     {
         $user = WdXcxUser::find($targetUserId);
-        
-        // 1. Determine Background
-        // Always use standard background
-        $bgFile = 'wechat_share.png';
-        
-        $bgPath = $this->app->getRootPath() . 'public/image/' . $bgFile;
-        if (!file_exists($bgPath)) {
+        if (!$user) {
             return '';
         }
 
-        $info = getimagesize($bgPath);
-        $bgWidth = $info[0];
-        $bgHeight = $info[1];
-
-        // Create Canvas
-        $im = \imagecreatefrompng($bgPath);
+        $bgWidth = 1035;
+        $bgHeight = 1680;
+        $im = \imagecreatetruecolor($bgWidth, $bgHeight);
         \imagealphablending($im, true);
         \imagesavealpha($im, true);
+        if (function_exists('imageantialias')) {
+            \imageantialias($im, true);
+        }
 
-        // Fonts & Colors
-        $font = $this->app->getRootPath() . 'public/assets/front/douyuzhuiguangti.ttf';
+        $font = $this->getPosterFont();
+        $colorBg = \imagecolorallocate($im, 248, 247, 243);
+        $colorCard = \imagecolorallocate($im, 255, 255, 255);
         $colorBlack = \imagecolorallocate($im, 51, 51, 51);
+        $colorDark = \imagecolorallocate($im, 35, 35, 35);
         $colorGray = \imagecolorallocate($im, 153, 153, 153);
         $colorMuted = \imagecolorallocate($im, 119, 119, 119);
         $colorWhite = \imagecolorallocate($im, 255, 255, 255);
-        $colorSoft = \imagecolorallocate($im, 246, 246, 246);
-        $colorLine = \imagecolorallocate($im, 232, 224, 214);
-        $colorWarm = \imagecolorallocate($im, 255, 250, 226);
-        $colorShadow = \imagecolorallocatealpha($im, 0, 0, 0, 112);
+        $colorSoft = \imagecolorallocate($im, 245, 245, 245);
+        $colorLine = \imagecolorallocate($im, 234, 234, 234);
+        $colorWarm = \imagecolorallocate($im, 255, 244, 190);
+        $colorAccent = \imagecolorallocate($im, 255, 210, 38);
+        $colorShadow = \imagecolorallocatealpha($im, 0, 0, 0, 116);
+        \imagefill($im, 0, 0, $colorBg);
 
-        // 2. Avatar (Round)
-        $avatarUrl = $user->avatar;
+        $cardX = 48;
+        $cardY = 48;
+        $cardW = $bgWidth - ($cardX * 2);
+        $cardH = $bgHeight - ($cardY * 2);
+        $this->drawRoundedRect($im, $cardX + 8, $cardY + 12, $cardX + $cardW + 8, $cardY + $cardH + 12, 48, $colorShadow);
+        $this->drawRoundedRect($im, $cardX, $cardY, $cardX + $cardW, $cardY + $cardH, 48, $colorCard);
+        $this->drawRoundedRect($im, $cardX, $cardY, $cardX + $cardW, $cardY + 28, 28, $colorAccent);
+
+        $avatarUrl = $user->avatar ?: $user->company_logo;
         $avatarDrawn = false;
-        
-        $avatarSize = $bgWidth * 0.08; // Reduced from 0.13
-        $avatarX = $bgWidth * 0.08;
-        $avatarY = $bgHeight * 0.08; // Moved up from 0.12
-
+        $avatarSize = 76;
+        $avatarX = 86;
+        $avatarY = 112;
         if ($avatarUrl) {
             try {
-                $avatarContent = file_get_contents($avatarUrl);
-                if ($avatarContent) {
-                    $avatarImg = \imagecreatefromstring($avatarContent);
-                    if ($avatarImg) {
-                        // Resize to avatarSize
-                        $avatarResized = \imagecreatetruecolor($avatarSize, $avatarSize);
-                        // Maintain transparency
-                        \imagealphablending($avatarResized, false);
-                        \imagesavealpha($avatarResized, true);
-                        \imagecopyresampled($avatarResized, $avatarImg, 0, 0, 0, 0, $avatarSize, $avatarSize, \imagesx($avatarImg), \imagesy($avatarImg));
-
-                        // Circle it
-                        $avatarFinal = $this->circleImage($avatarResized);
-
-                        // Place it
-                        \imagecopy($im, $avatarFinal, $avatarX, $avatarY, 0, 0, $avatarSize, $avatarSize);
-                        \imagedestroy($avatarImg);
-                        \imagedestroy($avatarResized);
-                        \imagedestroy($avatarFinal);
-                        $avatarDrawn = true;
-                    }
+                $avatarImg = $this->createImageFromUrl($avatarUrl);
+                if ($avatarImg) {
+                    $avatarResized = \imagecreatetruecolor($avatarSize, $avatarSize);
+                    \imagealphablending($avatarResized, false);
+                    \imagesavealpha($avatarResized, true);
+                    \imagecopyresampled($avatarResized, $avatarImg, 0, 0, 0, 0, $avatarSize, $avatarSize, \imagesx($avatarImg), \imagesy($avatarImg));
+                    $avatarFinal = $this->circleImage($avatarResized);
+                    \imagecopy($im, $avatarFinal, $avatarX, $avatarY, 0, 0, $avatarSize, $avatarSize);
+                    \imagedestroy($avatarImg);
+                    \imagedestroy($avatarResized);
+                    \imagedestroy($avatarFinal);
+                    $avatarDrawn = true;
                 }
             } catch (\Exception $e) {
             }
         }
-        
-        // If avatar failed or missing, draw a placeholder circle
         if (!$avatarDrawn) {
             $avatarPlaceholder = \imagecreatetruecolor($avatarSize, $avatarSize);
-            $bgColor = \imagecolorallocate($avatarPlaceholder, 200, 200, 200); // Light gray
+            $bgColor = \imagecolorallocate($avatarPlaceholder, 238, 238, 238);
             \imagefill($avatarPlaceholder, 0, 0, $bgColor);
             $avatarFinal = $this->circleImage($avatarPlaceholder);
             \imagecopy($im, $avatarFinal, $avatarX, $avatarY, 0, 0, $avatarSize, $avatarSize);
@@ -2980,17 +3013,13 @@ class UserService extends BaseService
             \imagedestroy($avatarFinal);
         }
 
-        // 3. Name (Decoupled from avatar)
         $nickname = $user->company_name ?: $user->nickname;
-        if (!$nickname) $nickname = '用户'; // Fallback name
-        
-        $fontSize = $bgWidth * 0.035; // Reduced from 0.04
-        $textX = $avatarX + $avatarSize + 20;
-        $textY = $avatarY + $avatarSize / 2 + $fontSize / 2;
-        $this->drawText($im, $fontSize, 0, $textX, $textY, $colorBlack, $font, $this->clipTextByWidth($nickname, $font, $fontSize, $bgWidth * 0.58));
-        $this->drawText($im, $bgWidth * 0.022, 0, $textX, $textY + 42, $colorMuted, $font, '邀请你浏览云相册');
+        if (!$nickname) $nickname = '用户';
 
-        // 4. Collection Title & Content (Grid or Main Image)
+        $textX = $avatarX + $avatarSize + 22;
+        $this->drawText($im, 34, 0, $textX, $avatarY + 36, $colorDark, $font, $this->clipTextByWidth($nickname, $font, 34, 610));
+        $this->drawText($im, 24, 0, $textX, $avatarY + 72, $colorMuted, $font, '邀请你浏览云相册');
+
         $collTitle = '可访问相册';
         if ($type === 'home') {
             $collTitle = '可访问相册';
@@ -3006,48 +3035,38 @@ class UserService extends BaseService
             else $collTitle = '选款单';
         }
 
-        $titleFontSize = $bgWidth * 0.042;
-        $titleX = $bgWidth * 0.08;
-        $titleY = $avatarY + $avatarSize + 118;
+        $titleX = 86;
+        $titleY = 272;
         if ($collTitle) {
             $badgeX = $titleX;
-            $badgeY = $titleY - 92;
-            $this->drawRoundedRect($im, $badgeX, $badgeY, $badgeX + 178, $badgeY + 42, 21, $colorWarm);
-            $this->drawText($im, $bgWidth * 0.02, 0, $badgeX + 22, $badgeY + 29, $colorMuted, $font, '云相册分享');
+            $badgeY = 218;
+            $this->drawRoundedRect($im, $badgeX, $badgeY, $badgeX + 174, $badgeY + 44, 22, $colorWarm);
+            $this->drawText($im, 22, 0, $badgeX + 24, $badgeY + 30, $colorMuted, $font, '云相册分享');
 
             $iconPath = $this->app->getRootPath() . 'public/image/folder-open.png';
+            $titleTextX = $titleX;
             if (file_exists($iconPath)) {
                 $iconImg = @\imagecreatefrompng($iconPath);
                 if ($iconImg) {
-                    $iconH = $titleFontSize; 
+                    $iconH = 36;
                     $iconW = $iconH * (\imagesx($iconImg) / \imagesy($iconImg));
-                    $iconY = $titleY - $titleFontSize * 0.9;
+                    $iconY = $titleY - 34;
                     \imagecopyresampled($im, $iconImg, $titleX, $iconY, 0, 0, $iconW, $iconH, \imagesx($iconImg), \imagesy($iconImg));
                     \imagedestroy($iconImg);
-                    $titleX += $iconW + 15;
+                    $titleTextX += $iconW + 14;
                 }
             }
-            $this->drawText($im, $titleFontSize, 0, $titleX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, $titleFontSize, $bgWidth - $titleX - ($bgWidth * 0.08)));
+            $this->drawText($im, 44, 0, $titleTextX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, 44, 830 - ($titleTextX - $titleX)));
         }
 
-        $this->drawText($im, $bgWidth * 0.024, 0, $bgWidth * 0.08, $titleY + 42, $colorGray, $font, '仅展示当前访问权限可见的相册封面');
+        $this->drawText($im, 25, 0, 86, $titleY + 42, $colorGray, $font, '展示当前访问权限可见的相册封面');
 
-        $contentY = $titleY + 76;
-        $gridX = $bgWidth * 0.08;
-        $gridWidth = $bgWidth - ($gridX * 2);
-        $gridHeight = $bgWidth * 0.72;
-        $this->drawRoundedRect($im, $gridX + 8, $contentY + 10, $gridX + $gridWidth + 8, $contentY + $gridHeight + 10, 34, $colorShadow);
-        $this->drawRoundedRect($im, $gridX - 18, $contentY - 18, $gridX + $gridWidth + 18, $contentY + $gridHeight + 18, 34, $colorWhite);
-        \imagerectangle($im, $gridX - 18, $contentY - 18, $gridX + $gridWidth + 18, $contentY + $gridHeight + 18, $colorLine);
-
+        $contentY = 350;
+        $gridX = 86;
+        $gridWidth = 863;
+        $gridHeight = 805;
+        $covers = [];
         if ($type === 'selection') {
-            $gridX = $bgWidth * 0.08;
-            $gridY = $contentY;
-            $gap = 20;
-            $gridW = ($bgWidth - ($gridX * 2) - $gap) / 2;
-            $gridH = $gridW;
-            $selectionPictures = [];
-
             try {
                 $selectionService = new \app\common\service\album\SelectionService($this->app);
                 $selectionDetail = $selectionService->getSelectionDetail($id);
@@ -3057,35 +3076,17 @@ class UserService extends BaseService
                     $groupedPictures['variant_pictures'] ?? [],
                     $groupedPictures['detail_pictures'] ?? []
                 );
+                foreach ($selectionPictures as $picture) {
+                    $pUrl = $picture['src'] ?? $picture['imgurl'] ?? '';
+                    if ($pUrl) {
+                        $covers[] = $pUrl;
+                    }
+                    if (count($covers) >= 4) {
+                        break;
+                    }
+                }
             } catch (\Throwable $e) {
                 \think\facade\Log::info('Selection poster fallback: ' . $e->getMessage());
-            }
-
-            $selectionPictures = array_slice($selectionPictures, 0, 4);
-            foreach ($selectionPictures as $index => $picture) {
-                $pUrl = $picture['src'] ?? $picture['imgurl'] ?? '';
-                if (!$pUrl) {
-                    continue;
-                }
-
-                try {
-                    $pContent = file_get_contents($pUrl);
-                    if ($pContent) {
-                        $pImg = \imagecreatefromstring($pContent);
-                        if ($pImg) {
-                            $row = floor($index / 2);
-                            $col = $index % 2;
-                            $px = $gridX + ($col * ($gridW + $gap));
-                            $py = $gridY + ($row * ($gridH + $gap));
-
-                            $pResized = $this->resizeImageCover($pImg, $gridW, $gridH);
-                            \imagecopy($im, $pResized, $px, $py, 0, 0, $gridW, $gridH);
-                            \imagedestroy($pImg);
-                            \imagedestroy($pResized);
-                        }
-                    }
-                } catch (\Exception $e) {
-                }
             }
         } else {
             $covers = $this->getSharePosterCovers($targetUserId, $type, $id, $visitorUid, 4);
@@ -3093,11 +3094,26 @@ class UserService extends BaseService
             if ($coverUrl) {
                 array_unshift($covers, $coverUrl);
             }
-            $covers = array_values(array_unique(array_filter($covers)));
-            $this->drawPosterCoverGrid($im, $covers, $gridX, $contentY, $gridWidth, $gridHeight, $font, $colorWhite, $colorGray, $colorSoft);
         }
+        $covers = array_values(array_slice(array_unique(array_filter($covers)), 0, 4));
+        $this->drawPosterCoverGrid($im, $covers, $gridX, $contentY, $gridWidth, $gridHeight, $font, $colorWhite, $colorGray, $colorSoft);
 
-        // 5. Footer (QR Code)
+        $dividerY = 1236;
+        \imageline($im, 86, $dividerY, 949, $dividerY, $colorLine);
+        $logoPath = $this->app->getRootPath() . 'public/image/logo.png';
+        if (file_exists($logoPath)) {
+            $logoImg = @\imagecreatefrompng($logoPath);
+            if ($logoImg) {
+                \imagecopyresampled($im, $logoImg, 86, 1320, 0, 0, 112, 112, \imagesx($logoImg), \imagesy($logoImg));
+                \imagedestroy($logoImg);
+            }
+        } else {
+            $this->drawRoundedRect($im, 86, 1320, 198, 1432, 20, $colorWarm);
+            $this->drawText($im, 26, 0, 110, 1384, $colorBlack, $font, '相册');
+        }
+        $this->drawText($im, 40, 0, 226, 1362, $colorBlack, $font, '我们的云相册');
+        $this->drawText($im, 28, 0, 226, 1416, $colorGray, $font, '扫码查看作品详情');
+
         $qrDrawn = false;
         if ($qrcodeUrl) {
             try {
@@ -3105,12 +3121,13 @@ class UserService extends BaseService
                 if ($qrContent) {
                     $qrImg = \imagecreatefromstring($qrContent);
                     if ($qrImg) {
-                        $qrSize = $bgWidth * 0.2;
-                        $qrX = $bgWidth - $gridX - $qrSize;
-                        $qrY = $bgHeight - $gridX - $qrSize - 15;
+                        $qrSize = 218;
+                        $qrX = 716;
+                        $qrY = 1298;
 
                         $qrPad = 14;
                         $this->drawRoundedRect($im, $qrX - $qrPad, $qrY - $qrPad, $qrX + $qrSize + $qrPad, $qrY + $qrSize + $qrPad, 22, $colorWhite);
+                        \imagerectangle($im, $qrX - $qrPad, $qrY - $qrPad, $qrX + $qrSize + $qrPad, $qrY + $qrSize + $qrPad, $colorLine);
                         \imagecopyresampled($im, $qrImg, $qrX, $qrY, 0, 0, $qrSize, $qrSize, \imagesx($qrImg), \imagesy($qrImg));
                         \imagedestroy($qrImg);
                         $qrDrawn = true;
@@ -3394,28 +3411,44 @@ class UserService extends BaseService
 
     private function drawPosterCoverGrid($im, $covers, $x, $y, $width, $height, $font, $colorWhite, $colorGray, $colorSoft)
     {
-        $gap = 20;
-        $mainH = (int)($height * 0.58);
-        $thumbH = (int)(($height - $mainH - $gap));
-        $thumbW = (int)(($width - ($gap * 2)) / 3);
+        $gap = 18;
+        $covers = array_values(array_slice(array_filter($covers), 0, 4));
 
         if (empty($covers)) {
-            \imagefilledrectangle($im, $x, $y, $x + $width, $y + $height, $colorSoft);
+            $this->drawRoundedRect($im, $x, $y, $x + $width, $y + $height, 30, $colorSoft);
             $this->drawText($im, 30, 0, $x + 44, $y + ($height / 2), $colorGray, $font, '暂无可访问相册封面');
             return;
         }
 
-        $first = array_shift($covers);
-        $this->drawPosterImageTile($im, $first, $x, $y, $width, $mainH, $colorSoft);
+        $count = count($covers);
+        $tiles = [];
+        if ($count === 1) {
+            $tiles[] = [$x, $y, $width, $height];
+        } elseif ($count === 2) {
+            $tileH = (int)(($height - $gap) / 2);
+            $tiles[] = [$x, $y, $width, $tileH];
+            $tiles[] = [$x, $y + $tileH + $gap, $width, $height - $tileH - $gap];
+        } elseif ($count === 3) {
+            $topH = (int)(($height - $gap) * 0.55);
+            $bottomH = $height - $topH - $gap;
+            $bottomW = (int)(($width - $gap) / 2);
+            $tiles[] = [$x, $y, $width, $topH];
+            $tiles[] = [$x, $y + $topH + $gap, $bottomW, $bottomH];
+            $tiles[] = [$x + $bottomW + $gap, $y + $topH + $gap, $width - $bottomW - $gap, $bottomH];
+        } else {
+            $tileW = (int)(($width - $gap) / 2);
+            $tileH = (int)(($height - $gap) / 2);
+            $tiles[] = [$x, $y, $tileW, $tileH];
+            $tiles[] = [$x + $tileW + $gap, $y, $width - $tileW - $gap, $tileH];
+            $tiles[] = [$x, $y + $tileH + $gap, $tileW, $height - $tileH - $gap];
+            $tiles[] = [$x + $tileW + $gap, $y + $tileH + $gap, $width - $tileW - $gap, $height - $tileH - $gap];
+        }
 
-        for ($i = 0; $i < 3; $i++) {
-            $tileX = $x + ($i * ($thumbW + $gap));
-            $tileY = $y + $mainH + $gap;
-            if (isset($covers[$i])) {
-                $this->drawPosterImageTile($im, $covers[$i], $tileX, $tileY, $thumbW, $thumbH, $colorSoft);
-            } else {
-                \imagefilledrectangle($im, $tileX, $tileY, $tileX + $thumbW, $tileY + $thumbH, $colorSoft);
+        foreach ($tiles as $index => $tile) {
+            if (!isset($covers[$index])) {
+                continue;
             }
+            $this->drawPosterImageTile($im, $covers[$index], $tile[0], $tile[1], $tile[2], $tile[3], $colorSoft);
         }
     }
 
