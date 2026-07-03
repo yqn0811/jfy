@@ -768,12 +768,18 @@ class UserApiController extends ApiBaseController
             ['type', 'home'], // home, category, product
             ['id', 0], // category_id or product_id
             ['path', ''],
+            ['cover_url', ''],
         ]);
         $targetUserId = $params['target_user_id'];
         if (!$targetUserId) {
             throwError('参数错误');
         }
-        $this->result($this->userService->getHomeSharePoster($targetUserId, $params['type'], $params['id'], $params['path']));
+        $visitorUid = 0;
+        try {
+            $visitorUid = request()->userID();
+        } catch (\Exception $e) {
+        }
+        $this->result($this->userService->getHomeSharePoster($targetUserId, $params['type'], $params['id'], $params['path'], $visitorUid, $params['cover_url']));
     }
 
     public function getShortLink()

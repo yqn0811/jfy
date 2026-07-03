@@ -30,12 +30,45 @@ class WdXcxPic extends Model
 
     public function getTruePicAttr()
     {
-        if($this->file_type == 1){
-            return remote($this->uniacid, $this->imgurl, 1);
-        }else{
-            return removePicStyle(remote($this->uniacid, $this->imgurl, 1));
-        }
+        return self::normalizePictureUrl($this->imgurl, $this->uniacid, $this->file_type);
 
+    }
+
+    public static function normalizePictureUrl($url, $uniacid = 1, $fileType = 1)
+    {
+        $url = trim((string)$url);
+        if ($url === '') {
+            return '';
+        }
+        if (strpos($url, '//') === 0) {
+            return removePicStyle('https:' . $url);
+        }
+        if (self::isHttpUrl($url)) {
+            return removePicStyle($url);
+        }
+        if (self::isSchemeLessHttpUrl($url)) {
+            return removePicStyle('https://' . ltrim($url, '/'));
+        }
+        if((int)$fileType == 1){
+            return remote($uniacid ?: 1, $url, 1);
+        }else{
+            return removePicStyle(remote($uniacid ?: 1, $url, 1));
+        }
+    }
+
+    public static function isHttpUrl($url)
+    {
+        return is_string($url) && preg_match('/^https?:\/\//i', trim($url)) === 1;
+    }
+
+    public static function isSchemeLessHttpUrl($url)
+    {
+        $url = trim((string)$url);
+        if ($url === '' || strpos($url, '/') === false || substr($url, 0, 1) === '/') {
+            return false;
+        }
+        $host = explode('/', $url, 2)[0];
+        return preg_match('/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(:\d+)?$/i', $host) === 1;
     }
 
     public function getSizeAttr($value)

@@ -24,13 +24,12 @@ class WdXcxAlbumFolder extends Model
         if($this->folder_type == 1){
             return getLocalImage('/image/static/folder.png');
         }else{
+            if ($value) {
+                return WdXcxPic::normalizePictureUrl($value, 1, 1);
+            }
             $pic = WdXcxUserAlbumPic::where('folder_id', $this->id)->order('id asc')->find();
             if($pic && $pic->picture){
                 return $pic->picture->TruePic;
-            }
-            // 如果没有找到动态图片，但数据库中有值，则使用数据库中的值
-            if ($value) {
-                return remote(1, $value, 1);
             }
             return '';
         }
@@ -39,6 +38,15 @@ class WdXcxAlbumFolder extends Model
 
     public function setNewThumbAttr($value)
     {
+        if (strpos((string)$value, '//') === 0) {
+            return removePicStyle('https:' . $value);
+        }
+        if (WdXcxPic::isSchemeLessHttpUrl($value)) {
+            return removePicStyle('https://' . ltrim($value, '/'));
+        }
+        if (WdXcxPic::isHttpUrl($value)) {
+            return removePicStyle($value);
+        }
         return $value ? remote(1, $value, 2) : '';
     }
 

@@ -158,6 +158,29 @@ class WxService
         return $result['link'];
     }
 
+    public function generateUrlLink($path, $query = '', $expireInterval = 2592000)
+    {
+        $url = 'https://api.weixin.qq.com/wxa/generate_urllink';
+        $expireTime = time() + max(60, (int)$expireInterval);
+        $data = [
+            'path' => '/' . ltrim((string)$path, '/'),
+            'query' => (string)$query,
+            'is_expire' => true,
+            'expire_type' => 0,
+            'expire_time' => $expireTime,
+            'env_version' => 'release',
+        ];
+        $result = $this->postJson($url, $data, ['access_token' => $this->getAccessToken()]);
+        if (!empty($result['errcode']) && $result['errcode'] != 0) {
+            $msg = isset($result['errmsg']) ? $result['errmsg'] : '获取链接失败';
+            throwError($msg);
+        }
+        if (empty($result['url_link'])) {
+            throwError('获取链接失败');
+        }
+        return $result['url_link'];
+    }
+
     /**生成小程序二维码
      * @param $data
      * @return void

@@ -467,6 +467,9 @@ class AlbumService extends BaseService
         if(isset($param['private_type'])){
             $saveData['private_type'] = $param['private_type'];
         }
+        if(isset($param['layout_type']) && $param['layout_type'] !== ''){
+            $saveData['layout_type'] = (int)$param['layout_type'] === 2 ? 2 : 1;
+        }
         if(isset($param['visible_type'])){
             $saveData['visible_type'] = $param['visible_type'];
         }
@@ -884,6 +887,24 @@ class AlbumService extends BaseService
         return array_values(array_unique($ids));
     }
 
+    private function getProductPictureEchoList($picIds)
+    {
+        $ids = $this->normalizeIdList($picIds);
+        if (empty($ids)) {
+            return [];
+        }
+        $order = implode(',', $ids);
+        return WdXcxPic::whereIn('id', $ids)
+            ->field('id, imgurl, pic_name, uniacid, file_type')
+            ->orderRaw('FIELD(id, ' . $order . ')')
+            ->select()
+            ->each(function($pic){
+                $pic->imgurl = $pic->TruePic;
+                $pic->picture_url = $pic->TruePic;
+                $pic->picture_url_original = removePicStyle($pic->TruePic);
+            });
+    }
+
     private function virtualProductRelationId($productId, $picId, $role)
     {
         $hash = sprintf('%u', crc32($productId . ':' . $picId . ':' . $role));
@@ -1008,18 +1029,10 @@ class AlbumService extends BaseService
             $folder_info->detail_pic_ids_arr = [];
             
             if($folder_info->pic_ids){
-                $ids = explode(',', $folder_info->pic_ids);
-                $pics = WdXcxUserAlbumPic::whereIn('id', $ids)->with(['picture'])->select()->each(function($p){
-                    if($p->picture) $p->picture->append(['TruePic']);
-                });
-                $folder_info->pic_ids_arr = $pics; 
+                $folder_info->pic_ids_arr = $this->getProductPictureEchoList($folder_info->pic_ids);
             }
             if($folder_info->detail_pic_ids){
-                $ids = explode(',', $folder_info->detail_pic_ids);
-                $pics = WdXcxUserAlbumPic::whereIn('id', $ids)->with(['picture'])->select()->each(function($p){
-                    if($p->picture) $p->picture->append(['TruePic']);
-                });
-                $folder_info->detail_pic_ids_arr = $pics;
+                $folder_info->detail_pic_ids_arr = $this->getProductPictureEchoList($folder_info->detail_pic_ids);
             }
 
         }
@@ -2636,11 +2649,11 @@ class AlbumService extends BaseService
         $product->pic_list = [];
         if (!empty($pic_ids)) {
             $product->pic_list = WdXcxPic::whereIn('id', $pic_ids)
-                ->field('id, imgurl, pic_name, uniacid')
+                ->field('id, imgurl, pic_name, uniacid, file_type')
                 ->orderRaw('FIELD(id, ' . $product->pic_ids . ')')
                 ->select()
                 ->each(function($item){
-                $item->imgurl = remote($item->uniacid, $item->imgurl, 1);
+                $item->imgurl = $item->TruePic;
             });
         }
 
@@ -2648,11 +2661,11 @@ class AlbumService extends BaseService
         $product->detail_pic_list = [];
         if (!empty($detail_pic_ids)) {
             $product->detail_pic_list = WdXcxPic::whereIn('id', $detail_pic_ids)
-                ->field('id, imgurl, pic_name, uniacid')
+                ->field('id, imgurl, pic_name, uniacid, file_type')
                 ->orderRaw('FIELD(id, ' . $product->detail_pic_ids . ')')
                 ->select()
                 ->each(function($item){
-                $item->imgurl = remote($item->uniacid, $item->imgurl, 1);
+                $item->imgurl = $item->TruePic;
             });
         }
 

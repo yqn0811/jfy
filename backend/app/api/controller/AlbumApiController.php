@@ -28,6 +28,8 @@ class AlbumApiController extends ApiBaseController
             ['folder_type', ''], // 1:分类 2:产品
             ['folder_desc', ''],
             ['new_thumb', ''],//封面图
+            ['private_type', 1], // 1:公开 2:私密 4:仅分享可见
+            ['layout_type', 1], // 1:双列 2:单列
             ['visible_type', 1],
             ['pic_ids', []], // 花色图
             ['detail_pic_ids', []], // 详情图

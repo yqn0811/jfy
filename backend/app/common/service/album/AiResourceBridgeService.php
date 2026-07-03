@@ -47,7 +47,8 @@ class AiResourceBridgeService extends BaseService
         if (isset($params['category_id']) && $params['category_id'] !== '') {
             $query['category_id'] = $params['category_id'];
         }
-        return $this->requestAiResource('GET', '/jiafangyun/bridge/resources?' . http_build_query($query), null);
+        $resp = $this->requestAiResource('GET', '/jiafangyun/bridge/resources?' . http_build_query($query), null);
+        return $this->dedupeResourceResponse($resp);
     }
 
     public function importResource($uid, $resourceId, $role = 'cover')
@@ -68,12 +69,11 @@ class AiResourceBridgeService extends BaseService
         if (!$resource || empty($resource['file_url'])) {
             throwError('资源库图片不存在');
         }
-        $fileUrl = $resource['file_url'];
+        $fileUrl = removePicStyle(trim((string)$resource['file_url']));
         $previewUrl = $resource['thumbnail_url'] ?: ($resource['preview_url'] ?: $fileUrl);
 
         $exists = WdXcxPic::where('uid', $uid)
             ->where('imgurl', $fileUrl)
-            ->whereIn('pic_name', ['我的资源库-' . $resourceId, 'AI资源库-' . $resourceId])
             ->find();
         if ($exists) {
             return [
@@ -110,6 +110,9 @@ class AiResourceBridgeService extends BaseService
     public function syncPicture($uid, $pic, $options = [])
     {
         if (!$pic || !$this->isBridgeEnabledForUser($uid)) {
+            return null;
+        }
+        if ($this->isImportedResourcePicture($pic)) {
             return null;
         }
         $user = $this->getBridgeUser($uid);
@@ -338,6 +341,75 @@ class AiResourceBridgeService extends BaseService
         if ($ext === 'gif') return 'image/gif';
         if ($ext === 'webp') return 'image/webp';
         return 'image/jpeg';
+    }
+
+    private function dedupeResourceResponse($resp)
+    {
+        if (!is_array($resp)) {
+            return $resp;
+        }
+        $field = null;
+        if (isset($resp['resources']) && is_array($resp['resources'])) {
+            $field = 'resources';
+        } elseif (isset($resp['list']) && is_array($resp['list'])) {
+            $field = 'list';
+        }
+        if (!$field) {
+            return $resp;
+        }
+
+        $seen = [];
+        $items = [];
+        foreach ($resp[$field] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $key = $this->resourceDedupeKey($item);
+            if ($key !== '' && isset($seen[$key])) {
+                continue;
+            }
+            if ($key !== '') {
+                $seen[$key] = true;
+            }
+            $items[] = $item;
+        }
+        $resp[$field] = array_values($items);
+        if (isset($resp['resources']) && $field !== 'resources') {
+            $resp['resources'] = $resp[$field];
+        }
+        if (isset($resp['list']) && $field !== 'list') {
+            $resp['list'] = $resp[$field];
+        }
+        if (isset($resp['total']) && (int)$resp['total'] < count($items)) {
+            $resp['total'] = count($items);
+        }
+        return $resp;
+    }
+
+    private function resourceDedupeKey($item)
+    {
+        $url = $item['file_url'] ?? ($item['preview_url'] ?? ($item['thumbnail_url'] ?? ''));
+        $url = strtolower(removePicStyle(trim((string)$url)));
+        if ($url !== '') {
+            return 'url:' . $url;
+        }
+        if (!empty($item['id'])) {
+            return 'id:' . (string)$item['id'];
+        }
+        return '';
+    }
+
+    private function isImportedResourcePicture($pic)
+    {
+        $imgurl = trim((string)($pic->imgurl ?? ''));
+        if ($imgurl === '') {
+            return false;
+        }
+        if (WdXcxPic::isHttpUrl($imgurl) || WdXcxPic::isSchemeLessHttpUrl($imgurl) || strpos($imgurl, '//') === 0) {
+            return true;
+        }
+        $name = (string)($pic->pic_name ?? '');
+        return strpos($name, '我的资源库-') === 0 || strpos($name, 'AI资源库-') === 0;
     }
 
     private function requestAiResource($method, $path, $payload = null)

@@ -9,6 +9,7 @@ use app\common\model\user\WdXcxUserIntegralRecord;
 use app\common\model\distribution\WdXcxDistributionUserParent;
 use app\common\model\integral_sign\WdXcxIntegralTask;
 use app\common\model\integral_sign\WdXcxUserIntegralTaskRecord;
+use app\common\service\WxService;
 use think\facade\Db;
 use cores\exception\BaseException;
 use think\facade\Log;
@@ -406,6 +407,24 @@ class IntegralSignService extends BaseService
     public function getInviteIndex($userId)
     {
         $user = WdXcxUser::find($userId);
+        if (!$user) {
+            throw new BaseException(['msg' => '用户不存在']);
+        }
+        $inviteCode = $this->ensureInviteCode($user);
+        $invitePath = 'pages/index/index';
+        $inviteQuery = http_build_query(['invite_code' => $inviteCode]);
+        $inviteMiniPath = $invitePath . '?' . $inviteQuery;
+        $inviteLink = '';
+        try {
+            $inviteLink = (new WxService())->generateUrlLink($invitePath, $inviteQuery);
+        } catch (\Throwable $e) {
+            Log::error('getInviteIndex generate invite link failed: ' . $e->getMessage());
+            try {
+                $inviteLink = (new WxService())->generateShortLink('/' . $inviteMiniPath, '邀请好友得积分奖励', false);
+            } catch (\Throwable $shortLinkError) {
+                Log::error('getInviteIndex generate invite short link failed: ' . $shortLinkError->getMessage());
+            }
+        }
         
         // 邀请人数
         $inviteCount = $user->son_count ?? 0; // 利用模型中的 getSonCountAttr
@@ -425,6 +444,10 @@ class IntegralSignService extends BaseService
         return [
             'invite_count' => $inviteCount,
             'invite_score' => $inviteScore,
+            'invite_code' => $inviteCode,
+            'invite_path' => $inviteMiniPath,
+            'invite_link' => $inviteLink,
+            'url_link' => $inviteLink,
             'rules' => [
                 '邀请新用户并成功注册，即可获得10积分奖励',
                 '被邀请用户充值即可获得1000积分',
@@ -433,6 +456,23 @@ class IntegralSignService extends BaseService
                 '最终解释权归家纺云相册所有'
             ]
         ];
+    }
+
+    private function ensureInviteCode($user)
+    {
+        $code = trim((string)($user->invite_code ?? ''));
+        if ($code !== '') {
+            return $code;
+        }
+
+        do {
+            $code = strtoupper(substr(md5(uniqid((string)mt_rand(), true)), 0, 8));
+            $exists = WdXcxUser::where('invite_code', $code)->find();
+        } while ($exists);
+
+        $user->invite_code = $code;
+        $user->save();
+        return $code;
     }
 
     /**
