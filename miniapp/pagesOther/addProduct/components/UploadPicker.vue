@@ -7,7 +7,7 @@
 			</view>
 			<view class="option-box">
 				<view class="option" @click="select('image')">上传图片</view>
-				<view class="option" @click="select('ai_resource')">从AI资源库选择</view>
+				<view class="option" @click="select('ai_resource')">从我的资源库选择</view>
 				<view class="option" @click="select('video')">上传视频</view>
 				<view class="option" @click="select('from_chat')">从微信聊天中选取</view>
 				<view class="option" @click="select('batch')">大批量上传</view>

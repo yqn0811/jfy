@@ -28,6 +28,25 @@
         </view>
       </view>
 
+      <view v-if="canManageChildCategory" class="child-actions">
+        <view class="child-action-btn primary" @tap="createChildCategory">
+          <image
+            class="child-action-icon"
+            src="/static/icon/add-yellow-icon.png"
+            mode="scaleToFill"
+          />
+          <text class="child-action-text">新建子分类</text>
+        </view>
+        <view class="child-action-btn" @tap="openChildSort">
+          <image
+            class="child-action-icon"
+            src="/static/icon/image-3@2x(2).png"
+            mode="scaleToFill"
+          />
+          <text class="child-action-text">子分类排序</text>
+        </view>
+      </view>
+
       <!-- 子分类网格 -->
       <view class="content" v-if="hasChildren">
         <ImageGrid
@@ -49,29 +68,10 @@
       <!-- 无子分类时的占位与操作 -->
       <view v-if="!hasChildren && canManageChildCategory" class="class-empty">
         <image
-          src="/static/icon/Frame@2x(25).png"
+          src="/pagesOther/static/icon/Frame@2x(25).png"
           mode="widthFix"
           class="empty-img"
         ></image>
-
-        <view class="actions">
-          <view class="btn btn-outline" @tap="createChildCategory">
-            <image
-              class="btn-icon"
-              src="/static/icon/add-yellow-icon.png"
-              mode="scaleToFill"
-            />
-            <text class="btn-text">新建子分类</text>
-          </view>
-          <view class="btn btn-outline" @tap="openChildSort">
-            <image
-              class="btn-icon"
-              src="/static/icon/image-3@2x(2).png"
-              mode="scaleToFill"
-            />
-            <text class="btn-text">子分类排序</text>
-          </view>
-        </view>
       </view>
 
       <!-- 底部固定操作栏 -->
@@ -111,7 +111,7 @@
 
     <personal-details
       :use-popup="true"
-      :uid="uid || ''"
+      :uid="getShareOwnerId() || ''"
       :visible="personalVisible"
       @update:visible="(val) => (personalVisible = val)"
     />
@@ -120,7 +120,7 @@
     <share-popup
       :visible="shareVisible"
       :title="shareTitle"
-      :uid="uid || ''"
+      :uid="getShareOwnerId() || ''"
       typeText="分类"
       type="category"
       :hid="categoryId"
@@ -138,6 +138,10 @@ import UserCard from "@/components/UserCard";
 import ImageGrid from "@/components/ImageGrid";
 import SharePopup from "@/components/SharePopup";
 import PersonalDetails from "@/components/PersonalDetails/index.vue";
+import {
+  consumeRefreshMarker,
+  markRefreshMarkerConsumed,
+} from "@/common/helper/refresh.js";
 
 export default {
   components: { UserCard, ImageGrid, SharePopup, PersonalDetails },
@@ -167,6 +171,8 @@ export default {
       minShowCount: 1, // 控制“没有更多了~”显示逻辑
       columns: 2,
       uid: "", // 用户分享的用户ID
+      shareOwnerId: "",
+      lastCategoryRefreshAt: "",
     };
   },
   computed: {
@@ -183,9 +189,15 @@ export default {
     },
   },
   onLoad(options) {
+    const sceneOptions = this.parseSceneOptions(options);
+    options = {
+      ...(options || {}),
+      ...sceneOptions,
+    };
     // 支持通过 options 传入分类 id
     if (options && options.id) this.categoryId = options.id;
-    this.uid = options.uid || "";
+    this.uid = this.resolveOwnerUid(options);
+    this.shareOwnerId = this.uid;
     this.shareUrl = this.buildShareUrl();
     this.initUserFromCache();
 
@@ -211,6 +223,7 @@ export default {
     }
 
     this.loadOwnerInfo();
+    this.loadPublicCategoryInfo();
     this.loadChildren();
     const token = uni.getStorageSync("token");
     if (token) {
@@ -219,21 +232,17 @@ export default {
     // 监听分类更新事件
     uni.$on("refreshClassDetailData", this.handleRefreshData);
   },
+  onShow() {
+    this.consumeCategoryRefreshMarker();
+  },
   onUnload() {
     uni.$off("refreshClassDetailData", this.handleRefreshData);
   },
   onShareAppMessage() {
-    // 尝试读取组件写入的临时分享数据
-    let shareData = {};
-    try {
-      const d = uni.getStorageSync("shareDataForPage");
-      if (d) shareData = d;
-    } catch (e) {}
-
     return {
-      title: shareData.title || this.category.title || "分类分享",
-      path: shareData.path || this.buildShareUrl(),
-      imageUrl: shareData.imageUrl || "", // 可选：海报/缩略图
+      title: this.category.title || "分类分享",
+      path: this.buildShareUrl(),
+      imageUrl: "",
     };
   },
   methods: {
@@ -269,6 +278,7 @@ export default {
     },
     loadOwnerInfo() {
       if (this.uid) {
+        this.shareOwnerId = this.uid;
         this.loadUserInfo(this.uid);
         return;
       }
@@ -285,11 +295,37 @@ export default {
       if (!this.categoryId) {
         return "/pagesOther/classDetail/classDetail";
       }
-      let url = `/pagesOther/classDetail/classDetail?id=${this.categoryId}`;
-      if (this.uid) {
-        url += `&uid=${this.uid}`;
-      }
-      return url;
+      const ownerId =
+        this.getShareOwnerId();
+      return this.$buildPublicSharePath
+        ? this.$buildPublicSharePath("category", this.categoryId, ownerId)
+        : `/pagesOther/classDetail/classDetail?id=${this.categoryId}${ownerId ? `&uid=${ownerId}` : ""}`;
+    },
+    getShareOwnerId() {
+      return (
+        this.shareOwnerId ||
+        this.uid ||
+        (this.$getCurrentUserId ? this.$getCurrentUserId() : "")
+      );
+    },
+    parseSceneOptions(options = {}) {
+      if (!options.scene || !this.$parseShareScene) return {};
+      return this.$parseShareScene(options.scene);
+    },
+    normalizeShareParam(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    resolveOwnerUid(options = {}) {
+      return (
+        this.normalizeShareParam(options.uid) ||
+        this.normalizeShareParam(options.target_user_id) ||
+        this.normalizeShareParam(options.share_uid) ||
+        this.normalizeShareParam(options.owner_uid) ||
+        this.normalizeShareParam(options.user_id)
+      );
     },
     async loadUserInfo(targetUserId = this.uid) {
       try {
@@ -301,6 +337,7 @@ export default {
           show_err: false,
         });
         if (res && res.data) {
+          this.shareOwnerId = targetUserId;
           this.applyUserInfo(res.data);
           if (!this.uid) {
             uni.setStorageSync("enterpriseInfo", res.data);
@@ -315,19 +352,44 @@ export default {
       try {
         const res = await this.$go(
           "user/home/categories",
-          { target_user_id: this.uid },
+          { target_user_id: this.uid, fid: this.categoryId, include_current: 1 },
           "get",
           { show_err: false }
         );
-        const list = Array.isArray(res && res.data) ? res.data : [];
-        const current = this.findCategoryInTree(list, this.categoryId);
+        const data = res && res.data ? res.data : {};
+        this.applyUserInfo(data.user_info || data.user || {});
+        if (data.user_info && (data.user_info.id || data.user_info.uid)) {
+          this.shareOwnerId = data.user_info.id || data.user_info.uid;
+        }
+        const current =
+          data.folder_info ||
+          data.current ||
+          this.findCategoryInTree(this.getChildrenFromResponse(data), this.categoryId) ||
+          this.findCategoryInTree(Array.isArray(data.categories) ? data.categories : [], this.categoryId);
         this.applyCategoryInfo(current);
       } catch (e) {
         console.error(e);
       }
     },
-    handleRefreshData() {
+    handleRefreshData(marker) {
+      this.markCategoryRefreshConsumed(marker);
       this.loadChildren();
+    },
+    consumeCategoryRefreshMarker() {
+      if (this.uid) return;
+      const marker = consumeRefreshMarker(
+        "category",
+        "categoryListNeedsRefreshDetailConsumed",
+        this.lastCategoryRefreshAt,
+      );
+      if (!marker) return;
+      this.markCategoryRefreshConsumed(marker);
+      this.handleRefreshData();
+    },
+    markCategoryRefreshConsumed(marker) {
+      if (!marker) return;
+      this.lastCategoryRefreshAt = marker;
+      markRefreshMarkerConsumed("categoryListNeedsRefreshDetailConsumed", marker);
     },
     applyCategoryInfo(info) {
       if (!info) return;
@@ -376,9 +438,6 @@ export default {
       this.loading = true;
       try {
         if (this.$go && this.categoryId) {
-          if (this.uid) {
-            this.loadPublicCategoryInfo();
-          }
           let params = {
             fid: this.categoryId,
             folder_type: 1,
@@ -388,6 +447,7 @@ export default {
             params = {
               target_user_id: this.uid,
               fid: this.categoryId,
+              include_current: 1,
             };
           }
           const url = this.uid ? "user/home/categories" : "album/lists/folder";
@@ -396,12 +456,18 @@ export default {
 
           // 尝试补全用户信息：uid 只表示访客态，不要把自己的用户 id 写进 uid。
           if (!this.uid && res.data && (res.data.user_id || res.data.uid)) {
-            this.loadUserInfo(res.data.user_id || res.data.uid);
+            this.shareOwnerId = res.data.user_id || res.data.uid;
+            this.shareUrl = this.buildShareUrl();
+            this.loadUserInfo(this.shareOwnerId);
           }
 
           this.applyUserInfo(res.data.user_info || res.data.user || {});
 
-          if (!this.uid && res.data && res.data.folder_info) {
+          if (res.data && res.data.user_info) {
+            this.applyUserInfo(res.data.user_info);
+          }
+
+          if (res.data && res.data.folder_info) {
             this.applyCategoryInfo(res.data.folder_info);
           }
 
@@ -516,7 +582,7 @@ export default {
       }
     },
     openShare() {
-      if (!this.$checkLoginStatus()) {
+      if (!this.uid && !this.$checkLoginStatus()) {
         uni.showModal({
           title: "未登录，是否立即登录？",
           content: "",
@@ -585,6 +651,43 @@ export default {
   font-size: 20rpx;
   color: #888;
   display: block;
+}
+
+.child-actions {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin: 8rpx 0 18rpx;
+  padding: 0 4rpx;
+}
+
+.child-action-btn {
+  flex: 1;
+  height: 80rpx;
+  border-radius: 80rpx;
+  background: #ffffff;
+  border: 1rpx solid #ececec;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  box-sizing: border-box;
+}
+
+.child-action-btn.primary {
+  background: #ffd800;
+  border-color: #ffd800;
+}
+
+.child-action-icon {
+  width: 36rpx;
+  height: 36rpx;
+}
+
+.child-action-text {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333333;
 }
 
 .content {

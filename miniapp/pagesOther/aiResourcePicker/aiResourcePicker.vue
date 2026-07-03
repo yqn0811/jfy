@@ -134,7 +134,7 @@ export default {
         this.list = reset ? next : this.list.concat(next);
         this.finished = next.length < this.pageSize || this.list.length >= this.total;
       } catch (e) {
-        console.error("AI资源库加载失败", e);
+        console.error("我的资源库加载失败", e);
         uni.showToast({ title: "资源库加载失败", icon: "none" });
         if (this.page > 1) this.page -= 1;
       } finally {
@@ -172,7 +172,7 @@ export default {
         uni.hideLoading();
         uni.navigateBack();
       } catch (e) {
-        console.error("AI资源库导入失败", e);
+        console.error("我的资源库导入失败", e);
         uni.hideLoading();
         uni.showToast({ title: "导入失败", icon: "none" });
       } finally {

@@ -214,7 +214,7 @@
         {
           "path": "aiResourcePicker/aiResourcePicker",
           "style": {
-            "navigationBarTitleText": "AI资源库",
+            "navigationBarTitleText": "我的资源库",
             "navigationBarBackgroundColor": "#FFFFFF",
             "navigationBarTextStyle": "black"
           }

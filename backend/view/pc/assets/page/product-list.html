@@ -347,7 +347,10 @@
                 <div>
                   <div class="flex justify-between items-center mb-4">
                     <label class="block text-sm font-medium text-gray-600"> 花色图 </label>
-                    <button type="button" class="text-primary text-sm hover:underline"><i class="fas fa-sort mr-1"></i> 排序</button>
+                    <div class="flex items-center gap-3">
+                      <button type="button" id="color-resource-picker" class="text-primary text-sm hover:underline"><i class="fas fa-images mr-1"></i> 我的资源库 </button>
+                      <button type="button" class="text-primary text-sm hover:underline"><i class="fas fa-sort mr-1"></i> 排序</button>
+                    </div>
                   </div>
                   <div id="color-images-upload" class="upload-area">
                     <div class="space-y-2">
@@ -361,7 +364,10 @@
                 <div>
                   <div class="flex justify-between items-center mb-4">
                     <label class="block text-sm font-medium text-gray-600"> 详情图 </label>
-                    <button type="button" class="text-primary text-sm hover:underline"><i class="fas fa-sort mr-1"></i> 排序</button>
+                    <div class="flex items-center gap-3">
+                      <button type="button" id="detail-resource-picker" class="text-primary text-sm hover:underline"><i class="fas fa-images mr-1"></i> 我的资源库 </button>
+                      <button type="button" class="text-primary text-sm hover:underline"><i class="fas fa-sort mr-1"></i> 排序</button>
+                    </div>
                   </div>
                   <div id="detail-images-upload" class="upload-area">
                     <div class="space-y-2">
@@ -497,6 +503,32 @@
           </div>
           
 
+        </div>
+      </div>
+    </div>
+    <div id="resource-picker-modal" class="modal-mask hidden">
+      <div class="modal-content !max-w-5xl">
+        <div class="p-6 border-b border-gray-100 flex flex-wrap gap-3 justify-between items-center sticky top-0 bg-white z-10">
+          <div>
+            <h2 class="text-xl font-semibold text-gray-700">我的资源库</h2>
+            <p class="text-sm text-gray-400 mt-1">选择图片后导入当前产品</p>
+          </div>
+          <button id="close-resource-picker-modal" class="text-gray-400 hover:text-gray-600 p-2"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6">
+          <div class="flex flex-col sm:flex-row gap-3 mb-4">
+            <input type="text" id="resource-picker-keyword" class="input-primary" placeholder="搜索资源库图片">
+            <button type="button" id="resource-picker-search" class="btn-primary shrink-0"><i class="fas fa-search"></i><span>搜索</span></button>
+          </div>
+          <div id="resource-picker-list" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 min-h-[300px]"></div>
+          <div class="mt-4 flex items-center justify-between">
+            <button type="button" id="resource-picker-more" class="btn-outline hidden"><i class="fas fa-chevron-down"></i><span>加载更多</span></button>
+            <div class="text-sm text-gray-500 ml-auto">已选 <span id="resource-picker-count">0</span> 张</div>
+          </div>
+        </div>
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3 sticky bottom-0 bg-white z-10">
+          <button id="cancel-resource-picker" class="btn-outline">取消</button>
+          <button id="confirm-resource-picker" class="btn-primary"><i class="fas fa-check"></i><span>确认选择</span></button>
         </div>
       </div>
     </div>
@@ -2552,6 +2584,235 @@ document.addEventListener('DOMContentLoaded', function () {
       `;
       container.appendChild(div);
   }
+
+  var resourcePickerState = {
+      type: 'color',
+      page: 1,
+      pageSize: 30,
+      total: 0,
+      loading: false,
+      selected: {}
+  };
+  var resourcePickerModal = document.getElementById('resource-picker-modal');
+  var resourcePickerList = document.getElementById('resource-picker-list');
+  var resourcePickerKeyword = document.getElementById('resource-picker-keyword');
+  var resourcePickerMoreBtn = document.getElementById('resource-picker-more');
+  var resourcePickerCount = document.getElementById('resource-picker-count');
+
+  function resourceImageUrl(item) {
+      return item.thumbnail_url || item.preview_url || item.file_url || '';
+  }
+
+  function escapeResourceHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, function(ch) {
+          return {
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;'
+          }[ch];
+      });
+  }
+
+  function updateResourcePickerCount() {
+      if (resourcePickerCount) {
+          resourcePickerCount.textContent = Object.keys(resourcePickerState.selected).length;
+      }
+  }
+
+  function renderResourcePickerItems(items, append) {
+      if (!append) {
+          resourcePickerList.innerHTML = '';
+      }
+      if (!append && items.length === 0) {
+          resourcePickerList.innerHTML = '<div class="col-span-full min-h-[260px] flex items-center justify-center text-gray-400">暂无资源库图片</div>';
+          return;
+      }
+      items.forEach(function(item) {
+          var id = String(item.id);
+          var selected = !!resourcePickerState.selected[id];
+          var card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'relative text-left rounded-md border overflow-hidden bg-gray-50 hover:border-primary transition-colors ' + (selected ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200');
+          card.setAttribute('data-id', id);
+          card.innerHTML = `
+            <div class="aspect-square bg-gray-100">
+              <img src="${escapeResourceHtml(resourceImageUrl(item))}" class="w-full h-full object-cover" alt="">
+            </div>
+            <div class="p-2 text-xs text-gray-600 truncate">${escapeResourceHtml(item.name || '资源库图片')}</div>
+            <span class="absolute right-2 top-2 w-6 h-6 rounded-full flex items-center justify-center text-xs ${selected ? 'bg-primary text-white' : 'bg-white/90 text-gray-400 border border-gray-200'}">
+              ${selected ? '<i class="fas fa-check"></i>' : ''}
+            </span>
+          `;
+          card.addEventListener('click', function() {
+              if (resourcePickerState.selected[id]) {
+                  delete resourcePickerState.selected[id];
+              } else {
+                  resourcePickerState.selected[id] = item;
+              }
+              card.className = 'relative text-left rounded-md border overflow-hidden bg-gray-50 hover:border-primary transition-colors ' + (resourcePickerState.selected[id] ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200');
+              var badge = card.querySelector('span');
+              if (badge) {
+                  badge.className = 'absolute right-2 top-2 w-6 h-6 rounded-full flex items-center justify-center text-xs ' + (resourcePickerState.selected[id] ? 'bg-primary text-white' : 'bg-white/90 text-gray-400 border border-gray-200');
+                  badge.innerHTML = resourcePickerState.selected[id] ? '<i class="fas fa-check"></i>' : '';
+              }
+              updateResourcePickerCount();
+          });
+          resourcePickerList.appendChild(card);
+      });
+  }
+
+  function loadResourcePicker(reset) {
+      if (resourcePickerState.loading) return Promise.resolve();
+      if (reset) {
+          resourcePickerState.page = 1;
+          resourcePickerState.total = 0;
+      }
+      resourcePickerState.loading = true;
+      if (resourcePickerMoreBtn) {
+          resourcePickerMoreBtn.classList.add('hidden');
+      }
+      if (reset) {
+          resourcePickerList.innerHTML = '<div class="col-span-full min-h-[260px] flex items-center justify-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i>加载中</div>';
+      }
+      var params = new URLSearchParams({
+          page: String(resourcePickerState.page),
+          page_size: String(resourcePickerState.pageSize),
+          keyword: resourcePickerKeyword.value.trim()
+      });
+      return fetch(`${API_BASE_URL}/album/ai/resources?${params.toString()}`, {
+          headers: {
+              ...getAuthTokenHeader()
+          }
+      })
+      .then(res => res.json())
+      .then(res => {
+          if (res.code !== 0 && res.code !== 200) {
+              throw new Error(res.msg || res.message || '资源库加载失败');
+          }
+          var data = res.data || {};
+          var list = data.resources || data.list || [];
+          resourcePickerState.total = Number(data.total || 0);
+          renderResourcePickerItems(list, !reset);
+          var loadedCount = resourcePickerState.page * resourcePickerState.pageSize;
+          if (list.length >= resourcePickerState.pageSize && (!resourcePickerState.total || loadedCount < resourcePickerState.total)) {
+              resourcePickerMoreBtn.classList.remove('hidden');
+          }
+      })
+      .catch(err => {
+          console.error(err);
+          resourcePickerList.innerHTML = '<div class="col-span-full min-h-[260px] flex items-center justify-center text-red-400">资源库加载失败</div>';
+          showToast(err.message || '资源库加载失败', 'error');
+      })
+      .finally(() => {
+          resourcePickerState.loading = false;
+      });
+  }
+
+  function openResourcePicker(type) {
+      if (!localStorage.getItem('token')) {
+          showToast('请先登录', 'error');
+          openWeChatModal();
+          return;
+      }
+      resourcePickerState.type = type || 'color';
+      resourcePickerState.selected = {};
+      updateResourcePickerCount();
+      resourcePickerModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      loadResourcePicker(true);
+  }
+
+  function closeResourcePicker() {
+      resourcePickerModal.classList.add('hidden');
+      document.body.style.overflow = '';
+  }
+
+  function importSelectedResources() {
+      var selected = Object.values(resourcePickerState.selected);
+      if (selected.length === 0) {
+          showToast('请选择资源库图片', 'error');
+          return;
+      }
+      var type = resourcePickerState.type;
+      var previewContainer = type === 'color' ? document.getElementById('color-images-preview') : document.getElementById('detail-images-preview');
+      var targetList = type === 'color' ? uploadedColorImages : uploadedDetailImages;
+      var confirmBtn = document.getElementById('confirm-resource-picker');
+      confirmBtn.disabled = true;
+      confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>导入中...</span>';
+      Promise.all(selected.map(function(item) {
+          return fetch(`${API_BASE_URL}/album/ai/import_resource`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  ...getAuthTokenHeader()
+              },
+              body: JSON.stringify({
+                  resource_id: item.id,
+                  role: type === 'color' ? 'cover' : 'detail'
+              })
+          })
+          .then(res => res.json())
+          .then(res => {
+              if (res.code !== 0 && res.code !== 200) {
+                  throw new Error(res.msg || res.message || '导入失败');
+              }
+              return res.data;
+          });
+      }))
+      .then(items => {
+          items.forEach(function(item) {
+              if (!item || !item.id) return;
+              var exists = targetList.some(function(image) {
+                  return String(image.id) === String(item.id);
+              });
+              if (exists) return;
+              var url = item.url || item.file_url;
+              targetList.push({ id: item.id, url: url });
+              renderImage(url, item.id, type, previewContainer);
+          });
+          initImageSortable();
+          closeResourcePicker();
+          showToast('已从我的资源库导入');
+      })
+      .catch(err => {
+          console.error(err);
+          showToast(err.message || '导入失败', 'error');
+      })
+      .finally(() => {
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = '<i class="fas fa-check"></i><span>确认选择</span>';
+      });
+  }
+
+  document.getElementById('color-resource-picker').addEventListener('click', function() {
+      openResourcePicker('color');
+  });
+  document.getElementById('detail-resource-picker').addEventListener('click', function() {
+      openResourcePicker('detail');
+  });
+  document.getElementById('close-resource-picker-modal').addEventListener('click', closeResourcePicker);
+  document.getElementById('cancel-resource-picker').addEventListener('click', closeResourcePicker);
+  document.getElementById('resource-picker-search').addEventListener('click', function() {
+      loadResourcePicker(true);
+  });
+  resourcePickerKeyword.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+          e.preventDefault();
+          loadResourcePicker(true);
+      }
+  });
+  resourcePickerMoreBtn.addEventListener('click', function() {
+      resourcePickerState.page += 1;
+      loadResourcePicker(false);
+  });
+  document.getElementById('confirm-resource-picker').addEventListener('click', importSelectedResources);
+  resourcePickerModal.addEventListener('click', function(e) {
+      if (e.target === this) {
+          closeResourcePicker();
+      }
+  });
 
   // Helper to get image IDs from DOM in order
   const getSortedImageIds = (containerId) => {

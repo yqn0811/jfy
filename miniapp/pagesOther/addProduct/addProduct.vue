@@ -162,6 +162,7 @@
 <script>
 import UploadPicker from "./components/UploadPicker.vue"; // 根据项目路径调整
 import CategoryMultiSelect from "./components/CategoryMultiSelect.vue";
+import { notifyRefresh } from "@/common/helper/refresh.js";
 export default {
   components: {
     UploadPicker,
@@ -218,7 +219,7 @@ export default {
       if (!payload || payload.page !== "addProduct") return;
       this.appendAiResourceImages(payload.target || this.uploadTarget || "cover", payload.items || []);
     } catch (e) {
-      console.error("读取AI资源库选择失败", e);
+      console.error("读取我的资源库选择失败", e);
     }
   },
   computed: {},
@@ -748,14 +749,8 @@ export default {
             : payload;
           await this.$go(url, params, "post", { show_err: true });
           uni.showToast({ title: "提交成功", icon: "none" });
+          this.notifyProductChanged();
           setTimeout(() => {
-            if (this.fromPage === "index") {
-              uni.$emit("refreshIndexData");
-            }
-            if (this.pid) {
-              uni.$emit("refreshProductDetailsSelfData");
-              uni.$emit("refreshIndexData");
-            }
             uni.navigateBack();
           }, 1000);
         } else {
@@ -811,31 +806,79 @@ export default {
 
       return { id, url };
     },
+    notifyProductChanged() {
+      notifyRefresh(["product", "home"]);
+    },
+    getUploadFileExtension(filePath, fileType = 1) {
+      if (Number(fileType) === 2) return "mp4";
+      const cleanPath = String(filePath || "").split("?")[0];
+      const match = cleanPath.match(/\.([a-zA-Z0-9]+)$/);
+      const ext = match ? match[1].toLowerCase() : "jpg";
+      return ext.length <= 8 ? ext : "jpg";
+    },
+    buildUploadFileName(filePath, fileType = 1) {
+      const now = new Date();
+      const pad = (value, size = 2) => String(value).padStart(size, "0");
+      const stamp =
+        `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
+        `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}` +
+        `${pad(now.getMilliseconds(), 3)}`;
+      const random = Math.random().toString(36).slice(2, 8);
+      return `jf_${stamp}_${random}.${this.getUploadFileExtension(filePath, fileType)}`;
+    },
+    prepareUploadFilePath(filePath, uploadName) {
+      return new Promise((resolve) => {
+        if (
+          typeof wx === "undefined" ||
+          !wx.getFileSystemManager ||
+          !wx.env ||
+          !wx.env.USER_DATA_PATH
+        ) {
+          resolve(filePath);
+          return;
+        }
+        const fs = wx.getFileSystemManager();
+        const destPath = `${wx.env.USER_DATA_PATH}/${uploadName}`;
+        fs.copyFile({
+          srcPath: filePath,
+          destPath,
+          success: () => resolve(destPath),
+          fail: () => resolve(filePath),
+        });
+      });
+    },
     // 上传单文件并返回线上访问地址
     uploadSingleFile(filePath, fileType = 1) {
       const that = this;
       return new Promise((resolve, reject) => {
-        uni.uploadFile({
-          url: that.$config.domain + that.uploadEndpoint,
-          filePath: filePath,
-          name: "file",
-          header: {
-            "content-type": "multipart/form-data", // 默认值
-            "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
-          },
-          formData: {
-            file_type: fileType,
-          },
-          success: (uploadRes) => {
-            try {
-              resolve(that.normalizeUploadResult(uploadRes.data));
-            } catch (e) {
+        const uploadName = that.buildUploadFileName(filePath, fileType);
+        that.prepareUploadFilePath(filePath, uploadName).then((uploadPath) => {
+          uni.uploadFile({
+            url: that.$config.domain + that.uploadEndpoint,
+            filePath: uploadPath,
+            name: "file",
+            header: {
+              "content-type": "multipart/form-data", // 默认值
+              "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
+            },
+            formData: {
+              file_type: fileType,
+              filename: uploadName,
+              file_name: uploadName,
+              original_name: uploadName,
+              name: uploadName,
+            },
+            success: (uploadRes) => {
+              try {
+                resolve(that.normalizeUploadResult(uploadRes.data));
+              } catch (e) {
+                reject(e);
+              }
+            },
+            fail: (e) => {
               reject(e);
-            }
-          },
-          fail: (e) => {
-            reject(e);
-          },
+            },
+          });
         });
       });
     },

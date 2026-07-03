@@ -93,7 +93,6 @@ class UserService extends BaseService
 
         $is_visiting_others = ($visitorUid && $visitorUid != $targetUserId);
         $is_owner = ($visitorUid == $targetUserId && $visitorUid != 0);
-        $allowDirectSharedCategory = (bool)($includeCurrent && $fid);
         $shared_ids = [];
         if (!$is_owner && $visitorUid) {
             try {
@@ -206,6 +205,7 @@ class UserService extends BaseService
             throwError('该用户未公开主页');
         }
         $is_owner = ($visitorUid == $targetUserId && $visitorUid != 0);
+        $allowDirectSharedCategory = (bool)($includeCurrent && $fid);
         $shared_ids = [];
         if (!$is_owner && $visitorUid) {
             try {
