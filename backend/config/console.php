@@ -10,5 +10,6 @@ return [
         'setup_visit_table' => \app\index\controller\command\SetupVisitTableCommand::class,
         'test_poster' => \app\index\controller\command\TestPosterCommand::class,
         'test_db' => \app\command\TestDb::class,
+        'album:sync-ai-resources' => \app\command\SyncAiResources::class,
     ],
 ];

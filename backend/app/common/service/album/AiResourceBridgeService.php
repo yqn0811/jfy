@@ -14,6 +14,7 @@ class AiResourceBridgeService extends BaseService
     private $bridgeToken;
     private $bridgeMode;
     private $bridgeAllowedUIDs;
+    private $requestRetries = 2;
 
     public function __construct(App $app)
     {
@@ -345,6 +346,24 @@ class AiResourceBridgeService extends BaseService
             throwError('我的资源库桥接未配置');
         }
         $url = $this->apiBase . $path;
+        $lastMessage = '';
+        $maxAttempts = max(1, $this->requestRetries + 1);
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $result = $this->sendAiResourceRequest($method, $url, $payload);
+            if ($result['ok']) {
+                return $result['data'];
+            }
+            $lastMessage = $result['message'];
+            if (!$result['retryable'] || $attempt >= $maxAttempts) {
+                break;
+            }
+            usleep(200000 * $attempt);
+        }
+        throwError($lastMessage ?: '我的资源库请求失败');
+    }
+
+    private function sendAiResourceRequest($method, $url, $payload = null)
+    {
         $ch = curl_init();
         $headers = [
             'Accept: application/json',
@@ -369,17 +388,37 @@ class AiResourceBridgeService extends BaseService
         curl_close($ch);
         if ($errno) {
             Log::error('[AiResourceBridge] curl error: ' . $error);
-            throwError('我的资源库连接失败');
+            return [
+                'ok' => false,
+                'retryable' => true,
+                'message' => '我的资源库连接失败',
+                'data' => [],
+            ];
         }
         $data = json_decode($raw, true);
         if (!is_array($data)) {
             Log::error('[AiResourceBridge] invalid response: ' . $raw);
-            throwError('我的资源库返回异常');
+            return [
+                'ok' => false,
+                'retryable' => $status >= 500 || $status === 0,
+                'message' => '我的资源库返回异常',
+                'data' => [],
+            ];
         }
         if ($status < 200 || $status >= 300 || (isset($data['code']) && (int)$data['code'] !== 200)) {
             $message = $data['message'] ?? '我的资源库请求失败';
-            throwError($message);
+            return [
+                'ok' => false,
+                'retryable' => $status >= 500 || $status === 429,
+                'message' => $message,
+                'data' => [],
+            ];
         }
-        return $data['data'] ?? [];
+        return [
+            'ok' => true,
+            'retryable' => false,
+            'message' => '',
+            'data' => $data['data'] ?? [],
+        ];
     }
 }
