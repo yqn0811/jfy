@@ -26,6 +26,7 @@ class SyncAiResources extends Command
 
     protected function execute(Input $input, Output $output)
     {
+        $this->ensureCliServerHost();
         $uid = max(0, (int)$input->getOption('uid'));
         $limit = max(1, min(5000, (int)$input->getOption('limit')));
         $since = trim((string)$input->getOption('since'));
@@ -100,6 +101,13 @@ class SyncAiResources extends Command
         }
         $time = strtotime($since . ' 00:00:00');
         return $time ?: strtotime('-30 days');
+    }
+
+    private function ensureCliServerHost()
+    {
+        if (empty($_SERVER['HTTP_HOST'])) {
+            $_SERVER['HTTP_HOST'] = parse_url((string)request()->domain(), PHP_URL_HOST) ?: 'www.jfyuntu.com';
+        }
     }
 
     private function resolveRelationOwnerUid($relation)
