@@ -25,6 +25,7 @@ Route::get('/user/home/categories', 'UserApiController/getHomeCategories')->midd
 Route::get('/user/home/products', 'UserApiController/getHomeProducts')->middleware('auth', false); // 主页产品列表（公开，可选登录）
 Route::get('/user/home/products/detail', 'UserApiController/getHomeProductsDetails')->middleware('auth', false); // 主页产品详情（公开，可选登录）
 Route::get('/user/home/products/details', 'UserApiController/getHomeProductsDetails')->middleware('auth', false); // 主页产品详情别名（兼容）
+Route::get('/user/home/picture/detail', 'UserApiController/getHomePictureDetail')->middleware('auth', false); // 主页图片详情（公开，可选登录）
 Route::any('/wechat/serve', 'WechatController/serve'); // 微信公众号服务器回调
 Route::any('/wechat/push', 'WechatController/serve'); // 微信消息推送回调（配置用）
 

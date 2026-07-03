@@ -733,6 +733,25 @@ class UserApiController extends ApiBaseController
         $this->result($this->userService->getHomeProductsDetails($targetUserId, $productId, $visitorUid));
     }
 
+    public function getHomePictureDetail()
+    {
+        $params = $this->request->getMore([
+            ['target_user_id', 0],
+            ['pic_id', 0],
+        ]);
+        $targetUserId = $params['target_user_id'];
+        $picId = $params['pic_id'];
+        if (!$targetUserId || !$picId) {
+            throwError('参数错误');
+        }
+        $visitorUid = 0;
+        try {
+            $visitorUid = request()->userID();
+        } catch (\Exception $e) {
+        }
+        $this->result($this->userService->getHomePictureDetail($targetUserId, $picId, $visitorUid));
+    }
+
     public function getHomeMiniProgramCode()
     {
         $params = $this->request->getMore([

@@ -526,6 +526,73 @@ class UserService extends BaseService
         return $albumService->getProductDetail($productId, $visitorUid);
     }
 
+    public function getHomePictureDetail($targetUserId, $picId, $visitorUid = 0)
+    {
+        $user = WdXcxUser::find($targetUserId);
+        if (!$user || !$user->is_show_home) {
+            throwError('该用户未公开主页');
+        }
+
+        $pic = WdXcxPic::where('id', (int)$picId)
+            ->where('uid', (int)$targetUserId)
+            ->field('id,imgurl,pic_name,pic_beizhu,uniacid,file_type,create_time,uid')
+            ->find();
+        if (!$pic) {
+            throwError('图片不存在');
+        }
+
+        $isOwner = ((int)$visitorUid === (int)$targetUserId && (int)$visitorUid !== 0);
+        $this->assertHomeVisitRequirement($user, $visitorUid, $isOwner);
+        $sharedIds = [];
+        if (!$isOwner && $visitorUid) {
+            try {
+                $sharedIds = \app\common\model\album\WdXcxAlbumShareBind::where('bind_uid', $visitorUid)->column('fid');
+            } catch (\Exception $e) {
+                $sharedIds = [];
+            }
+        }
+
+        if (!$isOwner && !$this->canPictureBeViewedFromHome($pic->id, (int)$targetUserId, $sharedIds)) {
+            throwError('此图片未公开或仅分享可见，请通过分享链接访问');
+        }
+
+        $pictureUrl = $pic->TruePic;
+        $ownerInfo = $user->getUserInfoShow($user->id);
+        unset($ownerInfo['mobile']);
+
+        return [
+            'id' => $pic->id,
+            'pic_id' => $pic->id,
+            'pic_name' => $pic->pic_name,
+            'pic_beizhu' => $pic->pic_beizhu ?: $pic->pic_name,
+            'picture_url' => $pictureUrl,
+            'picture_url_original' => removePicStyle($pictureUrl),
+            'imgurl' => $pictureUrl,
+            'file_type' => (int)$pic->file_type,
+            'is_video' => (int)$pic->file_type === 2 ? 1 : 0,
+            'upload_time' => $pic->getData('create_time') ? date('Y年m月d日 H:i', $pic->getData('create_time')) : '',
+            'nickname' => $user->company_name ?: $user->nickname,
+            'user_info' => $ownerInfo,
+        ];
+    }
+
+    private function canPictureBeViewedFromHome($picId, $targetUserId, $sharedIds)
+    {
+        $sharedIds = array_values(array_unique(array_map('intval', $sharedIds ?: [])));
+        $products = WdXcxAlbumFolder::where('uid', (int)$targetUserId)
+            ->where('folder_type', 2)
+            ->whereRaw('FIND_IN_SET(' . (int)$picId . ', pic_ids) OR FIND_IN_SET(' . (int)$picId . ', detail_pic_ids)')
+            ->field('id,private_type,pid')
+            ->select();
+        foreach ($products as $product) {
+            $privateType = (int)($product->private_type ?? 1);
+            if ($privateType === 1 || $privateType === 4) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private function safeString($val)
     {
         try {
@@ -3085,19 +3152,17 @@ class UserService extends BaseService
         $titleX = 86;
         $titleY = 296;
         if ($collTitle) {
-            $badgeX = $titleX;
-            $badgeY = 218;
+            $badgeX = 765;
+            $badgeY = 214;
             $this->drawRoundedRect($im, $badgeX, $badgeY, $badgeX + 174, $badgeY + 44, 22, $colorWarm);
             $this->drawText($im, 22, 0, $badgeX + 24, $badgeY + 30, $colorMuted, $font, '云相册分享');
-            $this->drawText($im, 40, 0, $titleX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, 40, 830));
+            $this->drawText($im, 42, 0, $titleX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, 42, 660));
         }
 
-        $this->drawText($im, 25, 0, 86, 346, $colorGray, $font, '展示当前访问权限可见的相册封面');
-
-        $contentY = 388;
+        $contentY = 336;
         $gridX = 86;
         $gridWidth = 863;
-        $gridHeight = 767;
+        $gridHeight = 835;
         $covers = [];
         if ($type === 'selection') {
             try {
@@ -3145,7 +3210,16 @@ class UserService extends BaseService
             $this->drawText($im, 26, 0, 110, 1384, $colorBlack, $font, '相册');
         }
         $this->drawText($im, 40, 0, 226, 1362, $colorBlack, $font, '我们的云相册');
-        $this->drawText($im, 28, 0, 226, 1416, $colorGray, $font, '扫码查看作品详情');
+        $miniIconX = 226;
+        $miniIconY = 1390;
+        $miniGreen = \imagecolorallocate($im, 7, 193, 96);
+        $miniWhite = \imagecolorallocate($im, 255, 255, 255);
+        \imagefilledellipse($im, $miniIconX + 18, $miniIconY + 18, 36, 36, $miniGreen);
+        \imagearc($im, $miniIconX + 18, $miniIconY + 18, 20, 20, 210, 520, $miniWhite);
+        \imagearc($im, $miniIconX + 18, $miniIconY + 18, 30, 30, 30, 340, $miniWhite);
+        \imagefilledellipse($im, $miniIconX + 9, $miniIconY + 12, 5, 5, $miniWhite);
+        \imagefilledellipse($im, $miniIconX + 27, $miniIconY + 24, 5, 5, $miniWhite);
+        $this->drawText($im, 28, 0, $miniIconX + 48, 1416, $colorGray, $font, '扫码查看作品详情');
 
         $qrDrawn = false;
         if ($qrcodeUrl) {
