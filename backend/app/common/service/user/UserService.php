@@ -3083,35 +3083,21 @@ class UserService extends BaseService
         }
 
         $titleX = 86;
-        $titleY = 272;
+        $titleY = 296;
         if ($collTitle) {
             $badgeX = $titleX;
             $badgeY = 218;
             $this->drawRoundedRect($im, $badgeX, $badgeY, $badgeX + 174, $badgeY + 44, 22, $colorWarm);
             $this->drawText($im, 22, 0, $badgeX + 24, $badgeY + 30, $colorMuted, $font, '云相册分享');
-
-            $iconPath = $this->app->getRootPath() . 'public/image/folder-open.png';
-            $titleTextX = $titleX;
-            if (file_exists($iconPath)) {
-                $iconImg = @\imagecreatefrompng($iconPath);
-                if ($iconImg) {
-                    $iconH = 36;
-                    $iconW = $iconH * (\imagesx($iconImg) / \imagesy($iconImg));
-                    $iconY = $titleY - 34;
-                    \imagecopyresampled($im, $iconImg, $titleX, $iconY, 0, 0, $iconW, $iconH, \imagesx($iconImg), \imagesy($iconImg));
-                    \imagedestroy($iconImg);
-                    $titleTextX += $iconW + 14;
-                }
-            }
-            $this->drawText($im, 44, 0, $titleTextX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, 44, 830 - ($titleTextX - $titleX)));
+            $this->drawText($im, 40, 0, $titleX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, 40, 830));
         }
 
-        $this->drawText($im, 25, 0, 86, $titleY + 42, $colorGray, $font, '展示当前访问权限可见的相册封面');
+        $this->drawText($im, 25, 0, 86, 346, $colorGray, $font, '展示当前访问权限可见的相册封面');
 
-        $contentY = 350;
+        $contentY = 388;
         $gridX = 86;
         $gridWidth = 863;
-        $gridHeight = 805;
+        $gridHeight = 767;
         $covers = [];
         if ($type === 'selection') {
             try {
