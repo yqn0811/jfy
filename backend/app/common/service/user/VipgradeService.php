@@ -32,6 +32,10 @@ class VipgradeService extends BaseService
     {
         $resp = $this->bridge_client->get('/jiafangyun/bridge/subscription/plans');
         $plans = $resp['plans'] ?? ($resp['list'] ?? []);
+        $resourcePlans = $this->formatBridgeResourceStorageLists($plans);
+        if (!empty($resourcePlans)) {
+            return $resourcePlans;
+        }
         return $this->formatBridgeVipgradeLists($plans);
     }
 
@@ -154,6 +158,54 @@ class VipgradeService extends BaseService
         $result = array_values($groups);
         usort($result, function ($a, $b) {
             return ($a['grade_level'] <=> $b['grade_level']);
+        });
+        return $result;
+    }
+
+    private function formatBridgeResourceStorageLists($plans)
+    {
+        $result = [];
+        foreach ((array)$plans as $plan) {
+            if (($plan['plan_category'] ?? '') !== 'resource_storage') {
+                continue;
+            }
+            $planId = (int)($plan['id'] ?? 0);
+            if ($planId <= 0) {
+                continue;
+            }
+            $benefits = $plan['benefits_json'] ?? [];
+            $current = $this->centsToMoney($plan['current_price_cents'] ?? 0);
+            $original = $this->centsToMoney($plan['original_price_cents'] ?? 0);
+            $capacityBytes = $this->resourceStorageCapacityBytes($benefits);
+            $result[] = [
+                'grade_level' => $planId,
+                'grade_key' => $plan['level'] ?? ('resource_' . $planId),
+                'grade_name' => $plan['name'] ?? '资源包',
+                'annual_fee' => $current,
+                'market_annual_fee' => $original,
+                'midd_month_fee' => $current,
+                'market_midd_month_fee' => $original,
+                'month_fee' => $current,
+                'market_month_fee' => $original,
+                'new_buy_annual' => '0.00',
+                'cloud_size' => $capacityBytes > 0 ? (int)ceil($capacityBytes / 1024 / 1024) : 0,
+                'cloud_size_str' => $capacityBytes > 0 ? $this->formatStorageBytes($capacityBytes) : '按套餐配置',
+                'editor_number' => 1,
+                'upload_size_type' => 1,
+                'upload_size' => (int)($benefits['upload_size_mb'] ?? 20),
+                'upload_size_value' => (int)($benefits['upload_size_mb'] ?? 20),
+                'show_annual_del_str' => $plan['plan_subtitle'] ?? '',
+                'show_month_del_str' => $plan['plan_subtitle'] ?? '',
+                'annual_plan_id' => $planId,
+                'midd_month_plan_id' => $planId,
+                'month_plan_id' => $planId,
+                'benefits_json' => $benefits,
+                'plan_category' => 'resource_storage',
+            ];
+        }
+
+        usort($result, function ($a, $b) {
+            return ((float)$a['annual_fee'] <=> (float)$b['annual_fee']);
         });
         return $result;
     }
@@ -284,6 +336,39 @@ class VipgradeService extends BaseService
             return rtrim(rtrim(number_format($gb, 2, '.', ''), '0'), '.') . 'GB';
         }
         return $mb . 'MB';
+    }
+
+    private function resourceStorageCapacityBytes($benefits)
+    {
+        if (!is_array($benefits)) {
+            return 0;
+        }
+        if (!empty($benefits['resource_storage_capacity_bytes'])) {
+            return (int)$benefits['resource_storage_capacity_bytes'];
+        }
+        if (!empty($benefits['resource_storage_capacity_gb'])) {
+            return (int)$benefits['resource_storage_capacity_gb'] * 1024 * 1024 * 1024;
+        }
+        if (!empty($benefits['resource_storage_capacity_mb'])) {
+            return (int)$benefits['resource_storage_capacity_mb'] * 1024 * 1024;
+        }
+        if (!empty($benefits['resource_storage_capacity'])) {
+            return (int)$benefits['resource_storage_capacity'];
+        }
+        if (!empty($benefits['storage_quota_mb'])) {
+            return (int)$benefits['storage_quota_mb'] * 1024 * 1024;
+        }
+        return 0;
+    }
+
+    private function formatStorageBytes($bytes)
+    {
+        $bytes = (int)$bytes;
+        if ($bytes >= 1024 * 1024 * 1024) {
+            $gb = $bytes / 1024 / 1024 / 1024;
+            return rtrim(rtrim(number_format($gb, 1, '.', ''), '0'), '.') . 'GB';
+        }
+        return $this->formatStorageSize((int)ceil($bytes / 1024 / 1024));
     }
 
     private function centsToMoney($cents)

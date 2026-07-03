@@ -39,49 +39,37 @@
 			<view class="vip-content">
 				<!-- 价格区域 -->
 				<view class="price-container">
-					<view class="price-item" :class="activeVip == 1 ? 'highlight' : ''" @click="selectVip(1,levelInfo.annual_fee)">
+					<view class="price-item highlight single">
 						<view class="discount-tag" v-if="levelInfo.show_annual_del_str">{{levelInfo.show_annual_del_str}}</view>
-						<view class="duration">1年</view>
+						<view class="duration">资源包</view>
 						<view class="current-price">¥{{levelInfo.annual_fee}}</view>
 						<view class="original-price">¥{{levelInfo.market_annual_fee}}</view>
-					</view>
-					<view class="price-item" :class="activeVip == 2 ? 'highlight' : ''" @click="selectVip(2,levelInfo.midd_month_fee)">
-						<view class="discount-tag" v-if="levelInfo.show_month_del_str">{{levelInfo.show_month_del_str}}</view>
-						<view class="duration">3个月</view>
-						<view class="current-price">¥{{levelInfo.midd_month_fee}}</view>
-						<view class="original-price">¥{{levelInfo.market_midd_month_fee}}</view>
-					</view>
-					<view class="price-item" :class="activeVip == 3 ? 'highlight' : ''" @click="selectVip(3,levelInfo.month_fee)">
-						<view class="discount-tag" v-if="levelInfo.show_month_del_str">{{levelInfo.show_month_del_str}}</view>
-						<view class="duration">1个月</view>
-						<view class="current-price">¥{{levelInfo.month_fee}}</view>
-						<view class="original-price">¥{{levelInfo.market_month_fee}}</view>
 					</view>
 				</view>
 					<view class="benefits-section">
 						<view class="section-header">
-							<text class="section-title">新客会员权益</text>
+							<text class="section-title">资源包权益</text>
 						</view>
 						<view class="benefits-content">
 							<view class="vip-tab" >
 								<image src="/static/icon/slices/Frame 1171278987.png" class="vipIcon" mode=""></image>
 								<view class="level-info">
-									<view class="level-label">云空间{{levelInfo.cloud_size_str}}</view>
-									<view class="level-des">云存储</view>
+									<view class="level-label">资源库{{levelInfo.cloud_size_str}}</view>
+									<view class="level-des">AI 生图资源库扩容</view>
 								</view>
 							</view>
 							<view class="vip-tab" >
 								<image src="/static/icon/slices/Frame 1171278989.png" class="vipIcon" mode=""></image>
 								<view class="level-info">
-									<view class="level-label">支持{{levelInfo.editor_number}}编辑</view>
-									<view class="level-des">在线编辑</view>
+									<view class="level-label">网页/小程序互通</view>
+									<view class="level-des">同账号素材自动同步</view>
 								</view>
 							</view>
 							<view class="vip-tab" >
 								<image src="/static/icon/slices/Frame 1171278989.png" class="vipIcon" mode=""></image>
 								<view class="level-info">
-									<view class="level-label">最大上传文件</view>
-									<view class="level-des">{{levelInfo.upload_size}}M</view>
+									<view class="level-label">按文件大小计量</view>
+									<view class="level-des">适合商品素材沉淀</view>
 								</view>
 							</view>
 							<view class="vip-tab" >
@@ -170,30 +158,7 @@
 			
 
 			<view class="bottom-upgrade" @click="toBuy">
-				<view class="upgrade-text">升级{{levelInfo.grade_name}}{{payFee}}元</view>
-			</view>
-		</view>
-		
-		<!-- iOS客服弹窗 -->
-		<view class="ios-modal" v-if="showIOSModal" @click="closeIOSModal">
-			<view class="modal-content" @click.stop>
-				<view class="modal-text">
-					IOS 用户暂不可在小程序内直接支付<br/>
-					请进入客服会话获取专属升级链接
-				</view>
-				<button
-					class="modal-button contact-button"
-					open-type="contact"
-					:session-from="iosSessionFrom"
-					:show-message-card="true"
-					:send-message-title="contactMessageTitle"
-					:send-message-path="contactMessagePath"
-					:send-message-img="contactMessageImg"
-					@contact="handleContact"
-				>
-					进入客服会话
-				</button>
-				<view class="modal-cancel" @click="closeIOSModal">取消</view>
+				<view class="upgrade-text">购买{{levelInfo.grade_name}} {{payFee}}元</view>
 			</view>
 		</view>
 	</view>
@@ -221,8 +186,6 @@
 				levelInfo:{},
 				activeVip:1,
 				payFee:0,
-				isIOS: false, // 是否是iOS系统
-				showIOSModal: false, // 是否显示iOS提示弹窗
 				baseInfo:{},
 				userInfo:{}
 			};
@@ -231,9 +194,6 @@
 			const systemInfo = this.$base.getSystemInfoCompat();
 			this.statusBarHeight = systemInfo.statusBarHeight;
 			this.totalHeight = this.statusBarHeight + this.navigationBarHeight;
-			
-			// 判断是否是iOS系统
-			this.isIOS = systemInfo.platform === 'ios';
 			
 			this.baseInfo = uni.getStorageSync('baseInfo')
 			this.userInfo = uni.getStorageSync('userInfo') || {}
@@ -246,21 +206,18 @@
 		},
 		methods: {
 			toBuy(){
-				// 如果是iOS系统，显示提示弹窗
-				if(this.isIOS) {
-					this.handleIOSUpgrade();
+				if (!this.levelInfo || !this.levelInfo.grade_level) {
+					uni.showToast({
+						title: '请选择资源包',
+						icon: 'none'
+					});
 					return;
 				}
-				
 				const querys = {
 					timestamp: new Date().getTime(),
 					grade:this.levelInfo.grade_level,
-					buy_time:this.activeVip,
+					buy_time:1,
 					pay_price:this.payFee,
-				}
-				let userInfo = uni.getStorageSync('userInfo')
-				if(userInfo.is_new_user == 1){
-					querys.pay_price = Number((this.payFee - this.levelInfo.new_buy_annual).toFixed(2));
 				}
 				const data = {
 					...querys,
@@ -278,9 +235,14 @@
 				}).then(res => {
 					uni.hideLoading();
 					
-					// 假设后端返回的支付参数在 res.data.pay_data 中
-					// 请根据实际后端返回的数据结构调整
 					const payData = res.data.data
+					if (!payData || !payData.pay_info) {
+						uni.showToast({
+							title: '支付参数错误',
+							icon: 'none'
+						});
+						return;
+					}
 					
 					// 拉起微信支付
 					uni.requestPayment({
@@ -331,50 +293,6 @@
 					});
 				});
 			},
-			handleIOSUpgrade() {
-				if (!this.levelInfo || !this.levelInfo.grade_level) {
-					uni.showToast({
-						title: '请选择会员套餐',
-						icon: 'none'
-					});
-					return;
-				}
-				this.showIOSModal = true;
-			},
-			getSelectedBuyLabel() {
-				const map = {
-					1: '1年',
-					2: '3个月',
-					3: '1个月'
-				};
-				return map[this.activeVip] || '1年';
-			},
-			buildIOSSessionFrom() {
-				const payload = {
-					type: 'vip_upgrade',
-					grade_level: this.levelInfo?.grade_level || 0,
-					grade_name: this.levelInfo?.grade_name || '',
-					period: this.activeVip,
-					period_label: this.getSelectedBuyLabel(),
-					pay_price: this.payFee,
-					h5_link: this.vipH5Link,
-					user_id: this.userInfo?.id || '',
-					nickname: this.userInfo?.nickname || '',
-					mobile: this.userInfo?.mobile || ''
-				};
-				return JSON.stringify(payload);
-			},
-			handleContact() {
-				setTimeout(() => {
-					this.showIOSModal = false;
-				}, 800);
-			},
-			
-			// 关闭iOS提示弹窗
-			closeIOSModal() {
-				this.showIOSModal = false;
-			},
-			
 			getUserInfo() {
 				const querys = {
 					timestamp: new Date().getTime(),
@@ -461,36 +379,9 @@
 			selectVipLevel(level,index) {
 				this.levelInfo = level
 				this.currentLevel = index;
-				if(this.activeVip == 1){
-					this.payFee = level.annual_fee
-				}else if(this.activeVip == 2){
-					this.payFee = level.midd_month_fee
-				}else{
-					this.payFee = level.month_fee
-				}
+				this.payFee = level.annual_fee
 			},
 		}
-		,
-		computed: {
-			iosSessionFrom() {
-				return this.buildIOSSessionFrom();
-			},
-			contactMessageTitle() {
-				const gradeName = this.levelInfo?.grade_name || '会员';
-				return `申请升级${gradeName} ${this.getSelectedBuyLabel()}`;
-			},
-			contactMessagePath() {
-				const gradeLevel = this.levelInfo?.grade_level || 0;
-				return `/pagesOther/vipPage/vipPage?grade=${gradeLevel}&buy_time=${this.activeVip}`;
-			},
-			contactMessageImg() {
-				return '/static/icon/share-pic.png';
-			},
-				vipH5Link() {
-					const gradeLevel = this.levelInfo?.grade_level || 0;
-					return `https://api.jfyuntu.com/account/h5.html?grade=${gradeLevel}&buy_time=${this.activeVip}`;
-				}
-			}
 		};
 </script>
 

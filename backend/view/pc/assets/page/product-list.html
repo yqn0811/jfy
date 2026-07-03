@@ -348,7 +348,7 @@
                   <div class="flex justify-between items-center mb-4">
                     <label class="block text-sm font-medium text-gray-600"> 花色图 </label>
                     <div class="flex items-center gap-3">
-                      <button type="button" id="color-resource-picker" class="text-primary text-sm hover:underline"><i class="fas fa-images mr-1"></i> 我的资源库 </button>
+                      <button type="button" id="color-resource-picker" class="text-primary text-sm hover:underline"><i class="fas fa-images mr-1"></i> 从资源库获取 </button>
                       <button type="button" class="text-primary text-sm hover:underline"><i class="fas fa-sort mr-1"></i> 排序</button>
                     </div>
                   </div>
@@ -365,7 +365,7 @@
                   <div class="flex justify-between items-center mb-4">
                     <label class="block text-sm font-medium text-gray-600"> 详情图 </label>
                     <div class="flex items-center gap-3">
-                      <button type="button" id="detail-resource-picker" class="text-primary text-sm hover:underline"><i class="fas fa-images mr-1"></i> 我的资源库 </button>
+                      <button type="button" id="detail-resource-picker" class="text-primary text-sm hover:underline"><i class="fas fa-images mr-1"></i> 从资源库获取 </button>
                       <button type="button" class="text-primary text-sm hover:underline"><i class="fas fa-sort mr-1"></i> 排序</button>
                     </div>
                   </div>
@@ -588,18 +588,19 @@
 	      <div class="modal-content !max-w-3xl">
 	        <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
 	          <div>
-	            <h2 class="text-xl font-semibold text-gray-700"> 购买升级 </h2>
-	            <p class="text-sm text-gray-400 mt-1">选择适合团队使用的相册套餐</p>
+            <h2 class="text-xl font-semibold text-gray-700"> 购买升级 </h2>
+            <p class="text-sm text-gray-400 mt-1">选择 AI 生图同款资源库容量包</p>
 	          </div>
 	          <button id="close-upgrade-modal" class="text-gray-400 hover:text-gray-600 p-2"><i class="fas fa-times"></i></button>
 	        </div>
 	        <div class="p-6">
-	          <div id="upgrade-plan-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 min-h-[160px]">
-	            <!-- Upgrade plans will be loaded here -->
-	          </div>
-	        </div>
-	      </div>
-	    </div>
+          <div id="upgrade-plan-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 min-h-[160px]">
+            <!-- Upgrade plans will be loaded here -->
+          </div>
+          <div id="upgrade-payment-panel" class="hidden mt-5 rounded-lg border border-gray-100 bg-gray-50 p-5"></div>
+        </div>
+      </div>
+    </div>
 	    <script>// 当页面大小或者内容发生变化时，通知导航页面跳转iframe高度
 ytSendPageSize();
 // 页面加载完成后执行
@@ -629,6 +630,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	  var upgradeModal = document.getElementById('upgrade-modal');
 	  var closeUpgradeModalBtn = document.getElementById('close-upgrade-modal');
 	  var upgradePlanList = document.getElementById('upgrade-plan-list');
+	  var upgradePaymentPanel = document.getElementById('upgrade-payment-panel');
 	  var topUserInfoBtn = document.getElementById('top-user-info');
 	  var topUserAvatar = document.getElementById('top-user-avatar');
 	  var topUserAvatarFallback = document.getElementById('top-user-avatar-fallback');
@@ -762,6 +764,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 	  // 模态框控制
 	  var loginPollTimer = null;
+	  var upgradePaymentTimer = null;
 	  var currentScene = null;
 	  var cachedUserInfo = null;
 	  // Determine environment
@@ -1007,6 +1010,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	  function closeUpgradeModal() {
 	    upgradeModal.classList.add('hidden');
 	    document.body.style.overflow = '';
+	    stopUpgradePaymentPolling();
 	    ytSendPageSize();
 	  }
 
@@ -1018,66 +1022,136 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	  function getPlanListFromResponse(data) {
 	      if (Array.isArray(data)) return data;
+	      if (data && Array.isArray(data.plans)) return data.plans;
+	      if (data && Array.isArray(data.list)) return data.list;
 	      if (data && Array.isArray(data.lists)) return data.lists;
 	      if (data && data.lists && Array.isArray(data.lists.data)) return data.lists.data;
 	      if (data && Array.isArray(data.data)) return data.data;
 	      return [];
 	  }
 
+	  function getNestedData(data) {
+	      if (data && data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+	          return data.data;
+	      }
+	      return data || {};
+	  }
+
+	  function formatCents(cents) {
+	      var num = Number(cents || 0) / 100;
+	      if (!num) return '0';
+	      return num.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+	  }
+
+	  function escapeUpgradeHtml(value) {
+	      return String(value || '').replace(/[&<>"']/g, function(ch) {
+	          return {
+	              '&': '&amp;',
+	              '<': '&lt;',
+	              '>': '&gt;',
+	              '"': '&quot;',
+	              "'": '&#39;'
+	          }[ch];
+	      });
+	  }
+
+	  function getResourceStoragePlans(list) {
+	      return (list || []).filter(function(plan) {
+	          return plan.plan_category === 'resource_storage' || plan.grade_key && String(plan.grade_key).indexOf('resource_') === 0;
+	      });
+	  }
+
+	  function getPlanCurrentPrice(plan) {
+	      if (plan.current_price_cents !== undefined) {
+	          return formatCents(plan.current_price_cents);
+	      }
+	      return formatMoney(plan.annual_fee || plan.month_fee || 0);
+	  }
+
+	  function getPlanOriginalPrice(plan) {
+	      if (plan.original_price_cents !== undefined) {
+	          return formatCents(plan.original_price_cents);
+	      }
+	      return formatMoney(plan.market_annual_fee || plan.market_month_fee || 0);
+	  }
+
+	  function getPlanFeatures(plan) {
+	      var features = plan.promo_features || plan.features || (plan.benefits_json && plan.benefits_json.features) || [];
+	      return Array.isArray(features) ? features : [];
+	  }
+
+	  function resetUpgradePaymentPanel() {
+	      if (!upgradePaymentPanel) return;
+	      upgradePaymentPanel.classList.add('hidden');
+	      upgradePaymentPanel.innerHTML = '';
+	      stopUpgradePaymentPolling();
+	  }
+
+	  function stopUpgradePaymentPolling() {
+	      if (upgradePaymentTimer) {
+	          clearInterval(upgradePaymentTimer);
+	          upgradePaymentTimer = null;
+	      }
+	  }
+
 	  function renderUpgradePlans(list) {
 	      if (!upgradePlanList) return;
-	      if (!list || list.length === 0) {
-	          upgradePlanList.innerHTML = '<div class="md:col-span-2 text-center text-gray-400 py-10">暂无可购买套餐</div>';
+	      resetUpgradePaymentPanel();
+	      var resourcePlans = getResourceStoragePlans(list);
+	      if (!resourcePlans || resourcePlans.length === 0) {
+	          upgradePlanList.innerHTML = '<div class="md:col-span-2 text-center text-gray-400 py-10">暂无可购买资源包</div>';
 	          return;
 	      }
-	      upgradePlanList.innerHTML = list.map(function(plan) {
-	          var title = plan.grade_name || plan.name || '会员套餐';
-	          var annualFee = formatMoney(plan.annual_fee);
-	          var monthFee = formatMoney(plan.month_fee);
-	          var seasonFee = formatMoney(plan.midd_month_fee);
-	          var cloudSize = plan.cloud_size_str || '按套餐配置';
-	          var editorNumber = plan.editor_number || 0;
-	          var uploadSize = plan.upload_size || 0;
+	      upgradePlanList.innerHTML = resourcePlans.map(function(plan) {
+	          var title = escapeUpgradeHtml(plan.grade_name || plan.name || '资源包');
+	          var price = getPlanCurrentPrice(plan);
+	          var originalPrice = getPlanOriginalPrice(plan);
+	          var cloudSize = escapeUpgradeHtml(plan.cloud_size_str || '按套餐配置');
+	          var features = getPlanFeatures(plan);
+	          var featureHtml = features.length
+	              ? features.slice(0, 3).map(function(feature) {
+	                  return '<div class="flex items-center gap-2"><i class="fas fa-check text-success text-xs"></i><span>' + escapeUpgradeHtml(feature) + '</span></div>';
+	                }).join('')
+	              : '<div class="flex items-center gap-2"><i class="fas fa-check text-success text-xs"></i><span>按实际上传文件大小计算容量</span></div>';
+	          var planId = Number(plan.annual_plan_id || plan.membership_plan_id || plan.id || plan.grade_level || 0);
 	          return `
 	            <div class="border border-gray-200 rounded-lg p-5 bg-white hover:border-primary hover:shadow-card transition-all">
 	              <div class="flex items-start justify-between gap-3 mb-4">
 	                <div>
 	                  <div class="text-lg font-semibold text-gray-700">${title}</div>
-	                  <div class="text-sm text-gray-400 mt-1">云空间 ${cloudSize}</div>
+	                  <div class="text-sm text-gray-400 mt-1">资源库存储空间 ${cloudSize}</div>
 	                </div>
-	                <i class="fas fa-crown text-warning text-xl"></i>
+	                <i class="fas fa-database text-primary text-xl"></i>
 	              </div>
-	              <div class="grid grid-cols-3 gap-2 mb-4">
-	                <div class="bg-gray-50 rounded-md p-3 text-center">
-	                  <div class="text-xs text-gray-400 mb-1">年付</div>
-	                  <div class="text-primary font-semibold">¥${annualFee}</div>
-	                </div>
-	                <div class="bg-gray-50 rounded-md p-3 text-center">
-	                  <div class="text-xs text-gray-400 mb-1">季付</div>
-	                  <div class="text-gray-700 font-semibold">¥${seasonFee}</div>
-	                </div>
-	                <div class="bg-gray-50 rounded-md p-3 text-center">
-	                  <div class="text-xs text-gray-400 mb-1">月付</div>
-	                  <div class="text-gray-700 font-semibold">¥${monthFee}</div>
+	              <div class="bg-gray-50 rounded-md p-4 mb-4">
+	                <div class="text-xs text-gray-400 mb-1">年付</div>
+	                <div class="flex items-end gap-2">
+	                  <div class="text-primary text-2xl font-semibold">¥${price}</div>
+	                  ${Number(originalPrice) > Number(price) ? '<div class="text-gray-400 text-sm line-through mb-1">¥' + originalPrice + '</div>' : ''}
 	                </div>
 	              </div>
 	              <div class="text-sm text-gray-500 space-y-2">
-	                <div class="flex items-center gap-2"><i class="fas fa-check text-success text-xs"></i><span>支持 ${editorNumber} 位成员编辑</span></div>
-	                <div class="flex items-center gap-2"><i class="fas fa-check text-success text-xs"></i><span>最大上传文件 ${uploadSize}M</span></div>
+	                ${featureHtml}
 	              </div>
-	              <button type="button" class="btn-primary w-full mt-5" onclick="window.open('https://api.jfyuntu.com/account/h5.html', '_blank')">
-	                <i class="fas fa-external-link-alt"></i><span>去购买</span>
+	              <button type="button" class="btn-primary w-full mt-5 js-upgrade-buy" data-plan-id="${planId}" data-plan-name="${title}">
+	                <i class="fab fa-weixin"></i><span>微信扫码支付</span>
 	              </button>
 	            </div>
 	          `;
 	      }).join('');
+	      upgradePlanList.querySelectorAll('.js-upgrade-buy').forEach(function(btn) {
+	          btn.addEventListener('click', function() {
+	              createUpgradeOrder(btn.getAttribute('data-plan-id'), btn.getAttribute('data-plan-name'), btn);
+	          });
+	      });
 	      ytSendPageSize();
 	  }
 
 	  function loadUpgradePlans() {
 	      if (!upgradePlanList) return;
 	      upgradePlanList.innerHTML = '<div class="md:col-span-2 text-center text-gray-400 py-10"><i class="fas fa-spinner fa-spin text-xl"></i><p class="mt-2">加载套餐中...</p></div>';
-	      fetch(`${API_BASE_URL}/grade/lists`, {
+	      resetUpgradePaymentPanel();
+	      fetch(`${API_BASE_URL}/web_payment/subscription/plans`, {
 	          headers: {
 	              ...getAuthTokenHeader()
 	          }
@@ -1094,13 +1168,125 @@ document.addEventListener('DOMContentLoaded', function () {
 	          if (res.code === 0 || res.code === 200) {
 	              renderUpgradePlans(getPlanListFromResponse(res.data));
 	          } else {
-	              upgradePlanList.innerHTML = '<div class="md:col-span-2 text-center text-red-500 py-10">套餐加载失败</div>';
+	              upgradePlanList.innerHTML = '<div class="md:col-span-2 text-center text-red-500 py-10">' + escapeUpgradeHtml(res.msg || res.message || '资源包加载失败') + '</div>';
 	          }
 	      })
 	      .catch(err => {
 	          console.error(err);
 	          upgradePlanList.innerHTML = '<div class="md:col-span-2 text-center text-red-500 py-10">网络错误</div>';
 	      });
+	  }
+
+	  function renderUpgradePayment(order, planName) {
+	      if (!upgradePaymentPanel) return;
+	      var qr = order.qr_code_data || order.payment_url || order.code_url || '';
+	      var amount = order.amount || formatCents(order.amount_cents || 0);
+	      var orderNo = order.order_no || order.order_id || '';
+	      if (!qr) {
+	          upgradePaymentPanel.classList.remove('hidden');
+	          upgradePaymentPanel.innerHTML = '<div class="text-red-500 text-sm">支付二维码获取失败，请稍后重试</div>';
+	          return;
+	      }
+	      var imgSrc = qr.indexOf('data:image') === 0 ? qr : 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(qr);
+	      upgradePaymentPanel.classList.remove('hidden');
+	      upgradePaymentPanel.innerHTML = `
+	        <div class="flex flex-col md:flex-row items-center gap-5">
+	          <div class="w-[220px] h-[220px] rounded-md bg-white border border-gray-200 flex items-center justify-center p-2">
+	            <img src="${escapeUpgradeHtml(imgSrc)}" alt="微信支付二维码" class="w-full h-full object-contain">
+	          </div>
+	          <div class="flex-1 text-center md:text-left">
+	            <div class="text-lg font-semibold text-gray-700">${escapeUpgradeHtml(planName || '资源包')}</div>
+	            <div class="mt-2 text-sm text-gray-500">订单号：${escapeUpgradeHtml(orderNo)}</div>
+	            <div class="mt-2 text-sm text-gray-500">支付金额：<span class="text-primary font-semibold">¥${escapeUpgradeHtml(amount)}</span></div>
+	            <div id="upgrade-payment-status" class="mt-4 text-sm text-gray-500">请使用微信扫码完成支付</div>
+	          </div>
+	        </div>
+	      `;
+	      startUpgradePaymentPolling(orderNo);
+	      ytSendPageSize();
+	  }
+
+	  function createUpgradeOrder(planId, planName, button) {
+	      planId = Number(planId || 0);
+	      if (!planId) {
+	          showToast('请选择资源包', 'error');
+	          return;
+	      }
+	      if (!localStorage.getItem('token')) {
+	          closeUpgradeModal();
+	          openWeChatModal();
+	          return;
+	      }
+	      stopUpgradePaymentPolling();
+	      if (button) {
+	          button.disabled = true;
+	          button.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>创建订单中...</span>';
+	      }
+	      fetch(`${API_BASE_URL}/web_payment/membership/order/create`, {
+	          method: 'POST',
+	          headers: {
+	              'Content-Type': 'application/json',
+	              ...getAuthTokenHeader()
+	          },
+	          body: JSON.stringify({ membership_plan_id: planId })
+	      })
+	      .then(res => res.json())
+	      .then(res => {
+	          if (res.code === 401 || res.code === 403) {
+	              localStorage.removeItem('token');
+	              updateAuthButtonState();
+	              closeUpgradeModal();
+	              openWeChatModal();
+	              return;
+	          }
+	          if (res.code !== 0 && res.code !== 200) {
+	              throw new Error(res.msg || res.message || '订单创建失败');
+	          }
+	          renderUpgradePayment(getNestedData(res.data), planName);
+	      })
+	      .catch(err => {
+	          console.error(err);
+	          showToast(err.message || '订单创建失败', 'error');
+	      })
+	      .finally(function() {
+	          if (button) {
+	              button.disabled = false;
+	              button.innerHTML = '<i class="fab fa-weixin"></i><span>微信扫码支付</span>';
+	          }
+	      });
+	  }
+
+	  function startUpgradePaymentPolling(orderNo) {
+	      stopUpgradePaymentPolling();
+	      if (!orderNo) return;
+	      var statusEl = document.getElementById('upgrade-payment-status');
+	      var check = function() {
+	          fetch(`${API_BASE_URL}/web_payment/order/status?order_no=${encodeURIComponent(orderNo)}`, {
+	              headers: {
+	                  ...getAuthTokenHeader()
+	              }
+	          })
+	          .then(res => res.json())
+	          .then(res => {
+	              if (res.code !== 0 && res.code !== 200) return;
+	              var data = getNestedData(res.data);
+	              var status = data.status || data.payment_status || '';
+	              if (status === 'paid' || status === 'success') {
+	                  stopUpgradePaymentPolling();
+	                  if (statusEl) statusEl.textContent = '支付成功，正在刷新权益...';
+	                  showToast('支付成功');
+	                  loadTopUserInfo();
+	                  setTimeout(function() {
+	                      closeUpgradeModal();
+	                  }, 1200);
+	              }
+	          })
+	          .catch(function(err) {
+	              console.error(err);
+	          });
+	      };
+	      upgradePaymentTimer = setInterval(check, 3000);
+	      check();
 	  }
 	  // State
 	  var currentCategoryId = 0;
