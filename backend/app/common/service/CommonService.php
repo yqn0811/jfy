@@ -5,6 +5,8 @@ namespace app\common\service;
 use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserCollectPics;
 use app\common\model\user\WdXcxUserPlayRecord;
+use app\common\service\album\AiResourceBridgeService;
+use app\index\model\WdXcxPic;
 use app\index\model\WdXcxBase;
 use app\index\service\upload\UploadService;
 use think\App;
@@ -40,6 +42,18 @@ class CommonService extends BaseService
                         'uid' => request()->userID(),
                         'collect_date' => date('Y-m-d')
                     ]);
+                }
+            }
+            if ((int)$uid > 0 && !empty($data)) {
+                $bridge = new AiResourceBridgeService($this->app);
+                foreach ($data as $pic) {
+                    if (empty($pic['pid'])) {
+                        continue;
+                    }
+                    $picture = WdXcxPic::where('id', $pic['pid'])->find();
+                    if ($picture) {
+                        $bridge->safeSyncPicture($uid, $picture, ['role' => 'upload']);
+                    }
                 }
             }
         }catch (\Exception $exception){

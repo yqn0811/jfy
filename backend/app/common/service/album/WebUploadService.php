@@ -110,6 +110,9 @@ class WebUploadService extends BaseService
         }
         $result['user_uuid'] = $user->user_uuid;
         $result['user_id'] = $user->id;
+        $result['scope'] = 'web_album_upload';
+        $result['fid'] = (int)$folder->id;
+        $result['owner_id'] = (int)$folder->uid;
         $token = JwtService::createWebToken($result);
         return [
             'token' => $token,
@@ -118,8 +121,11 @@ class WebUploadService extends BaseService
 
     }
 
-    public function getUploadFolderInfo($param, $uid)
+    public function getUploadFolderInfo($param, $uid, $tokenFid = 0)
     {
+        if($tokenFid && (int)$param['fid'] !== (int)$tokenFid){
+            throwError('上传凭证与相册不匹配');
+        }
         $folder = WdXcxAlbumFolder::where('id', $param['fid'])->find();
         if(!$folder){
             throwError('指定的上传码对应的相册不存在');
@@ -158,6 +164,7 @@ class WebUploadService extends BaseService
                 'uid' => $uid,
                 'file_type' => $params['file_type']
             ]);
+            $createdRelations = [];
             if(count($data) > 0){ //存入相关相册
                 $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
                 $pic_album = [];
@@ -180,7 +187,14 @@ class WebUploadService extends BaseService
                     ];
                     $last_url = $item['url'];
                 }
+                $syncStartTime = time() - 5;
                 WdXcxUserAlbumPic::insertAll($pic_album);
+                $createdRelations = WdXcxUserAlbumPic::where('folder_id', $params['pid'])
+                    ->whereIn('pic_id', array_column($pic_album, 'pic_id'))
+                    ->where('create_time', '>=', $syncStartTime)
+                    ->with(['picture'])
+                    ->order('id desc')
+                    ->select();
                 if($need_check){
                     $folder_info->check_status = 0;
                     $folder_info->save();
@@ -195,6 +209,12 @@ class WebUploadService extends BaseService
             throwError($exception->getMessage());
         }
         Db::commit();
+        if (!empty($createdRelations)) {
+            $bridge = new AiResourceBridgeService($this->app);
+            foreach ($createdRelations as $relation) {
+                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, 'album');
+            }
+        }
         return [
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',
             'data' => $data,

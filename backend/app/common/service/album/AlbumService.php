@@ -28,6 +28,8 @@ use think\facade\Log;
 
 class AlbumService extends BaseService
 {
+    private $pendingBridgeDeletes = [];
+
     public function __construct(App $app)
     {
         parent::__construct($app);
@@ -210,6 +212,7 @@ class AlbumService extends BaseService
     public function saveAlbumPic($album_info, $pids, $uid)
     {
         $data = [];
+        $createdRelations = [];
         $lastPicPath = ''; // 存储最后一张图片的路径
         foreach ($pids as $item){
             $pic = WdXcxPic::where('id', $item)->find();
@@ -229,12 +232,20 @@ class AlbumService extends BaseService
             }
         }
         if(count($data) > 0){
+            $syncStartTime = time() - 5;
             WdXcxUserAlbumPic::insertAll($data);
+            $createdRelations = WdXcxUserAlbumPic::where('folder_id', $album_info->id)
+                ->whereIn('pic_id', array_column($data, 'pic_id'))
+                ->where('create_time', '>=', $syncStartTime)
+                ->with(['picture'])
+                ->order('id desc')
+                ->select();
             // 如果有图片路径，则更新当前文件夹及所有上级文件夹的缩略图
             if($lastPicPath){
                 $this->updateParentThumbs($album_info->id, $lastPicPath);
             }
         }
+        return $createdRelations;
 
     }
 
@@ -407,7 +418,7 @@ class AlbumService extends BaseService
                  $all_fids = [$fid_param];
             }
         }
-
+        
         // 过滤有效ID
         $valid_fids = [];
         foreach($all_fids as $v){
@@ -417,7 +428,7 @@ class AlbumService extends BaseService
             }
         }
         $valid_fids = array_unique($valid_fids);
-
+        
         // 取第一个作为主分类ID（用于校验和pid）
         if(!empty($valid_fids)){
             $first_fid = $valid_fids[0];
@@ -481,7 +492,7 @@ class AlbumService extends BaseService
                               $hasAuth = true;
                           }
                       }
-
+                      
                       if ($hasAuth) {
                          WdXcxProductCategoryBind::create([
                              'uniacid' => 0,
@@ -500,8 +511,12 @@ class AlbumService extends BaseService
         // 但通常产品里的图片也需要展示在列表里，所以这里根据需求，我们也可以把这些图片作为产品内容插入
         // 根据用户UI逻辑，"上传花色图"和"上传详情图"属于产品属性，而"批量上传照片"属于产品内容
         // 这里暂时只保存字段。如果用户需要在产品内容里看到，需要额外调用addAlbumPics
+        $created = WdXcxAlbumFolder::where('id', $folder->id)->find();
+        if ($created && (int)$created->folder_type === 2) {
+            (new AiResourceBridgeService($this->app))->safeSyncProductPictures($uid, $created);
+        }
 
-        return WdXcxAlbumFolder::where('id', $folder->id)->find();
+        return $created;
     }
 
     public function updateAlbumFolder($param, $uid)
@@ -513,6 +528,8 @@ class AlbumService extends BaseService
         if($folder->uid != $uid){
             throwError('您没有权限操作此相册');
         }
+        $oldCoverIds = $folder->pic_ids ? $this->normalizeIdList($folder->pic_ids) : [];
+        $oldDetailIds = $folder->detail_pic_ids ? $this->normalizeIdList($folder->detail_pic_ids) : [];
         $updateData = [];
         if(!empty($param['folder_name'])){
             $updateData['folder_name'] = $param['folder_name'];
@@ -527,6 +544,11 @@ class AlbumService extends BaseService
         if(!empty($updateData)){
             $folder->save($updateData);
         }
+        if ((int)$folder->folder_type === 2 && (isset($param['pic_ids']) || isset($param['detail_pic_ids']))) {
+            $folder = WdXcxAlbumFolder::where('id', $folder->id)->find();
+            $this->syncRemovedProductPictureLinks($uid, $folder, $oldCoverIds, $oldDetailIds, $param);
+            (new AiResourceBridgeService($this->app))->safeSyncProductPictures($uid, $folder);
+        }
     }
 
     public function editAlbumFolder($param, $uid)
@@ -538,6 +560,8 @@ class AlbumService extends BaseService
         if($folder->uid != $uid){
             throwError('您没有权限操作此相册');
         }
+        $oldCoverIds = $folder->pic_ids ? $this->normalizeIdList($folder->pic_ids) : [];
+        $oldDetailIds = $folder->detail_pic_ids ? $this->normalizeIdList($folder->detail_pic_ids) : [];
         // if ($folder->folder_type == 2 && isset($param['pic_ids']) && empty($param['pic_ids']) && ) {
         //     throwError('请选择花色图');
         // }
@@ -551,8 +575,8 @@ class AlbumService extends BaseService
         if(isset($param['private_type'])){
             $updateData['private_type'] = $param['private_type'];
         }
-        if(isset($param['layout_type'])){
-            $updateData['layout_type'] = $param['layout_type'];
+        if(isset($param['layout_type']) && $param['layout_type'] !== ''){
+            $updateData['layout_type'] = (int)$param['layout_type'] === 2 ? 2 : 1;
         }
         if(isset($param['pic_layout']) && $param['pic_layout'] !== ''){
             $updateData['pic_layout'] = (int)$param['pic_layout'] === 1 ? 1 : 2;
@@ -570,11 +594,11 @@ class AlbumService extends BaseService
         if(isset($param['detail_pic_ids'])){
             $updateData['detail_pic_ids'] = is_array($param['detail_pic_ids']) ? implode(',', $param['detail_pic_ids']) : $param['detail_pic_ids'];
         }
-
+        
         // 如果是产品(type=2)且提供了category_ids，更新分类绑定
         if ($folder->folder_type == 2 && isset($param['category_ids'])) {
              $this->setProductCategories($folder->id, $param['category_ids'], $uid);
-
+             
              // 同时更新pid为第一个分类ID
              $cids = $param['category_ids'];
              if (!is_array($cids)) {
@@ -596,6 +620,11 @@ class AlbumService extends BaseService
         if(!empty($updateData)){
             $folder->save($updateData);
         }
+        if ((int)$folder->folder_type === 2 && (isset($param['pic_ids']) || isset($param['detail_pic_ids']))) {
+            $folder = WdXcxAlbumFolder::where('id', $folder->id)->find();
+            $this->syncRemovedProductPictureLinks($uid, $folder, $oldCoverIds, $oldDetailIds, $param);
+            (new AiResourceBridgeService($this->app))->safeSyncProductPictures($uid, $folder);
+        }
     }
     public function addAlbumPics($param, $uid)
     {
@@ -608,8 +637,14 @@ class AlbumService extends BaseService
                  throwError('您没有权限操作此相册');
             }
         }
-
-        $this->saveAlbumPic($folder, $param['pic_ids'], $uid);
+        
+        $createdRelations = $this->saveAlbumPic($folder, $param['pic_ids'], $uid);
+        if (!empty($createdRelations)) {
+            $bridge = new AiResourceBridgeService($this->app);
+            foreach ($createdRelations as $relation) {
+                $bridge->safeSyncAlbumRelation($folder->uid, $relation, 'album');
+            }
+        }
     }
 
     public function setAlbumSort($param, $uid)
@@ -662,12 +697,14 @@ class AlbumService extends BaseService
                 }
             }
             // 开启事务
+            $this->pendingBridgeDeletes = [];
             Db::startTrans();
             try {
+                $this->collectProductFieldPictureDeletes($folder, $uid, false);
                 // 递归删除所有子文件夹
                 $this->deleteChildFolders($fid, $uid, $del_type);
                 // 删除当前文件夹中的所有图片记录
-                $this->deleteFolderPictures($fid, $del_type);
+                $this->deleteFolderPictures($fid, $del_type, $uid);
                 //删除文件夹的绑定
                 $has_bind = WdXcxAlbumShareBind::where('fid', $folder->id)->find();
                 if($has_bind){
@@ -681,9 +718,11 @@ class AlbumService extends BaseService
                 $folder->delete();
                 // 提交事务
                 Db::commit();
+                $this->flushPendingBridgeDeletes($uid);
             } catch (\Exception $e) {
                 // 回滚事务
                 Db::rollback();
+                $this->pendingBridgeDeletes = [];
                 throwError($e->getMessage());
             }
 
@@ -739,10 +778,10 @@ class AlbumService extends BaseService
             if($has_bind){
                 $has_bind->force()->delete();
             }
-
+            
             // 删除分类本身
             $folder->delete();
-
+            
             Db::commit();
             return true;
         } catch (\Exception $e) {
@@ -767,8 +806,9 @@ class AlbumService extends BaseService
         foreach ($childFolders as $childFolder) {
             // 递归删除子文件夹的子文件夹
             $this->deleteChildFolders($childFolder->id, $uid, $del_type);
+            $this->collectProductFieldPictureDeletes($childFolder, $uid, false);
             // 删除子文件夹中的所有图片记录
-            $this->deleteFolderPictures($childFolder->id, $del_type);
+            $this->deleteFolderPictures($childFolder->id, $del_type, $uid);
             //删除文件夹的绑定
             $has_bind = WdXcxAlbumShareBind::where('fid', $childFolder->id)->find();
             if($has_bind){
@@ -788,20 +828,124 @@ class AlbumService extends BaseService
      * @param $folderId 文件夹ID
      * @return void
      */
-    private function deleteFolderPictures($folderId, $del_type)
+    private function deleteFolderPictures($folderId, $del_type, $uid = 0)
     {
         // 查找文件夹中的所有图片记录
         $pictures = WdXcxUserAlbumPic::where('folder_id', $folderId)->select();
         foreach ($pictures as $picture) {
             // 这里可以根据业务需求决定是否同时删除WdXcxPic中的实际图片记录
+            $deleteResource = false;
             if($del_type == 2){
                 $pic_dat = WdXcxPic::where('id', $picture->pic_id)->find();
                 if($pic_dat){
                     $pic_dat->delete();
+                    $deleteResource = true;
                 }
+            }
+            if ($uid) {
+                $this->pendingBridgeDeletes[] = [
+                    'pic_id' => (int)$picture->pic_id,
+                    'b_folder_id' => (int)$folderId,
+                    'b_relation_id' => (int)$picture->id,
+                    'external_product_id' => (string)$folderId,
+                    'role' => 'album',
+                    'delete_resource' => $deleteResource,
+                ];
             }
             // 删除图片记录
             $picture->delete();
+        }
+    }
+
+    private function flushPendingBridgeDeletes($uid)
+    {
+        if (empty($this->pendingBridgeDeletes)) {
+            return;
+        }
+        $bridge = new AiResourceBridgeService($this->app);
+        foreach ($this->pendingBridgeDeletes as $item) {
+            $picId = $item['pic_id'];
+            unset($item['pic_id']);
+            $bridge->safeMarkPictureDeleted($uid, $picId, $item);
+        }
+        $this->pendingBridgeDeletes = [];
+    }
+
+    private function normalizeIdList($raw)
+    {
+        $items = is_array($raw) ? $raw : explode(',', (string)$raw);
+        $ids = [];
+        foreach ($items as $item) {
+            $id = (int)$item;
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    private function virtualProductRelationId($productId, $picId, $role)
+    {
+        $hash = sprintf('%u', crc32($productId . ':' . $picId . ':' . $role));
+        return -1 * (int)substr($hash, 0, 9);
+    }
+
+    private function syncRemovedProductPictureLinks($uid, $folder, $oldCoverIds, $oldDetailIds, $param)
+    {
+        if (!$folder) {
+            return;
+        }
+        $bridge = new AiResourceBridgeService($this->app);
+        if (isset($param['pic_ids'])) {
+            $newCoverIds = $this->normalizeIdList($param['pic_ids']);
+            foreach (array_diff($oldCoverIds, $newCoverIds) as $removedPicId) {
+                $bridge->safeMarkPictureDeleted($uid, $removedPicId, [
+                    'b_folder_id' => (int)$folder->id,
+                    'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$removedPicId, 'cover'),
+                    'external_product_id' => (string)$folder->id,
+                    'role' => 'cover',
+                    'delete_resource' => false,
+                ]);
+            }
+        }
+        if (isset($param['detail_pic_ids'])) {
+            $newDetailIds = $this->normalizeIdList($param['detail_pic_ids']);
+            foreach (array_diff($oldDetailIds, $newDetailIds) as $removedPicId) {
+                $bridge->safeMarkPictureDeleted($uid, $removedPicId, [
+                    'b_folder_id' => (int)$folder->id,
+                    'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$removedPicId, 'detail'),
+                    'external_product_id' => (string)$folder->id,
+                    'role' => 'detail',
+                    'delete_resource' => false,
+                ]);
+            }
+        }
+    }
+
+    private function collectProductFieldPictureDeletes($folder, $uid, $deleteResource = false)
+    {
+        if (!$folder || (int)$folder->folder_type !== 2 || !$uid) {
+            return;
+        }
+        foreach ($this->normalizeIdList($folder->pic_ids ?? '') as $picId) {
+            $this->pendingBridgeDeletes[] = [
+                'pic_id' => (int)$picId,
+                'b_folder_id' => (int)$folder->id,
+                'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$picId, 'cover'),
+                'external_product_id' => (string)$folder->id,
+                'role' => 'cover',
+                'delete_resource' => $deleteResource,
+            ];
+        }
+        foreach ($this->normalizeIdList($folder->detail_pic_ids ?? '') as $picId) {
+            $this->pendingBridgeDeletes[] = [
+                'pic_id' => (int)$picId,
+                'b_folder_id' => (int)$folder->id,
+                'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$picId, 'detail'),
+                'external_product_id' => (string)$folder->id,
+                'role' => 'detail',
+                'delete_resource' => $deleteResource,
+            ];
         }
     }
 
@@ -822,9 +966,12 @@ class AlbumService extends BaseService
         $need_pwd = 0;
         $user_pwd = '';
         $option_flag = true;
-
+        
         // Target UID logic
         $target_uid = isset($param['target_uid']) ? $param['target_uid'] : 0;
+        if (!$target_uid && !empty($param['target_user_id'])) {
+            $target_uid = $param['target_user_id'];
+        }
         $visitor_uid = $uid;
         $owner_uid = ($target_uid && $target_uid != $visitor_uid) ? $target_uid : $visitor_uid;
         $is_visiting_others = ($owner_uid != $visitor_uid);
@@ -838,7 +985,7 @@ class AlbumService extends BaseService
                 throwError('此内容为私有，请勿访问');
             }
             $order .= ', id desc';
-
+        
             //生成分享码
             $redis = new Redis(GetRedisConf());
             $share_str = $redis->get('share_album_'.$fid);
@@ -859,13 +1006,13 @@ class AlbumService extends BaseService
             // Enhance folder_info with images for Edit Echo
             $folder_info->pic_ids_arr = [];
             $folder_info->detail_pic_ids_arr = [];
-
+            
             if($folder_info->pic_ids){
                 $ids = explode(',', $folder_info->pic_ids);
                 $pics = WdXcxUserAlbumPic::whereIn('id', $ids)->with(['picture'])->select()->each(function($p){
                     if($p->picture) $p->picture->append(['TruePic']);
                 });
-                $folder_info->pic_ids_arr = $pics;
+                $folder_info->pic_ids_arr = $pics; 
             }
             if($folder_info->detail_pic_ids){
                 $ids = explode(',', $folder_info->detail_pic_ids);
@@ -901,6 +1048,9 @@ class AlbumService extends BaseService
         }
         $this->ensureBindUseridColumn();
         $this->ensureBindUseridColumn();
+        if ((int)($param['folder_type'] ?? 0) === 1) {
+            return $this->getCategoryFolderLists($param, $fid, $owner_uid, $visitor_uid, $folder_info, $share_str, $need_pwd, $user_pwd, $option_flag);
+        }
         $lists = WdXcxAlbumFolder::where(function ($query)use($param, $fid, $share_folders, $owner_uid, $is_visiting_others){
                 if(!empty($param['key'])){
                     $query->whereLike('folder_name', '%'.$param['key'].'%');
@@ -917,7 +1067,7 @@ class AlbumService extends BaseService
                     $query->where(function($query)use($owner_uid){
                         $query->where('uid', $owner_uid);
                     });
-
+                    
                     if(!$is_visiting_others){
                         $query->whereOr(function ($query)use($share_folders){
                             $query->where('id', 'in', $share_folders);
@@ -927,7 +1077,7 @@ class AlbumService extends BaseService
                 if($param['folder_type'] && $param['folder_type'] != 0){
                     $query->where('folder_type', $param['folder_type']);
                 }
-
+                
                 if($is_visiting_others){
                     $query->where('private_type', '<>', 2);
                 }
@@ -980,7 +1130,7 @@ class AlbumService extends BaseService
                 $query->where(function($query)use($owner_uid){
                     $query->where('uid', $owner_uid);
                 });
-
+                
                 if(!$is_visiting_others){
                     $query->whereOr(function ($query)use($share_folders){
                         $query->where('id', 'in', $share_folders);
@@ -1008,7 +1158,7 @@ class AlbumService extends BaseService
                     $query->where(function($query)use($owner_uid){
                         $query->where('uid', $owner_uid);
                     });
-
+                    
                     if(!$is_visiting_others){
                         $query->whereOr(function ($query)use($share_folders){
                             $query->where('id', 'in', $share_folders);
@@ -1032,13 +1182,82 @@ class AlbumService extends BaseService
         ];
     }
 
+    private function getCategoryFolderLists($param, $fid, $owner_uid, $visitor_uid, $folder_info, $share_str, $need_pwd, $user_pwd, $option_flag)
+    {
+        $queryPid = (int)$fid;
+        $limit = $param['limit'] ?? 100;
+        $lists = WdXcxAlbumFolder::where('folder_type', 1)
+            ->where('uid', $owner_uid)
+            ->where('pid', $queryPid)
+            ->where(function ($query)use($param){
+                if(!empty($param['key'])){
+                    $query->whereLike('folder_name', '%'.$param['key'].'%');
+                }
+            })
+            ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,share_times,visit_times,uid,set_top,pid')
+            ->order('sort desc, set_top desc, set_top_time desc, id desc')
+            ->paginate([
+                'list_rows' => $limit,
+                'query' => input(),
+            ])->each(function ($item)use($visitor_uid){
+                $item->pic_ids_arr = [];
+                $item->detail_pic_ids_arr = [];
+                $item->son_count = $this->getCategoryChildCount($item->id);
+                $item->child_count = $item->son_count;
+                $item->product_count = 0;
+                $item->children = $this->getCategoryChildren($item->id, $item->uid);
+                if($item->uid != $visitor_uid){
+                    $item->folder_name = '@'.$item->UserInfo['nickname'].$item->folder_name;
+                }
+                $item->level = $item->FolderLeval;
+            });
+        $total_num = $lists->total();
+        return [
+            'lists' => $lists,
+            'folder_info' => $folder_info,
+            'share_str' => $share_str,
+            'need_pwd' => $need_pwd,
+            'user_pwd' => $user_pwd,
+            'option_flag' => $option_flag,
+            'total_num' => $total_num,
+            'total_folder' => $total_num,
+            'total_album' => 0,
+        ];
+    }
+
+    private function getCategoryChildCount($categoryId)
+    {
+        return WdXcxAlbumFolder::where('folder_type', 1)
+            ->where('pid', $categoryId)
+            ->count();
+    }
+
+    private function getCategoryChildren($categoryId, $uid)
+    {
+        return WdXcxAlbumFolder::where('folder_type', 1)
+            ->where('uid', $uid)
+            ->where('pid', $categoryId)
+            ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,share_times,visit_times,uid,set_top,pid')
+            ->order('sort desc, set_top desc, set_top_time desc, id desc')
+            ->select()
+            ->each(function ($child){
+                $child->pic_ids_arr = [];
+                $child->detail_pic_ids_arr = [];
+                $child->son_count = $this->getCategoryChildCount($child->id);
+                $child->child_count = $child->son_count;
+                $child->product_count = 0;
+                $child->children = $this->getCategoryChildren($child->id, $child->uid);
+                $child->level = $child->FolderLeval;
+            });
+    }
+
     public function getShowAlbumFolderLists($param, $uid)
     {
         $fid = $param['fid'];
         // Default sort: custom sort order (desc) then set_top (desc), then time (desc)
         // Added 'sort desc' to prioritize manually sorted items
         $order = 'set_top desc, sort desc, set_top_time desc';
-
+        
         // Target UID logic
         $target_uid = isset($param['target_uid']) ? $param['target_uid'] : 0;
         $visitor_uid = $uid;
@@ -1080,14 +1299,14 @@ class AlbumService extends BaseService
                 $query->where(function($query)use($owner_uid){
                     $query->where('uid', $owner_uid);
                 });
-
+                
                 if(!$is_visiting_others){
                     $query->whereOr(function ($query)use($share_folders){
                         $query->where('id', 'in', $share_folders);
                     });
                 }
             }
-
+            
             if($is_visiting_others){
                 $query->where('private_type', '<>', 2);
             }
@@ -1159,7 +1378,7 @@ class AlbumService extends BaseService
             Log::warning('[AlbumService:addProductsToCategory] category not found or not belong to user uid='.$uid.' cate_id='.$cate_id);
             throwError('分类不存在');
         }
-
+        
         // 处理 product_ids 可能是字符串的情况 (e.g. "[136, 137]" or "136,137")
         if (!is_array($product_ids)) {
             // 尝试 JSON 解码
@@ -1210,7 +1429,7 @@ class AlbumService extends BaseService
         $added_count = 0;
         $removed_count = 0;
         $diagnostics = [];
-
+        
         // 获取当前分类下所有的产品ID
         $current_bind_ids = WdXcxProductCategoryBind::where([
             'category_id' => $cate_id,
@@ -1254,7 +1473,7 @@ class AlbumService extends BaseService
                 'category_id' => $cate_id,
                 'userid' => $uid
             ])->whereIn('product_id', $to_remove)->delete();
-
+            
             $removed_count = count($to_remove); // Assuming delete is successful for all found
             foreach($to_remove as $pid) {
                 $diagnostics[] = ['pid' => $pid, 'reason' => '移除成功'];
@@ -1262,7 +1481,7 @@ class AlbumService extends BaseService
         }
 
         Log::info('[AlbumService:addProductsToCategory] sync complete added='.$added_count.' removed='.$removed_count.' uid='.$uid.' cate_id='.$cate_id);
-
+        
         return [
             'added_count' => $added_count,
             'removed_count' => $removed_count,
@@ -1403,7 +1622,7 @@ class AlbumService extends BaseService
             }
         }
     }
-
+    
     public function setProductCategories($product_id, $category_ids, $uid)
     {
         $this->ensureBindTable();
@@ -1889,6 +2108,7 @@ class AlbumService extends BaseService
                 'uid' => $uid,
                 'file_type' => $params['file_type']
             ]);
+            $createdRelations = [];
             if(count($data) > 0){ //存入相关相册
                 $pic_album = [];
                 $last_url = '';
@@ -1910,7 +2130,14 @@ class AlbumService extends BaseService
                     ];
                     $last_url = $item['url'];
                 }
+                $syncStartTime = time() - 5;
                 WdXcxUserAlbumPic::insertAll($pic_album);
+                $createdRelations = WdXcxUserAlbumPic::where('folder_id', $params['pid'])
+                    ->whereIn('pic_id', array_column($pic_album, 'pic_id'))
+                    ->where('create_time', '>=', $syncStartTime)
+                    ->with(['picture'])
+                    ->order('id desc')
+                    ->select();
                 if($need_check){
                     $folder_info->check_status = 0;
                     $folder_info->save();
@@ -1925,6 +2152,12 @@ class AlbumService extends BaseService
             throwError($exception->getMessage());
         }
         Db::commit();
+        if (!empty($createdRelations)) {
+            $bridge = new AiResourceBridgeService($this->app);
+            foreach ($createdRelations as $relation) {
+                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, 'album');
+            }
+        }
         return [
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',
             'data' => $data,
@@ -1973,19 +2206,37 @@ class AlbumService extends BaseService
      */
     public function userDeletePics($param, $uid)
     {
-        $pic_ids = explode(',', $param['pic_id']);
+        $pic_ids = array_values(array_filter(array_map('intval', explode(',', $param['pic_id']))));
+        if(empty($pic_ids)){
+            throwError('请选择要删除的图片');
+        }
         $pic_info = WdXcxUserAlbumPic::where('id', $pic_ids[0])->find();
         if(!$pic_info){
             throwError('图片不存在');
         }
         $folder_info = WdXcxAlbumFolder::where('id', $pic_info->folder_id)->find();
-        if($uid != $folder_info->uid && !$folder_info->editer_delete_pic){
+        if(!$folder_info){
+            throwError('相册不存在');
+        }
+        if((int)$uid !== (int)$folder_info->uid){
+            if(!$folder_info->checkFolderRule($uid) || (int)$folder_info->editer_delete_pic !== 1){
+                throwError('您没有权限删除此图片');
+            }
+        }
+        $pic_count = WdXcxUserAlbumPic::whereIn('id', $pic_ids)
+            ->where('folder_id', $folder_info->id)
+            ->count();
+        if((int)$pic_count !== count($pic_ids)){
             throwError('您没有权限删除此图片');
         }
+        $deletedSyncItems = [];
         Db::startTrans();
         try{
             foreach ($pic_ids as $pic_id){
                 $pic_info = WdXcxUserAlbumPic::where('id', $pic_id)->find();
+                if(!$pic_info || (int)$pic_info->folder_id !== (int)$folder_info->id){
+                    throwError('您没有权限删除此图片');
+                }
                 //更新父级文件夹缩略图
                 if($pic_info->picture->imgurl == $folder_info->getData('new_thumb')){
                     //查询文件夹下其他图片
@@ -1996,6 +2247,12 @@ class AlbumService extends BaseService
                     $pic = WdXcxPic::where('id', $pic_info->pic_id)->find();
                     $pic->delete();
                 }
+                $deletedSyncItems[] = [
+                    'pic_id' => (int)$pic_info->pic_id,
+                    'relation_id' => (int)$pic_info->id,
+                    'folder_id' => (int)$pic_info->folder_id,
+                    'delete_resource' => (int)$param['del_type'] === 1,
+                ];
                 $pic_info->delete();
             }
         }catch (\Exception $exception){
@@ -2003,6 +2260,18 @@ class AlbumService extends BaseService
             throwError($exception->getMessage());
         }
         Db::commit();
+        if (!empty($deletedSyncItems)) {
+            $bridge = new AiResourceBridgeService($this->app);
+            foreach ($deletedSyncItems as $item) {
+                $bridge->safeMarkPictureDeleted($folder_info->uid, $item['pic_id'], [
+                    'b_folder_id' => $item['folder_id'],
+                    'b_relation_id' => $item['relation_id'],
+                    'external_product_id' => (string)$item['folder_id'],
+                    'role' => 'album',
+                    'delete_resource' => $item['delete_resource'],
+                ]);
+            }
+        }
     }
 
 
@@ -2037,19 +2306,45 @@ class AlbumService extends BaseService
             if($param['upload_field'] != $folder_info->getData('upload_field')){
                 $folder_info->need_confirm = 1;
             }
-            isset($param['show_connect']) && $folder_info->show_connect = $param['show_connect'];
-            isset($param['folder_name']) && $folder_info->folder_name = $param['folder_name'];
-            isset($param['other_share']) && $folder_info->other_share = $param['other_share'];
-            isset($param['layout_type']) && $folder_info->layout_type = $param['layout_type'];
-            isset($param['pic_layout']) && $folder_info->pic_layout = $param['pic_layout'];
-            isset($param['sort_type']) && $folder_info->sort_type = $param['sort_type'];
-            isset($param['show_upload_date']) && $folder_info->show_upload_date = $param['show_upload_date'] ? 1 : 0;
-            isset($param['show_search']) && $folder_info->show_search = $param['show_search'];
-            isset($param['upload_field']) && $folder_info->upload_field = json_decode($param['upload_field'], true);
-            isset($param['editer_create']) && $folder_info->editer_create = $param['editer_create'];
-            isset($param['editer_delete']) && $folder_info->editer_delete = $param['editer_delete'];
-            isset($param['editer_delete_pic']) && $folder_info->editer_delete_pic = $param['editer_delete_pic'];
-            isset($param['private_type']) && $folder_info->private_type = $param['private_type'];
+            if (isset($param['show_connect'])) {
+                $folder_info->show_connect = $param['show_connect'];
+            }
+            if (isset($param['folder_name'])) {
+                $folder_info->folder_name = $param['folder_name'];
+            }
+            if (isset($param['other_share'])) {
+                $folder_info->other_share = $param['other_share'];
+            }
+            if (isset($param['layout_type']) && $param['layout_type'] !== '') {
+                $folder_info->layout_type = ((int)$param['layout_type'] === 2 ? 2 : 1);
+            }
+            if (isset($param['pic_layout']) && $param['pic_layout'] !== '') {
+                $folder_info->pic_layout = ((int)$param['pic_layout'] === 1 ? 1 : 2);
+            }
+            if (isset($param['sort_type'])) {
+                $folder_info->sort_type = $param['sort_type'];
+            }
+            if (isset($param['show_upload_date'])) {
+                $folder_info->show_upload_date = $param['show_upload_date'] ? 1 : 0;
+            }
+            if (isset($param['show_search'])) {
+                $folder_info->show_search = $param['show_search'];
+            }
+            if (isset($param['upload_field'])) {
+                $folder_info->upload_field = json_decode($param['upload_field'], true);
+            }
+            if (isset($param['editer_create'])) {
+                $folder_info->editer_create = $param['editer_create'];
+            }
+            if (isset($param['editer_delete'])) {
+                $folder_info->editer_delete = $param['editer_delete'];
+            }
+            if (isset($param['editer_delete_pic'])) {
+                $folder_info->editer_delete_pic = $param['editer_delete_pic'];
+            }
+            if (isset($param['private_type'])) {
+                $folder_info->private_type = $param['private_type'];
+            }
         } else {
             if (isset($param['set_top']) || isset($param['folder_name']) || isset($param['other_share']) || isset($param['upload_field']) || isset($param['editer_create']) || isset($param['editer_delete']) || isset($param['editer_delete_pic']) || isset($param['private_type']) || isset($param['show_connect']) || isset($param['show_upload_date']) || isset($param['show_search']) || isset($param['sort_type']) || isset($param['layout_type']) || isset($param['pic_layout'])) {
                 throwError('协作者不能修改相册设置');
@@ -2090,6 +2385,7 @@ class AlbumService extends BaseService
         try{
             $totall_size = 0;
             $lastPicPath = ''; // 存储最后一张图片的路径
+            $createdRelations = [];
             foreach ($pic_ids as $pic_id){
                 $pic = WdXcxPic::where('id', $pic_id)->find();
                 if(!$pic){
@@ -2121,7 +2417,7 @@ class AlbumService extends BaseService
                         'file_type' => $pic->file_type,
                         'uid' => $uid,
                     ]);
-                    WdXcxUserAlbumPic::create([
+                    $relation = WdXcxUserAlbumPic::create([
                         'uniacid' => 1,
                         'user_id' => $uid,
                         'pic_id' => $new_pic->id,
@@ -2131,6 +2427,12 @@ class AlbumService extends BaseService
                         'update_time' => time(),
                         'upload_date' => date('Y-m-d', time()),
                     ]);
+                    if ($relation) {
+                        $createdRelation = WdXcxUserAlbumPic::where('id', $relation->id)->with(['picture'])->find();
+                        if ($createdRelation) {
+                            $createdRelations[] = $createdRelation;
+                        }
+                    }
                     // 记录最后一张图片的路径
                     if($pic->file_type == 1){
                         $lastPicPath = $pic->imgurl ?? ''; // 假设图片路径字段为 pic_url
@@ -2148,6 +2450,12 @@ class AlbumService extends BaseService
             throwError($exception->getMessage());
         }
         Db::commit();
+        if (!empty($createdRelations)) {
+            $bridge = new AiResourceBridgeService($this->app);
+            foreach ($createdRelations as $relation) {
+                $bridge->safeSyncAlbumRelation($uid, $relation, 'album');
+            }
+        }
     }
 
     /**更新图片备注
@@ -2319,7 +2627,7 @@ class AlbumService extends BaseService
         if (!$product) {
             throwError('产品不存在');
         }
-
+        
         if ($product->private_type == 2 && $product->uid != $uid) {
              throwError('此内容为私有，请勿访问');
         }

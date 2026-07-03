@@ -55,12 +55,12 @@ class WxTransferMoneyService
         // 商户号
         $merchantId = Config::get('miniprogram.mchid');
         // 从本地文件中加载「商户API私钥」，「商户API私钥」会用来生成请求的签名
-        $merchantPrivateKeyFilePath = $this->fileUri($this->merchantPrivateKeyPath($uniacid));
+        $merchantPrivateKeyFilePath = 'file://'.__DIR__.'/' . $uniacid . '/apiclient_key.pem';
         $merchantPrivateKeyInstance = Rsa::from($merchantPrivateKeyFilePath, Rsa::KEY_TYPE_PRIVATE);
         // 「商户API证书」的「证书序列号」
         $merchantCertificateSerial = Config::get('miniprogram.api_serial_sn');
         // 从本地文件中加载「微信支付平台证书」，用来验证微信支付应答的签名
-        $platformCertificateFilePath = $this->fileUri($this->platformCertificatePath($merchantId));
+        $platformCertificateFilePath = 'file://'.__DIR__ . '/PlatformCert/' . $merchantId . '/cert.pem';
         $platformPublicKeyInstance = Rsa::from($platformCertificateFilePath, Rsa::KEY_TYPE_PUBLIC);
         // 从「微信支付平台证书」中获取「证书序列号」
         $platformCertificateSerial = PemUtil::parseCertificateSerialNo($platformCertificateFilePath);
@@ -162,7 +162,7 @@ class WxTransferMoneyService
      */
     public function certificateCheckAndDownload($uniacid, $merchantId, $serialNo, $v3key)
     {
-        $key_path = $this->merchantPrivateKeyPath($uniacid);
+        $key_path = __DIR__ . '/' .$uniacid . "/apiclient_key.pem";
         $path = __DIR__ . "/PlatformCert";
 
         //是否需要执行
@@ -238,31 +238,16 @@ class WxTransferMoneyService
         file_put_contents($upath . 'cert.pem', $certificate);
     }
 
-    protected function merchantPrivateKeyPath($uniacid)
-    {
-        $configuredPath = (string)Config::get('miniprogram.api_private_key_path');
-        return $configuredPath !== '' ? $configuredPath : __DIR__ . '/' . $uniacid . '/apiclient_key.pem';
-    }
-
-    protected function platformCertificatePath($merchantId)
-    {
-        $configuredPath = (string)Config::get('miniprogram.platform_cert_path');
-        return $configuredPath !== '' ? $configuredPath : __DIR__ . '/PlatformCert/' . $merchantId . '/cert.pem';
-    }
-
-    protected function fileUri($path)
-    {
-        return strpos($path, 'file://') === 0 ? $path : 'file://' . $path;
-    }
-
     private function getrequestNew($url, $header = [])
     {
         //curl完成
         $curl = curl_init();
         //设置curl选项
         $header = $header ?: array(
+            "authorization: Basic YS1sNjI5dmwtZ3Nocmt1eGI2Njp1TlQhQVFnISlWNlkySkBxWlQ=",
             "content-type: application/json",
-            "cache-control: no-cache"
+            "cache-control: no-cache",
+            "postman-token: cd81259b-e5f8-d64b-a408-1270184387ca"
         );
 
         curl_setopt($curl, CURLOPT_HEADER, 1);

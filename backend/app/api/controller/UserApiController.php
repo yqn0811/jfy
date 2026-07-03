@@ -11,6 +11,7 @@ use think\facade\Cache;
 use app\index\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
+use app\common\model\user\WdXcxUserVisitRecord;
 
 class UserApiController extends ApiBaseController
 {
@@ -322,6 +323,7 @@ class UserApiController extends ApiBaseController
     public function getUserShowInfo()
     {
         $uid = request()->userID();
+        (new WdXcxUser())->ensureHomePreferenceColumns();
         $syncedVipGradeInfo = (new JiafangyunEntitlementSyncService(app()))->syncUserQuietly($uid);
         $user = WdXcxUser::where('id', $uid)->find();
         if(!$user){
@@ -383,14 +385,35 @@ class UserApiController extends ApiBaseController
         $result['category_count'] = \app\common\model\album\WdXcxAlbumFolder::where('uid', $uid)->where('folder_type', 1)->count();
         $visitTable = Db::query("SHOW TABLES LIKE 'wd_xcx_user_visit_record'");
         if ($visitTable) {
-            $result['view_count'] = \app\common\model\user\WdXcxUserVisitRecord::where('target_uid', $uid)->count();
-            $result['visitor_count'] = \app\common\model\user\WdXcxUserVisitRecord::where('target_uid', $uid)->distinct(true)->field('uid')->select()->count();
+            $result['view_count'] = WdXcxUserVisitRecord::where('target_uid', $uid)
+                ->where('uid', '<>', $uid)
+                ->count();
+            $result['visitor_count'] = WdXcxUserVisitRecord::where('target_uid', $uid)
+                ->where('uid', '<>', $uid)
+                ->distinct(true)
+                ->field('uid')
+                ->select()
+                ->count();
+            $readTime = (int)($user->visit_read_time ?? 0);
+            $badgeQuery = WdXcxUserVisitRecord::where('target_uid', $uid)
+                ->where('uid', '<>', $uid);
+            if ($readTime > 0) {
+                $badgeQuery->whereRaw('(update_time > ? OR create_time > ?)', [$readTime, $readTime]);
+            }
+            $result['view_badge'] = $badgeQuery->count();
         } else {
             $result['view_count'] = 0;
             $result['visitor_count'] = 0;
+            $result['view_badge'] = 0;
         }
 
         $this->result($result);
+    }
+
+    public function markUserVisitorsRead()
+    {
+        $this->userService->markVisitRecordsRead(request()->userID());
+        $this->result([], 0, '操作成功');
     }
 
     /**获取用户所有照片列表
@@ -569,6 +592,7 @@ class UserApiController extends ApiBaseController
     {
         $param = $this->request->getMore([
             ['page', 1],
+            ['type', 'visitor'],
         ]);
         $this->result($this->userService->getUserVisitors(request()->userID(), $param));
     }
@@ -651,9 +675,12 @@ class UserApiController extends ApiBaseController
 
     public function getHomeCategories()
     {
-        $targetUserId = $this->request->getMore([
+        $params = $this->request->getMore([
             ['target_user_id', 0],
-        ])['target_user_id'];
+            ['fid', 0],
+            ['include_current', 0],
+        ]);
+        $targetUserId = $params['target_user_id'];
         if (!$targetUserId) {
             throwError('参数错误');
         }
@@ -662,7 +689,7 @@ class UserApiController extends ApiBaseController
             $visitorUid = request()->userID();
         } catch (\Exception $e) {
         }
-        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid));
+        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid, $params['fid'], (int)$params['include_current']));
     }
 
     public function getHomeProducts()
@@ -711,12 +738,14 @@ class UserApiController extends ApiBaseController
         $params = $this->request->getMore([
             ['target_user_id', 0],
             ['path', ''],
+            ['type', 'home'],
+            ['id', 0],
         ]);
         $targetUserId = $params['target_user_id'];
         if (!$targetUserId) {
             throwError('参数错误');
         }
-        $this->result($this->userService->getHomeMiniProgramCode($targetUserId, $params['path']));
+        $this->result($this->userService->getHomeMiniProgramCode($targetUserId, $params['path'], $params['type'], $params['id']));
     }
 
     public function getHomeShareLink()

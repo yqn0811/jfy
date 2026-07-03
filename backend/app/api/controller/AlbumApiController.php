@@ -211,6 +211,7 @@ class AlbumApiController extends ApiBaseController
             ['link_share_str', ''],
             ['folder_type', 0],
             ['target_uid', 0],
+            ['target_user_id', 0],
             ['limit', 10],
             ['page', 1],
         ]);

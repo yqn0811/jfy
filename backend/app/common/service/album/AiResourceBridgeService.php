@@ -72,7 +72,7 @@ class AiResourceBridgeService extends BaseService
 
         $exists = WdXcxPic::where('uid', $uid)
             ->where('imgurl', $fileUrl)
-            ->where('pic_name', 'AI资源库-' . $resourceId)
+            ->whereIn('pic_name', ['我的资源库-' . $resourceId, 'AI资源库-' . $resourceId])
             ->find();
         if ($exists) {
             return [
@@ -87,7 +87,7 @@ class AiResourceBridgeService extends BaseService
         $pic = WdXcxPic::savePicture([
             'uniacid' => $this->uniacid,
             'gid' => 0,
-            'pic_name' => 'AI资源库-' . $resourceId,
+            'pic_name' => '我的资源库-' . $resourceId,
             'size' => (int)($resource['file_size'] ?? 0),
             'create_time' => time(),
             'imgurl' => $fileUrl,
@@ -246,10 +246,10 @@ class AiResourceBridgeService extends BaseService
     private function assertBridgeAllowed($uid)
     {
         if (!$this->bridgeToken) {
-            throwError('AI资源库桥接未配置');
+            throwError('我的资源库桥接未配置');
         }
         if (!$this->isBridgeEnabledForUser($uid)) {
-            throwError('AI资源库暂未开放');
+            throwError('我的资源库暂未开放');
         }
     }
 
@@ -342,7 +342,7 @@ class AiResourceBridgeService extends BaseService
     private function requestAiResource($method, $path, $payload = null)
     {
         if (!$this->bridgeToken) {
-            throwError('AI资源库桥接未配置');
+            throwError('我的资源库桥接未配置');
         }
         $url = $this->apiBase . $path;
         $ch = curl_init();
@@ -369,15 +369,15 @@ class AiResourceBridgeService extends BaseService
         curl_close($ch);
         if ($errno) {
             Log::error('[AiResourceBridge] curl error: ' . $error);
-            throwError('AI资源库连接失败');
+            throwError('我的资源库连接失败');
         }
         $data = json_decode($raw, true);
         if (!is_array($data)) {
             Log::error('[AiResourceBridge] invalid response: ' . $raw);
-            throwError('AI资源库返回异常');
+            throwError('我的资源库返回异常');
         }
         if ($status < 200 || $status >= 300 || (isset($data['code']) && (int)$data['code'] !== 200)) {
-            $message = $data['message'] ?? 'AI资源库请求失败';
+            $message = $data['message'] ?? '我的资源库请求失败';
             throwError($message);
         }
         return $data['data'] ?? [];
