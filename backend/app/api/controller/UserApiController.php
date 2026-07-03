@@ -8,6 +8,7 @@ use app\common\service\bridge\JiafangyunEntitlementSyncService;
 use app\common\service\user\UserService;
 use app\common\service\WxService;
 use think\facade\Cache;
+use think\facade\Config;
 use app\index\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
@@ -818,52 +819,47 @@ class UserApiController extends ApiBaseController
      */
     public function getLoginQrcode()
     {
-        // 1. 调用微信接口生成二维码
-        try {
-            $app = (new WxService(3))->getAppData();
-            $scene = md5(uniqid(mt_rand(), true));
-            $result = $app->qrcode->temporary($scene, 600);
-            
-            if (!isset($result['ticket'])) {
-                $errMsg = isset($result['errmsg']) ? $result['errmsg'] : 'Unknown error from WeChat';
-                if (isset($result['errcode'])) {
-                    $errMsg .= ' (' . $result['errcode'] . ')';
-                }
-                throw new \Exception($errMsg);
-            }
-
-            $url = $app->qrcode->url($result['ticket']);
-        } catch (\Exception $e) {
-            $msg = '获取二维码失败';
-            if ($e->getCode()) {
-                $msg .= ' [code: ' . $e->getCode() . ']';
-            }
-            if ($e->getMessage()) {
-                $msg .= ': ' . $e->getMessage();
-            }
-            throwError($msg);
+        $appid = trim((string)Config::get('miniprogram.account_appid'));
+        if ($appid === '') {
+            throwError('微信登录未配置');
         }
 
-        // 2. 写入登录态缓存（失败不影响二维码返回）
+        $redirectUrl = trim((string)$this->request->param('redirect', ''));
+        if ($redirectUrl === '') {
+            $redirectUrl = trim((string)$this->request->param('return_url', ''));
+        }
+        if ($redirectUrl === '') {
+            $redirectUrl = 'https://pic.jfyuntu.com/assets/page/product-list.html';
+        }
+
+        $callbackUrl = $this->request->domain() . '/api/user/login/callback';
+        if (strpos($this->request->baseFile(), '/index.php') !== false) {
+            $callbackUrl = $this->request->domain() . '/index.php/api/user/login/callback';
+        }
+        $state = base64_encode($redirectUrl);
+        $scene = md5($state . microtime(true) . mt_rand());
+        $url = 'https://open.weixin.qq.com/connect/qrconnect?' . http_build_query([
+            'appid' => $appid,
+            'redirect_uri' => $callbackUrl,
+            'response_type' => 'code',
+            'scope' => 'snsapi_login',
+            'state' => $state,
+        ]) . '#wechat_redirect';
+
+        // 兼容旧的轮询调用方；开放平台扫码登录成功后会直接跳 callback。
         try {
             Cache::set('login_scene_' . $scene, 'pending', 600);
         } catch (\Throwable $e) {
         }
 
-        // 3. 尝试转成 dataURL（失败也不阻断）
-        $dataUrl = null;
-        try {
-            $img = @file_get_contents($url);
-            if ($img !== false) {
-                $dataUrl = 'data:image/png;base64,' . base64_encode($img);
-            }
-        } catch (\Throwable $e2) {
-        }
-
         $this->result([
             'url' => $url,
-            'data_url' => $dataUrl,
-            'scene' => $scene
+            'data_url' => null,
+            'scene' => $scene,
+            'mode' => 'web',
+            'appid' => $appid,
+            'redirect_uri' => $callbackUrl,
+            'scope' => 'snsapi_login',
         ]);
     }
 
