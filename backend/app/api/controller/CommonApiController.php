@@ -221,6 +221,59 @@ class CommonApiController extends ApiBaseController
         return Response::create($content, 'html', 200)->header(['Content-Type' => $mime]);
     }
 
+    public function getExternalImageProxy()
+    {
+        $url = $this->request->getMore([
+            ['url', ''],
+        ])['url'];
+        $url = removePicStyle(trim((string)$url));
+        if (!$url || !isProxyableExternalImageUrl($url)) {
+            throwError('图片地址不允许');
+        }
+
+        $parts = parse_url($url);
+        $path = isset($parts['path']) ? $parts['path'] : '';
+        if (!preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $path)) {
+            throwError('图片格式不支持');
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_USERAGENT => 'JiafangyunImageProxy/1.0',
+        ]);
+        $content = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $mime = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+
+        if ($status < 200 || $status >= 300 || $content === false || $content === '') {
+            throwError('图片读取失败');
+        }
+        $mime = strtolower(trim(explode(';', $mime)[0]));
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
+            if (preg_match('/\.png$/i', $path)) {
+                $mime = 'image/png';
+            } elseif (preg_match('/\.gif$/i', $path)) {
+                $mime = 'image/gif';
+            } elseif (preg_match('/\.webp$/i', $path)) {
+                $mime = 'image/webp';
+            } else {
+                $mime = 'image/jpeg';
+            }
+        }
+        return Response::create($content, 'html', 200)->header([
+            'Content-Type' => $mime,
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
     /**保存示例相册的设置
      * @return void
      * @throws \cores\exception\BaseException

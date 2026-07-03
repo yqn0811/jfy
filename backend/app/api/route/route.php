@@ -49,6 +49,7 @@ Route::group('common', function (){
     Route::get('newgift', 'CommonApiController/receiveUserNewGiftLists')->middleware('auth'); //领取新礼包
     Route::get('ewm', 'CommonApiController/getEwmImage'); //二维码图片直链
     Route::get('static', 'CommonApiController/getStaticImage'); //静态图片直链
+    Route::get('image_proxy', 'CommonApiController/getExternalImageProxy'); //资源库图片代理
     //示例相册
     Route::get('example/folder', 'CommonApiController/getExampleFolderLists')->middleware('auth'); //获取相册文件夹
     Route::get('example/pictures', 'CommonApiController/getExamplePicturesLists')->middleware('auth'); //获取相册图片列表

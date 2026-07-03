@@ -905,6 +905,28 @@ class AlbumService extends BaseService
             });
     }
 
+    private function hydrateProductThumb($item)
+    {
+        if (!$item || (string)$item->new_thumb !== '') {
+            return;
+        }
+        $ids = array_merge(
+            $this->normalizeIdList($item->pic_ids ?? ''),
+            $this->normalizeIdList($item->detail_pic_ids ?? '')
+        );
+        $ids = array_values(array_unique($ids));
+        if (empty($ids)) {
+            return;
+        }
+        $pic = WdXcxPic::whereIn('id', $ids)
+            ->field('id,imgurl,uniacid,file_type')
+            ->orderRaw('FIELD(id, ' . implode(',', $ids) . ')')
+            ->find();
+        if ($pic) {
+            $item->new_thumb = $pic->TruePic;
+        }
+    }
+
     private function virtualProductRelationId($productId, $picId, $role)
     {
         $hash = sprintf('%u', crc32($productId . ':' . $picId . ':' . $role));
@@ -1098,8 +1120,11 @@ class AlbumService extends BaseService
             ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,share_times, visit_times,uid, set_top, is_hot, sort, pic_ids, detail_pic_ids')
             ->order('is_hot desc, ' . $order)
             ->paginate($param['limit'] ?? 10)->each(function ($item)use($visitor_uid){
-                $item->pic_ids_arr = $item->pic_ids ? explode(',', $item->pic_ids) : [];
-                $item->detail_pic_ids_arr = $item->detail_pic_ids ? explode(',', $item->detail_pic_ids) : [];
+                $item->pic_ids_arr = $this->normalizeIdList($item->pic_ids);
+                $item->detail_pic_ids_arr = $this->normalizeIdList($item->detail_pic_ids);
+                if ((int)$item->folder_type === 2) {
+                    $this->hydrateProductThumb($item);
+                }
                 $item->son_count = $item->SonCount;
                 // 分类增加子产品数量（去重：直系产品 + 关联产品）
                 if ($item->folder_type == 1) {
@@ -2645,28 +2670,34 @@ class AlbumService extends BaseService
              throwError('此内容为私有，请勿访问');
         }
 
-        $pic_ids = $product->pic_ids ? explode(',', $product->pic_ids) : [];
+        $pic_ids = $this->normalizeIdList($product->pic_ids);
         $product->pic_list = [];
         if (!empty($pic_ids)) {
+            $picOrder = implode(',', $pic_ids);
             $product->pic_list = WdXcxPic::whereIn('id', $pic_ids)
                 ->field('id, imgurl, pic_name, uniacid, file_type')
-                ->orderRaw('FIELD(id, ' . $product->pic_ids . ')')
+                ->orderRaw('FIELD(id, ' . $picOrder . ')')
                 ->select()
                 ->each(function($item){
-                $item->imgurl = $item->TruePic;
-            });
+                    $item->imgurl = $item->TruePic;
+                    $item->picture_url = $item->imgurl;
+                    $item->picture_url_original = removePicStyle($item->imgurl);
+                });
         }
 
-        $detail_pic_ids = $product->detail_pic_ids ? explode(',', $product->detail_pic_ids) : [];
+        $detail_pic_ids = $this->normalizeIdList($product->detail_pic_ids);
         $product->detail_pic_list = [];
         if (!empty($detail_pic_ids)) {
+            $detailOrder = implode(',', $detail_pic_ids);
             $product->detail_pic_list = WdXcxPic::whereIn('id', $detail_pic_ids)
                 ->field('id, imgurl, pic_name, uniacid, file_type')
-                ->orderRaw('FIELD(id, ' . $product->detail_pic_ids . ')')
+                ->orderRaw('FIELD(id, ' . $detailOrder . ')')
                 ->select()
                 ->each(function($item){
-                $item->imgurl = $item->TruePic;
-            });
+                    $item->imgurl = $item->TruePic;
+                    $item->picture_url = $item->imgurl;
+                    $item->picture_url_original = removePicStyle($item->imgurl);
+                });
         }
 
         $isCollect = 0;

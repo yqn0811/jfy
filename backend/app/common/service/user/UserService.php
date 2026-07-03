@@ -156,16 +156,18 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,layout_type,pic_layout')
+            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,layout_type,pic_layout,pic_ids,detail_pic_ids')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $collected_ids){
+                $this->hydrateProductThumb($item);
                 $item->son_count = $item->SonCount;
                 if($item->uid != $visitorUid){
                     $item->folder_name = '@'.$item->UserInfo['nickname'].$item->folder_name;
                 }
                 $item->level = $item->FolderLeval;
                 $item->is_collect = in_array($item->id, $collected_ids) ? 1 : 0;
+                unset($item->pic_ids, $item->detail_pic_ids);
             });
 
         return [
@@ -384,6 +386,40 @@ class UserService extends BaseService
             });
     }
 
+    private function normalizeProductPicIds($raw)
+    {
+        $items = is_array($raw) ? $raw : explode(',', (string)$raw);
+        $ids = [];
+        foreach ($items as $item) {
+            $id = (int)$item;
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    private function hydrateProductThumb($item)
+    {
+        if (!$item || (string)$item->new_thumb !== '') {
+            return;
+        }
+        $ids = array_merge(
+            $this->normalizeProductPicIds($item->pic_ids ?? ''),
+            $this->normalizeProductPicIds($item->detail_pic_ids ?? '')
+        );
+        if (empty($ids)) {
+            return;
+        }
+        $pic = WdXcxPic::whereIn('id', array_values(array_unique($ids)))
+            ->field('id,imgurl,uniacid,file_type')
+            ->orderRaw('FIELD(id, ' . implode(',', array_values(array_unique($ids))) . ')')
+            ->find();
+        if ($pic) {
+            $item->new_thumb = $pic->TruePic;
+        }
+    }
+
     public function getHomeProducts($targetUserId, $visitorUid = 0, $cateId = 0)
     {
         AlbumService::ensureProductStatusColumns();
@@ -438,16 +474,18 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,is_hot,layout_type,pic_layout')
+            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,is_hot,layout_type,pic_layout,pic_ids,detail_pic_ids')
             ->order('is_hot desc, sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $collected_ids){
+                $this->hydrateProductThumb($item);
                 $item->son_count = $item->SonCount;
                 if($item->uid != $visitorUid){
                     $item->folder_name = $item->folder_name;
                 }
                 $item->level = $item->FolderLeval;
                 $item->is_collect = in_array($item->id, $collected_ids) ? 1 : 0;
+                unset($item->pic_ids, $item->detail_pic_ids);
             });
         return $products;
     }

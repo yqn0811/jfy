@@ -41,13 +41,13 @@ class WdXcxPic extends Model
             return '';
         }
         if (strpos($url, '//') === 0) {
-            return removePicStyle('https:' . $url);
+            return proxyExternalImageUrl('https:' . $url);
         }
         if (self::isHttpUrl($url)) {
-            return removePicStyle($url);
+            return proxyExternalImageUrl($url);
         }
         if (self::isSchemeLessHttpUrl($url)) {
-            return removePicStyle('https://' . ltrim($url, '/'));
+            return proxyExternalImageUrl('https://' . ltrim($url, '/'));
         }
         if((int)$fileType == 1){
             return remote($uniacid ?: 1, $url, 1);

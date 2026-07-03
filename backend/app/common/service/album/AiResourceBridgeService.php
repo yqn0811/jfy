@@ -70,7 +70,9 @@ class AiResourceBridgeService extends BaseService
             throwError('资源库图片不存在');
         }
         $fileUrl = removePicStyle(trim((string)$resource['file_url']));
-        $previewUrl = $resource['thumbnail_url'] ?: ($resource['preview_url'] ?: $fileUrl);
+        $previewUrl = removePicStyle(trim((string)($resource['thumbnail_url'] ?: ($resource['preview_url'] ?: $fileUrl))));
+        $displayUrl = proxyExternalImageUrl($previewUrl ?: $fileUrl);
+        $originalUrl = removePicStyle($fileUrl);
 
         $exists = WdXcxPic::where('uid', $uid)
             ->where('imgurl', $fileUrl)
@@ -78,8 +80,9 @@ class AiResourceBridgeService extends BaseService
         if ($exists) {
             return [
                 'id' => $exists->id,
-                'url' => $previewUrl,
-                'file_url' => $fileUrl,
+                'url' => $displayUrl,
+                'file_url' => $displayUrl,
+                'original_url' => $originalUrl,
                 'resource_id' => $resourceId,
                 'role' => $role,
             ];
@@ -100,8 +103,9 @@ class AiResourceBridgeService extends BaseService
 
         return [
             'id' => $pic->id,
-            'url' => $previewUrl,
-            'file_url' => $fileUrl,
+            'url' => $displayUrl,
+            'file_url' => $displayUrl,
+            'original_url' => $originalUrl,
             'resource_id' => $resourceId,
             'role' => $role,
         ];

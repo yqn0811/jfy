@@ -320,6 +320,64 @@ function removePicStyle($url)
     return str_replace('?x-oss-process=image/resize,m_fixed,w_480/quality,Q_75', '', $url);
 }
 
+function isProxyableExternalImageUrl($url)
+{
+    $url = trim((string)$url);
+    if ($url === '') {
+        return false;
+    }
+    $parts = parse_url($url);
+    if (empty($parts['scheme']) || empty($parts['host'])) {
+        return false;
+    }
+    $scheme = strtolower($parts['scheme']);
+    if (!in_array($scheme, ['http', 'https'], true)) {
+        return false;
+    }
+    $host = strtolower($parts['host']);
+    $currentHost = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($currentHost && $host === $currentHost) {
+        return false;
+    }
+
+    $allowedHosts = [
+        'ai-jf-1307475442.cos.ap-shanghai.myqcloud.com',
+        'ai.jfyuntu.com',
+    ];
+    $envHosts = (string)env('AI_RESOURCE_IMAGE_PROXY_HOSTS', getenv('AI_RESOURCE_IMAGE_PROXY_HOSTS') ?: '');
+    if ($envHosts !== '') {
+        foreach (explode(',', str_replace(['，', ';', ' '], ',', $envHosts)) as $item) {
+            $item = strtolower(trim($item));
+            if ($item !== '') {
+                $allowedHosts[] = $item;
+            }
+        }
+    }
+    if (in_array($host, array_values(array_unique($allowedHosts)), true)) {
+        return true;
+    }
+
+    return preg_match('/^ai-jf-[a-z0-9-]+\.cos\.[a-z0-9-]+\.myqcloud\.com$/i', $host) === 1;
+}
+
+function proxyExternalImageUrl($url)
+{
+    $url = removePicStyle(trim((string)$url));
+    if ($url === '' || !isProxyableExternalImageUrl($url)) {
+        return $url;
+    }
+    $root = defined('ROOT_HOST') ? ROOT_HOST : '';
+    if (!$root && !empty($_SERVER['HTTP_HOST'])) {
+        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')
+            || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        $root = ($https ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'];
+    }
+    if (!$root) {
+        return $url;
+    }
+    return rtrim($root, '/') . '/api/common/image_proxy?url=' . rawurlencode($url);
+}
+
 /**获取本地图片全路径
  * @param $image_url
  * @return mixed|string
