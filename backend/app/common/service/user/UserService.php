@@ -207,7 +207,6 @@ class UserService extends BaseService
         }
         $is_owner = ($visitorUid == $targetUserId && $visitorUid != 0);
         $this->assertHomeVisitRequirement($user, $visitorUid, $is_owner);
-        $allowDirectSharedCategory = (bool)($includeCurrent && $fid);
         $shared_ids = [];
         if (!$is_owner && $visitorUid) {
             try {
@@ -227,8 +226,8 @@ class UserService extends BaseService
         $categories = WdXcxAlbumFolder::where('uid', $targetUserId)
             ->where('folder_type', 1)
             ->where('pid', (int)$fid)
-            ->when(!$is_owner, function($query) use ($shared_ids, $allowDirectSharedCategory) {
-                $query->where(function($q) use ($shared_ids, $allowDirectSharedCategory){
+            ->when(!$is_owner, function($query) use ($shared_ids) {
+                $query->where(function($q) use ($shared_ids){
                     $q->where('private_type', 1)
                       ->whereOr(function($q2) use ($shared_ids){
                           if (!empty($shared_ids)) {
@@ -237,12 +236,9 @@ class UserService extends BaseService
                               $q2->whereRaw('0');
                           }
                       });
-                    if ($allowDirectSharedCategory) {
-                        $q->whereOr('private_type', 4);
-                    }
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout')
+            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $targetUserId, $is_owner, $shared_ids, $collected_ids){
@@ -265,11 +261,7 @@ class UserService extends BaseService
             if (!$folderInfo) {
                 throwError('分类不存在');
             }
-            if (!$is_owner) {
-                if ((int)$folderInfo->private_type === 2) {
-                    throwError('此内容为私有，请勿访问');
-                }
-            }
+            $this->assertVisibleCategory($fid, $targetUserId, $is_owner, $shared_ids, true);
             $folderInfo->product_count = 0;
             $folderInfo->child_count = $this->getVisibleCategoryChildCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids);
             $folderInfo->son_count = $folderInfo->child_count;
@@ -358,7 +350,7 @@ class UserService extends BaseService
         if ($privateType === 4 && ($allowDirectSharedCategory || in_array((int)$category->id, array_map('intval', $sharedIds), true))) {
             return;
         }
-        throwError('此内容为私有，请勿访问');
+        throwError('此分类未公开或仅分享可见，请通过分享链接访问');
     }
 
     private function getVisibleCategoryChildCount($categoryId, $targetUserId, $isOwner, $sharedIds)
