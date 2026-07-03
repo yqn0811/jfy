@@ -50,6 +50,7 @@ Route::group('common', function (){
     Route::get('ewm', 'CommonApiController/getEwmImage'); //二维码图片直链
     Route::get('static', 'CommonApiController/getStaticImage'); //静态图片直链
     Route::get('image_proxy', 'CommonApiController/getExternalImageProxy'); //资源库图片代理
+    Route::get('resource_image', 'CommonApiController/getResourceImage'); //资源库图片动态签名代理
     //示例相册
     Route::get('example/folder', 'CommonApiController/getExampleFolderLists')->middleware('auth'); //获取相册文件夹
     Route::get('example/pictures', 'CommonApiController/getExamplePicturesLists')->middleware('auth'); //获取相册图片列表

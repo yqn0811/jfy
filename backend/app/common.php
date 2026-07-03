@@ -378,6 +378,44 @@ function proxyExternalImageUrl($url)
     return rtrim($root, '/') . '/api/common/image_proxy?url=' . rawurlencode($url);
 }
 
+function getResourceImageProxyToken($picId, $type = 'thumb')
+{
+    $picId = (int)$picId;
+    $type = in_array($type, ['thumb', 'preview', 'original'], true) ? $type : 'thumb';
+    $secret = (string)env(
+        'AI_RESOURCE_BRIDGE_TOKEN',
+        getenv('AI_RESOURCE_BRIDGE_TOKEN') ?: (getenv('JIAFANGYUN_BRIDGE_TOKEN') ?: 'jiafangyun-resource-image')
+    );
+    return substr(hash_hmac('sha256', $picId . '|' . $type, $secret), 0, 24);
+}
+
+function isValidResourceImageProxyToken($picId, $type, $token)
+{
+    $expected = getResourceImageProxyToken($picId, $type);
+    return is_string($token) && hash_equals($expected, (string)$token);
+}
+
+function buildResourceImageProxyUrl($picId, $type = 'thumb')
+{
+    $picId = (int)$picId;
+    if ($picId <= 0) {
+        return '';
+    }
+    $type = in_array($type, ['thumb', 'preview', 'original'], true) ? $type : 'thumb';
+    $root = defined('ROOT_HOST') ? ROOT_HOST : '';
+    if (!$root && !empty($_SERVER['HTTP_HOST'])) {
+        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')
+            || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        $root = ($https ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'];
+    }
+    if (!$root) {
+        return '';
+    }
+    return rtrim($root, '/') . '/api/common/resource_image?pic_id=' . $picId
+        . '&type=' . rawurlencode($type)
+        . '&token=' . getResourceImageProxyToken($picId, $type);
+}
+
 /**获取本地图片全路径
  * @param $image_url
  * @return mixed|string

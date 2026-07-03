@@ -5,9 +5,8 @@ namespace app\common\service\album;
 use app\common\model\user\WdXcxUser;
 use app\common\service\BaseService;
 use app\index\model\WdXcxPic;
-use app\index\service\TencentCOSService;
 use think\App;
-use think\Exception;
+use think\facade\Cache;
 use think\facade\Log;
 
 class AiResourceBridgeService extends BaseService
@@ -72,7 +71,6 @@ class AiResourceBridgeService extends BaseService
             throwError('资源库图片不存在');
         }
         $fileUrl = removePicStyle(trim((string)$resource['file_url']));
-        $signedUrl = trim((string)($resource['thumbnail_url'] ?: ($resource['preview_url'] ?: $fileUrl)));
 
         $exists = WdXcxPic::where('uid', $uid)
             ->where(function($query) use ($fileUrl, $resourceId) {
@@ -82,7 +80,6 @@ class AiResourceBridgeService extends BaseService
             })
             ->find();
         if ($exists) {
-            $this->localizeResourcePicture($exists, $signedUrl, $resourceId);
             $displayUrl = $exists->TruePic;
             return [
                 'id' => $exists->id,
@@ -106,7 +103,6 @@ class AiResourceBridgeService extends BaseService
             'uid' => $uid,
             'file_type' => 1,
         ]);
-        $this->localizeResourcePicture($pic, $signedUrl, $resourceId);
         $displayUrl = $pic->TruePic;
 
         return [
@@ -238,115 +234,59 @@ class AiResourceBridgeService extends BaseService
         }
     }
 
-    public function localizeImportedPictureByResourceId($uid, $pic, $resourceId)
+    public function getPictureResourceImageUrl($pic, $type = 'thumb')
     {
-        $this->assertBridgeAllowed($uid);
-        if (!$pic || !$resourceId) {
-            return null;
+        if (!$pic) {
+            return '';
         }
-        $user = $this->getBridgeUser($uid);
+        $resourceId = $this->getResourceIdFromPicture($pic);
+        if (!$resourceId) {
+            return '';
+        }
+        $type = in_array($type, ['thumb', 'preview', 'original'], true) ? $type : 'thumb';
+        $cacheKey = 'ai_resource_image_url_' . (int)$pic->id . '_' . md5($resourceId . '|' . $type);
+        $cached = Cache::get($cacheKey);
+        if ($cached) {
+            return $cached;
+        }
+        $this->assertBridgeAllowed((int)$pic->uid);
+        $user = $this->getBridgeUser((int)$pic->uid);
         $query = [
             'b_user_id' => $user->id,
             'mini_openid' => $user->openid,
             'unionid' => $user->unionid ?: '',
         ];
-        $resp = $this->requestAiResource('GET', '/jiafangyun/bridge/resources/' . (int)$resourceId . '?' . http_build_query($query), null);
+        $resp = $this->requestAiResource('GET', '/jiafangyun/bridge/resources/' . $resourceId . '?' . http_build_query($query), null);
         $resource = $resp['resource'] ?? null;
         if (!$resource) {
-            return null;
+            return '';
         }
-        $signedUrl = trim((string)($resource['thumbnail_url'] ?: ($resource['preview_url'] ?: ($resource['file_url'] ?? ''))));
-        return $this->localizeResourcePicture($pic, $signedUrl, (int)$resourceId);
+        $url = '';
+        if ($type === 'original') {
+            $url = trim((string)($resource['preview_url'] ?: ($resource['file_url'] ?? '')));
+            Cache::set($cacheKey, $url, 300);
+            return $url;
+        }
+        if ($type === 'preview') {
+            $url = trim((string)($resource['preview_url'] ?: ($resource['thumbnail_url'] ?: ($resource['file_url'] ?? ''))));
+            Cache::set($cacheKey, $url, 1800);
+            return $url;
+        }
+        $url = trim((string)($resource['thumbnail_url'] ?: ($resource['preview_url'] ?: ($resource['file_url'] ?? ''))));
+        Cache::set($cacheKey, $url, 1800);
+        return $url;
     }
 
-    private function localizeResourcePicture($pic, $signedUrl, $resourceId = 0)
+    private function getResourceIdFromPicture($pic)
     {
-        if (!$pic || !$signedUrl) {
-            return null;
+        if (method_exists($pic, 'getImportedResourceId')) {
+            return (int)$pic->getImportedResourceId();
         }
-        $current = trim((string)$pic->imgurl);
-        if ($current === '' || !WdXcxPic::isHttpUrl($current) || !isProxyableExternalImageUrl($current)) {
-            return $pic;
+        $name = (string)($pic->pic_name ?? '');
+        if (preg_match('/^(?:我的资源库|AI资源库)-(-?\d+)$/u', $name, $match)) {
+            return (int)$match[1];
         }
-        $download = $this->downloadResourceImage($signedUrl);
-        $ext = $this->extensionFromMime($download['mime']);
-        $dirRelative = 'upimages/' . ($this->uniacid ?: 1) . '/' . date('Ymd');
-        $dir = public_path() . $dirRelative;
-        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-            throw new Exception('创建图片目录失败');
-        }
-        $filename = 'ai_resource_' . ($resourceId ?: $pic->id) . '_' . time() . mt_rand(1000, 9999) . '.' . $ext;
-        $path = $dir . '/' . $filename;
-        if (file_put_contents($path, $download['content']) === false) {
-            throw new Exception('保存资源库图片失败');
-        }
-        $this->uploadLocalizedFileToRemote($path, $dirRelative . '/' . $filename);
-        $pic->imgurl = $dirRelative . '/' . $filename;
-        $pic->size = strlen($download['content']);
-        $pic->type = 1;
-        $pic->uniacid = $this->uniacid ?: 1;
-        $pic->file_type = 1;
-        $pic->save();
-        return $pic;
-    }
-
-    private function uploadLocalizedFileToRemote($localPath, $relativePath)
-    {
-        $config = getRemoteConfig($this->uniacid ?: 1);
-        if ((int)($config['remote'] ?? 1) !== 4 || empty($config['ten_cos'])) {
-            return;
-        }
-        $cosConfig = $config['ten_cos'];
-        $saveKey = $relativePath;
-        if (!empty($cosConfig['folder_name']) && strpos($saveKey, $cosConfig['folder_name'] . '/') !== 0) {
-            $saveKey = rtrim($cosConfig['folder_name'], '/') . '/' . ltrim($saveKey, '/');
-        }
-        $cos = new TencentCOSService($cosConfig, $saveKey);
-        if (!$cos->upload($localPath, false)) {
-            throw new Exception('上传资源库图片到远程附件失败');
-        }
-    }
-
-    private function downloadResourceImage($url)
-    {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_CONNECTTIMEOUT => 8,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_USERAGENT => 'JiafangyunResourceImport/1.0',
-        ]);
-        $content = curl_exec($ch);
-        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $mime = strtolower(trim(explode(';', (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE))[0]));
-        $errno = curl_errno($ch);
-        $error = curl_error($ch);
-        curl_close($ch);
-        if ($errno || $status < 200 || $status >= 300 || $content === false || $content === '') {
-            throw new Exception($error ?: '下载资源库图片失败');
-        }
-        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
-            throw new Exception('资源库图片格式不支持');
-        }
-        return [
-            'content' => $content,
-            'mime' => $mime,
-        ];
-    }
-
-    private function extensionFromMime($mime)
-    {
-        $map = [
-            'image/jpeg' => 'jpg',
-            'image/png' => 'png',
-            'image/gif' => 'gif',
-            'image/webp' => 'webp',
-        ];
-        return $map[$mime] ?? 'jpg';
+        return 0;
     }
 
     private function getBridgeUser($uid)

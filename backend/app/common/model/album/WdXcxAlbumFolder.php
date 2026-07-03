@@ -24,6 +24,16 @@ class WdXcxAlbumFolder extends Model
         if($this->folder_type == 1){
             return getLocalImage('/image/static/folder.png');
         }else{
+            $picIds = $this->pic_ids ? array_values(array_filter(array_map('intval', explode(',', (string)$this->pic_ids)))) : [];
+            if (!empty($picIds)) {
+                $resourcePic = WdXcxPic::whereIn('id', $picIds)
+                    ->field('id,imgurl,pic_name,uniacid,file_type')
+                    ->orderRaw('FIELD(id, ' . implode(',', $picIds) . ')')
+                    ->find();
+                if ($resourcePic && method_exists($resourcePic, 'isImportedResourcePicture') && $resourcePic->isImportedResourcePicture()) {
+                    return $resourcePic->TruePic;
+                }
+            }
             if ($value) {
                 return WdXcxPic::normalizePictureUrl($value, 1, 1);
             }

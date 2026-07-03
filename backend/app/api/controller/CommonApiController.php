@@ -5,8 +5,10 @@ namespace app\api\controller;
 use app\common\model\album\WdXcxAlbumFolder;
 use app\common\model\user\WdXcxUserAlbumPic;
 use app\common\model\user\WdXcxUserExampleSet;
+use app\common\service\album\AiResourceBridgeService;
 use app\common\service\CommonService;
 use app\index\model\WdXcxBase;
+use app\index\model\WdXcxPic;
 use think\App;
 use think\facade\Config;
 use think\Response;
@@ -271,6 +273,58 @@ class CommonApiController extends ApiBaseController
         return Response::create($content, 'html', 200)->header([
             'Content-Type' => $mime,
             'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
+    public function getResourceImage()
+    {
+        $params = $this->request->getMore([
+            ['pic_id', 0],
+            ['type', 'thumb'],
+            ['token', ''],
+        ]);
+        $picId = (int)$params['pic_id'];
+        $type = in_array($params['type'], ['thumb', 'preview', 'original'], true) ? $params['type'] : 'thumb';
+        if (!$picId || !isValidResourceImageProxyToken($picId, $type, $params['token'])) {
+            throwError('图片地址无效');
+        }
+        $pic = WdXcxPic::where('id', $picId)->find();
+        if (!$pic || !$pic->isImportedResourcePicture()) {
+            throwError('图片不存在');
+        }
+        $url = (new AiResourceBridgeService($this->app))->getPictureResourceImageUrl($pic, $type);
+        if (!$url || !isProxyableExternalImageUrl(removePicStyle($url))) {
+            throwError('图片读取失败');
+        }
+        return $this->streamRemoteImage($url, $type === 'original' ? 300 : 1800);
+    }
+
+    private function streamRemoteImage($url, $maxAge = 1800)
+    {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_USERAGENT => 'JiafangyunResourceImageProxy/1.0',
+        ]);
+        $content = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $mime = strtolower(trim(explode(';', (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE))[0]));
+        curl_close($ch);
+        if ($status < 200 || $status >= 300 || $content === false || $content === '') {
+            throwError('图片读取失败');
+        }
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
+            $mime = 'image/jpeg';
+        }
+        return Response::create($content, 'html', 200)->header([
+            'Content-Type' => $mime,
+            'Cache-Control' => 'public, max-age=' . (int)$maxAge,
         ]);
     }
 

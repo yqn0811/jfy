@@ -30,8 +30,25 @@ class WdXcxPic extends Model
 
     public function getTruePicAttr()
     {
+        if ($this->isImportedResourcePicture()) {
+            return buildResourceImageProxyUrl($this->id, 'thumb');
+        }
         return self::normalizePictureUrl($this->imgurl, $this->uniacid, $this->file_type);
 
+    }
+
+    public function isImportedResourcePicture()
+    {
+        return $this->getImportedResourceId() !== 0;
+    }
+
+    public function getImportedResourceId()
+    {
+        $name = (string)($this->pic_name ?? '');
+        if (preg_match('/^(?:我的资源库|AI资源库)-(-?\d+)$/u', $name, $match)) {
+            return (int)$match[1];
+        }
+        return 0;
     }
 
     public static function normalizePictureUrl($url, $uniacid = 1, $fileType = 1)
