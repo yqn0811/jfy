@@ -569,7 +569,7 @@ class UserService extends BaseService
         $linkQuery = $this->buildHomeEntryQuery($targetUserId, $type, $id, $inviteCode);
 
         try {
-            $share_link = (new WxService())->generateUrlLink($pagePath, $linkQuery);
+            $share_link = (new WxService())->generateUrlLink('', $linkQuery);
         } catch (\Throwable $e) {
             $fallbackPath = $linkQuery ? ('/' . $pagePath . '?' . $linkQuery) : ('/' . $pagePath);
             $share_link = (new WxService())->generateShortLink($fallbackPath, $title, false);
