@@ -585,7 +585,7 @@
 	    </div>
 	    <!-- 购买升级弹窗 -->
 	    <div id="upgrade-modal" class="modal-mask hidden">
-	      <div class="modal-content !max-w-3xl">
+	      <div class="modal-content !max-w-6xl">
 	        <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
 	          <div>
             <h2 class="text-xl font-semibold text-gray-700"> 购买升级 </h2>
@@ -594,11 +594,22 @@
 	          <button id="close-upgrade-modal" class="text-gray-400 hover:text-gray-600 p-2"><i class="fas fa-times"></i></button>
 	        </div>
 	        <div class="p-6">
-          <div id="upgrade-plan-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 min-h-[160px]">
+          <div id="upgrade-plan-list" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 min-h-[160px]">
             <!-- Upgrade plans will be loaded here -->
           </div>
-          <div id="upgrade-payment-panel" class="hidden mt-5 rounded-lg border border-gray-100 bg-gray-50 p-5"></div>
         </div>
+      </div>
+    </div>
+    <div id="upgrade-payment-modal" class="modal-mask hidden">
+      <div class="modal-content !max-w-2xl">
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+          <div>
+            <h2 class="text-xl font-semibold text-gray-700">微信扫码支付</h2>
+            <p class="text-sm text-gray-400 mt-1">请使用微信扫描二维码完成支付</p>
+          </div>
+          <button id="close-upgrade-payment-modal" class="text-gray-400 hover:text-gray-600 p-2"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="upgrade-payment-content" class="p-6"></div>
       </div>
     </div>
 	    <script>// 当页面大小或者内容发生变化时，通知导航页面跳转iframe高度
@@ -630,7 +641,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	  var upgradeModal = document.getElementById('upgrade-modal');
 	  var closeUpgradeModalBtn = document.getElementById('close-upgrade-modal');
 	  var upgradePlanList = document.getElementById('upgrade-plan-list');
-	  var upgradePaymentPanel = document.getElementById('upgrade-payment-panel');
+	  var upgradePaymentModal = document.getElementById('upgrade-payment-modal');
+	  var closeUpgradePaymentModalBtn = document.getElementById('close-upgrade-payment-modal');
+	  var upgradePaymentContent = document.getElementById('upgrade-payment-content');
 	  var topUserInfoBtn = document.getElementById('top-user-info');
 	  var topUserAvatar = document.getElementById('top-user-avatar');
 	  var topUserAvatarFallback = document.getElementById('top-user-avatar-fallback');
@@ -1010,6 +1023,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	  function closeUpgradeModal() {
 	    upgradeModal.classList.add('hidden');
 	    document.body.style.overflow = '';
+	    closeUpgradePaymentModal();
 	    stopUpgradePaymentPolling();
 	    ytSendPageSize();
 	  }
@@ -1081,9 +1095,12 @@ document.addEventListener('DOMContentLoaded', function () {
 	  }
 
 	  function resetUpgradePaymentPanel() {
-	      if (!upgradePaymentPanel) return;
-	      upgradePaymentPanel.classList.add('hidden');
-	      upgradePaymentPanel.innerHTML = '';
+	      if (upgradePaymentContent) {
+	          upgradePaymentContent.innerHTML = '';
+	      }
+	      if (upgradePaymentModal) {
+	          upgradePaymentModal.classList.add('hidden');
+	      }
 	      stopUpgradePaymentPolling();
 	  }
 
@@ -1178,20 +1195,20 @@ document.addEventListener('DOMContentLoaded', function () {
 	  }
 
 	  function renderUpgradePayment(order, planName) {
-	      if (!upgradePaymentPanel) return;
+	      if (!upgradePaymentModal || !upgradePaymentContent) return;
 	      var qr = order.qr_code_data || order.payment_url || order.code_url || '';
 	      var amount = order.amount || formatCents(order.amount_cents || 0);
 	      var orderNo = order.order_no || order.order_id || '';
 	      if (!qr) {
-	          upgradePaymentPanel.classList.remove('hidden');
-	          upgradePaymentPanel.innerHTML = '<div class="text-red-500 text-sm">支付二维码获取失败，请稍后重试</div>';
+	          upgradePaymentModal.classList.remove('hidden');
+	          upgradePaymentContent.innerHTML = '<div class="text-red-500 text-sm">支付二维码获取失败，请稍后重试</div>';
 	          return;
 	      }
 	      var imgSrc = qr.indexOf('data:image') === 0 ? qr : 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(qr);
-	      upgradePaymentPanel.classList.remove('hidden');
-	      upgradePaymentPanel.innerHTML = `
-	        <div class="flex flex-col md:flex-row items-center gap-5">
-	          <div class="w-[220px] h-[220px] rounded-md bg-white border border-gray-200 flex items-center justify-center p-2">
+	      upgradePaymentModal.classList.remove('hidden');
+	      upgradePaymentContent.innerHTML = `
+	        <div class="flex flex-col md:flex-row items-center gap-6">
+	          <div class="w-[240px] h-[240px] rounded-md bg-white border border-gray-200 flex items-center justify-center p-2">
 	            <img src="${escapeUpgradeHtml(imgSrc)}" alt="微信支付二维码" class="w-full h-full object-contain">
 	          </div>
 	          <div class="flex-1 text-center md:text-left">
@@ -1202,7 +1219,22 @@ document.addEventListener('DOMContentLoaded', function () {
 	          </div>
 	        </div>
 	      `;
+	      document.body.style.overflow = 'hidden';
 	      startUpgradePaymentPolling(orderNo);
+	      ytSendPageSize();
+	  }
+
+	  function closeUpgradePaymentModal() {
+	      if (upgradePaymentModal) {
+	          upgradePaymentModal.classList.add('hidden');
+	      }
+	      if (upgradePaymentContent) {
+	          upgradePaymentContent.innerHTML = '';
+	      }
+	      stopUpgradePaymentPolling();
+	      if (!upgradeModal || upgradeModal.classList.contains('hidden')) {
+	          document.body.style.overflow = '';
+	      }
 	      ytSendPageSize();
 	  }
 
@@ -1278,6 +1310,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	                  loadTopUserInfo();
 	                  setTimeout(function() {
 	                      closeUpgradeModal();
+	                      closeUpgradePaymentModal();
 	                  }, 1200);
 	              }
 	          })
@@ -2514,10 +2547,20 @@ document.addEventListener('DOMContentLoaded', function () {
 	  if (closeUpgradeModalBtn) {
 	    closeUpgradeModalBtn.addEventListener('click', closeUpgradeModal);
 	  }
+	  if (closeUpgradePaymentModalBtn) {
+	    closeUpgradePaymentModalBtn.addEventListener('click', closeUpgradePaymentModal);
+	  }
 	  if (upgradeModal) {
 	    upgradeModal.addEventListener('click', function(e) {
 	      if (e.target === this) {
 	        closeUpgradeModal();
+	      }
+	    });
+	  }
+	  if (upgradePaymentModal) {
+	    upgradePaymentModal.addEventListener('click', function(e) {
+	      if (e.target === this) {
+	        closeUpgradePaymentModal();
 	      }
 	    });
 	  }
