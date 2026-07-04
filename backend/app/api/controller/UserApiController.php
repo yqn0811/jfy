@@ -363,17 +363,23 @@ class UserApiController extends ApiBaseController
             'latitude' => $user->latitude,
             'longitude' => $user->longitude,
         ];
-        if($vipGradeInfo['space_size'] > 1024 * 1024){
-            $result['all_space'] = bcdiv($vipGradeInfo['space_size'], 1024 * 1024) . 'T';
-        }elseif ($vipGradeInfo['space_size'] > 1024){
-            $result['all_space'] = bcdiv($vipGradeInfo['space_size'], 1024) . 'G';
-        }else{
-            $result['all_space'] = $vipGradeInfo['space_size'] . 'M';
+        $capacityBytes = (int)($vipGradeInfo['resource_storage']['capacity_bytes'] ?? 0);
+        if ($capacityBytes <= 0 && $vipGradeInfo['space_size'] > 0) {
+            $capacityBytes = (int)$vipGradeInfo['space_size'] * 1024 * 1024;
         }
-        $UserPicSize = WdXcxPic::where('uid', $uid)->sum('size');
-        $result['use_space'] = $UserPicSize;
-        if($UserPicSize > 0 && $vipGradeInfo['space_size'] > 0){
-            $result['space_used'] = bcmul(bcdiv($UserPicSize, $vipGradeInfo['space_size'] * 1024 * 1024, 4), 100, 2);
+        $usedBytes = (int)($vipGradeInfo['resource_storage']['used_bytes'] ?? 0);
+        $localPicSize = WdXcxPic::where('uid', $uid)->sum('size');
+        if ($usedBytes <= 0) {
+            $usedBytes = (int)$localPicSize;
+        }
+
+        $result['all_space'] = $this->formatStorageBytes($capacityBytes);
+        $result['use_space'] = $usedBytes;
+        $result['resource_storage_used_bytes'] = $usedBytes;
+        $result['resource_storage_capacity_bytes'] = $capacityBytes;
+        $result['local_pic_used_bytes'] = (int)$localPicSize;
+        if($usedBytes > 0 && $capacityBytes > 0){
+            $result['space_used'] = bcmul(bcdiv($usedBytes, $capacityBytes, 4), 100, 2);
         }else{
             $result['space_used'] = 0;
         }
@@ -409,6 +415,22 @@ class UserApiController extends ApiBaseController
         }
 
         $this->result($result);
+    }
+
+    private function formatStorageBytes($bytes)
+    {
+        $bytes = (int)$bytes;
+        if ($bytes <= 0) {
+            return '0M';
+        }
+        $mb = (int)ceil($bytes / 1024 / 1024);
+        if($mb > 1024 * 1024){
+            return bcdiv($mb, 1024 * 1024) . 'T';
+        }
+        if($mb > 1024){
+            return bcdiv($mb, 1024) . 'G';
+        }
+        return $mb . 'M';
     }
 
     public function markUserVisitorsRead()
