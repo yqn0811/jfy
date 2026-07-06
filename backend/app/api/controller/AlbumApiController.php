@@ -5,6 +5,7 @@ namespace app\api\controller;
 use app\common\model\album\WdXcxAlbumFolder;
 use app\common\model\album\WdXcxAlbumShareBind;
 use app\common\model\user\WdXcxUser;
+use app\common\model\user\WdXcxUserAlbumUploadCode;
 use app\common\service\album\AiResourceBridgeService;
 use app\common\service\album\AlbumService;
 use think\App;
@@ -192,6 +193,7 @@ class AlbumApiController extends ApiBaseController
             ['fid', 0],
             ['upload_pwd', ''],
             ['upload_pwd_expire_time', 0],
+            ['upload_enabled', 0],
         ]);
         if(empty($param['fid'])){
             throwError('请选择产品');
@@ -207,18 +209,38 @@ class AlbumApiController extends ApiBaseController
             throwError('您没有权限操作此产品');
         }
         $password = trim((string)$param['upload_pwd']);
+        $uploadEnabled = (int)$param['upload_enabled'] === 1 ? 1 : 0;
+        if($uploadEnabled && $password === ''){
+            throwError('开启访问密码时请设置密码');
+        }
         if($password !== '' && !preg_match('/^[A-Za-z0-9]{4}$/', $password)){
             throwError('上传密码格式错误');
         }
         (new WdXcxUser())->ensureUploadPasswordColumns();
-        WdXcxUser::where('id', $folder->uid)->update([
-            'upload_pwd' => $password,
-            'upload_pwd_expire_time' => $password === '' ? 0 : max(0, (int)$param['upload_pwd_expire_time']),
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
+        $code = $this->album_service->getBatchUploadLink($folder->id, $folder->uid)['code'];
+        WdXcxUserAlbumUploadCode::where([
+            'fid' => $folder->id,
+            'uid' => $folder->uid,
+            'upload_code' => $code,
+        ])->update([
+            'upload_enabled' => $uploadEnabled,
         ]);
+        $expireTime = $uploadEnabled ? max(0, (int)$param['upload_pwd_expire_time']) : 0;
+        if($uploadEnabled){
+            WdXcxUser::where('id', $folder->uid)->update([
+                'upload_pwd' => $password,
+                'upload_pwd_expire_time' => $expireTime,
+            ]);
+        }else{
+            $password = '';
+        }
         $this->result([
+            'upload_enabled' => $uploadEnabled,
+            'access_enabled' => $uploadEnabled,
             'password' => $password,
-            'password_expire_time' => $password === '' ? 0 : max(0, (int)$param['upload_pwd_expire_time']),
-            'upload_pwd_expire_time' => $password === '' ? 0 : max(0, (int)$param['upload_pwd_expire_time']),
+            'password_expire_time' => $expireTime,
+            'upload_pwd_expire_time' => $expireTime,
         ], 0, '保存成功');
     }
 

@@ -1994,6 +1994,7 @@ class AlbumService extends BaseService
 
     private function getUploadCode($fid, $uid)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $info = WdXcxUserAlbumUploadCode::where([
             'fid' => $fid,
             'uid' => $uid,
@@ -2009,10 +2010,20 @@ class AlbumService extends BaseService
                 'fid' => $fid,
                 'uid' => $uid,
                 'upload_code' => $code,
+                'upload_enabled' => 0,
             ]);
             return $code;
         }
         return $info->upload_code;
+    }
+
+    private function getBatchUploadRecord($fid, $uid)
+    {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
+        return WdXcxUserAlbumUploadCode::where([
+            'fid' => $fid,
+            'uid' => $uid,
+        ])->find();
     }
 
     public function getBatchUploadLink($fid, $uid)
@@ -2028,15 +2039,21 @@ class AlbumService extends BaseService
         }
         (new WdXcxUser())->ensureUploadPasswordColumns();
         $code = $this->getUploadCode($fid, $folder->uid);
+        $record = $this->getBatchUploadRecord($fid, $folder->uid);
         $user = WdXcxUser::where('id', $folder->uid)->find();
         $url = 'https://pic.jfyuntu.com/assets/page/product-list.html?uploadd_code=' . urlencode($code);
+        $uploadEnabled = $record ? (int)$record->upload_enabled : 0;
+        $password = ($uploadEnabled && $user) ? ($user->upload_pwd ?: '') : '';
+        $expireTime = ($uploadEnabled && $user) ? (int)$user->upload_pwd_expire_time : 0;
         return [
             'upload_url' => $url,
             'url' => $url,
             'code' => $code,
-            'password' => $user ? ($user->upload_pwd ?: '') : '',
-            'password_expire_time' => $user ? (int)$user->upload_pwd_expire_time : 0,
-            'upload_pwd_expire_time' => $user ? (int)$user->upload_pwd_expire_time : 0,
+            'upload_enabled' => $uploadEnabled,
+            'access_enabled' => $uploadEnabled,
+            'password' => $password,
+            'password_expire_time' => $expireTime,
+            'upload_pwd_expire_time' => $expireTime,
         ];
     }
 

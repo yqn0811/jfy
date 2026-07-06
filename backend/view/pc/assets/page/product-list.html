@@ -806,7 +806,7 @@
 	              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 	                <div>
 	                  <div class="text-sm font-semibold text-gray-700">上传密码</div>
-	                  <div class="text-xs text-gray-400 mt-1">4 位字母或数字，留空则打开链接无需密码。</div>
+	                  <div class="text-xs text-gray-400 mt-1">开启后好友输入密码上传；关闭后该产品上传链接不可访问。</div>
 	                </div>
 	                <div class="inline-flex rounded-md bg-gray-100 p-1 text-xs text-gray-500">
 	                  <button id="product-share-expire-forever" class="product-share-expire px-3 py-1.5 rounded active" data-mode="forever" type="button">永久有效</button>
@@ -818,7 +818,7 @@
 	              <div class="mt-4 flex flex-col sm:flex-row gap-3">
 	                <input id="product-share-password" type="text" maxlength="4" class="input-primary uppercase tracking-widest" placeholder="点击添加">
 	                <button id="product-share-random-password" class="btn-outline shrink-0 bg-white" type="button"><i class="fas fa-random"></i><span>随机生成</span></button>
-	                <button id="product-share-clear-password" class="btn-outline shrink-0 bg-white" type="button"><i class="fas fa-unlock"></i><span>关闭密码</span></button>
+	                <button id="product-share-clear-password" class="btn-outline shrink-0 bg-white" type="button"><i class="fas fa-ban"></i><span>关闭入口</span></button>
 	              </div>
 	              <div id="product-share-expire-text" class="text-xs text-gray-400 mt-3">当前：永久有效</div>
 	              <button id="product-share-save-password" class="btn-primary w-full mt-4" type="button"><i class="fas fa-save"></i><span>保存设置</span></button>
@@ -2919,10 +2919,11 @@ document.addEventListener('DOMContentLoaded', function () {
       var uploadUrl = normalizeShareValue(data.upload_url || data.url);
       currentProductShare.uploadUrl = uploadUrl;
       currentProductShare.password = normalizeShareValue(data.password || data.pwd);
+      currentProductShare.uploadEnabled = Number(data.upload_enabled || data.access_enabled || 0) === 1;
       currentProductShare.passwordExpireTime = Number(data.password_expire_time || data.upload_pwd_expire_time || 0);
       currentProductShare.expireMode = currentProductShare.passwordExpireTime ? '' : 'forever';
       if (productSharePath) productSharePath.textContent = uploadUrl || '链接生成失败，请重试';
-      if (productSharePasswordInput) productSharePasswordInput.value = currentProductShare.password;
+      if (productSharePasswordInput) productSharePasswordInput.value = currentProductShare.uploadEnabled ? currentProductShare.password : '';
       syncShareExpireButtons(currentProductShare.expireMode || '');
       if (productShareExpireText) {
           productShareExpireText.textContent = '当前：' + formatShareExpireText(currentProductShare.passwordExpireTime);
@@ -2951,6 +2952,7 @@ document.addEventListener('DOMContentLoaded', function () {
           path: miniPath,
           uploadUrl: '',
           password: '',
+          uploadEnabled: false,
           passwordExpireTime: 0,
           expireMode: 'forever'
       };
@@ -2999,7 +3001,7 @@ document.addEventListener('DOMContentLoaded', function () {
       var text = password
           ? uploadUrl + '\n上传密码：' + password + '\n有效期：' + formatShareExpireText(currentProductShare.passwordExpireTime)
           : uploadUrl;
-      copyText(text, password ? '已复制链接和密码' : '未设置密码，已复制链接');
+      copyText(text, password ? '已复制链接和密码' : '上传入口已关闭，已复制链接');
   }
 
   function handleCopyProductShareLink() {
@@ -3046,6 +3048,7 @@ document.addEventListener('DOMContentLoaded', function () {
           showToast('密码需为4位字母或数字', 'error');
           return;
       }
+      var uploadEnabled = password ? 1 : 0;
       setProductShareButtonLoading(productShareSavePasswordBtn, true, '保存中');
       fetch(`${API_BASE_URL}/album/batch_upload_password`, {
           method: 'POST',
@@ -3055,6 +3058,7 @@ document.addEventListener('DOMContentLoaded', function () {
           },
           body: JSON.stringify({
               fid: currentProductShare.id,
+              upload_enabled: uploadEnabled,
               upload_pwd: password,
               upload_pwd_expire_time: password ? Number(currentProductShare.passwordExpireTime || 0) : 0
           })
@@ -3072,13 +3076,14 @@ document.addEventListener('DOMContentLoaded', function () {
               throw new Error(res.msg || '保存失败');
           }
           currentProductShare.password = password;
+          currentProductShare.uploadEnabled = uploadEnabled === 1;
           if (!password) {
               currentProductShare.passwordExpireTime = 0;
               currentProductShare.expireMode = 'forever';
               syncShareExpireButtons('forever');
               if (productShareExpireText) productShareExpireText.textContent = '当前：永久有效';
           }
-          showToast(password ? '密码设置已保存' : '密码已关闭');
+          showToast(password ? '上传入口已开启' : '上传入口已关闭');
       })
       .catch(function(err) {
           console.error(err);

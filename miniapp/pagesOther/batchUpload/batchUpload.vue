@@ -29,8 +29,11 @@
                     <text class="section-title">上传链接</text>
                     <text class="section-tag">产品专属</text>
                 </view>
-                <view class="link-box" @tap="copyLink">
+                <view class="link-box">
                     <text user-select="true" class="link-text">{{ uploadUrl || '链接生成中...' }}</text>
+                    <view class="link-copy-btn" @tap.stop="copyLink">
+                        <text class="link-copy-text">复制</text>
+                    </view>
                 </view>
                 <text class="section-note">好友只能通过该链接上传到当前产品。</text>
             </view>
@@ -80,7 +83,7 @@
                         </view>
                     </view>
                 </view>
-                <text class="section-note">{{ passwordEnabled ? '开启后好友打开链接需要输入访问密码。' : '关闭后好友打开链接无需输入密码。' }}</text>
+                <text class="section-note">{{ passwordEnabled ? '开启后好友打开链接需要输入访问密码。' : '关闭后该产品上传链接不可访问。' }}</text>
                 <view class="password-save" @tap="saveUploadPassword">
                     <text class="password-save-text">{{ passwordSaving ? '保存中...' : '保存设置' }}</text>
                 </view>
@@ -147,7 +150,7 @@ export default {
                         this.uploadUrl = res.data.upload_url || res.data.url || ''
                         this.uploadPassword = res.data.password || res.data.pwd || ''
                         this.uploadPasswordExpireTime = Number(res.data.password_expire_time || res.data.upload_pwd_expire_time || 0)
-                        this.syncPasswordState()
+                        this.syncPasswordState(this.resolveUploadEnabled(res.data))
                     }
                 } else if (typeof uni !== 'undefined') {
                     // 回退：生成一个临时示例链接（开发环境）
@@ -190,7 +193,7 @@ export default {
                 data: text,
                 success: () => {
                     uni.showToast({
-                        title: password ? '已复制链接和密码' : '未设置密码，已复制链接',
+                        title: password ? '已复制链接和密码' : '上传入口已关闭，已复制链接',
                         icon: 'none'
                     })
                 }
@@ -207,15 +210,11 @@ export default {
                 uni.showToast({ title: '密码需为4位字母或数字', icon: 'none' })
                 return
             }
-            const openid = uni.getStorageSync('openid')
-            if (!openid) {
-                uni.showToast({ title: '请先登录后再设置密码', icon: 'none' })
-                return
-            }
             const querys = {
+                fid: this.fid,
+                upload_enabled: this.passwordEnabled ? 1 : 0,
                 upload_pwd: password,
                 upload_pwd_expire_time: password ? this.uploadPasswordExpireTime : 0,
-                openid,
                 timestamp: new Date().getTime(),
             }
             const data = {
@@ -224,17 +223,20 @@ export default {
             }
             this.passwordSaving = true
             try {
-                await this.$go('user/update_info', data, 'post', { show_err: true })
+                const res = await this.$go('album/batch_upload_password', data, 'post', { show_err: true })
+                if (!res || res.code !== 0) {
+                    throw new Error(res && res.msg ? res.msg : '保存失败')
+                }
                 this.uploadPassword = password
-                this.passwordEnabled = !!password
+                this.passwordEnabled = this.passwordEnabled && !!password
                 if (!password) {
                     this.uploadPasswordExpireTime = 0
                     this.expireMode = 'forever'
                 }
-                uni.showToast({ title: password ? '设置已保存' : '密码已关闭', icon: 'none' })
+                uni.showToast({ title: password ? '设置已保存' : '上传入口已关闭', icon: 'none' })
             } catch (e) {
                 console.error(e)
-                uni.showToast({ title: '保存失败', icon: 'none' })
+                uni.showToast({ title: e && e.message ? e.message : '保存失败', icon: 'none' })
             } finally {
                 this.passwordSaving = false
             }
@@ -265,7 +267,7 @@ export default {
                         this.uploadUrl = res.data.upload_url || res.data.url || this.uploadUrl
                         this.uploadPassword = res.data.password || res.data.pwd || this.uploadPassword
                         this.uploadPasswordExpireTime = Number(res.data.password_expire_time || res.data.upload_pwd_expire_time || this.uploadPasswordExpireTime || 0)
-                        this.syncPasswordState()
+                        this.syncPasswordState(this.resolveUploadEnabled(res.data))
                         uni.showToast({ title: '已重置并更新链接', icon: 'none' })
                     } else {
                         // 如果后端没有返回新链接，则重新调用 getBatchLink
@@ -334,14 +336,26 @@ export default {
             this.expireMode = ''
         },
 
-        syncPasswordState() {
-            this.passwordEnabled = !!(this.uploadPassword || '').trim()
+        syncPasswordState(enabled) {
+            this.passwordEnabled = enabled === undefined ? !!(this.uploadPassword || '').trim() : Number(enabled) === 1
             if (!this.passwordEnabled) {
+                this.uploadPassword = ''
                 this.uploadPasswordExpireTime = 0
                 this.expireMode = 'forever'
                 return
             }
+            if (!this.uploadPassword) {
+                this.generatePassword()
+            }
             this.syncExpireMode()
+        },
+
+        resolveUploadEnabled(data) {
+            data = data || {}
+            if (data.upload_enabled !== undefined && data.upload_enabled !== null) {
+                return data.upload_enabled
+            }
+            return data.access_enabled
         },
 
         formatExpireText(expireTime) {
@@ -503,16 +517,40 @@ export default {
 .link-box {
     background: #f7f7f7;
     border-radius: 16rpx;
-    padding: 22rpx;
+    padding: 18rpx;
+    display: flex;
+    align-items: center;
+    gap: 14rpx;
     box-sizing: border-box;
 }
 
 .link-text {
+    flex: 1;
+    min-width: 0;
     font-weight: 500;
     font-size: 26rpx;
     color: #4a4a4a;
     line-height: 1.45;
     word-break: break-all;
+}
+
+.link-copy-btn {
+    flex-shrink: 0;
+    min-width: 92rpx;
+    height: 58rpx;
+    border-radius: 32rpx;
+    background: #222222;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 20rpx;
+    box-sizing: border-box;
+}
+
+.link-copy-text {
+    font-size: 24rpx;
+    color: #ffffff;
+    font-weight: 600;
 }
 
 .section-note {

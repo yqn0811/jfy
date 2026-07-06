@@ -30,10 +30,12 @@ class WebUploadService extends BaseService
      */
     public function getWebAlbumInfo($param)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $record = WdXcxUserAlbumUploadCode::where('upload_code', $param['code'])->find();
         if(!$record){
             throwError('指定的上传码不存在');
         }
+        $this->assertBatchUploadEnabled($record);
         $folder = WdXcxAlbumFolder::where('id', $record['fid'])->find();
         if(!$folder){
             throwError('指定的上传码对应的相册不存在');
@@ -48,6 +50,9 @@ class WebUploadService extends BaseService
         (new WdXcxUser())->ensureUploadPasswordColumns();
         $syncedVipGradeInfo = (new JiafangyunEntitlementSyncService($this->app))->syncUserQuietly($user->id);
         $uploadPwdExpired = $this->isUploadPasswordExpired($user);
+        if(!$user->upload_pwd){
+            throwError('上传密码未设置，请联系分享者开启后再上传');
+        }
         if(!$record->ewm_code){
             try {
                 $file_path = public_path().'image/ewm';
@@ -68,6 +73,8 @@ class WebUploadService extends BaseService
         $result = [
             'content' => '把该链接分享给好友，即可多人一起上传哦',
             'has_password' => $user->upload_pwd ? 1 : 0,
+            'upload_enabled' => 1,
+            'access_enabled' => 1,
             'password_expire_time' => (int)$user->upload_pwd_expire_time,
             'password_expired' => $uploadPwdExpired ? 1 : 0,
             'id' => $folder->id,
@@ -215,10 +222,12 @@ class WebUploadService extends BaseService
      */
     public function getWebAlbumUploadToken($param)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $record = WdXcxUserAlbumUploadCode::where('upload_code', $param['code'])->find();
         if(!$record){
             throwError('指定的上传码不存在');
         }
+        $this->assertBatchUploadEnabled($record);
         $folder = WdXcxAlbumFolder::where('id', $record['fid'])->find();
         if(!$folder){
             throwError('指定的上传码对应的相册不存在');
@@ -231,6 +240,9 @@ class WebUploadService extends BaseService
             throwError('指定的上传码对应的用户不存在');
         }
         (new WdXcxUser())->ensureUploadPasswordColumns();
+        if(!$user->upload_pwd){
+            throwError('上传密码未设置，请联系分享者开启后再上传');
+        }
         if($user->upload_pwd){
             if($this->isUploadPasswordExpired($user)){
                 throwError('上传密码已过期，请联系分享者更新密码');
@@ -265,6 +277,7 @@ class WebUploadService extends BaseService
         if($tokenFid && (int)$param['fid'] !== (int)$tokenFid){
             throwError('上传凭证与相册不匹配');
         }
+        $this->assertBatchUploadEnabledByFolder($param['fid'], $uid);
         $folder = WdXcxAlbumFolder::where('id', $param['fid'])->find();
         if(!$folder){
             throwError('指定的上传码对应的相册不存在');
@@ -304,6 +317,7 @@ class WebUploadService extends BaseService
         if($ownerUid <= 0 || $ownerUid !== (int)$folder_info->uid){
             throwError('上传凭证与相册主不匹配');
         }
+        $this->assertBatchUploadEnabledByFolder($params['pid'], $ownerUid);
         Db::startTrans();
         try{
             $data = (new UploadService($this->uniacid))->uploadImages([
@@ -458,6 +472,23 @@ class WebUploadService extends BaseService
     {
         $expireTime = isset($user->upload_pwd_expire_time) ? (int)$user->upload_pwd_expire_time : 0;
         return $expireTime > 0 && $expireTime < time();
+    }
+
+    private function assertBatchUploadEnabled($record)
+    {
+        if(!$record || (int)$record->upload_enabled !== 1){
+            throwError('该产品上传入口已关闭，请联系分享者开启后再上传');
+        }
+    }
+
+    private function assertBatchUploadEnabledByFolder($fid, $uid)
+    {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
+        $record = WdXcxUserAlbumUploadCode::where([
+            'fid' => $fid,
+            'uid' => $uid,
+        ])->find();
+        $this->assertBatchUploadEnabled($record);
     }
 
 
