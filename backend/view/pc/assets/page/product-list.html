@@ -182,6 +182,12 @@
             .product-share-panel {
                 @apply rounded-lg border border-gray-200 bg-white p-4;
             }
+            .share-password-modal {
+                @apply fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4;
+            }
+            .share-password-modal.hidden {
+                display: none;
+            }
             .image-grid {
                 @apply grid grid-cols-4 gap-3 mt-4;
             }
@@ -253,8 +259,8 @@
     </div>
    </div>
   </header>
-  <div id="share-upload-page" class="hidden min-h-screen bg-gray-100 p-4 sm:p-6">
-    <div class="max-w-5xl mx-auto">
+  <div id="share-upload-page" class="hidden min-h-screen bg-gray-100 p-4 xl:p-8">
+    <div class="w-full max-w-[1760px] mx-auto">
       <div class="bg-white rounded-lg shadow-card overflow-hidden">
         <div class="p-6 sm:p-8 border-b border-gray-100">
           <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
@@ -282,59 +288,64 @@
             </div>
           </div>
         </div>
-        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-0">
-          <div class="p-6 sm:p-8 bg-white">
-            <div id="share-password-panel" class="hidden mb-6 rounded-lg border border-warning/30 bg-warning/5 p-5">
-              <div id="share-password-title" class="font-semibold text-gray-700 mb-2">请输入上传密码</div>
-              <div id="share-password-tip" class="text-sm text-gray-500 mb-4">该产品开启了上传密码，请向分享者获取 4 位字母或数字密码。</div>
-              <div class="flex flex-col sm:flex-row gap-3">
-                <input id="share-password-input" type="password" maxlength="4" inputmode="text" class="input-primary" placeholder="4位上传密码">
-                <button id="share-password-confirm" class="btn-primary shrink-0" type="button"><i class="fas fa-lock-open"></i><span>确认密码</span></button>
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] 2xl:grid-cols-[minmax(0,1fr)_300px] gap-0">
+          <div class="p-6 xl:p-8 2xl:p-10 bg-white">
+            <div id="share-password-panel" class="share-password-modal hidden">
+              <div class="w-full max-w-md rounded-lg bg-white shadow-dropdown border border-gray-100 p-6">
+                <div class="w-12 h-12 rounded-md bg-primary/10 text-primary flex items-center justify-center mb-4">
+                  <i class="fas fa-lock text-xl"></i>
+                </div>
+                <div id="share-password-title" class="text-xl font-semibold text-gray-700 mb-2">请输入上传密码</div>
+                <div id="share-password-tip" class="text-sm text-gray-500 mb-5 leading-6">该产品开启了上传密码，请向分享者获取 4 位字母或数字密码。</div>
+                <div class="space-y-3">
+                  <input id="share-password-input" type="password" maxlength="4" inputmode="text" class="input-primary h-12 text-base tracking-widest uppercase" placeholder="4位上传密码">
+                  <button id="share-password-confirm" class="btn-primary w-full h-12 text-base" type="button"><i class="fas fa-lock-open"></i><span>确认密码</span></button>
+                </div>
               </div>
             </div>
 
             <div id="share-upload-main" class="space-y-5 hidden">
-              <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                <section class="share-upload-zone rounded-lg border border-gray-200 bg-gray-50/60 p-4 sm:p-5" data-field="pic_ids">
+              <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 2xl:gap-8">
+                <section class="share-upload-zone rounded-lg border border-gray-200 bg-gray-50/60 p-5 xl:p-6 2xl:p-7" data-field="pic_ids">
                   <div>
-                    <div class="flex items-center gap-2 text-base font-semibold text-gray-700"><i class="fas fa-palette text-primary"></i><span>花色图</span></div>
-                    <div class="text-xs text-gray-400 mt-1">产品主图/花型</div>
+                    <div class="flex items-center gap-2 text-xl font-semibold text-gray-700"><i class="fas fa-palette text-primary"></i><span>花色图</span></div>
+                    <div class="text-sm text-gray-400 mt-1">产品主图/花型</div>
                   </div>
-                  <div class="share-upload-drop upload-area min-h-[180px] flex items-center justify-center bg-white mt-4" data-field="pic_ids">
+                  <div class="share-upload-drop upload-area min-h-[300px] 2xl:min-h-[360px] flex items-center justify-center bg-white mt-5" data-field="pic_ids">
                     <div class="space-y-3">
-                      <i class="fas fa-cloud-upload-alt text-4xl text-gray-300"></i>
-                      <div class="text-base font-medium text-gray-600">点击或拖拽图片到这里</div>
-                      <div class="text-sm text-gray-400">支持 JPG、PNG、GIF，一次最多 200 张</div>
+                      <i class="fas fa-cloud-upload-alt text-5xl text-gray-300"></i>
+                      <div class="text-xl font-semibold text-gray-700">点击或拖拽图片到这里</div>
+                      <div class="text-base text-gray-400">支持 JPG、PNG、GIF，一次最多 200 张</div>
                     </div>
                   </div>
                   <input id="share-file-input-pic" type="file" multiple accept="image/*" class="hidden" data-field="pic_ids">
-                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
-                    <div class="text-sm text-gray-500 share-upload-progress" data-field="pic_ids">等待选择花色图</div>
-                    <div class="flex gap-3">
-                      <button class="share-select-files btn-outline bg-white" data-field="pic_ids" type="button"><i class="fas fa-folder-open"></i><span>选择图片</span></button>
-                      <button class="share-confirm-upload btn-primary" data-field="pic_ids" type="button" disabled><i class="fas fa-upload"></i><span>上传花色图</span></button>
+                  <div class="grid grid-cols-1 2xl:grid-cols-[minmax(120px,1fr)_auto] 2xl:items-center gap-4 mt-5">
+                    <div class="text-base text-gray-500 share-upload-progress leading-6" data-field="pic_ids">等待选择花色图</div>
+                    <div class="flex flex-wrap sm:flex-nowrap gap-3">
+                      <button class="share-select-files btn-outline bg-white h-11 min-w-[132px] whitespace-nowrap" data-field="pic_ids" type="button"><i class="fas fa-folder-open"></i><span>选择图片</span></button>
+                      <button class="share-confirm-upload btn-primary h-11 min-w-[148px] whitespace-nowrap" data-field="pic_ids" type="button" disabled><i class="fas fa-upload"></i><span>上传花色图</span></button>
                     </div>
                   </div>
                   <div class="share-preview-grid grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4" data-field="pic_ids"></div>
                 </section>
-                <section class="share-upload-zone rounded-lg border border-gray-200 bg-gray-50/60 p-4 sm:p-5" data-field="detail_pic_ids">
+                <section class="share-upload-zone rounded-lg border border-gray-200 bg-gray-50/60 p-5 xl:p-6 2xl:p-7" data-field="detail_pic_ids">
                   <div>
-                    <div class="flex items-center gap-2 text-base font-semibold text-gray-700"><i class="fas fa-file-image text-primary"></i><span>详情图</span></div>
-                    <div class="text-xs text-gray-400 mt-1">介绍/细节图</div>
+                    <div class="flex items-center gap-2 text-xl font-semibold text-gray-700"><i class="fas fa-file-image text-primary"></i><span>详情图</span></div>
+                    <div class="text-sm text-gray-400 mt-1">介绍/细节图</div>
                   </div>
-                  <div class="share-upload-drop upload-area min-h-[180px] flex items-center justify-center bg-white mt-4" data-field="detail_pic_ids">
+                  <div class="share-upload-drop upload-area min-h-[300px] 2xl:min-h-[360px] flex items-center justify-center bg-white mt-5" data-field="detail_pic_ids">
                     <div class="space-y-3">
-                      <i class="fas fa-cloud-upload-alt text-4xl text-gray-300"></i>
-                      <div class="text-base font-medium text-gray-600">点击或拖拽图片到这里</div>
-                      <div class="text-sm text-gray-400">支持 JPG、PNG、GIF，一次最多 200 张</div>
+                      <i class="fas fa-cloud-upload-alt text-5xl text-gray-300"></i>
+                      <div class="text-xl font-semibold text-gray-700">点击或拖拽图片到这里</div>
+                      <div class="text-base text-gray-400">支持 JPG、PNG、GIF，一次最多 200 张</div>
                     </div>
                   </div>
                   <input id="share-file-input-detail" type="file" multiple accept="image/*" class="hidden" data-field="detail_pic_ids">
-                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
-                    <div class="text-sm text-gray-500 share-upload-progress" data-field="detail_pic_ids">等待选择详情图</div>
-                    <div class="flex gap-3">
-                      <button class="share-select-files btn-outline bg-white" data-field="detail_pic_ids" type="button"><i class="fas fa-folder-open"></i><span>选择图片</span></button>
-                      <button class="share-confirm-upload btn-primary" data-field="detail_pic_ids" type="button" disabled><i class="fas fa-upload"></i><span>上传详情图</span></button>
+                  <div class="grid grid-cols-1 2xl:grid-cols-[minmax(120px,1fr)_auto] 2xl:items-center gap-4 mt-5">
+                    <div class="text-base text-gray-500 share-upload-progress leading-6" data-field="detail_pic_ids">等待选择详情图</div>
+                    <div class="flex flex-wrap sm:flex-nowrap gap-3">
+                      <button class="share-select-files btn-outline bg-white h-11 min-w-[132px] whitespace-nowrap" data-field="detail_pic_ids" type="button"><i class="fas fa-folder-open"></i><span>选择图片</span></button>
+                      <button class="share-confirm-upload btn-primary h-11 min-w-[148px] whitespace-nowrap" data-field="detail_pic_ids" type="button" disabled><i class="fas fa-upload"></i><span>上传详情图</span></button>
                     </div>
                   </div>
                   <div class="share-preview-grid grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4" data-field="detail_pic_ids"></div>
@@ -342,7 +353,7 @@
               </div>
             </div>
           </div>
-          <aside class="bg-[#F7FAFC] p-6 sm:p-8 border-t lg:border-t-0 lg:border-l border-gray-200">
+          <aside class="bg-[#F7FAFC] p-5 xl:p-6 border-t lg:border-t-0 lg:border-l border-gray-200">
             <div class="space-y-5">
               <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-xs font-medium text-gray-500">
                 <i class="fas fa-share-alt text-primary"></i>
