@@ -1192,6 +1192,10 @@ document.addEventListener('DOMContentLoaded', function () {
 	      return shareFolderInfo && Number(shareFolderInfo.password_expired) === 1;
 	  }
 
+	  function hasShareUploadSession() {
+	      return !!shareUploadToken;
+	  }
+
 	  function setShareUploadingState(field, uploading) {
 	      var state = getShareFieldState(field);
 	      state.uploading = uploading;
@@ -1435,11 +1439,12 @@ document.addEventListener('DOMContentLoaded', function () {
 	              }
 	              resetShareUploadProgress();
 	              if (isSharePasswordExpired()) {
+	                  shareUploadToken = '';
 	                  setSharePasswordGate('expired');
 	                  setShareProgress('上传密码已过期，请联系分享者更新密码');
 	                  return shareFolderInfo;
 	              }
-	              if (isSharePasswordRequired()) {
+	              if (isSharePasswordRequired() && !hasShareUploadSession()) {
 	                  setSharePasswordGate('required');
 	                  setShareProgress('请输入上传密码后再选择图片');
 	                  return shareFolderInfo;
