@@ -4,6 +4,7 @@ namespace app\api\controller;
 
 use app\common\model\album\WdXcxAlbumFolder;
 use app\common\model\album\WdXcxAlbumShareBind;
+use app\common\model\user\WdXcxUser;
 use app\common\service\album\AiResourceBridgeService;
 use app\common\service\album\AlbumService;
 use think\App;
@@ -183,6 +184,42 @@ class AlbumApiController extends ApiBaseController
             throwError('请选择产品');
         }
         $this->result($this->album_service->resetBatchUploadLink($param['fid'], request()->userID()), 0, '重置成功');
+    }
+
+    public function saveBatchUploadPassword()
+    {
+        $param = $this->request->postMore([
+            ['fid', 0],
+            ['upload_pwd', ''],
+            ['upload_pwd_expire_time', 0],
+        ]);
+        if(empty($param['fid'])){
+            throwError('请选择产品');
+        }
+        $folder = WdXcxAlbumFolder::where('id', $param['fid'])
+            ->where('folder_type', 2)
+            ->find();
+        if(!$folder){
+            throwError('产品不存在');
+        }
+        $uid = request()->userID();
+        if($folder->uid != $uid){
+            throwError('您没有权限操作此产品');
+        }
+        $password = trim((string)$param['upload_pwd']);
+        if($password !== '' && !preg_match('/^[A-Za-z0-9]{4}$/', $password)){
+            throwError('上传密码格式错误');
+        }
+        (new WdXcxUser())->ensureUploadPasswordColumns();
+        WdXcxUser::where('id', $folder->uid)->update([
+            'upload_pwd' => $password,
+            'upload_pwd_expire_time' => $password === '' ? 0 : max(0, (int)$param['upload_pwd_expire_time']),
+        ]);
+        $this->result([
+            'password' => $password,
+            'password_expire_time' => $password === '' ? 0 : max(0, (int)$param['upload_pwd_expire_time']),
+            'upload_pwd_expire_time' => $password === '' ? 0 : max(0, (int)$param['upload_pwd_expire_time']),
+        ], 0, '保存成功');
     }
 
     public function deleteAlbumFolder()
