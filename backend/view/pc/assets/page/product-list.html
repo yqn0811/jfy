@@ -1294,10 +1294,11 @@ document.addEventListener('DOMContentLoaded', function () {
 	      }
 	      grid.innerHTML = state.files.slice(0, 24).map(function(file) {
 	          var name = String(file.name || '图片');
+	          var previewUrl = getShareFilePreviewUrl(file);
 	          return `
 	            <div class="rounded-md border border-gray-200 bg-white p-3">
-	              <div class="aspect-square rounded bg-gray-100 flex items-center justify-center text-gray-300 mb-2">
-	                <i class="fas fa-image text-2xl"></i>
+	              <div class="aspect-square rounded bg-gray-100 overflow-hidden mb-2">
+	                ${previewUrl ? `<img src="${previewUrl}" class="w-full h-full object-cover" alt="${escapeHtml(name)}">` : '<div class="w-full h-full flex items-center justify-center text-gray-300"><i class="fas fa-image text-2xl"></i></div>'}
 	              </div>
 	              <div class="text-xs text-gray-600 truncate" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
 	            </div>
@@ -1306,6 +1307,17 @@ document.addEventListener('DOMContentLoaded', function () {
 	      setShareProgress(field, `已选择 ${state.files.length} 张${state.label}，等待上传`);
 	      setShareUploadingState(field, false);
 	      updateShareUploadOverview();
+	  }
+
+	  function getShareFilePreviewUrl(file) {
+	      if (!file) return '';
+	      if (file.__sharePreviewUrl) return file.__sharePreviewUrl;
+	      try {
+	          file.__sharePreviewUrl = URL.createObjectURL(file);
+	          return file.__sharePreviewUrl;
+	      } catch (err) {
+	          return '';
+	      }
 	  }
 
 	  function resetShareUploadProgress() {
@@ -1418,6 +1430,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	              renderShareProductInfo(shareFolderInfo.product_info || shareFolderInfo);
 	              renderShareOwnerStorage(shareFolderInfo.owner_storage);
 	              renderShareUploadPolicy(shareFolderInfo.upload_policy);
+	              if (options.silent) {
+	                  return shareFolderInfo;
+	              }
 	              resetShareUploadProgress();
 	              if (isSharePasswordExpired()) {
 	                  setSharePasswordGate('expired');
@@ -1512,7 +1527,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	      formData.append('name', file.name);
 	      formData.append('upload_field', field);
 	      var targetName = getShareFieldLabel(field);
-	      setShareProgress(field, `正在上传${targetName}：第 ${index + 1}/${total} 张，并发 ${getShareUploadConcurrency()}`);
+	      setShareProgress(field, `正在上传${targetName}：第 ${index + 1}/${total} 张`);
 	      return fetch(`${API_BASE_URL}/web/folder/pic/upload`, {
 	          method: 'POST',
 	          headers: {
@@ -1560,7 +1575,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	                  } else {
 	                      failedFiles.push(result.file);
 	                  }
-	                  setShareProgress(field, `${state.label}上传中，已处理 ${finished}/${files.length} 张，并发 ${getShareUploadConcurrency()}`);
+	                  setShareProgress(field, `${state.label}上传中，已处理 ${finished}/${files.length} 张`);
 	                  updateShareUploadOverview();
 	              }).then(function(results) {
 	                  state.files = failedFiles;
