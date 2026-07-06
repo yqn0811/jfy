@@ -163,6 +163,8 @@ class WebUploadService extends BaseService
     public function uploadFileAlbum($params, $uid)
     {
         $need_check = WdXcxBase::where('uniacid', 1)->value('pic_check');
+        $uploadField = isset($params['upload_field']) && $params['upload_field'] === 'detail_pic_ids' ? 'detail_pic_ids' : 'pic_ids';
+        $shouldSyncProductPictures = false;
         Db::startTrans();
         try{
             $data = (new UploadService($this->uniacid))->uploadImages([
@@ -193,7 +195,7 @@ class WebUploadService extends BaseService
                         'create_time' => time(),
                         'update_time' => time(),
                         'upload_date' => date('Y-m-d'),
-                        'upload_field' => '',
+                        'upload_field' => $uploadField,
                     ];
                     $originalName = $item['pic_name'] ?? '';
                     if (!$originalName && !empty($originalNames[$index])) {
@@ -211,6 +213,8 @@ class WebUploadService extends BaseService
                 }
                 $syncStartTime = time() - 5;
                 WdXcxUserAlbumPic::insertAll($pic_album);
+                $shouldSyncProductPictures = $this->appendProductPictureIds($folder_info, array_column($pic_album, 'pic_id'), $uploadField);
+                $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
                 $createdRelations = WdXcxUserAlbumPic::where('folder_id', $params['pid'])
                     ->whereIn('pic_id', array_column($pic_album, 'pic_id'))
                     ->where('create_time', '>=', $syncStartTime)
@@ -231,6 +235,9 @@ class WebUploadService extends BaseService
             throwError($exception->getMessage());
         }
         Db::commit();
+        if ($shouldSyncProductPictures) {
+            (new AiResourceBridgeService($this->app))->safeSyncProductPictures($folder_info->uid, WdXcxAlbumFolder::where('id', $folder_info->id)->find());
+        }
         if (!empty($createdRelations)) {
             $bridge = new AiResourceBridgeService($this->app);
             foreach ($createdRelations as $relation) {
@@ -241,6 +248,44 @@ class WebUploadService extends BaseService
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',
             'data' => $data,
         ];
+    }
+
+    private function appendProductPictureIds($folder, $picIds, $field)
+    {
+        if(!$folder || !in_array($field, ['pic_ids', 'detail_pic_ids'])){
+            return false;
+        }
+        $oldIds = $this->normalizeIdList($folder->getData($field) ?? '');
+        $newIds = $this->normalizeIdList($picIds);
+        if(empty($newIds)){
+            return false;
+        }
+        $merged = array_values(array_unique(array_merge($oldIds, $newIds)));
+        $folder->save([
+            $field => implode(',', $merged)
+        ]);
+        return true;
+    }
+
+    private function normalizeIdList($value)
+    {
+        if(is_array($value)){
+            $items = $value;
+        }else{
+            $text = trim((string)$value);
+            if($text === ''){
+                return [];
+            }
+            $items = explode(',', $text);
+        }
+        $ids = [];
+        foreach($items as $item){
+            $id = (int)$item;
+            if($id > 0){
+                $ids[] = $id;
+            }
+        }
+        return array_values(array_unique($ids));
     }
 
     /**更新父级文件夹的缩略图

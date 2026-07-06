@@ -76,6 +76,10 @@ class WebUploadApiController extends ApiBaseController
         if((int)$pid !== (int)request()->webUploadFolderID()){
             throwError('上传凭证与相册不匹配');
         }
+        $upload_field = $this->request->post('upload_field', 'pic_ids');
+        if(!in_array($upload_field, ['pic_ids', 'detail_pic_ids'])){
+            throwError('请选择上传到花色图或详情图');
+        }
         $uid = request()->userID();
         $folder = WdXcxAlbumFolder::where([
             'id' => $pid,
@@ -97,6 +101,7 @@ class WebUploadApiController extends ApiBaseController
             'files' => $files,
             'file_type' => 1,
             'pid' => $pid,
+            'upload_field' => $upload_field,
             'original_names' => $this->getUploadOriginalNames($this->request->post()),
         ], $uid);
         $this->result($result);
