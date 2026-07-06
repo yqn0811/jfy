@@ -101,6 +101,7 @@ class WebUploadApiController extends ApiBaseController
             'files' => $files,
             'file_type' => 1,
             'pid' => $pid,
+            'owner_uid' => $folder->uid,
             'upload_field' => $upload_field,
             'original_names' => $this->getUploadOriginalNames($this->request->post()),
         ], $uid);

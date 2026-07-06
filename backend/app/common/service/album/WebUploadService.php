@@ -165,19 +165,26 @@ class WebUploadService extends BaseService
         $need_check = WdXcxBase::where('uniacid', 1)->value('pic_check');
         $uploadField = isset($params['upload_field']) && $params['upload_field'] === 'detail_pic_ids' ? 'detail_pic_ids' : 'pic_ids';
         $shouldSyncProductPictures = false;
+        $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
+        if(!$folder_info){
+            throwError('指定的上传码对应的相册不存在');
+        }
+        $ownerUid = (int)($params['owner_uid'] ?? $folder_info->uid);
+        if($ownerUid <= 0 || $ownerUid !== (int)$folder_info->uid){
+            throwError('上传凭证与相册主不匹配');
+        }
         Db::startTrans();
         try{
             $data = (new UploadService($this->uniacid))->uploadImages([
                 'files' => $params['files'],
                 'flag' => 1,
                 'gid' => $params['pid'],
-                'uid' => $uid,
+                'uid' => $ownerUid,
                 'file_type' => $params['file_type'],
                 'original_names' => $params['original_names'] ?? [],
             ]);
             $createdRelations = [];
             if(count($data) > 0){ //存入相关相册
-                $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
                 $pic_album = [];
                 $last_url = '';
                 $originalNames = $params['original_names'] ?? [];
@@ -188,7 +195,7 @@ class WebUploadService extends BaseService
                     }
                     $pic_album[] = [
                         'uniacid' => 1,
-                        'user_id' => $uid,
+                        'user_id' => $ownerUid,
                         'pic_id' => $item['pid'],
                         'folder_id' => $params['pid'],
                         'set_top_time' => time(),
