@@ -114,14 +114,19 @@ class WebUploadService extends BaseService
         if ($bytes <= 0) {
             return '0M';
         }
-        $mb = (int)ceil($bytes / 1024 / 1024);
-        if($mb > 1024 * 1024){
-            return bcdiv($mb, 1024 * 1024) . 'T';
+        if ($bytes >= 1024 * 1024 * 1024 * 1024) {
+            return $this->formatStorageNumber($bytes / 1024 / 1024 / 1024 / 1024) . 'T';
         }
-        if($mb > 1024){
-            return bcdiv($mb, 1024) . 'G';
+        if ($bytes >= 1024 * 1024 * 1024) {
+            return $this->formatStorageNumber($bytes / 1024 / 1024 / 1024) . 'G';
         }
-        return $mb . 'M';
+        return $this->formatStorageNumber($bytes / 1024 / 1024) . 'M';
+    }
+
+    private function formatStorageNumber($value)
+    {
+        $text = number_format((float)$value, 2, '.', '');
+        return rtrim(rtrim($text, '0'), '.');
     }
 
     /**获取上传token
