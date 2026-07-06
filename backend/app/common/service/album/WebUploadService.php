@@ -76,6 +76,7 @@ class WebUploadService extends BaseService
             'owner_info' => $this->getOwnerInfo($user),
             'product_info' => $this->getProductInfo($folder),
             'owner_storage' => $this->getOwnerStorageInfo($user, $syncedVipGradeInfo),
+            'upload_policy' => $this->getUploadPolicyInfo($user, $syncedVipGradeInfo),
         ];
         return $result;
     }
@@ -113,6 +114,44 @@ class WebUploadService extends BaseService
             'desc' => (string)($folder->folder_desc ?: ''),
             'cover' => $folder->new_thumb,
         ];
+    }
+
+    private function getUploadPolicyInfo($user, $syncedVipGradeInfo = null)
+    {
+        $vipGradeInfo = $user->VipGradeInfo;
+        if (is_array($syncedVipGradeInfo)) {
+            $vipGradeInfo = array_merge($vipGradeInfo, $syncedVipGradeInfo);
+        }
+        $concurrency = (int)($vipGradeInfo['upload_concurrency'] ?? ($vipGradeInfo['concurrency_limit'] ?? 0));
+        if ($concurrency <= 0) {
+            $concurrency = $this->defaultUploadConcurrency((int)($vipGradeInfo['grade_level'] ?? $user->vip_grade));
+        }
+
+        return [
+            'concurrency' => $this->normalizeUploadConcurrency($concurrency),
+            'max_files_per_batch' => 200,
+            'grade_level' => (int)($vipGradeInfo['grade_level'] ?? $user->vip_grade),
+            'grade_name' => (string)($vipGradeInfo['grade_name'] ?? ''),
+        ];
+    }
+
+    private function defaultUploadConcurrency($gradeLevel)
+    {
+        if ($gradeLevel >= 4) {
+            return 5;
+        }
+        if ($gradeLevel >= 3) {
+            return 3;
+        }
+        if ($gradeLevel >= 2) {
+            return 2;
+        }
+        return 1;
+    }
+
+    private function normalizeUploadConcurrency($value)
+    {
+        return max(1, min(8, (int)$value));
     }
 
     private function getOwnerStorageInfo($user, $syncedVipGradeInfo = null)

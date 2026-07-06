@@ -1073,6 +1073,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	  var shareFolderInfo = null;
 	  var shareUploadedCount = 0;
 	  var sharePassword = '';
+	  var shareActiveUploads = 0;
+	  var shareUploadConcurrency = 1;
+	  var shareUploadTaskQueue = [];
 	  var shareUploadFields = {
 	      pic_ids: {
 	          label: '花色图',
@@ -1227,6 +1230,57 @@ document.addEventListener('DOMContentLoaded', function () {
 	      }
 	  }
 
+	  function getShareUploadConcurrency() {
+	      return Math.max(1, Math.min(8, Number(shareUploadConcurrency || 1)));
+	  }
+
+	  function renderShareUploadPolicy(policy) {
+	      policy = policy || {};
+	      var concurrency = Number(policy.concurrency || policy.upload_concurrency || policy.concurrency_limit || 0);
+	      if (!concurrency && shareFolderInfo && shareFolderInfo.owner_info) {
+	          concurrency = 1;
+	      }
+	      shareUploadConcurrency = Math.max(1, Math.min(8, concurrency || 1));
+	  }
+
+	  function runShareUploadQueue(tasks, onTaskDone) {
+	      var finished = 0;
+	      if (!tasks.length) return Promise.resolve([]);
+	      return Promise.all(tasks.map(function(task) {
+	          return scheduleShareUploadTask(task).then(function(result) {
+	              finished += 1;
+	              if (onTaskDone) onTaskDone(result, finished);
+	              return result;
+	          });
+	      }));
+	  }
+
+	  function scheduleShareUploadTask(task) {
+	      return new Promise(function(resolve, reject) {
+	          shareUploadTaskQueue.push({
+	              task: task,
+	              resolve: resolve,
+	              reject: reject
+	          });
+	          drainShareUploadTaskQueue();
+	      });
+	  }
+
+	  function drainShareUploadTaskQueue() {
+	      var concurrency = getShareUploadConcurrency();
+	      while (shareActiveUploads < concurrency && shareUploadTaskQueue.length) {
+	          var item = shareUploadTaskQueue.shift();
+	          shareActiveUploads += 1;
+	          item.task()
+	              .then(item.resolve)
+	              .catch(item.reject)
+	              .finally(function() {
+	                  shareActiveUploads = Math.max(0, shareActiveUploads - 1);
+	                  drainShareUploadTaskQueue();
+	              });
+	      }
+	  }
+
 	  function renderShareSelectedFiles(field) {
 	      var state = getShareFieldState(field);
 	      var grid = document.querySelector('.share-preview-grid[data-field="' + field + '"]');
@@ -1363,6 +1417,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	              renderShareOwnerInfo(shareFolderInfo.owner_info);
 	              renderShareProductInfo(shareFolderInfo.product_info || shareFolderInfo);
 	              renderShareOwnerStorage(shareFolderInfo.owner_storage);
+	              renderShareUploadPolicy(shareFolderInfo.upload_policy);
 	              resetShareUploadProgress();
 	              if (isSharePasswordExpired()) {
 	                  setSharePasswordGate('expired');
@@ -1457,7 +1512,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	      formData.append('name', file.name);
 	      formData.append('upload_field', field);
 	      var targetName = getShareFieldLabel(field);
-	      setShareProgress(field, `正在上传${targetName}：第 ${index + 1}/${total} 张...`);
+	      setShareProgress(field, `正在上传${targetName}：第 ${index + 1}/${total} 张，并发 ${getShareUploadConcurrency()}`);
 	      return fetch(`${API_BASE_URL}/web/folder/pic/upload`, {
 	          method: 'POST',
 	          headers: {
@@ -1482,32 +1537,50 @@ document.addEventListener('DOMContentLoaded', function () {
 	      setShareUploadingState(field, true);
 	      getShareUploadToken()
 	          .then(function() {
-	              var chain = Promise.resolve();
 	              var success = 0;
-	              files.forEach(function(file, index) {
-	                  chain = chain.then(function() {
-	                      return uploadShareFile(field, file, index, files.length)
-	                          .then(function() {
-	                              success += 1;
-	                              state.uploaded += 1;
-	                              shareUploadedCount += 1;
-	                              document.getElementById('share-upload-count').textContent = shareUploadedCount;
-	                              updateShareUploadOverview();
-	                          });
-	                  });
+	              var failedFiles = [];
+	              var tasks = files.map(function(file, index) {
+	                  return function() {
+	                      return uploadShareFile(field, file, index, files.length).then(function(data) {
+	                          return { ok: true, data: data, file: file, index: index };
+	                      }).catch(function(err) {
+	                          return { ok: false, error: err, file: file, index: index };
+	                      });
+	                  };
 	              });
-	              return chain.then(function() {
-	                  state.files = [];
+	              return runShareUploadQueue(tasks, function(result, finished) {
+	                  if (result.ok) {
+	                      success += 1;
+	                      state.uploaded += 1;
+	                      shareUploadedCount += 1;
+	                      state.files = state.files.filter(function(item) {
+	                          return item !== result.file;
+	                      });
+	                      document.getElementById('share-upload-count').textContent = shareUploadedCount;
+	                  } else {
+	                      failedFiles.push(result.file);
+	                  }
+	                  setShareProgress(field, `${state.label}上传中，已处理 ${finished}/${files.length} 张，并发 ${getShareUploadConcurrency()}`);
+	                  updateShareUploadOverview();
+	              }).then(function(results) {
+	                  state.files = failedFiles;
 	                  renderShareSelectedFiles(field);
-	                  setShareProgress(field, `${state.label}上传完成，成功 ${success}/${files.length} 张`);
-	                  showToast('上传完成');
+	                  if (failedFiles.length) {
+	                      setShareProgress(field, `${state.label}上传完成，成功 ${success}/${files.length} 张，失败 ${failedFiles.length} 张，可直接重试`);
+	                      showToast(`${state.label}上传完成，失败 ${failedFiles.length} 张`, 'error');
+	                  } else {
+	                      setShareProgress(field, `${state.label}上传完成，成功 ${success}/${files.length} 张`);
+	                      showToast('上传完成');
+	                  }
 	                  loadShareFolderInfo({ silent: true });
+	                  return results;
 	              });
 	          })
 	          .catch(function(err) {
 	              console.error(err);
 	              setShareProgress(field, err.message || '上传失败');
 	              showToast(err.message || '上传失败', 'error');
+	              renderShareSelectedFiles(field);
 	          })
 	          .finally(function() {
 	              setShareUploadingState(field, false);

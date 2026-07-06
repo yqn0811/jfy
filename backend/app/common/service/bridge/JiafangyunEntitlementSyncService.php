@@ -51,6 +51,7 @@ class JiafangyunEntitlementSyncService extends BaseService
         $plan = is_array($entitlements['plan'] ?? null) ? $entitlements['plan'] : [];
         $benefits = is_array($plan['benefits_json'] ?? null) ? $plan['benefits_json'] : (is_array($plan['benefits'] ?? null) ? $plan['benefits'] : []);
         $uploadSizeMb = $this->resolveUploadSizeMb($benefits, $gradeLevel);
+        $uploadConcurrency = $this->resolveUploadConcurrency($benefits, $gradeLevel);
         $gradeName = $this->resolveGradeName($gradeLevel, $level, $plan);
 
         Db::startTrans();
@@ -75,6 +76,8 @@ class JiafangyunEntitlementSyncService extends BaseService
             'space_size' => $spaceSizeMb,
             'upload_size_type' => 1,
             'upload_size' => $uploadSizeMb,
+            'upload_concurrency' => $uploadConcurrency,
+            'concurrency_limit' => $uploadConcurrency,
             'membership_level' => $level,
             'membership_plan_id' => (int)($entitlements['membership_plan_id'] ?? 0),
             'resource_storage' => $entitlements['resource_storage'] ?? [],
@@ -197,6 +200,31 @@ class JiafangyunEntitlementSyncService extends BaseService
             return 50;
         }
         return 20;
+    }
+
+    private function resolveUploadConcurrency($benefits, $gradeLevel)
+    {
+        foreach (['concurrency_limit', 'upload_concurrency', 'upload_parallel', 'parallel_uploads', 'max_concurrent_uploads', 'max_concurrent'] as $key) {
+            $value = (int)($benefits[$key] ?? 0);
+            if ($value > 0) {
+                return $this->normalizeUploadConcurrency($value);
+            }
+        }
+        if ($gradeLevel >= 4) {
+            return 5;
+        }
+        if ($gradeLevel >= 3) {
+            return 3;
+        }
+        if ($gradeLevel >= 2) {
+            return 2;
+        }
+        return 1;
+    }
+
+    private function normalizeUploadConcurrency($value)
+    {
+        return max(1, min(8, (int)$value));
     }
 
     private function parseExpireAt($value, $gradeLevel)
