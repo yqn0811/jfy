@@ -648,15 +648,29 @@ export default {
 }
 
 .gender-wrap {
-  max-width: 76rpx;
-  padding: 16rpx 8rpx;
+  align-self: flex-start;
+  min-width: 64rpx;
+  max-width: 112rpx;
+  height: 36rpx;
+  padding: 0 14rpx;
   background: rgba(0, 0, 0, 0.2);
-  border-radius: 96rpx;
-  display: flex;
+  border-radius: 18rpx;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 24rpx;
+  font-size: 20rpx;
+  line-height: 36rpx;
   color: #fff;
+  box-sizing: border-box;
+
+  text {
+    display: block;
+    max-width: 84rpx;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 36rpx;
+  }
 }
 
 .gender {
