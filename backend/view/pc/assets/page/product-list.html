@@ -1192,8 +1192,54 @@ document.addEventListener('DOMContentLoaded', function () {
 	      return shareFolderInfo && Number(shareFolderInfo.password_expired) === 1;
 	  }
 
+	  function getShareUploadSessionKey() {
+	      return shareUploadCode ? 'jfy:share-upload-token:' + shareUploadCode : '';
+	  }
+
+	  function restoreShareUploadSession() {
+	      var key = getShareUploadSessionKey();
+	      if (!key || shareUploadToken) return shareUploadToken;
+	      try {
+	          var raw = sessionStorage.getItem(key);
+	          if (!raw) return '';
+	          var saved = JSON.parse(raw);
+	          var token = saved && saved.token ? String(saved.token) : '';
+	          if (token) {
+	              shareUploadToken = token;
+	          }
+	          return shareUploadToken;
+	      } catch (err) {
+	          try {
+	              sessionStorage.removeItem(key);
+	          } catch (removeErr) {}
+	          return '';
+	      }
+	  }
+
+	  function saveShareUploadSession(token) {
+	      shareUploadToken = token || '';
+	      var key = getShareUploadSessionKey();
+	      if (!key || !shareUploadToken) return;
+	      try {
+	          sessionStorage.setItem(key, JSON.stringify({
+	              token: shareUploadToken,
+	              code: shareUploadCode,
+	              saved_at: Date.now()
+	          }));
+	      } catch (err) {}
+	  }
+
+	  function clearShareUploadSession() {
+	      shareUploadToken = '';
+	      var key = getShareUploadSessionKey();
+	      if (!key) return;
+	      try {
+	          sessionStorage.removeItem(key);
+	      } catch (err) {}
+	  }
+
 	  function hasShareUploadSession() {
-	      return !!shareUploadToken;
+	      return !!(shareUploadToken || restoreShareUploadSession());
 	  }
 
 	  function setShareUploadingState(field, uploading) {
@@ -1439,7 +1485,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	              }
 	              resetShareUploadProgress();
 	              if (isSharePasswordExpired()) {
-	                  shareUploadToken = '';
+	                  clearShareUploadSession();
 	                  setSharePasswordGate('expired');
 	                  setShareProgress('上传密码已过期，请联系分享者更新密码');
 	                  return shareFolderInfo;
@@ -1464,6 +1510,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	  }
 
 	  function getShareUploadToken() {
+	      restoreShareUploadSession();
 	      if (shareUploadToken) return Promise.resolve(shareUploadToken);
 	      return fetch(`${API_BASE_URL}/web/token/upload`, {
 	          method: 'POST',
@@ -1479,15 +1526,16 @@ document.addEventListener('DOMContentLoaded', function () {
 	      .then(res => {
 	          if (res.code !== 0 && res.code !== 200) {
 	              if (String(res.msg || '').includes('密码')) {
-	                  shareUploadToken = '';
+	                  clearShareUploadSession();
 	                  setSharePasswordGate('required');
 	              }
 	              throw new Error(res.msg || '获取上传凭证失败');
 	          }
-	          shareUploadToken = res.data && res.data.token ? res.data.token : '';
-	          if (!shareUploadToken) {
+	          var token = res.data && res.data.token ? res.data.token : '';
+	          if (!token) {
 	              throw new Error('获取上传凭证失败');
 	          }
+	          saveShareUploadSession(token);
 	          return shareUploadToken;
 	      });
 	  }
@@ -1502,7 +1550,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	          showToast('上传密码已过期，请联系分享者更新密码', 'error');
 	          return false;
 	      }
-	      if (isSharePasswordRequired() && !shareUploadToken) {
+	      if (isSharePasswordRequired() && !hasShareUploadSession()) {
 	          setSharePasswordGate('required');
 	          showToast('请先输入上传密码', 'error');
 	          return false;
@@ -1536,7 +1584,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	      return fetch(`${API_BASE_URL}/web/folder/pic/upload`, {
 	          method: 'POST',
 	          headers: {
-	              'authorization-token': 'Bearer ' + shareUploadToken
+	              'authorization-token': 'Bearer ' + (shareUploadToken || restoreShareUploadSession())
 	          },
 	          body: formData
 	      })
@@ -1646,7 +1694,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	              showToast('请输入4位字母或数字密码', 'error');
 	              return;
 	          }
-	          shareUploadToken = '';
+	          clearShareUploadSession();
 	          passwordConfirm.disabled = true;
 	          passwordConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>验证中...</span>';
 	          getShareUploadToken().then(function() {
