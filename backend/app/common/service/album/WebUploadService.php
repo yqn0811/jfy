@@ -43,6 +43,8 @@ class WebUploadService extends BaseService
         if(!$user){
             throwError('指定的上传码对应的用户不存在');
         }
+        (new WdXcxUser())->ensureUploadPasswordColumns();
+        $uploadPwdExpired = $this->isUploadPasswordExpired($user);
         if(!$record->ewm_code){
             try {
                 $file_path = public_path().'image/ewm';
@@ -63,6 +65,8 @@ class WebUploadService extends BaseService
         $result = [
             'content' => '把该链接分享给好友，即可多人一起上传哦',
             'has_password' => $user->upload_pwd ? 1 : 0,
+            'password_expire_time' => (int)$user->upload_pwd_expire_time,
+            'password_expired' => $uploadPwdExpired ? 1 : 0,
             'id' => $folder->id,
             'image_base64' => $record->ewm_code,
             'folder_name' => $folder->folder_name,
@@ -95,7 +99,11 @@ class WebUploadService extends BaseService
         if(!$user){
             throwError('指定的上传码对应的用户不存在');
         }
+        (new WdXcxUser())->ensureUploadPasswordColumns();
         if($user->upload_pwd){
+            if($this->isUploadPasswordExpired($user)){
+                throwError('上传密码已过期，请联系分享者更新密码');
+            }
             if(empty($param['password'])){
                 throwError('请填写密码');
             }
@@ -162,14 +170,16 @@ class WebUploadService extends BaseService
                 'flag' => 1,
                 'gid' => $params['pid'],
                 'uid' => $uid,
-                'file_type' => $params['file_type']
+                'file_type' => $params['file_type'],
+                'original_names' => $params['original_names'] ?? [],
             ]);
             $createdRelations = [];
             if(count($data) > 0){ //存入相关相册
                 $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
                 $pic_album = [];
                 $last_url = '';
-                foreach ($data as $item){
+                $originalNames = $params['original_names'] ?? [];
+                foreach ($data as $index => $item){
                     $imageDetection = $this->weChatImageValidation($item['url']);
                     if($imageDetection["data"] != 0){ // 图片涉黄了
                         throwError("图片检测不通过，请重新上传");
@@ -185,6 +195,18 @@ class WebUploadService extends BaseService
                         'upload_date' => date('Y-m-d'),
                         'upload_field' => '',
                     ];
+                    $originalName = $item['pic_name'] ?? '';
+                    if (!$originalName && !empty($originalNames[$index])) {
+                        $originalName = $originalNames[$index];
+                    }
+                    if (!$originalName && !empty($originalNames['default'])) {
+                        $originalName = $originalNames['default'];
+                    }
+                    if ($originalName) {
+                        \app\index\model\WdXcxPic::where('id', $item['pid'])->update([
+                            'pic_name' => (string)$originalName
+                        ]);
+                    }
                     $last_url = $item['url'];
                 }
                 $syncStartTime = time() - 5;
@@ -247,6 +269,12 @@ class WebUploadService extends BaseService
         if ($folder->pid > 0) {
             $this->updateParentThumbs($folder->pid, $thumbPath);
         }
+    }
+
+    private function isUploadPasswordExpired($user)
+    {
+        $expireTime = isset($user->upload_pwd_expire_time) ? (int)$user->upload_pwd_expire_time : 0;
+        return $expireTime > 0 && $expireTime < time();
     }
 
 

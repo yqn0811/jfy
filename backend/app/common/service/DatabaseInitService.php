@@ -93,6 +93,7 @@ class DatabaseInitService extends BaseService
               `wx_ewm` varchar(255) DEFAULT NULL,
               `user_desc` text,
               `upload_pwd` varchar(8) DEFAULT NULL,
+              `upload_pwd_expire_time` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '批量上传密码过期时间 0永久有效',
               `is_show_home` tinyint(1) NOT NULL DEFAULT 1,
               `company_name` varchar(128) DEFAULT NULL,
               `company_logo` varchar(255) DEFAULT NULL,

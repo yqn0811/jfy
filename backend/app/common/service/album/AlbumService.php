@@ -2026,13 +2026,17 @@ class AlbumService extends BaseService
         if($folder->uid != $uid && !$folder->checkFolderRule($uid)){
             throwError('您没有权限操作此产品');
         }
+        (new WdXcxUser())->ensureUploadPasswordColumns();
         $code = $this->getUploadCode($fid, $folder->uid);
-        $url = request()->domain() . '/web/pc_index.html?uploadd_code=' . urlencode($code);
+        $user = WdXcxUser::where('id', $folder->uid)->find();
+        $url = 'https://pic.jfyuntu.com/assets/page/product-list.html?uploadd_code=' . urlencode($code);
         return [
             'upload_url' => $url,
             'url' => $url,
             'code' => $code,
-            'password' => WdXcxUser::where('id', $folder->uid)->value('upload_pwd') ?: '',
+            'password' => $user ? ($user->upload_pwd ?: '') : '',
+            'password_expire_time' => $user ? (int)$user->upload_pwd_expire_time : 0,
+            'upload_pwd_expire_time' => $user ? (int)$user->upload_pwd_expire_time : 0,
         ];
     }
 

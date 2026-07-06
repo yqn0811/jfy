@@ -804,7 +804,11 @@
 				for (let i = 0; i < files.length; i++) {
 					const formData = new FormData();
 					formData.append('fid', folderInfo.id);
-					formData.append('files', files[i]);
+					formData.append('files', files[i], files[i].name);
+					formData.append('filename', files[i].name);
+					formData.append('file_name', files[i].name);
+					formData.append('original_name', files[i].name);
+					formData.append('name', files[i].name);
 					
 					// 更新进度显示
 					document.getElementById("progress").textContent = 

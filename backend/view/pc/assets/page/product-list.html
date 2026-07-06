@@ -217,7 +217,7 @@
     </style> 
  </head> 
  <body class="bg-gray-100 font-inter text-gray-700"> 
-  <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm">
+  <header id="app-header" class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm">
    <div class="px-4 py-3 grid grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[264px_minmax(320px,1fr)_264px] xl:grid-cols-[320px_minmax(360px,720px)_320px] lg:justify-between lg:items-center gap-x-4 gap-y-3">
     <div class="flex items-center justify-between min-w-0">
      <div class="flex items-center gap-3">
@@ -247,7 +247,86 @@
     </div>
    </div>
   </header>
-  <div class="p-4"> 
+  <div id="share-upload-page" class="hidden min-h-screen bg-gray-100 p-4 sm:p-6">
+    <div class="max-w-5xl mx-auto">
+      <div class="bg-white rounded-lg shadow-card overflow-hidden">
+        <div class="p-6 sm:p-8 border-b border-gray-100">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+            <div>
+              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-4">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <span>产品专属上传</span>
+              </div>
+              <h1 id="share-upload-title" class="text-2xl sm:text-3xl font-semibold text-gray-700">大批量照片上传</h1>
+              <p id="share-upload-subtitle" class="text-sm text-gray-500 mt-3 leading-6">打开链接后选择本地图片，上传内容会归入分享者指定产品，并按分享者云空间容量统计。</p>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center min-w-[280px]">
+              <div class="bg-gray-50 rounded-md p-3">
+                <div class="text-lg font-semibold text-gray-700">200</div>
+                <div class="text-xs text-gray-400 mt-1">单次最多</div>
+              </div>
+              <div class="bg-gray-50 rounded-md p-3">
+                <div class="text-lg font-semibold text-gray-700">手机</div>
+                <div class="text-xs text-gray-400 mt-1">浏览器</div>
+              </div>
+              <div class="bg-gray-50 rounded-md p-3">
+                <div class="text-lg font-semibold text-gray-700">电脑</div>
+                <div class="text-xs text-gray-400 mt-1">浏览器</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-0">
+          <div class="p-6 sm:p-8">
+            <div id="share-password-panel" class="hidden mb-6 rounded-lg border border-warning/30 bg-warning/5 p-5">
+              <div class="font-semibold text-gray-700 mb-2">请输入上传密码</div>
+              <div class="text-sm text-gray-500 mb-4">该产品开启了上传密码，请向分享者获取 4 位字母或数字密码。</div>
+              <div class="flex flex-col sm:flex-row gap-3">
+                <input id="share-password-input" type="password" maxlength="4" inputmode="text" class="input-primary" placeholder="4位上传密码">
+                <button id="share-password-confirm" class="btn-primary shrink-0" type="button"><i class="fas fa-lock-open"></i><span>确认密码</span></button>
+              </div>
+            </div>
+
+            <div id="share-upload-main" class="space-y-5">
+              <div id="share-upload-drop" class="upload-area min-h-[220px] flex items-center justify-center">
+                <div class="space-y-3">
+                  <i class="fas fa-cloud-upload-alt text-5xl text-gray-300"></i>
+                  <div class="text-base font-medium text-gray-600">点击或拖拽图片到这里</div>
+                  <div class="text-sm text-gray-400">支持 JPG、PNG、GIF，一次最多选择 200 张</div>
+                </div>
+              </div>
+              <input id="share-file-input" type="file" multiple accept="image/*" class="hidden">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="text-sm text-gray-500" id="share-upload-progress">等待选择图片</div>
+                <div class="flex gap-3">
+                  <button id="share-select-files" class="btn-outline" type="button"><i class="fas fa-folder-open"></i><span>选择图片</span></button>
+                  <button id="share-confirm-upload" class="btn-primary" type="button" disabled><i class="fas fa-upload"></i><span>开始上传</span></button>
+                </div>
+              </div>
+              <div id="share-preview-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+            </div>
+          </div>
+          <aside class="bg-gray-50 p-6 sm:p-8 border-t lg:border-t-0 lg:border-l border-gray-100">
+            <div class="space-y-5">
+              <div>
+                <div class="text-sm text-gray-400 mb-1">当前产品</div>
+                <div id="share-folder-name" class="text-lg font-semibold text-gray-700 break-all">加载中...</div>
+              </div>
+              <div class="rounded-md bg-white border border-gray-200 p-4">
+                <div class="flex items-center justify-between text-sm mb-2">
+                  <span class="text-gray-500">上传数量</span>
+                  <span class="font-semibold text-gray-700"><span id="share-upload-count">0</span> 张</span>
+                </div>
+                <div class="text-xs text-gray-400 leading-5">上传成功后会直接进入该产品内容，容量由分享者账号统一控制。</div>
+              </div>
+              <button id="share-copy-link" class="btn-outline w-full" type="button"><i class="fas fa-link"></i><span>复制当前链接</span></button>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="manager-page" class="p-4">
    <!-- 分类管理区域 --> 
    <div class="flex flex-col xl:flex-row gap-6"> 
     <!-- 左侧分类列表 --> 
@@ -583,6 +662,41 @@
 	        </div>
 	      </div>
 	    </div>
+	    <!-- 产品分享弹窗 -->
+	    <div id="product-share-modal" class="modal-mask hidden">
+	      <div class="modal-content !max-w-2xl">
+	        <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+	          <div class="min-w-0">
+	            <h2 class="text-xl font-semibold text-gray-700"> 分享产品 </h2>
+	            <p id="product-share-title" class="text-sm text-gray-400 mt-1 truncate">请选择产品</p>
+	          </div>
+	          <div class="flex items-center gap-3">
+	            <button id="product-share-permission" class="text-primary text-sm hover:underline" type="button">设置访问权限</button>
+	            <button id="close-product-share-modal" class="text-gray-400 hover:text-gray-600 p-2"><i class="fas fa-times"></i></button>
+	          </div>
+	        </div>
+	        <div class="p-6">
+	          <div class="flex gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+	            <img id="product-share-cover" src="./navigation/default_thumb.png" alt="" class="w-20 h-20 rounded-md object-cover bg-white border border-gray-200">
+	            <div class="min-w-0 flex-1">
+	              <div id="product-share-name" class="font-semibold text-gray-700 truncate">产品名称</div>
+	              <div class="text-xs text-gray-400 mt-2">分享后客户会进入小程序产品详情页，访问范围按产品权限控制。</div>
+	              <div id="product-share-path" class="mt-3 text-xs text-gray-500 bg-white border border-gray-200 rounded-md px-3 py-2 break-all"></div>
+	            </div>
+	          </div>
+	          <div id="product-share-preview" class="hidden mt-5 rounded-lg border border-gray-200 bg-white p-4 text-center">
+	            <img id="product-share-preview-img" src="" alt="" class="max-h-[360px] mx-auto rounded-md object-contain">
+	            <div id="product-share-preview-tip" class="text-sm text-gray-500 mt-3"></div>
+	          </div>
+	          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
+	            <button id="product-share-copy-link" class="btn-primary" type="button"><i class="fas fa-link"></i><span>复制分享链接</span></button>
+	            <button id="product-share-mini-code" class="btn-outline" type="button"><i class="fas fa-qrcode"></i><span>小程序码</span></button>
+	            <button id="product-share-poster" class="btn-outline" type="button"><i class="fas fa-image"></i><span>生成海报</span></button>
+	            <button id="product-share-copy-path" class="btn-outline" type="button"><i class="fas fa-copy"></i><span>复制小程序路径</span></button>
+	          </div>
+	        </div>
+	      </div>
+	    </div>
 	    <!-- 购买升级弹窗 -->
 	    <div id="upgrade-modal" class="modal-mask hidden">
 	      <div class="modal-content !max-w-6xl">
@@ -644,6 +758,20 @@ document.addEventListener('DOMContentLoaded', function () {
 	  var upgradePaymentModal = document.getElementById('upgrade-payment-modal');
 	  var closeUpgradePaymentModalBtn = document.getElementById('close-upgrade-payment-modal');
 	  var upgradePaymentContent = document.getElementById('upgrade-payment-content');
+	  var productShareModal = document.getElementById('product-share-modal');
+	  var closeProductShareModalBtn = document.getElementById('close-product-share-modal');
+	  var productShareTitle = document.getElementById('product-share-title');
+	  var productShareCover = document.getElementById('product-share-cover');
+	  var productShareName = document.getElementById('product-share-name');
+	  var productSharePath = document.getElementById('product-share-path');
+	  var productSharePreview = document.getElementById('product-share-preview');
+	  var productSharePreviewImg = document.getElementById('product-share-preview-img');
+	  var productSharePreviewTip = document.getElementById('product-share-preview-tip');
+	  var productShareCopyLinkBtn = document.getElementById('product-share-copy-link');
+	  var productShareMiniCodeBtn = document.getElementById('product-share-mini-code');
+	  var productSharePosterBtn = document.getElementById('product-share-poster');
+	  var productShareCopyPathBtn = document.getElementById('product-share-copy-path');
+	  var productSharePermissionBtn = document.getElementById('product-share-permission');
 	  var topUserInfoBtn = document.getElementById('top-user-info');
 	  var topUserAvatar = document.getElementById('top-user-avatar');
 	  var topUserAvatarFallback = document.getElementById('top-user-avatar-fallback');
@@ -783,6 +911,301 @@ document.addEventListener('DOMContentLoaded', function () {
 	  // Determine environment
 	  var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 	  var API_BASE_URL = isLocal ? 'http://localhost:8000/api' : 'https://pic.jfyuntu.com/index.php/api'; 
+	  var urlParams = new URLSearchParams(window.location.search);
+	  var shareUploadCode = urlParams.get('uploadd_code') || urlParams.get('code') || '';
+	  var isShareUploadMode = !!shareUploadCode;
+	  var shareUploadToken = '';
+	  var shareFolderInfo = null;
+	  var shareSelectedFiles = [];
+	  var shareUploadedCount = 0;
+	  var shareUploading = false;
+	  var sharePassword = urlParams.get('user_pwd') || '';
+
+	  function escapeHtml(value) {
+	      return String(value || '').replace(/[&<>"']/g, function(ch) {
+	          return {
+	              '&': '&amp;',
+	              '<': '&lt;',
+	              '>': '&gt;',
+	              '"': '&quot;',
+	              "'": '&#39;'
+	          }[ch];
+	      });
+	  }
+
+	  function enterShareUploadMode() {
+	      var header = document.getElementById('app-header');
+	      var managerPage = document.getElementById('manager-page');
+	      var sharePage = document.getElementById('share-upload-page');
+	      if (header) header.classList.add('hidden');
+	      if (managerPage) managerPage.classList.add('hidden');
+	      if (sharePage) sharePage.classList.remove('hidden');
+	      document.body.classList.remove('bg-gray-100');
+	      document.body.classList.add('bg-gray-100');
+	      initShareUploadPage();
+	  }
+
+	  function setShareProgress(text) {
+	      var el = document.getElementById('share-upload-progress');
+	      if (el) el.textContent = text || '';
+	  }
+
+	  function setShareUploadingState(uploading) {
+	      shareUploading = uploading;
+	      var confirmBtn = document.getElementById('share-confirm-upload');
+	      var selectBtn = document.getElementById('share-select-files');
+	      if (confirmBtn) {
+	          confirmBtn.disabled = uploading || shareSelectedFiles.length === 0;
+	          confirmBtn.innerHTML = uploading
+	              ? '<i class="fas fa-spinner fa-spin"></i><span>上传中...</span>'
+	              : '<i class="fas fa-upload"></i><span>开始上传</span>';
+	      }
+	      if (selectBtn) selectBtn.disabled = uploading;
+	  }
+
+	  function renderShareSelectedFiles() {
+	      var grid = document.getElementById('share-preview-grid');
+	      if (!grid) return;
+	      if (!shareSelectedFiles.length) {
+	          grid.innerHTML = '';
+	          setShareProgress('等待选择图片');
+	          setShareUploadingState(false);
+	          return;
+	      }
+	      grid.innerHTML = shareSelectedFiles.slice(0, 24).map(function(file) {
+	          var name = String(file.name || '图片');
+	          return `
+	            <div class="rounded-md border border-gray-200 bg-white p-3">
+	              <div class="aspect-square rounded bg-gray-100 flex items-center justify-center text-gray-300 mb-2">
+	                <i class="fas fa-image text-2xl"></i>
+	              </div>
+	              <div class="text-xs text-gray-600 truncate" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+	            </div>
+	          `;
+	      }).join('') + (shareSelectedFiles.length > 24 ? `<div class="rounded-md border border-gray-200 bg-white p-3 flex items-center justify-center text-sm text-gray-400">还有 ${shareSelectedFiles.length - 24} 张</div>` : '');
+	      setShareProgress(`已选择 ${shareSelectedFiles.length} 张图片，点击“开始上传”`);
+	      setShareUploadingState(false);
+	  }
+
+	  function loadShareFolderInfo() {
+	      setShareProgress('正在加载产品信息...');
+	      return fetch(`${API_BASE_URL}/web/upload?code=${encodeURIComponent(shareUploadCode)}`)
+	          .then(res => res.json())
+	          .then(res => {
+	              if (res.code !== 0 && res.code !== 200) {
+	                  throw new Error(res.msg || '上传链接不可用');
+	              }
+	              shareFolderInfo = res.data || {};
+	              var folderName = shareFolderInfo.folder_name || '产品照片';
+	              document.getElementById('share-folder-name').textContent = folderName;
+	              document.getElementById('share-upload-title').textContent = folderName + ' · 大批量上传';
+	              if (Number(shareFolderInfo.password_expired) === 1) {
+	                  document.getElementById('share-password-panel').classList.add('hidden');
+	                  setShareProgress('上传密码已过期，请联系分享者更新密码');
+	              } else if (Number(shareFolderInfo.has_password) === 1 && !sharePassword) {
+	                  document.getElementById('share-password-panel').classList.remove('hidden');
+	                  setShareProgress('请输入上传密码后再选择图片');
+	              } else {
+	                  document.getElementById('share-password-panel').classList.add('hidden');
+	                  setShareProgress('等待选择图片');
+	              }
+	              return shareFolderInfo;
+	          })
+	          .catch(err => {
+	              console.error(err);
+	              setShareProgress(err.message || '上传链接不可用');
+	              showToast(err.message || '上传链接不可用', 'error');
+	          });
+	  }
+
+	  function getShareUploadToken() {
+	      if (shareUploadToken) return Promise.resolve(shareUploadToken);
+	      return fetch(`${API_BASE_URL}/web/token/upload`, {
+	          method: 'POST',
+	          headers: {
+	              'Content-Type': 'application/json'
+	          },
+	          body: JSON.stringify({
+	              code: shareUploadCode,
+	              password: sharePassword || ''
+	          })
+	      })
+	      .then(res => res.json())
+	      .then(res => {
+	          if (res.code !== 0 && res.code !== 200) {
+	              if (String(res.msg || '').includes('密码')) {
+	                  shareUploadToken = '';
+	                  document.getElementById('share-password-panel').classList.remove('hidden');
+	              }
+	              throw new Error(res.msg || '获取上传凭证失败');
+	          }
+	          shareUploadToken = res.data && res.data.token ? res.data.token : '';
+	          if (!shareUploadToken) {
+	              throw new Error('获取上传凭证失败');
+	          }
+	          return shareUploadToken;
+	      });
+	  }
+
+	  function chooseShareFiles(files) {
+	      var list = Array.from(files || []).filter(function(file) {
+	          return file && /^image\//.test(file.type || '');
+	      });
+	      if (list.length > 200) {
+	          showToast('一次最多选择200张图片', 'error');
+	          list = list.slice(0, 200);
+	      }
+	      shareSelectedFiles = list;
+	      renderShareSelectedFiles();
+	  }
+
+	  function uploadShareFile(file, index, total) {
+	      var formData = new FormData();
+	      formData.append('fid', shareFolderInfo.id);
+	      formData.append('files', file, file.name);
+	      formData.append('filename', file.name);
+	      formData.append('file_name', file.name);
+	      formData.append('original_name', file.name);
+	      formData.append('name', file.name);
+	      setShareProgress(`正在上传第 ${index + 1}/${total} 张...`);
+	      return fetch(`${API_BASE_URL}/web/folder/pic/upload`, {
+	          method: 'POST',
+	          headers: {
+	              'authorization-token': 'Bearer ' + shareUploadToken
+	          },
+	          body: formData
+	      })
+	      .then(res => res.json())
+	      .then(res => {
+	          if (res.code !== 0 && res.code !== 200) {
+	              throw new Error(res.msg || `第 ${index + 1} 张上传失败`);
+	          }
+	          return res.data;
+	      });
+	  }
+
+	  function uploadShareSelectedFiles() {
+	      if (!shareSelectedFiles.length || shareUploading) return;
+	      if (!shareFolderInfo || !shareFolderInfo.id) {
+	          showToast('产品信息未加载完成', 'error');
+	          return;
+	      }
+	      setShareUploadingState(true);
+	      getShareUploadToken()
+	          .then(function() {
+	              var chain = Promise.resolve();
+	              var success = 0;
+	              shareSelectedFiles.forEach(function(file, index) {
+	                  chain = chain.then(function() {
+	                      return uploadShareFile(file, index, shareSelectedFiles.length)
+	                          .then(function() {
+	                              success += 1;
+	                              shareUploadedCount += 1;
+	                              document.getElementById('share-upload-count').textContent = shareUploadedCount;
+	                          });
+	                  });
+	              });
+	              return chain.then(function() {
+	                  setShareProgress(`上传完成，成功 ${success}/${shareSelectedFiles.length} 张`);
+	                  showToast('上传完成');
+	                  shareSelectedFiles = [];
+	                  renderShareSelectedFiles();
+	              });
+	          })
+	          .catch(function(err) {
+	              console.error(err);
+	              setShareProgress(err.message || '上传失败');
+	              showToast(err.message || '上传失败', 'error');
+	          })
+	          .finally(function() {
+	              setShareUploadingState(false);
+	          });
+	  }
+
+	  function initShareUploadPage() {
+	      var fileInput = document.getElementById('share-file-input');
+	      var dropArea = document.getElementById('share-upload-drop');
+	      var selectBtn = document.getElementById('share-select-files');
+	      var confirmBtn = document.getElementById('share-confirm-upload');
+	      var passwordInput = document.getElementById('share-password-input');
+	      var passwordConfirm = document.getElementById('share-password-confirm');
+	      var copyBtn = document.getElementById('share-copy-link');
+
+	      loadShareFolderInfo();
+	      if (selectBtn) selectBtn.addEventListener('click', function() {
+	          if (shareFolderInfo && Number(shareFolderInfo.password_expired) === 1) {
+	              showToast('上传密码已过期，请联系分享者更新密码', 'error');
+	              return;
+	          }
+	          if (shareFolderInfo && Number(shareFolderInfo.has_password) === 1 && !sharePassword) {
+	              showToast('请先输入上传密码', 'error');
+	              document.getElementById('share-password-panel').classList.remove('hidden');
+	              if (passwordInput) passwordInput.focus();
+	              return;
+	          }
+	          getShareUploadToken().then(function() {
+	              fileInput.click();
+	          }).catch(function(err) {
+	              showToast(err.message || '请先输入上传密码', 'error');
+	          });
+	      });
+	      if (fileInput) fileInput.addEventListener('change', function() {
+	          chooseShareFiles(this.files);
+	          this.value = '';
+	      });
+	      if (confirmBtn) confirmBtn.addEventListener('click', uploadShareSelectedFiles);
+	      if (passwordConfirm) passwordConfirm.addEventListener('click', function() {
+	          sharePassword = (passwordInput && passwordInput.value || '').trim();
+	          if (!/^[A-Za-z0-9]{4}$/.test(sharePassword)) {
+	              showToast('请输入4位字母或数字密码', 'error');
+	              return;
+	          }
+	          shareUploadToken = '';
+	          getShareUploadToken().then(function() {
+	              document.getElementById('share-password-panel').classList.add('hidden');
+	              setShareProgress('密码验证通过，可以选择图片');
+	              showToast('密码验证通过');
+	          }).catch(function(err) {
+	              showToast(err.message || '密码错误', 'error');
+	          });
+	      });
+	      if (copyBtn) copyBtn.addEventListener('click', function() {
+	          navigator.clipboard && navigator.clipboard.writeText(window.location.href).then(function() {
+	              showToast('链接已复制');
+	          }).catch(function() {
+	              showToast('复制失败', 'error');
+	          });
+	      });
+	      if (dropArea) {
+	          ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function(eventName) {
+	              dropArea.addEventListener(eventName, function(e) {
+	                  e.preventDefault();
+	                  e.stopPropagation();
+	              });
+	          });
+	          ['dragenter', 'dragover'].forEach(function(eventName) {
+	              dropArea.addEventListener(eventName, function() {
+	                  dropArea.classList.add('drag-over');
+	              });
+	          });
+	          ['dragleave', 'drop'].forEach(function(eventName) {
+	              dropArea.addEventListener(eventName, function() {
+	                  dropArea.classList.remove('drag-over');
+	              });
+	          });
+	          dropArea.addEventListener('drop', function(e) {
+	              chooseShareFiles(e.dataTransfer.files);
+	          });
+	          dropArea.addEventListener('click', function() {
+	              if (selectBtn) selectBtn.click();
+	          });
+	      }
+	  }
+
+	  if (isShareUploadMode) {
+	      enterShareUploadMode();
+	      return;
+	  }
   
   // Test Login for Local
   if (isLocal) {
@@ -1614,10 +2037,14 @@ document.addEventListener('DOMContentLoaded', function () {
           var isTop = item.set_top == 1;
           var topBtnClass = isTop ? 'bg-warning text-white' : 'bg-white/20 hover:bg-white/30 text-white';
           var topTitle = isTop ? '取消置顶' : '置顶';
+          var productName = escapeHtml(item.folder_name || '未命名产品');
+          var productDesc = escapeHtml(item.folder_desc || '暂无描述');
+          var shareTitle = productName;
+          var shareCover = escapeHtml(thumb);
 
           div.innerHTML = `
             <div class="relative aspect-[4/3] bg-gray-100 overflow-hidden">
-              <img src="${thumb}" alt="${item.folder_name}" class="w-full h-full object-cover">
+              <img src="${shareCover}" alt="${productName}" class="w-full h-full object-cover">
               <div class="absolute top-2 right-2">
                 ${statusBadge}
               </div>
@@ -1627,14 +2054,15 @@ document.addEventListener('DOMContentLoaded', function () {
               <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 translate-y-full group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transform pointer-events-none group-hover:pointer-events-auto transition-transform-opacity duration-200">
                 <div class="flex justify-end gap-2">
                   <button class="toggle-top-product w-8 h-8 flex items-center justify-center rounded-full ${topBtnClass}" data-id="${item.id}" data-top="${isTop ? 1 : 0}" title="${topTitle}"><i class="fas fa-thumbtack"></i></button>
+                  <button class="share-product w-8 h-8 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-full text-white" data-id="${item.id}" data-uid="${item.uid || ''}" data-name="${shareTitle}" data-cover="${shareCover}" title="分享"><i class="fas fa-share-alt"></i></button>
                   <button class="edit-product w-8 h-8 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-full text-white" data-id="${item.id}"><i class="fas fa-edit"></i></button>
                   <button class="delete-product w-8 h-8 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-full text-white" data-id="${item.id}"><i class="fas fa-trash-alt"></i></button>
                 </div>
               </div>
             </div>
             <div class="p-4">
-              <h3 class="font-medium text-gray-700 mb-1 line-clamp-1"> ${item.folder_name} </h3>
-              <p class="text-sm text-gray-400 mb-2 line-clamp-2"> ${item.folder_desc || '暂无描述'} </p>
+              <h3 class="font-medium text-gray-700 mb-1 line-clamp-1"> ${productName} </h3>
+              <p class="text-sm text-gray-400 mb-2 line-clamp-2"> ${productDesc} </p>
               <div class="flex justify-between items-center">
                 <span class="text-xs text-gray-400"> 花色图: ${(item.pic_ids_arr || []).length}张 </span>
                 <span class="text-xs text-gray-400"> 详情图: ${(item.detail_pic_ids_arr || []).length}张 </span>
@@ -1760,6 +2188,236 @@ document.addEventListener('DOMContentLoaded', function () {
       }
   }
 
+  var currentProductShare = null;
+
+  function normalizeShareValue(value) {
+      if (value === null || value === undefined) return '';
+      var text = String(value).trim();
+      if (!text || text === 'null' || text === 'undefined') return '';
+      return text;
+  }
+
+  function getCurrentOwnerId() {
+      return normalizeShareValue(cachedUserInfo && (cachedUserInfo.id || cachedUserInfo.uid || cachedUserInfo.user_id));
+  }
+
+  function buildProductMiniPath(productId, ownerId) {
+      var query = [];
+      if (productId) query.push('id=' + encodeURIComponent(productId));
+      if (ownerId) query.push('uid=' + encodeURIComponent(ownerId));
+      return 'pagesOther/productDetail/productDetail' + (query.length ? '?' + query.join('&') : '');
+  }
+
+  function setProductSharePreview(imageUrl, tip) {
+      if (!productSharePreview || !productSharePreviewImg || !productSharePreviewTip) return;
+      if (!imageUrl) {
+          productSharePreview.classList.add('hidden');
+          productSharePreviewImg.removeAttribute('src');
+          productSharePreviewTip.textContent = '';
+          return;
+      }
+      productSharePreviewImg.src = imageUrl;
+      productSharePreviewTip.textContent = tip || '';
+      productSharePreview.classList.remove('hidden');
+  }
+
+  function openProductShareModal(product) {
+      var ownerId = normalizeShareValue(product.uid) || getCurrentOwnerId();
+      var productId = normalizeShareValue(product.id);
+      if (!productId) {
+          showToast('产品信息缺失', 'error');
+          return;
+      }
+      if (!ownerId) {
+          showToast('分享用户信息缺失，请刷新后重试', 'error');
+          return;
+      }
+      var productName = normalizeShareValue(product.name) || '未命名产品';
+      var cover = normalizeShareValue(product.cover) || './navigation/default_thumb.png';
+      var miniPath = buildProductMiniPath(productId, ownerId);
+      currentProductShare = {
+          id: productId,
+          ownerId: ownerId,
+          name: productName,
+          cover: cover,
+          path: miniPath
+      };
+      if (productShareTitle) productShareTitle.textContent = productName;
+      if (productShareName) productShareName.textContent = productName;
+      if (productShareCover) productShareCover.src = cover;
+      if (productSharePath) productSharePath.textContent = '/' + miniPath;
+      setProductSharePreview('', '');
+      productShareModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+  }
+
+  function closeProductShareModal() {
+      if (!productShareModal) return;
+      productShareModal.classList.add('hidden');
+      document.body.style.overflow = '';
+      currentProductShare = null;
+      setProductSharePreview('', '');
+  }
+
+  function setProductShareButtonLoading(button, loading, text) {
+      if (!button) return;
+      if (loading) {
+          button.dataset.originHtml = button.innerHTML;
+          button.disabled = true;
+          button.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + (text || '处理中') + '</span>';
+          return;
+      }
+      button.disabled = false;
+      if (button.dataset.originHtml) {
+          button.innerHTML = button.dataset.originHtml;
+          delete button.dataset.originHtml;
+      }
+  }
+
+  function fetchProductShareConfig(type) {
+      if (!currentProductShare) return Promise.reject(new Error('分享信息缺失'));
+      var params = new URLSearchParams({
+          target_user_id: currentProductShare.ownerId,
+          path: currentProductShare.path,
+          timestamp: String(Date.now())
+      });
+      if (type === 'mini' || type === 'poster') {
+          params.set('type', 'product');
+          params.set('id', currentProductShare.id);
+      }
+      if (type === 'poster' && currentProductShare.cover) {
+          params.set('cover_url', currentProductShare.cover);
+      }
+      var api = type === 'link' ? 'user/home/share_link' : (type === 'mini' ? 'user/home/minicode' : 'user/home/share_poster');
+      return fetch(`${API_BASE_URL}/${api}?${params.toString()}`, {
+          headers: {
+              ...getAuthTokenHeader()
+          }
+      })
+      .then(res => res.json())
+      .then(res => {
+          if (res.code !== 0 && res.code !== 200) {
+              throw new Error(res.msg || '分享生成失败');
+          }
+          return res.data || {};
+      });
+  }
+
+  function copyText(text, successText) {
+      if (!text) {
+          showToast('内容为空', 'error');
+          return Promise.resolve(false);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(text).then(function() {
+              showToast(successText || '复制成功');
+              return true;
+          }).catch(function() {
+              return fallbackCopyText(text, successText);
+          });
+      }
+      return fallbackCopyText(text, successText);
+  }
+
+  function fallbackCopyText(text, successText) {
+      var textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', 'readonly');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      var ok = false;
+      try {
+          ok = document.execCommand('copy');
+      } catch (e) {
+          ok = false;
+      }
+      document.body.removeChild(textarea);
+      showToast(ok ? (successText || '复制成功') : '复制失败', ok ? 'success' : 'error');
+      return Promise.resolve(ok);
+  }
+
+  function handleCopyProductShareLink() {
+      if (!currentProductShare) return;
+      setProductShareButtonLoading(productShareCopyLinkBtn, true, '生成中');
+      fetchProductShareConfig('link')
+          .then(function(data) {
+              var link = data.url_link || data.link || data.share_link || data.short_link || '';
+              if (!link) throw new Error('链接生成失败');
+              return copyText(link, '已复制分享链接');
+          })
+          .catch(function(err) {
+              console.error(err);
+              showToast(err.message || '链接生成失败', 'error');
+          })
+          .finally(function() {
+              setProductShareButtonLoading(productShareCopyLinkBtn, false);
+          });
+  }
+
+  function handleProductMiniCode() {
+      if (!currentProductShare) return;
+      setProductShareButtonLoading(productShareMiniCodeBtn, true, '生成中');
+      fetchProductShareConfig('mini')
+          .then(function(data) {
+              var qrcode = data.qrcode || '';
+              if (!qrcode) throw new Error('小程序码生成失败');
+              setProductSharePreview(qrcode, data.tips || '扫码进入产品详情');
+              showToast('小程序码已生成');
+          })
+          .catch(function(err) {
+              console.error(err);
+              showToast(err.message || '小程序码生成失败', 'error');
+          })
+          .finally(function() {
+              setProductShareButtonLoading(productShareMiniCodeBtn, false);
+          });
+  }
+
+  function handleProductPoster() {
+      if (!currentProductShare) return;
+      setProductShareButtonLoading(productSharePosterBtn, true, '生成中');
+      fetchProductShareConfig('poster')
+          .then(function(data) {
+              var poster = data.share_thumb || data.poster || data.imageUrl || '';
+              if (!poster) throw new Error('海报生成失败');
+              setProductSharePreview(poster, '可右键保存海报后发送给客户');
+              showToast('海报已生成');
+          })
+          .catch(function(err) {
+              console.error(err);
+              showToast(err.message || '海报生成失败', 'error');
+          })
+          .finally(function() {
+              setProductShareButtonLoading(productSharePosterBtn, false);
+          });
+  }
+
+  if (closeProductShareModalBtn) closeProductShareModalBtn.addEventListener('click', closeProductShareModal);
+  if (productShareModal) {
+      productShareModal.addEventListener('click', function(e) {
+          if (e.target === this) closeProductShareModal();
+      });
+  }
+  if (productShareCopyLinkBtn) productShareCopyLinkBtn.addEventListener('click', handleCopyProductShareLink);
+  if (productShareMiniCodeBtn) productShareMiniCodeBtn.addEventListener('click', handleProductMiniCode);
+  if (productSharePosterBtn) productSharePosterBtn.addEventListener('click', handleProductPoster);
+  if (productShareCopyPathBtn) {
+      productShareCopyPathBtn.addEventListener('click', function() {
+          if (!currentProductShare) return;
+          copyText('/' + currentProductShare.path, '已复制小程序路径');
+      });
+  }
+  if (productSharePermissionBtn) {
+      productSharePermissionBtn.addEventListener('click', function() {
+          if (!currentProductShare) return;
+          var productId = currentProductShare.id;
+          closeProductShareModal();
+          fetchProductDetails(productId);
+      });
+  }
+
   // Event Delegation for Edit/Delete Categories
   document.getElementById('category-list').addEventListener('click', function(e) {
       var editBtn = e.target.closest('.edit-category');
@@ -1813,6 +2471,18 @@ document.addEventListener('DOMContentLoaded', function () {
       var editBtn = e.target.closest('.edit-product');
       var delBtn = e.target.closest('.delete-product');
       var topBtn = e.target.closest('.toggle-top-product');
+      var shareBtn = e.target.closest('.share-product');
+
+      if (shareBtn) {
+          e.stopPropagation();
+          openProductShareModal({
+              id: shareBtn.dataset.id,
+              uid: shareBtn.dataset.uid,
+              name: shareBtn.dataset.name,
+              cover: shareBtn.dataset.cover
+          });
+          return;
+      }
 
       if (topBtn) {
           e.stopPropagation();

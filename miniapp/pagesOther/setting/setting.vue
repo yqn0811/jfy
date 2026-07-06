@@ -25,6 +25,24 @@
 
           <view class="divider"></view>
 
+          <view class="setting-item" @click="handleBatchUpload">
+            <view class="item-left">
+              <image
+                src="/static/icon/upload-cloud.png"
+                class="item-icon"
+                mode="aspectFit"
+              ></image>
+              <text class="item-text">大批量上传</text>
+            </view>
+            <image
+              src="/static/icon/Chevron Right@2x(1).png"
+              class="arrow-icon"
+              mode="aspectFit"
+            ></image>
+          </view>
+
+          <view class="divider"></view>
+
           <!-- 置顶该产品 -->
           <view class="setting-item">
             <view class="item-left">
@@ -266,6 +284,16 @@ export default {
     handleEdit() {
       uni.navigateTo({
         url: `/pagesOther/addProduct/addProduct?id=${this.productId}`,
+      });
+    },
+
+    handleBatchUpload() {
+      if (!this.productId) {
+        uni.showToast({ title: "缺少产品信息", icon: "none" });
+        return;
+      }
+      uni.navigateTo({
+        url: `/pagesOther/batchUpload/batchUpload?fid=${this.productId}`,
       });
     },
 

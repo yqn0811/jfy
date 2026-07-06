@@ -1203,12 +1203,15 @@ class UserService extends BaseService
         if (empty($param['openid'])) {
             throwError('openid不能为空');
         }
+        (new WdXcxUser())->ensureUploadPasswordColumns();
 
         if (!empty($param['upload_pwd'])) {
-            //检查是否为4位整数
-            if (!preg_match('/^[0-9]{4}$/', $param['upload_pwd'])) {
+            if (!preg_match('/^[A-Za-z0-9]{4}$/', $param['upload_pwd'])) {
                 throwError('上传密码格式错误');
             }
+        }
+        if (isset($param['upload_pwd_expire_time']) && $param['upload_pwd_expire_time'] !== null && $param['upload_pwd_expire_time'] !== '') {
+            $param['upload_pwd_expire_time'] = max(0, (int)$param['upload_pwd_expire_time']);
         }
         $user = $this->userModel->getUserByOpenid($param['openid']);
         if (!$user) {
@@ -1232,6 +1235,9 @@ class UserService extends BaseService
         }
         if (isset($param['upload_pwd'])) {
             $user->upload_pwd = $param['upload_pwd'];
+        }
+        if (isset($param['upload_pwd_expire_time']) && $param['upload_pwd_expire_time'] !== null && $param['upload_pwd_expire_time'] !== '') {
+            $user->upload_pwd_expire_time = (int)$param['upload_pwd_expire_time'];
         }
         
         // 新增字段更新（仅当不为 null 时才更新，避免默认值覆盖已有数据）

@@ -32,16 +32,17 @@
 			</view>
 			<!-- 链接展示区域 -->
 			<view class="link-box">
-				<text class="link-text">{{ shareLink }}?uploadd_code{{ uploadd_code }} </text>
+				<text class="link-text">{{ uploadUrl }}</text>
 			</view>
 			<view class="section invite-section">
 				<view class="subtitle">设置批量上传密码</view>
 				<view class="line-tab">
 					<view class="top-line">
-						<view class="input-right">批量上传密码限4位数字</view>
+						<view class="label">批量上传密码</view>
 						<input type="text" v-model="userInfo.upload_pwd" @tap="focusField('uploadPwd')" @focus="focusField('uploadPwd')" @blur="handleUploadPwdBlur" class="input-right" placeholder-class="jf-input-placeholder" :placeholder="placeholderFor('uploadPwd', '点击添加')"
 							maxlength="4" />
 					</view>
+						<view class="des">限4位字母或数字；留空则好友打开链接无需密码。</view>
 
 				</view>
 			</view>
@@ -64,10 +65,18 @@
 export default {
 		data() {
 			return {
-				shareLink: 'https://api.jfyuntu.com/web/pc_index.html',
+				shareLink: 'https://pic.jfyuntu.com/assets/page/product-list.html',
 				uploadd_code: '',
 				user_pwd: '',
 				userInfo: {}
+		}
+	},
+	computed: {
+		uploadUrl() {
+			return `${this.shareLink}?uploadd_code=${this.uploadd_code || ''}`
+		},
+		currentUploadPwd() {
+			return (this.userInfo && this.userInfo.upload_pwd) || this.user_pwd || ''
 		}
 	},
 	onLoad(options) {
@@ -84,9 +93,9 @@ export default {
 		submitInfo() {
 			// 验证昵称
 				// 验证批量上传密码(如果填写了)
-				if (this.userInfo.upload_pwd && !/^\d{4}$/.test(this.userInfo.upload_pwd)) {
+				if (this.userInfo.upload_pwd && !/^[A-Za-z0-9]{4}$/.test(this.userInfo.upload_pwd)) {
 					uni.showToast({
-						title: '批量上传密码必须是4位数字',
+						title: '批量上传密码需为4位字母或数字',
 						icon: 'none'
 					});
 					return;
@@ -98,6 +107,7 @@ export default {
 					wx_ewm: this.ermImg,
 					user_desc: this.userInfo.user_desc || '',
 					upload_pwd: this.userInfo.upload_pwd || '',
+					upload_pwd_expire_time: this.userInfo.upload_pwd ? (Number(this.userInfo.upload_pwd_expire_time || 0)) : 0,
 					openid:uni.getStorageSync('openid'),
 					timestamp: new Date().getTime(),
 				}
@@ -109,6 +119,7 @@ export default {
 				this.$go('user/update_info', data, 'post', {
 					show_err: true
 				}).then(res => {
+					this.user_pwd = this.userInfo.upload_pwd || ''
 					uni.showToast({
 						title: '更新成功',
 						icon: 'success'
@@ -137,7 +148,7 @@ export default {
 
 		copyLink() {
 			uni.setClipboardData({
-				data: this.shareLink + `?uploadd_code=${this.uploadd_code}`,
+				data: this.uploadUrl,
 				success: () => {
 					uni.showToast({
 						title: '复制成功',
@@ -153,12 +164,16 @@ export default {
 			})
 		},
 		copyLinkAll() {
+			const password = this.currentUploadPwd
+			const data = password
+				? `${this.uploadUrl}\n上传密码：${password}`
+				: this.uploadUrl
 			uni.setClipboardData({
-				data: this.shareLink + `?uploadd_code=${this.uploadd_code}&user_pwd=${this.user_pwd}`,
+				data,
 				success: () => {
 					uni.showToast({
-						title: '复制成功',
-						icon: 'success'
+						title: password ? '已复制链接和密码' : '未设置密码，已复制链接',
+						icon: 'none'
 					})
 				},
 				fail: () => {

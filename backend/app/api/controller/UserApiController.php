@@ -121,6 +121,7 @@ class UserApiController extends ApiBaseController
             ['wx_ewm', null],
             ['user_desc', null],
             ['upload_pwd', null],
+            ['upload_pwd_expire_time', null],
             // 主页资料相关字段
             ['company_name', null],
             ['company_logo', null],
@@ -351,6 +352,7 @@ class UserApiController extends ApiBaseController
             'wx_ewm' => $user->wx_ewm,
             'user_desc' => $user->user_desc,
             'upload_pwd' => $user->upload_pwd,
+            'upload_pwd_expire_time' => (int)$user->upload_pwd_expire_time,
             'id' => $user->id,
             'visit_no_need_nickname' => (int)$user->visit_no_need_nickname,
             'visit_no_need_mobile' => (int)$user->visit_no_need_mobile,

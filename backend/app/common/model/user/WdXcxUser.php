@@ -265,6 +265,7 @@ class WdXcxUser extends BaseModel
 
     public function ensureHomePreferenceColumns()
     {
+        $this->ensureUploadPasswordColumns();
         $hasNickname = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'visit_no_need_nickname'");
         if (!$hasNickname) {
             Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `visit_no_need_nickname` tinyint(1) NOT NULL DEFAULT 0 COMMENT '主页访问无需填写昵称 0否 1是' AFTER `is_show_home`");
@@ -304,6 +305,14 @@ class WdXcxUser extends BaseModel
         $hasVisitReadTime = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'visit_read_time'");
         if (!$hasVisitReadTime) {
             Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `visit_read_time` int(11) NOT NULL DEFAULT 0 COMMENT '浏览记录已读时间' AFTER `industry_info`");
+        }
+    }
+
+    public function ensureUploadPasswordColumns()
+    {
+        $hasUploadPwdExpire = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'upload_pwd_expire_time'");
+        if (!$hasUploadPwdExpire) {
+            Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `upload_pwd_expire_time` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '批量上传密码过期时间 0永久有效' AFTER `upload_pwd`");
         }
     }
 

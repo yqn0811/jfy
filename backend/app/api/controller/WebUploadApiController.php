@@ -97,8 +97,30 @@ class WebUploadApiController extends ApiBaseController
             'files' => $files,
             'file_type' => 1,
             'pid' => $pid,
+            'original_names' => $this->getUploadOriginalNames($this->request->post()),
         ], $uid);
         $this->result($result);
+    }
+
+    private function getUploadOriginalNames($param)
+    {
+        $names = [];
+        foreach (['original_name', 'filename', 'file_name', 'name'] as $field) {
+            if (!isset($param[$field]) || $param[$field] === '') {
+                continue;
+            }
+            $value = $param[$field];
+            if (is_array($value)) {
+                foreach ($value as $index => $name) {
+                    if ($name !== '') {
+                        $names[$index] = (string)$name;
+                    }
+                }
+            } elseif (empty($names)) {
+                $names['default'] = (string)$value;
+            }
+        }
+        return $names;
     }
 
 
