@@ -57,6 +57,11 @@ class CommonApiController extends ApiBaseController
         $this->result($this->service->getWorkbenchMenu());
     }
 
+    public function getMemberUpgradeConfig()
+    {
+        $this->result($this->service->getMemberUpgradeConfig());
+    }
+
     /**获取游戏排行榜
      * @return void
      */
