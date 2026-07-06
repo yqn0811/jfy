@@ -176,14 +176,8 @@
             .upload-area.drag-over {
                 @apply border-primary bg-primary/5;
             }
-            .share-target-option.active {
-                @apply border-primary bg-primary text-white shadow-card;
-            }
-            .share-target-option.active .share-target-muted {
-                @apply text-white/80;
-            }
             .product-share-workspace {
-                background: linear-gradient(135deg, #E6F7F3 0%, #EEF6FF 100%);
+                background: #F8FAFC;
             }
             .product-share-panel {
                 @apply rounded-lg border border-gray-200 bg-white p-4;
@@ -288,52 +282,64 @@
             </div>
           </div>
         </div>
-        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-0">
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-0">
           <div class="p-6 sm:p-8 bg-white">
             <div id="share-password-panel" class="hidden mb-6 rounded-lg border border-warning/30 bg-warning/5 p-5">
-              <div class="font-semibold text-gray-700 mb-2">请输入上传密码</div>
-              <div class="text-sm text-gray-500 mb-4">该产品开启了上传密码，请向分享者获取 4 位字母或数字密码。</div>
+              <div id="share-password-title" class="font-semibold text-gray-700 mb-2">请输入上传密码</div>
+              <div id="share-password-tip" class="text-sm text-gray-500 mb-4">该产品开启了上传密码，请向分享者获取 4 位字母或数字密码。</div>
               <div class="flex flex-col sm:flex-row gap-3">
                 <input id="share-password-input" type="password" maxlength="4" inputmode="text" class="input-primary" placeholder="4位上传密码">
                 <button id="share-password-confirm" class="btn-primary shrink-0" type="button"><i class="fas fa-lock-open"></i><span>确认密码</span></button>
               </div>
             </div>
 
-            <div id="share-upload-main" class="space-y-5">
-              <div class="rounded-lg border border-[#B7E4DB] product-share-workspace p-4 sm:p-5">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div id="share-upload-main" class="space-y-5 hidden">
+              <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                <section class="share-upload-zone rounded-lg border border-gray-200 bg-gray-50/60 p-4 sm:p-5" data-field="pic_ids">
                   <div>
-                    <div class="text-sm font-semibold text-gray-700">上传工作区</div>
-                    <div id="share-upload-target-text" class="text-xs text-gray-500 mt-1">当前上传到花色图</div>
+                    <div class="flex items-center gap-2 text-base font-semibold text-gray-700"><i class="fas fa-palette text-primary"></i><span>花色图</span></div>
+                    <div class="text-xs text-gray-400 mt-1">产品主图/花型</div>
                   </div>
-                  <div class="grid grid-cols-2 gap-2 sm:w-[260px]">
-                    <button class="share-target-option active rounded-md border border-gray-200 bg-white px-3 py-2 text-left text-gray-600 transition-colors hover:border-primary/50" data-field="pic_ids" type="button">
-                      <span class="flex items-center gap-2 text-sm font-semibold"><i class="fas fa-palette"></i><span>花色图</span></span>
-                      <span class="share-target-muted mt-1 block text-xs text-gray-400">产品主图/花型</span>
-                    </button>
-                    <button class="share-target-option rounded-md border border-gray-200 bg-white px-3 py-2 text-left text-gray-600 transition-colors hover:border-primary/50" data-field="detail_pic_ids" type="button">
-                      <span class="flex items-center gap-2 text-sm font-semibold"><i class="fas fa-file-image"></i><span>详情图</span></span>
-                      <span class="share-target-muted mt-1 block text-xs text-gray-400">介绍/细节图</span>
-                    </button>
+                  <div class="share-upload-drop upload-area min-h-[180px] flex items-center justify-center bg-white mt-4" data-field="pic_ids">
+                    <div class="space-y-3">
+                      <i class="fas fa-cloud-upload-alt text-4xl text-gray-300"></i>
+                      <div class="text-base font-medium text-gray-600">点击或拖拽图片到这里</div>
+                      <div class="text-sm text-gray-400">支持 JPG、PNG、GIF，一次最多 200 张</div>
+                    </div>
                   </div>
-                </div>
-                <div id="share-upload-drop" class="upload-area min-h-[220px] flex items-center justify-center border-[#7BCBBE] bg-white/80 hover:border-primary">
-                <div class="space-y-3">
-                  <i class="fas fa-cloud-upload-alt text-5xl text-gray-300"></i>
-                  <div class="text-base font-medium text-gray-600">点击或拖拽图片到这里</div>
-                  <div class="text-sm text-gray-400">支持 JPG、PNG、GIF，一次最多选择 200 张</div>
-                </div>
-                </div>
+                  <input id="share-file-input-pic" type="file" multiple accept="image/*" class="hidden" data-field="pic_ids">
+                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
+                    <div class="text-sm text-gray-500 share-upload-progress" data-field="pic_ids">等待选择花色图</div>
+                    <div class="flex gap-3">
+                      <button class="share-select-files btn-outline bg-white" data-field="pic_ids" type="button"><i class="fas fa-folder-open"></i><span>选择图片</span></button>
+                      <button class="share-confirm-upload btn-primary" data-field="pic_ids" type="button" disabled><i class="fas fa-upload"></i><span>上传花色图</span></button>
+                    </div>
+                  </div>
+                  <div class="share-preview-grid grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4" data-field="pic_ids"></div>
+                </section>
+                <section class="share-upload-zone rounded-lg border border-gray-200 bg-gray-50/60 p-4 sm:p-5" data-field="detail_pic_ids">
+                  <div>
+                    <div class="flex items-center gap-2 text-base font-semibold text-gray-700"><i class="fas fa-file-image text-primary"></i><span>详情图</span></div>
+                    <div class="text-xs text-gray-400 mt-1">介绍/细节图</div>
+                  </div>
+                  <div class="share-upload-drop upload-area min-h-[180px] flex items-center justify-center bg-white mt-4" data-field="detail_pic_ids">
+                    <div class="space-y-3">
+                      <i class="fas fa-cloud-upload-alt text-4xl text-gray-300"></i>
+                      <div class="text-base font-medium text-gray-600">点击或拖拽图片到这里</div>
+                      <div class="text-sm text-gray-400">支持 JPG、PNG、GIF，一次最多 200 张</div>
+                    </div>
+                  </div>
+                  <input id="share-file-input-detail" type="file" multiple accept="image/*" class="hidden" data-field="detail_pic_ids">
+                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
+                    <div class="text-sm text-gray-500 share-upload-progress" data-field="detail_pic_ids">等待选择详情图</div>
+                    <div class="flex gap-3">
+                      <button class="share-select-files btn-outline bg-white" data-field="detail_pic_ids" type="button"><i class="fas fa-folder-open"></i><span>选择图片</span></button>
+                      <button class="share-confirm-upload btn-primary" data-field="detail_pic_ids" type="button" disabled><i class="fas fa-upload"></i><span>上传详情图</span></button>
+                    </div>
+                  </div>
+                  <div class="share-preview-grid grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4" data-field="detail_pic_ids"></div>
+                </section>
               </div>
-              <input id="share-file-input" type="file" multiple accept="image/*" class="hidden">
-              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div class="text-sm text-gray-500" id="share-upload-progress">等待选择图片</div>
-                <div class="flex gap-3">
-                  <button id="share-select-files" class="btn-outline" type="button"><i class="fas fa-folder-open"></i><span>选择图片</span></button>
-                  <button id="share-confirm-upload" class="btn-primary" type="button" disabled><i class="fas fa-upload"></i><span>开始上传</span></button>
-                </div>
-              </div>
-              <div id="share-preview-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"></div>
             </div>
           </div>
           <aside class="bg-[#F7FAFC] p-6 sm:p-8 border-t lg:border-t-0 lg:border-l border-gray-200">
@@ -698,7 +704,7 @@
 	    </div>
 	    <!-- 产品分享弹窗 -->
 	    <div id="product-share-modal" class="modal-mask hidden">
-	      <div class="modal-content !max-w-5xl">
+	      <div class="modal-content !max-w-6xl">
 	        <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
 	          <div class="min-w-0">
 	            <h2 class="text-xl font-semibold text-gray-700"> 分享产品 </h2>
@@ -709,12 +715,12 @@
 	            <button id="close-product-share-modal" class="text-gray-400 hover:text-gray-600 p-2"><i class="fas fa-times"></i></button>
 	          </div>
 	        </div>
-	        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-	          <section class="p-6 product-share-workspace border-b lg:border-b-0 lg:border-r border-[#B7E4DB]">
-	            <div class="flex gap-4 rounded-lg border border-[#B7E4DB] bg-white/85 p-4">
+	        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(168px,1fr)]">
+	          <section class="p-6 product-share-workspace border-b lg:border-b-0 lg:border-r border-gray-200">
+	            <div class="flex gap-4 rounded-lg border border-gray-200 bg-white p-4">
 	              <img id="product-share-cover" src="./navigation/default_thumb.png" alt="" class="w-20 h-20 rounded-md object-cover bg-white border border-gray-200">
 	              <div class="min-w-0 flex-1">
-	                <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-2">
+	                <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium mb-2">
 	                  <i class="fas fa-cloud-upload-alt"></i>
 	                  <span>大批量上传工作区</span>
 	                </div>
@@ -742,26 +748,26 @@
 	                <button id="product-share-clear-password" class="btn-outline shrink-0 bg-white" type="button"><i class="fas fa-unlock"></i><span>关闭密码</span></button>
 	              </div>
 	              <div id="product-share-expire-text" class="text-xs text-gray-400 mt-3">当前：永久有效</div>
-	              <button id="product-share-save-password" class="w-full mt-4 bg-[#0E9F8F] text-white px-4 py-2 rounded-md hover:bg-[#0B8579] transition-colors duration-200 flex items-center justify-center gap-2" type="button"><i class="fas fa-save"></i><span>保存设置</span></button>
+	              <button id="product-share-save-password" class="btn-primary w-full mt-4" type="button"><i class="fas fa-save"></i><span>保存设置</span></button>
 	            </div>
 	            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-	              <button id="product-share-copy-upload" class="bg-[#0E9F8F] text-white px-4 py-2 rounded-md hover:bg-[#0B8579] transition-colors duration-200 flex items-center justify-center gap-2" type="button"><i class="fas fa-copy"></i><span>复制上传链接和密码</span></button>
+	              <button id="product-share-copy-upload" class="btn-primary" type="button"><i class="fas fa-copy"></i><span>复制上传链接和密码</span></button>
 	              <button id="product-share-open-upload" class="btn-outline bg-white" type="button"><i class="fas fa-cloud-upload-alt"></i><span>打开大批量上传</span></button>
 	              <button id="product-share-reset-link" class="btn-outline bg-white sm:col-span-2" type="button"><i class="fas fa-redo"></i><span>重置上传链接</span></button>
 	            </div>
 	          </section>
-	          <aside class="p-6 bg-[#F7FAFC]">
-	            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-xs font-medium text-gray-500">
+	          <aside class="p-4 bg-white">
+	            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-50 border border-gray-200 text-xs font-medium text-gray-500">
 	              <i class="fas fa-share-alt text-primary"></i>
 	              <span>分享区</span>
 	            </div>
-	            <div class="mt-5 grid grid-cols-1 gap-3">
-	              <button id="product-share-copy-link" class="btn-primary" type="button"><i class="fas fa-link"></i><span>复制分享链接</span></button>
-	              <button id="product-share-mini-code" class="btn-outline bg-white" type="button"><i class="fas fa-qrcode"></i><span>小程序码</span></button>
+	            <div class="mt-4 grid grid-cols-1 gap-2">
+	              <button id="product-share-copy-link" class="btn-outline bg-white !px-3 text-sm" type="button"><i class="fas fa-link"></i><span>复制分享链接</span></button>
+	              <button id="product-share-mini-code" class="btn-outline bg-white !px-3 text-sm" type="button"><i class="fas fa-qrcode"></i><span>小程序码</span></button>
 	            </div>
-	            <div id="product-share-preview" class="hidden mt-5 rounded-lg border border-gray-200 bg-white p-4 text-center">
-	              <img id="product-share-preview-img" src="" alt="" class="max-h-[360px] mx-auto rounded-md object-contain">
-	              <div id="product-share-preview-tip" class="text-sm text-gray-500 mt-3"></div>
+	            <div id="product-share-preview" class="hidden mt-4 rounded-lg border border-gray-200 bg-white p-3 text-center">
+	              <img id="product-share-preview-img" src="" alt="" class="max-h-[240px] mx-auto rounded-md object-contain">
+	              <div id="product-share-preview-tip" class="text-xs text-gray-500 mt-3"></div>
 	            </div>
 	          </aside>
 	        </div>
@@ -992,11 +998,20 @@ document.addEventListener('DOMContentLoaded', function () {
 	  var isShareUploadMode = !!shareUploadCode;
 	  var shareUploadToken = '';
 	  var shareFolderInfo = null;
-	  var shareSelectedFiles = [];
 	  var shareUploadedCount = 0;
-	  var shareUploading = false;
-	  var sharePassword = urlParams.get('user_pwd') || '';
-	  var shareUploadField = urlParams.get('upload_field') === 'detail_pic_ids' ? 'detail_pic_ids' : 'pic_ids';
+	  var sharePassword = '';
+	  var shareUploadFields = {
+	      pic_ids: {
+	          label: '花色图',
+	          files: [],
+	          uploading: false
+	      },
+	      detail_pic_ids: {
+	          label: '详情图',
+	          files: [],
+	          uploading: false
+	      }
+	  };
 
 	  function escapeHtml(value) {
 	      return String(value || '').replace(/[&<>"']/g, function(ch) {
@@ -1022,50 +1037,109 @@ document.addEventListener('DOMContentLoaded', function () {
 	      initShareUploadPage();
 	  }
 
-	  function setShareProgress(text) {
-	      var el = document.getElementById('share-upload-progress');
-	      if (el) el.textContent = text || '';
+	  function getShareFieldState(field) {
+	      return shareUploadFields[field] || shareUploadFields.pic_ids;
 	  }
 
-	  function setShareUploadingState(uploading) {
-	      shareUploading = uploading;
-	      var confirmBtn = document.getElementById('share-confirm-upload');
-	      var selectBtn = document.getElementById('share-select-files');
-	      var targetName = shareUploadField === 'detail_pic_ids' ? '详情图' : '花色图';
+	  function getShareFieldLabel(field) {
+	      return getShareFieldState(field).label;
+	  }
+
+	  function getShareFieldSelector(className, field) {
+	      return '.' + className + '[data-field="' + field + '"]';
+	  }
+
+	  function setShareProgress(field, text) {
+	      if (text === undefined) {
+	          text = field;
+	          field = '';
+	      }
+	      var selector = field ? '.share-upload-progress[data-field="' + field + '"]' : '.share-upload-progress';
+	      document.querySelectorAll(selector).forEach(function(el) {
+	          el.textContent = text || '';
+	      });
+	  }
+
+	  function setShareMainVisible(visible) {
+	      var main = document.getElementById('share-upload-main');
+	      if (main) main.classList.toggle('hidden', !visible);
+	  }
+
+	  function setSharePasswordControlsDisabled(disabled) {
+	      var input = document.getElementById('share-password-input');
+	      var confirm = document.getElementById('share-password-confirm');
+	      if (input) input.disabled = !!disabled;
+	      if (confirm) confirm.disabled = !!disabled;
+	  }
+
+	  function setSharePasswordGate(mode, message) {
+	      var panel = document.getElementById('share-password-panel');
+	      var title = document.getElementById('share-password-title');
+	      var tip = document.getElementById('share-password-tip');
+	      var input = document.getElementById('share-password-input');
+	      if (!panel) return;
+	      if (mode === 'open') {
+	          panel.classList.add('hidden');
+	          setSharePasswordControlsDisabled(false);
+	          setShareMainVisible(true);
+	          return;
+	      }
+	      setShareMainVisible(false);
+	      panel.classList.remove('hidden');
+	      if (mode === 'expired') {
+	          if (title) title.textContent = '上传密码已过期';
+	          if (tip) tip.textContent = message || '请联系分享者更新上传密码后再上传图片。';
+	          setSharePasswordControlsDisabled(true);
+	          return;
+	      }
+	      if (mode === 'error') {
+	          if (title) title.textContent = '上传链接不可用';
+	          if (tip) tip.textContent = message || '请联系分享者重新发送上传链接。';
+	          setSharePasswordControlsDisabled(true);
+	          return;
+	      }
+	      if (title) title.textContent = '请输入上传密码';
+	      if (tip) tip.textContent = message || '该产品开启了上传密码，请向分享者获取 4 位字母或数字密码。';
+	      setSharePasswordControlsDisabled(false);
+	      setTimeout(function() {
+	          if (input) input.focus();
+	      }, 0);
+	  }
+
+	  function isSharePasswordRequired() {
+	      return shareFolderInfo && Number(shareFolderInfo.has_password) === 1;
+	  }
+
+	  function isSharePasswordExpired() {
+	      return shareFolderInfo && Number(shareFolderInfo.password_expired) === 1;
+	  }
+
+	  function setShareUploadingState(field, uploading) {
+	      var state = getShareFieldState(field);
+	      state.uploading = uploading;
+	      var confirmBtn = document.querySelector(getShareFieldSelector('share-confirm-upload', field));
+	      var selectBtn = document.querySelector(getShareFieldSelector('share-select-files', field));
+	      var targetName = getShareFieldLabel(field);
 	      if (confirmBtn) {
-	          confirmBtn.disabled = uploading || shareSelectedFiles.length === 0;
+	          confirmBtn.disabled = uploading || state.files.length === 0;
 	          confirmBtn.innerHTML = uploading
 	              ? '<i class="fas fa-spinner fa-spin"></i><span>上传中...</span>'
-	              : '<i class="fas fa-upload"></i><span>上传到' + targetName + '</span>';
+	              : '<i class="fas fa-upload"></i><span>上传' + targetName + '</span>';
 	      }
 	      if (selectBtn) selectBtn.disabled = uploading;
 	  }
 
-	  function syncShareUploadTarget() {
-	      var targetName = shareUploadField === 'detail_pic_ids' ? '详情图' : '花色图';
-	      document.querySelectorAll('.share-target-option').forEach(function(btn) {
-	          var active = btn.dataset.field === shareUploadField;
-	          btn.classList.toggle('active', active);
-	          btn.classList.toggle('bg-white', !active);
-	          btn.classList.toggle('text-gray-600', !active);
-	          btn.classList.toggle('border-gray-200', !active);
-	      });
-	      var text = document.getElementById('share-upload-target-text');
-	      if (text) text.textContent = '当前上传到' + targetName;
-	      setShareUploadingState(shareUploading);
-	  }
-
-	  function renderShareSelectedFiles() {
-	      var grid = document.getElementById('share-preview-grid');
+	  function renderShareSelectedFiles(field) {
+	      var state = getShareFieldState(field);
+	      var grid = document.querySelector('.share-preview-grid[data-field="' + field + '"]');
 	      if (!grid) return;
-	      if (!shareSelectedFiles.length) {
+	      if (!state.files.length) {
 	          grid.innerHTML = '';
-	          setShareProgress('等待选择图片');
-	          setShareUploadingState(false);
+	          setShareProgress(field, '等待选择' + state.label);
+	          setShareUploadingState(field, false);
 	          return;
 	      }
-	      var targetName = shareUploadField === 'detail_pic_ids' ? '详情图' : '花色图';
-	      grid.innerHTML = shareSelectedFiles.slice(0, 24).map(function(file) {
+	      grid.innerHTML = state.files.slice(0, 24).map(function(file) {
 	          var name = String(file.name || '图片');
 	          return `
 	            <div class="rounded-md border border-gray-200 bg-white p-3">
@@ -1075,13 +1149,19 @@ document.addEventListener('DOMContentLoaded', function () {
 	              <div class="text-xs text-gray-600 truncate" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
 	            </div>
 	          `;
-	      }).join('') + (shareSelectedFiles.length > 24 ? `<div class="rounded-md border border-gray-200 bg-white p-3 flex items-center justify-center text-sm text-gray-400">还有 ${shareSelectedFiles.length - 24} 张</div>` : '');
-	      setShareProgress(`已选择 ${shareSelectedFiles.length} 张图片，将上传到${targetName}`);
-	      setShareUploadingState(false);
+	      }).join('') + (state.files.length > 24 ? `<div class="rounded-md border border-gray-200 bg-white p-3 flex items-center justify-center text-sm text-gray-400">还有 ${state.files.length - 24} 张</div>` : '');
+	      setShareProgress(field, `已选择 ${state.files.length} 张${state.label}，等待上传`);
+	      setShareUploadingState(field, false);
+	  }
+
+	  function resetShareUploadProgress() {
+	      renderShareSelectedFiles('pic_ids');
+	      renderShareSelectedFiles('detail_pic_ids');
 	  }
 
 	  function loadShareFolderInfo() {
 	      setShareProgress('正在加载产品信息...');
+	      setShareMainVisible(false);
 	      return fetch(`${API_BASE_URL}/web/upload?code=${encodeURIComponent(shareUploadCode)}`)
 	          .then(res => res.json())
 	          .then(res => {
@@ -1092,20 +1172,24 @@ document.addEventListener('DOMContentLoaded', function () {
 	              var folderName = shareFolderInfo.folder_name || '产品照片';
 	              document.getElementById('share-folder-name').textContent = folderName;
 	              document.getElementById('share-upload-title').textContent = folderName + ' · 大批量上传';
-	              if (Number(shareFolderInfo.password_expired) === 1) {
-	                  document.getElementById('share-password-panel').classList.add('hidden');
+	              resetShareUploadProgress();
+	              if (isSharePasswordExpired()) {
+	                  setSharePasswordGate('expired');
 	                  setShareProgress('上传密码已过期，请联系分享者更新密码');
-	              } else if (Number(shareFolderInfo.has_password) === 1 && !sharePassword) {
-	                  document.getElementById('share-password-panel').classList.remove('hidden');
-	                  setShareProgress('请输入上传密码后再选择图片');
-	              } else {
-	                  document.getElementById('share-password-panel').classList.add('hidden');
-	                  setShareProgress('等待选择图片');
+	                  return shareFolderInfo;
 	              }
+	              if (isSharePasswordRequired()) {
+	                  setSharePasswordGate('required');
+	                  setShareProgress('请输入上传密码后再选择图片');
+	                  return shareFolderInfo;
+	              }
+	              setSharePasswordGate('open');
+	              resetShareUploadProgress();
 	              return shareFolderInfo;
 	          })
 	          .catch(err => {
 	              console.error(err);
+	              setSharePasswordGate('error', err.message || '上传链接不可用');
 	              setShareProgress(err.message || '上传链接不可用');
 	              showToast(err.message || '上传链接不可用', 'error');
 	          });
@@ -1128,7 +1212,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	          if (res.code !== 0 && res.code !== 200) {
 	              if (String(res.msg || '').includes('密码')) {
 	                  shareUploadToken = '';
-	                  document.getElementById('share-password-panel').classList.remove('hidden');
+	                  setSharePasswordGate('required');
 	              }
 	              throw new Error(res.msg || '获取上传凭证失败');
 	          }
@@ -1140,7 +1224,25 @@ document.addEventListener('DOMContentLoaded', function () {
 	      });
 	  }
 
-	  function chooseShareFiles(files) {
+	  function ensureShareUploadReady() {
+	      if (!shareFolderInfo || !shareFolderInfo.id) {
+	          showToast('产品信息未加载完成', 'error');
+	          return false;
+	      }
+	      if (isSharePasswordExpired()) {
+	          setSharePasswordGate('expired');
+	          showToast('上传密码已过期，请联系分享者更新密码', 'error');
+	          return false;
+	      }
+	      if (isSharePasswordRequired() && !shareUploadToken) {
+	          setSharePasswordGate('required');
+	          showToast('请先输入上传密码', 'error');
+	          return false;
+	      }
+	      return true;
+	  }
+
+	  function chooseShareFiles(field, files) {
 	      var list = Array.from(files || []).filter(function(file) {
 	          return file && /^image\//.test(file.type || '');
 	      });
@@ -1148,11 +1250,11 @@ document.addEventListener('DOMContentLoaded', function () {
 	          showToast('一次最多选择200张图片', 'error');
 	          list = list.slice(0, 200);
 	      }
-	      shareSelectedFiles = list;
-	      renderShareSelectedFiles();
+	      getShareFieldState(field).files = list;
+	      renderShareSelectedFiles(field);
 	  }
 
-	  function uploadShareFile(file, index, total) {
+	  function uploadShareFile(field, file, index, total) {
 	      var formData = new FormData();
 	      formData.append('fid', shareFolderInfo.id);
 	      formData.append('files', file, file.name);
@@ -1160,9 +1262,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	      formData.append('file_name', file.name);
 	      formData.append('original_name', file.name);
 	      formData.append('name', file.name);
-	      formData.append('upload_field', shareUploadField);
-	      var targetName = shareUploadField === 'detail_pic_ids' ? '详情图' : '花色图';
-	      setShareProgress(`正在上传到${targetName}：第 ${index + 1}/${total} 张...`);
+	      formData.append('upload_field', field);
+	      var targetName = getShareFieldLabel(field);
+	      setShareProgress(field, `正在上传${targetName}：第 ${index + 1}/${total} 张...`);
 	      return fetch(`${API_BASE_URL}/web/folder/pic/upload`, {
 	          method: 'POST',
 	          headers: {
@@ -1179,20 +1281,19 @@ document.addEventListener('DOMContentLoaded', function () {
 	      });
 	  }
 
-	  function uploadShareSelectedFiles() {
-	      if (!shareSelectedFiles.length || shareUploading) return;
-	      if (!shareFolderInfo || !shareFolderInfo.id) {
-	          showToast('产品信息未加载完成', 'error');
-	          return;
-	      }
-	      setShareUploadingState(true);
+	  function uploadShareSelectedFiles(field) {
+	      var state = getShareFieldState(field);
+	      if (!state.files.length || state.uploading) return;
+	      if (!ensureShareUploadReady()) return;
+	      var files = state.files.slice();
+	      setShareUploadingState(field, true);
 	      getShareUploadToken()
 	          .then(function() {
 	              var chain = Promise.resolve();
 	              var success = 0;
-	              shareSelectedFiles.forEach(function(file, index) {
+	              files.forEach(function(file, index) {
 	                  chain = chain.then(function() {
-	                      return uploadShareFile(file, index, shareSelectedFiles.length)
+	                      return uploadShareFile(field, file, index, files.length)
 	                          .then(function() {
 	                              success += 1;
 	                              shareUploadedCount += 1;
@@ -1201,62 +1302,54 @@ document.addEventListener('DOMContentLoaded', function () {
 	                  });
 	              });
 	              return chain.then(function() {
-	                  setShareProgress(`上传完成，成功 ${success}/${shareSelectedFiles.length} 张`);
+	                  state.files = [];
+	                  renderShareSelectedFiles(field);
+	                  setShareProgress(field, `${state.label}上传完成，成功 ${success}/${files.length} 张`);
 	                  showToast('上传完成');
-	                  shareSelectedFiles = [];
-	                  renderShareSelectedFiles();
 	              });
 	          })
 	          .catch(function(err) {
 	              console.error(err);
-	              setShareProgress(err.message || '上传失败');
+	              setShareProgress(field, err.message || '上传失败');
 	              showToast(err.message || '上传失败', 'error');
 	          })
 	          .finally(function() {
-	              setShareUploadingState(false);
+	              setShareUploadingState(field, false);
 	          });
 	  }
 
 	  function initShareUploadPage() {
-	      var fileInput = document.getElementById('share-file-input');
-	      var dropArea = document.getElementById('share-upload-drop');
-	      var selectBtn = document.getElementById('share-select-files');
-	      var confirmBtn = document.getElementById('share-confirm-upload');
 	      var passwordInput = document.getElementById('share-password-input');
 	      var passwordConfirm = document.getElementById('share-password-confirm');
 	      var copyBtn = document.getElementById('share-copy-link');
 
-	      syncShareUploadTarget();
+	      resetShareUploadProgress();
 	      loadShareFolderInfo();
-	      document.querySelectorAll('.share-target-option').forEach(function(btn) {
+	      document.querySelectorAll('.share-select-files').forEach(function(btn) {
 	          btn.addEventListener('click', function() {
-	              shareUploadField = btn.dataset.field === 'detail_pic_ids' ? 'detail_pic_ids' : 'pic_ids';
-	              syncShareUploadTarget();
-	              if (shareSelectedFiles.length) renderShareSelectedFiles();
+	              var field = btn.dataset.field === 'detail_pic_ids' ? 'detail_pic_ids' : 'pic_ids';
+	              if (!ensureShareUploadReady()) return;
+	              getShareUploadToken().then(function() {
+	                  var fileInput = document.querySelector('input[type="file"][data-field="' + field + '"]');
+	                  if (fileInput) fileInput.click();
+	              }).catch(function(err) {
+	                  showToast(err.message || '请先输入上传密码', 'error');
+	              });
 	          });
 	      });
-	      if (selectBtn) selectBtn.addEventListener('click', function() {
-	          if (shareFolderInfo && Number(shareFolderInfo.password_expired) === 1) {
-	              showToast('上传密码已过期，请联系分享者更新密码', 'error');
-	              return;
-	          }
-	          if (shareFolderInfo && Number(shareFolderInfo.has_password) === 1 && !sharePassword) {
-	              showToast('请先输入上传密码', 'error');
-	              document.getElementById('share-password-panel').classList.remove('hidden');
-	              if (passwordInput) passwordInput.focus();
-	              return;
-	          }
-	          getShareUploadToken().then(function() {
-	              fileInput.click();
-	          }).catch(function(err) {
-	              showToast(err.message || '请先输入上传密码', 'error');
+	      document.querySelectorAll('input[type="file"][data-field]').forEach(function(fileInput) {
+	          fileInput.addEventListener('change', function() {
+	              var field = fileInput.dataset.field === 'detail_pic_ids' ? 'detail_pic_ids' : 'pic_ids';
+	              chooseShareFiles(field, fileInput.files);
+	              fileInput.value = '';
 	          });
 	      });
-	      if (fileInput) fileInput.addEventListener('change', function() {
-	          chooseShareFiles(this.files);
-	          this.value = '';
+	      document.querySelectorAll('.share-confirm-upload').forEach(function(btn) {
+	          btn.addEventListener('click', function() {
+	              var field = btn.dataset.field === 'detail_pic_ids' ? 'detail_pic_ids' : 'pic_ids';
+	              uploadShareSelectedFiles(field);
+	          });
 	      });
-	      if (confirmBtn) confirmBtn.addEventListener('click', uploadShareSelectedFiles);
 	      if (passwordConfirm) passwordConfirm.addEventListener('click', function() {
 	          sharePassword = (passwordInput && passwordInput.value || '').trim();
 	          if (!/^[A-Za-z0-9]{4}$/.test(sharePassword)) {
@@ -1264,14 +1357,27 @@ document.addEventListener('DOMContentLoaded', function () {
 	              return;
 	          }
 	          shareUploadToken = '';
+	          passwordConfirm.disabled = true;
+	          passwordConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>验证中...</span>';
 	          getShareUploadToken().then(function() {
-	              document.getElementById('share-password-panel').classList.add('hidden');
-	              setShareProgress('密码验证通过，可以选择图片');
+	              setSharePasswordGate('open');
+	              resetShareUploadProgress();
 	              showToast('密码验证通过');
 	          }).catch(function(err) {
 	              showToast(err.message || '密码错误', 'error');
+	          }).finally(function() {
+	              passwordConfirm.disabled = false;
+	              passwordConfirm.innerHTML = '<i class="fas fa-lock-open"></i><span>确认密码</span>';
 	          });
 	      });
+	      if (passwordInput) {
+	          passwordInput.addEventListener('keydown', function(e) {
+	              if (e.key === 'Enter' && passwordConfirm) {
+	                  e.preventDefault();
+	                  passwordConfirm.click();
+	              }
+	          });
+	      }
 	      if (copyBtn) copyBtn.addEventListener('click', function() {
 	          navigator.clipboard && navigator.clipboard.writeText(window.location.href).then(function() {
 	              showToast('链接已复制');
@@ -1279,7 +1385,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	              showToast('复制失败', 'error');
 	          });
 	      });
-	      if (dropArea) {
+	      document.querySelectorAll('.share-upload-drop').forEach(function(dropArea) {
+	          var field = dropArea.dataset.field === 'detail_pic_ids' ? 'detail_pic_ids' : 'pic_ids';
 	          ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function(eventName) {
 	              dropArea.addEventListener(eventName, function(e) {
 	                  e.preventDefault();
@@ -1297,12 +1404,14 @@ document.addEventListener('DOMContentLoaded', function () {
 	              });
 	          });
 	          dropArea.addEventListener('drop', function(e) {
-	              chooseShareFiles(e.dataTransfer.files);
+	              if (!ensureShareUploadReady()) return;
+	              chooseShareFiles(field, e.dataTransfer.files);
 	          });
 	          dropArea.addEventListener('click', function() {
+	              var selectBtn = document.querySelector(getShareFieldSelector('share-select-files', field));
 	              if (selectBtn) selectBtn.click();
 	          });
-	      }
+	      });
 	  }
 
 	  if (isShareUploadMode) {
