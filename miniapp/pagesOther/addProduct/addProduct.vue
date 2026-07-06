@@ -122,7 +122,7 @@
         </view>
 
         <!-- 说明与复制链接 -->
-        <view class="notice-box">
+        <view v-if="pid" class="notice-box">
           <view class="notice-title">图片较多时，建议用浏览器批量上传</view>
           <view class="notice-desc">
             小程序内适合少量添加。一次上传很多张时，复制下方网址到手机或电脑浏览器打开，上传更稳定。
