@@ -36,30 +36,35 @@
             </view>
 
             <view class="section-card">
-                <view class="section-head">
+                <view class="password-head">
                     <text class="section-title">访问密码</text>
-                    <text class="section-tag">{{ uploadPassword ? '已设置' : '未设置' }}</text>
+                    <view class="password-switch-wrap">
+                        <text class="password-state">{{ passwordEnabled ? '已开启' : '已关闭' }}</text>
+                        <switch
+                            class="password-switch"
+                            :checked="passwordEnabled"
+                            color="#222222"
+                            @change="togglePasswordEnabled"
+                        />
+                    </view>
                 </view>
-                <view class="password-row">
-                    <text class="password-label">4位字母/数字</text>
+                <view v-if="passwordEnabled" class="password-row">
                     <input
                         class="password-input"
                         type="text"
                         maxlength="4"
                         v-model="uploadPassword"
-                        placeholder="点击添加"
+                        placeholder="请输入访问密码"
                         placeholder-class="password-placeholder"
                     />
-                </view>
-                <view class="password-tools">
-                    <view class="tool-btn" @tap="generatePassword">
-                        <text class="tool-btn-text">随机生成</text>
-                    </view>
-                    <view class="tool-btn muted" @tap="clearPassword">
-                        <text class="tool-btn-text">关闭密码</text>
+                    <view class="refresh-btn" @tap="generatePassword">
+                        <text class="refresh-btn-text">刷新</text>
                     </view>
                 </view>
-                <view class="expire-block">
+                <view v-else class="password-disabled-row">
+                    <text class="password-disabled-text">已关闭</text>
+                </view>
+                <view v-if="passwordEnabled" class="expire-block">
                     <view class="expire-head">
                         <text class="expire-title">密码有效期</text>
                         <text class="expire-current">{{ expireText }}</text>
@@ -75,7 +80,7 @@
                         </view>
                     </view>
                 </view>
-                <text class="section-note">留空则打开链接无需密码；过期后好友需联系你更新密码。</text>
+                <text class="section-note">{{ passwordEnabled ? '开启后好友打开链接需要输入访问密码。' : '关闭后好友打开链接无需输入密码。' }}</text>
                 <view class="password-save" @tap="saveUploadPassword">
                     <text class="password-save-text">{{ passwordSaving ? '保存中...' : '保存设置' }}</text>
                 </view>
@@ -102,6 +107,7 @@ export default {
         return {
             uploadUrl: '',
             uploadPassword: '',
+            passwordEnabled: false,
             uploadPasswordExpireTime: 0,
             expireMode: 'forever',
             expireOptions: [
@@ -141,12 +147,13 @@ export default {
                         this.uploadUrl = res.data.upload_url || res.data.url || ''
                         this.uploadPassword = res.data.password || res.data.pwd || ''
                         this.uploadPasswordExpireTime = Number(res.data.password_expire_time || res.data.upload_pwd_expire_time || 0)
-                        this.syncExpireMode()
+                        this.syncPasswordState()
                     }
                 } else if (typeof uni !== 'undefined') {
                     // 回退：生成一个临时示例链接（开发环境）
                     const code = Math.random().toString(36).slice(2, 10).toUpperCase()
                     this.uploadUrl = `https://pic.jfyuntu.com/assets/page/product-list.html?uploadd_code=${code}`
+                    this.passwordEnabled = true
                     this.generatePassword()
                 }
             } catch (e) {
@@ -177,7 +184,7 @@ export default {
                 uni.showToast({ title: '暂无上传链接', icon: 'none' })
                 return
             }
-            const password = this.uploadPassword || ''
+            const password = this.passwordEnabled ? (this.uploadPassword || '') : ''
             const text = password ? `${this.uploadUrl}\n上传密码：${password}\n有效期：${this.expireText}` : this.uploadUrl
             uni.setClipboardData({
                 data: text,
@@ -192,7 +199,10 @@ export default {
 
         async saveUploadPassword() {
             if (this.passwordSaving) return
-            const password = (this.uploadPassword || '').trim()
+            if (this.passwordEnabled && !(this.uploadPassword || '').trim()) {
+                this.generatePassword()
+            }
+            const password = this.passwordEnabled ? (this.uploadPassword || '').trim() : ''
             if (password && !/^[A-Za-z0-9]{4}$/.test(password)) {
                 uni.showToast({ title: '密码需为4位字母或数字', icon: 'none' })
                 return
@@ -216,6 +226,7 @@ export default {
             try {
                 await this.$go('user/update_info', data, 'post', { show_err: true })
                 this.uploadPassword = password
+                this.passwordEnabled = !!password
                 if (!password) {
                     this.uploadPasswordExpireTime = 0
                     this.expireMode = 'forever'
@@ -254,7 +265,7 @@ export default {
                         this.uploadUrl = res.data.upload_url || res.data.url || this.uploadUrl
                         this.uploadPassword = res.data.password || res.data.pwd || this.uploadPassword
                         this.uploadPasswordExpireTime = Number(res.data.password_expire_time || res.data.upload_pwd_expire_time || this.uploadPasswordExpireTime || 0)
-                        this.syncExpireMode()
+                        this.syncPasswordState()
                         uni.showToast({ title: '已重置并更新链接', icon: 'none' })
                     } else {
                         // 如果后端没有返回新链接，则重新调用 getBatchLink
@@ -265,6 +276,7 @@ export default {
                     // 回退：本地生成新示例
                     const code = Math.random().toString(36).slice(2, 10).toUpperCase()
                     this.uploadUrl = `https://pic.jfyuntu.com/assets/page/product-list.html?uploadd_code=${code}`
+                    this.passwordEnabled = true
                     this.generatePassword()
                     uni.showToast({ title: '已重置（示例）', icon: 'none' })
                 }
@@ -283,12 +295,26 @@ export default {
                 password += chars.charAt(Math.floor(Math.random() * chars.length))
             }
             this.uploadPassword = password
+            this.passwordEnabled = true
         },
 
         clearPassword() {
+            this.passwordEnabled = false
             this.uploadPassword = ''
             this.uploadPasswordExpireTime = 0
             this.expireMode = 'forever'
+        },
+
+        togglePasswordEnabled(e) {
+            const enabled = !!(e && e.detail && e.detail.value)
+            this.passwordEnabled = enabled
+            if (enabled) {
+                if (!this.uploadPassword) {
+                    this.generatePassword()
+                }
+                return
+            }
+            this.clearPassword()
         },
 
         selectExpire(item) {
@@ -306,6 +332,16 @@ export default {
                 return
             }
             this.expireMode = ''
+        },
+
+        syncPasswordState() {
+            this.passwordEnabled = !!(this.uploadPassword || '').trim()
+            if (!this.passwordEnabled) {
+                this.uploadPasswordExpireTime = 0
+                this.expireMode = 'forever'
+                return
+            }
+            this.syncExpireMode()
         },
 
         formatExpireText(expireTime) {
@@ -426,6 +462,14 @@ export default {
     margin-bottom: 20rpx;
 }
 
+.password-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24rpx;
+    margin-bottom: 20rpx;
+}
+
 .section-title {
     font-size: 30rpx;
     color: #1f1f1f;
@@ -433,7 +477,8 @@ export default {
     line-height: 1.3;
 }
 
-.section-tag {
+.section-tag,
+.password-state {
     flex-shrink: 0;
     padding: 8rpx 14rpx;
     border-radius: 999rpx;
@@ -441,6 +486,18 @@ export default {
     color: #6b5600;
     font-size: 22rpx;
     line-height: 1.2;
+}
+
+.password-switch-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12rpx;
+    flex-shrink: 0;
+}
+
+.password-switch {
+    transform: scale(0.74);
+    transform-origin: right center;
 }
 
 .link-box {
@@ -470,25 +527,19 @@ export default {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 24rpx;
+    gap: 16rpx;
     min-height: 88rpx;
-    padding: 0 22rpx;
+    padding: 0 14rpx 0 22rpx;
     background: #f7f7f7;
     border-radius: 16rpx;
     box-sizing: border-box;
 }
 
-.password-label {
-    font-weight: 600;
-    font-size: 26rpx;
-    color: #222222;
-    flex-shrink: 0;
-}
-
 .password-input {
     flex: 1;
     height: 64rpx;
-    text-align: right;
+    min-width: 0;
+    text-align: left;
     font-size: 28rpx;
     color: #333333;
 }
@@ -497,36 +548,39 @@ export default {
     color: #999999;
 }
 
-.password-tools {
-    display: flex;
-    gap: 16rpx;
-    margin-top: 18rpx;
-}
-
-.tool-btn {
-    min-width: 156rpx;
-    height: 62rpx;
-    border-radius: 64rpx;
+.refresh-btn {
+    flex-shrink: 0;
+    min-width: 92rpx;
+    height: 56rpx;
+    border-radius: 28rpx;
     background: #222222;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 22rpx;
+    padding: 0 20rpx;
     box-sizing: border-box;
 }
 
-.tool-btn.muted {
-    background: #f2f2f2;
-}
-
-.tool-btn-text {
+.refresh-btn-text {
     font-size: 24rpx;
     color: #ffffff;
     font-weight: 600;
 }
 
-.tool-btn.muted .tool-btn-text {
-    color: #555555;
+.password-disabled-row {
+    min-height: 88rpx;
+    padding: 0 22rpx;
+    background: #f7f7f7;
+    border-radius: 16rpx;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.password-disabled-text {
+    font-size: 28rpx;
+    color: #8a8a8a;
+    font-weight: 500;
 }
 
 .expire-block {
