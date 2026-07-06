@@ -365,11 +365,34 @@
             <div class="space-y-5 lg:sticky lg:top-6">
               <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-xs font-medium text-gray-500">
                 <i class="fas fa-clipboard-check text-primary"></i>
-                <span>上传概览</span>
+                <span>上传对象</span>
               </div>
-              <div>
-                <div class="text-sm text-gray-400 mb-1">当前产品</div>
-                <div id="share-folder-name" class="text-lg font-semibold text-gray-700 break-all">加载中...</div>
+              <div class="rounded-md bg-white border border-gray-200 p-4">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-12 h-12 rounded-md bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                    <img id="share-owner-avatar" src="" alt="" class="hidden w-full h-full object-cover">
+                    <span id="share-owner-avatar-fallback" class="text-gray-400"><i class="fas fa-user-circle text-2xl"></i></span>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-xs text-gray-400 mb-1">分享方</div>
+                    <div id="share-owner-name" class="text-sm font-semibold text-gray-700 truncate">加载中...</div>
+                    <div id="share-owner-subtitle" class="text-xs text-gray-400 truncate mt-0.5">相册主</div>
+                  </div>
+                </div>
+                <div id="share-owner-desc" class="hidden text-xs text-gray-400 leading-5 mt-3 line-clamp-2"></div>
+              </div>
+              <div class="rounded-md bg-white border border-gray-200 p-4">
+                <div class="flex items-start gap-3 min-w-0">
+                  <div class="w-14 h-14 rounded-md bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                    <img id="share-product-cover" src="" alt="" class="hidden w-full h-full object-cover">
+                    <span id="share-product-cover-fallback" class="text-gray-300"><i class="fas fa-image text-2xl"></i></span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-xs text-gray-400 mb-1">当前产品</div>
+                    <div id="share-product-name" class="text-base font-semibold text-gray-700 break-words leading-6">加载中...</div>
+                    <div id="share-product-desc" class="hidden text-xs text-gray-400 leading-5 mt-1 line-clamp-2"></div>
+                  </div>
+                </div>
               </div>
               <div class="rounded-md bg-white border border-gray-200 p-4">
                 <div class="text-sm text-gray-500">相册主剩余资源</div>
@@ -1257,6 +1280,73 @@ document.addEventListener('DOMContentLoaded', function () {
 	      if (bar) bar.style.width = Math.max(0, Math.min(100, usedPercent)) + '%';
 	  }
 
+	  function toggleShareImage(imageId, fallbackId, url) {
+	      var image = document.getElementById(imageId);
+	      var fallback = document.getElementById(fallbackId);
+	      if (!image) return;
+	      if (url) {
+	          image.src = url;
+	          image.classList.remove('hidden');
+	          if (fallback) fallback.classList.add('hidden');
+	      } else {
+	          image.removeAttribute('src');
+	          image.classList.add('hidden');
+	          if (fallback) fallback.classList.remove('hidden');
+	      }
+	  }
+
+	  function renderShareOwnerInfo(owner) {
+	      owner = owner || {};
+	      var ownerName = document.getElementById('share-owner-name');
+	      var ownerSubtitle = document.getElementById('share-owner-subtitle');
+	      var ownerDesc = document.getElementById('share-owner-desc');
+	      var displayName = owner.display_name || owner.company_name || owner.nickname || '分享者';
+	      var subtitle = owner.company_name && owner.nickname && owner.company_name !== owner.nickname
+	          ? owner.nickname
+	          : '相册主';
+	      if (ownerName) ownerName.textContent = displayName;
+	      if (ownerSubtitle) ownerSubtitle.textContent = subtitle;
+	      if (ownerDesc) {
+	          if (owner.company_desc) {
+	              ownerDesc.textContent = owner.company_desc;
+	              ownerDesc.classList.remove('hidden');
+	          } else {
+	              ownerDesc.textContent = '';
+	              ownerDesc.classList.add('hidden');
+	          }
+	      }
+	      toggleShareImage('share-owner-avatar', 'share-owner-avatar-fallback', owner.avatar || owner.company_logo || '');
+	  }
+
+	  function getShareProductName(product) {
+	      product = product || {};
+	      var name = product.name || product.folder_name || shareFolderInfo.folder_name || '';
+	      if (!name && (product.id || shareFolderInfo.id)) {
+	          name = '未命名产品 #' + (product.id || shareFolderInfo.id);
+	      }
+	      return name || '未命名产品';
+	  }
+
+	  function renderShareProductInfo(product) {
+	      product = product || {};
+	      var productName = getShareProductName(product);
+	      var productNameEl = document.getElementById('share-product-name');
+	      var productDesc = document.getElementById('share-product-desc');
+	      var title = document.getElementById('share-upload-title');
+	      if (productNameEl) productNameEl.textContent = productName;
+	      if (title) title.textContent = productName + ' · 大批量上传';
+	      if (productDesc) {
+	          if (product.desc) {
+	              productDesc.textContent = product.desc;
+	              productDesc.classList.remove('hidden');
+	          } else {
+	              productDesc.textContent = '';
+	              productDesc.classList.add('hidden');
+	          }
+	      }
+	      toggleShareImage('share-product-cover', 'share-product-cover-fallback', product.cover || '');
+	  }
+
 	  function loadShareFolderInfo(options) {
 	      options = options || {};
 	      if (!options.silent) {
@@ -1270,9 +1360,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	                  throw new Error(res.msg || '上传链接不可用');
 	              }
 	              shareFolderInfo = res.data || {};
-	              var folderName = shareFolderInfo.folder_name || '产品照片';
-	              document.getElementById('share-folder-name').textContent = folderName;
-	              document.getElementById('share-upload-title').textContent = folderName + ' · 大批量上传';
+	              renderShareOwnerInfo(shareFolderInfo.owner_info);
+	              renderShareProductInfo(shareFolderInfo.product_info || shareFolderInfo);
 	              renderShareOwnerStorage(shareFolderInfo.owner_storage);
 	              resetShareUploadProgress();
 	              if (isSharePasswordExpired()) {

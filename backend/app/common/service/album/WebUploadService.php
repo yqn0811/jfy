@@ -73,9 +73,46 @@ class WebUploadService extends BaseService
             'id' => $folder->id,
             'image_base64' => $record->ewm_code,
             'folder_name' => $folder->folder_name,
+            'owner_info' => $this->getOwnerInfo($user),
+            'product_info' => $this->getProductInfo($folder),
             'owner_storage' => $this->getOwnerStorageInfo($user, $syncedVipGradeInfo),
         ];
         return $result;
+    }
+
+    private function getOwnerInfo($user)
+    {
+        $companyName = trim((string)($user->company_name ?: $user->home_share_title ?: ''));
+        $nickname = trim((string)($user->nickname ?: ''));
+        $displayName = $companyName ?: ($nickname ?: '分享者');
+        $avatar = $user->avatar;
+        $desc = trim((string)($user->company_desc ?: $user->user_desc ?: $user->home_share_desc ?: ''));
+
+        return [
+            'id' => (int)$user->id,
+            'display_name' => $displayName,
+            'company_name' => $companyName,
+            'nickname' => $nickname,
+            'avatar' => $avatar,
+            'company_logo' => $user->company_logo,
+            'company_desc' => $desc,
+        ];
+    }
+
+    private function getProductInfo($folder)
+    {
+        $name = trim((string)$folder->folder_name);
+        if ($name === '') {
+            $name = '未命名产品 #' . $folder->id;
+        }
+
+        return [
+            'id' => (int)$folder->id,
+            'name' => $name,
+            'folder_name' => (string)$folder->folder_name,
+            'desc' => (string)($folder->folder_desc ?: ''),
+            'cover' => $folder->new_thumb,
+        ];
     }
 
     private function getOwnerStorageInfo($user, $syncedVipGradeInfo = null)
