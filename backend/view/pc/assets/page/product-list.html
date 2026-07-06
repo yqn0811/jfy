@@ -372,6 +372,17 @@
                 <div id="share-folder-name" class="text-lg font-semibold text-gray-700 break-all">加载中...</div>
               </div>
               <div class="rounded-md bg-white border border-gray-200 p-4">
+                <div class="text-sm text-gray-500">相册主剩余资源</div>
+                <div id="share-storage-remaining" class="text-2xl font-semibold text-gray-700 mt-2">加载中</div>
+                <div class="mt-4 h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div id="share-storage-bar" class="h-full bg-primary rounded-full transition-all" style="width: 0%"></div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-gray-400 mt-2">
+                  <span id="share-storage-used">已用 -</span>
+                  <span id="share-storage-total">总量 -</span>
+                </div>
+              </div>
+              <div class="rounded-md bg-white border border-gray-200 p-4">
                 <div class="flex items-center justify-between">
                   <span class="text-sm text-gray-500">已上传</span>
                   <span class="text-2xl font-semibold text-gray-700"><span id="share-upload-count">0</span><span class="text-sm font-normal text-gray-400 ml-1">张</span></span>
@@ -1225,9 +1236,33 @@ document.addEventListener('DOMContentLoaded', function () {
 	      renderShareSelectedFiles('detail_pic_ids');
 	  }
 
-	  function loadShareFolderInfo() {
-	      setShareProgress('正在加载产品信息...');
-	      setShareMainVisible(false);
+	  function renderShareOwnerStorage(storage) {
+	      var remaining = document.getElementById('share-storage-remaining');
+	      var used = document.getElementById('share-storage-used');
+	      var total = document.getElementById('share-storage-total');
+	      var bar = document.getElementById('share-storage-bar');
+	      storage = storage || {};
+	      var capacityBytes = Number(storage.capacity_bytes || 0);
+	      var usedPercent = Number(storage.used_percent || 0);
+	      if (!capacityBytes) {
+	          if (remaining) remaining.textContent = '暂无容量信息';
+	          if (used) used.textContent = '已用 -';
+	          if (total) total.textContent = '总量 -';
+	          if (bar) bar.style.width = '0%';
+	          return;
+	      }
+	      if (remaining) remaining.textContent = storage.remaining_text || '0M';
+	      if (used) used.textContent = '已用 ' + (storage.used_text || '0M');
+	      if (total) total.textContent = '总量 ' + (storage.capacity_text || '0M');
+	      if (bar) bar.style.width = Math.max(0, Math.min(100, usedPercent)) + '%';
+	  }
+
+	  function loadShareFolderInfo(options) {
+	      options = options || {};
+	      if (!options.silent) {
+	          setShareProgress('正在加载产品信息...');
+	          setShareMainVisible(false);
+	      }
 	      return fetch(`${API_BASE_URL}/web/upload?code=${encodeURIComponent(shareUploadCode)}`)
 	          .then(res => res.json())
 	          .then(res => {
@@ -1238,6 +1273,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	              var folderName = shareFolderInfo.folder_name || '产品照片';
 	              document.getElementById('share-folder-name').textContent = folderName;
 	              document.getElementById('share-upload-title').textContent = folderName + ' · 大批量上传';
+	              renderShareOwnerStorage(shareFolderInfo.owner_storage);
 	              resetShareUploadProgress();
 	              if (isSharePasswordExpired()) {
 	                  setSharePasswordGate('expired');
@@ -1255,9 +1291,11 @@ document.addEventListener('DOMContentLoaded', function () {
 	          })
 	          .catch(err => {
 	              console.error(err);
-	              setSharePasswordGate('error', err.message || '上传链接不可用');
-	              setShareProgress(err.message || '上传链接不可用');
-	              showToast(err.message || '上传链接不可用', 'error');
+	              if (!options.silent) {
+	                  setSharePasswordGate('error', err.message || '上传链接不可用');
+	                  setShareProgress(err.message || '上传链接不可用');
+	                  showToast(err.message || '上传链接不可用', 'error');
+	              }
 	          });
 	  }
 
@@ -1374,6 +1412,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	                  renderShareSelectedFiles(field);
 	                  setShareProgress(field, `${state.label}上传完成，成功 ${success}/${files.length} 张`);
 	                  showToast('上传完成');
+	                  loadShareFolderInfo({ silent: true });
 	              });
 	          })
 	          .catch(function(err) {

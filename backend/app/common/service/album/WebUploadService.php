@@ -7,9 +7,11 @@ use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserAlbumPic;
 use app\common\model\user\WdXcxUserAlbumUploadCode;
 use app\common\service\BaseService;
+use app\common\service\bridge\JiafangyunEntitlementSyncService;
 use app\common\service\JwtService;
 use app\common\service\WxService;
 use app\index\model\WdXcxBase;
+use app\index\model\WdXcxPic;
 use app\index\service\upload\UploadService;
 use think\App;
 use think\facade\Db;
@@ -44,6 +46,7 @@ class WebUploadService extends BaseService
             throwError('指定的上传码对应的用户不存在');
         }
         (new WdXcxUser())->ensureUploadPasswordColumns();
+        $syncedVipGradeInfo = (new JiafangyunEntitlementSyncService($this->app))->syncUserQuietly($user->id);
         $uploadPwdExpired = $this->isUploadPasswordExpired($user);
         if(!$record->ewm_code){
             try {
@@ -70,8 +73,55 @@ class WebUploadService extends BaseService
             'id' => $folder->id,
             'image_base64' => $record->ewm_code,
             'folder_name' => $folder->folder_name,
+            'owner_storage' => $this->getOwnerStorageInfo($user, $syncedVipGradeInfo),
         ];
         return $result;
+    }
+
+    private function getOwnerStorageInfo($user, $syncedVipGradeInfo = null)
+    {
+        $vipGradeInfo = $user->VipGradeInfo;
+        if (is_array($syncedVipGradeInfo)) {
+            $vipGradeInfo = array_merge($vipGradeInfo, $syncedVipGradeInfo);
+        }
+        $capacityBytes = (int)($vipGradeInfo['resource_storage']['capacity_bytes'] ?? 0);
+        if ($capacityBytes <= 0 && !empty($vipGradeInfo['space_size'])) {
+            $capacityBytes = (int)$vipGradeInfo['space_size'] * 1024 * 1024;
+        }
+        $usedBytes = (int)($vipGradeInfo['resource_storage']['used_bytes'] ?? 0);
+        $localPicSize = (int)WdXcxPic::where('uid', $user->id)->sum('size');
+        if ($usedBytes <= 0) {
+            $usedBytes = $localPicSize;
+        }
+        $remainingBytes = $capacityBytes > 0 ? max(0, $capacityBytes - $usedBytes) : 0;
+        $usedPercent = $capacityBytes > 0 ? round(min(100, ($usedBytes / $capacityBytes) * 100), 2) : 0;
+
+        return [
+            'used_bytes' => $usedBytes,
+            'capacity_bytes' => $capacityBytes,
+            'remaining_bytes' => $remainingBytes,
+            'used_text' => $this->formatStorageBytes($usedBytes),
+            'capacity_text' => $this->formatStorageBytes($capacityBytes),
+            'remaining_text' => $this->formatStorageBytes($remainingBytes),
+            'used_percent' => $usedPercent,
+            'local_pic_used_bytes' => $localPicSize,
+        ];
+    }
+
+    private function formatStorageBytes($bytes)
+    {
+        $bytes = (int)$bytes;
+        if ($bytes <= 0) {
+            return '0M';
+        }
+        $mb = (int)ceil($bytes / 1024 / 1024);
+        if($mb > 1024 * 1024){
+            return bcdiv($mb, 1024 * 1024) . 'T';
+        }
+        if($mb > 1024){
+            return bcdiv($mb, 1024) . 'G';
+        }
+        return $mb . 'M';
     }
 
     /**获取上传token
