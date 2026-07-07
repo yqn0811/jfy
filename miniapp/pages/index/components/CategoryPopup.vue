@@ -138,7 +138,8 @@ export default {
     getChildCount(item) {
       return Number(
         (item &&
-          (item.child_count ||
+          (item.product_count ||
+            item.child_count ||
             item.children_count ||
             item.son_count ||
             item.count)) ||
