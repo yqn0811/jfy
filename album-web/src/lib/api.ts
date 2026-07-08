@@ -43,6 +43,21 @@ const joinUrl = (base: string, path: string) => {
 
 const normalizeToken = (token = '') => token.replace(/^Bearer\s+/i, '').trim()
 
+export const normalizeCurrentUser = (raw: any = {}) => {
+  const user = raw?.user_info || raw?.user || raw?.info || raw?.profile || raw || {}
+  const id = String(user.id || user.uid || user.user_id || user.userid || user.userId || user.userID || '')
+  return {
+    ...user,
+    id,
+    uid: String(user.uid || id || ''),
+  }
+}
+
+export const getCurrentUserId = (raw: any = {}) => {
+  const user = normalizeCurrentUser(raw)
+  return String(user.id || user.uid || '')
+}
+
 export const isMockEnabled = () => {
   if (!SHOULD_BUNDLE_MOCK) return false
   const envValue = import.meta.env.PUBLIC_ENABLE_MOCK || import.meta.env.PUBLIC_JFYUNTU_MOCK
@@ -117,15 +132,16 @@ export const authStore = {
     const raw = localStorage.getItem(USER_KEY) || localStorage.getItem('userInfo')
     if (!raw) return null
     try {
-      return JSON.parse(raw) as T
+      return normalizeCurrentUser(JSON.parse(raw)) as T
     } catch {
       return null
     }
   },
   setUser(user: any) {
     if (typeof localStorage === 'undefined') return
-    localStorage.setItem(USER_KEY, JSON.stringify(user || {}))
-    localStorage.setItem('userInfo', JSON.stringify(user || {}))
+    const normalized = normalizeCurrentUser(user)
+    localStorage.setItem(USER_KEY, JSON.stringify(normalized))
+    localStorage.setItem('userInfo', JSON.stringify(normalized))
   },
   isLoggedIn() {
     return !!this.getToken()
@@ -196,7 +212,7 @@ export async function apiRequest<T = any>(
   const headers: Record<string, string> = {
     'X-Requested-With': 'XMLHttpRequest',
   }
-  if (token) headers['authorization-token'] = `Bearer ${token}`
+  if (token) headers.Authorization = `Bearer ${token}`
 
   const init: RequestInit = { method, headers }
   if (method !== 'GET') {
@@ -228,7 +244,7 @@ export async function apiUpload<T = any>(
     'X-Requested-With': 'XMLHttpRequest',
   }
   const normalized = normalizeToken(token)
-  if (normalized) headers['authorization-token'] = `Bearer ${normalized}`
+  if (normalized) headers.Authorization = `Bearer ${normalized}`
 
   const response = await fetch(joinUrl(getRuntimeApiBase(), path), {
     method: 'POST',
@@ -249,7 +265,7 @@ export const pcApi = {
   getLoginQrcode: () => apiRequest<any>('user/login/qrcode', { auth: false }),
   checkLoginStatus: (scene: string) =>
     apiRequest<any>('user/login/status', { params: { scene, timestamp: Date.now() }, auth: false }),
-  getCurrentUser: () => apiRequest<any>('user/show_info'),
+  getCurrentUser: async () => normalizeCurrentUser(await apiRequest<any>('user/show_info')),
   updatePcSettings: (body: Record<string, any>) =>
     apiRequest<any>('user/update_pc_settings', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
 

@@ -12,7 +12,7 @@ import LoginDialog from '@/components/common/LoginDialog.vue'
 import ShareDialog from '@/components/share_home/ShareDialog.vue'
 import ContactDialog from '@/components/share_home/ContactDialog.vue'
 import ProductDetailDrawer from '@/components/share_home/ProductDetailDrawer.vue'
-import { authStore, pcApi } from '@/lib/api'
+import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
 import { normalizeHomePayload } from '@/lib/jfyuntu-mappers'
 import type { HomeProfileData } from '@/data/HomeProfileData'
 import type { CategoryData } from '@/data/CategoryData'
@@ -40,15 +40,18 @@ const isHomeFavorited = ref(false)
 
 const loadCurrentUser = async () => {
   let user = authStore.getUser<any>() || {}
-  if (!user?.id && !user?.uid && authStore.isLoggedIn()) {
+  if (!getCurrentUserId(user) && authStore.isLoggedIn()) {
     try {
       user = await pcApi.getCurrentUser()
       authStore.setUser(user)
-    } catch {
+    } catch (error: any) {
       user = authStore.getUser<any>() || {}
+      if (!getCurrentUserId(user)) {
+        throw error
+      }
     }
   }
-  currentUserId.value = String(user?.id || user?.uid || '')
+  currentUserId.value = getCurrentUserId(user)
   return user
 }
 
@@ -75,18 +78,28 @@ const categoryOptions = computed(() => {
 })
 
 const loadHomeData = async () => {
+  authStore.consumeCallbackToken()
   if (!authStore.isLoggedIn()) {
     isLoggedIn.value = false
     showLoginDialog.value = true
     return
   }
   isLoggedIn.value = true
-  const user = await loadCurrentUser()
-  if (!targetUserId.value) {
-    targetUserId.value = String(user?.id || user?.uid || '')
+  let user: any = {}
+  try {
+    user = await loadCurrentUser()
+  } catch (error: any) {
+    authStore.clearToken()
+    isLoggedIn.value = false
+    showLoginDialog.value = true
+    toast.error(error?.message || '登录已失效，请重新扫码')
+    return
   }
   if (!targetUserId.value) {
-    toast.error('缺少主页用户信息，请重新登录')
+    targetUserId.value = getCurrentUserId(user)
+  }
+  if (!targetUserId.value) {
+    toast.error('登录信息不完整，请重新扫码')
     showLoginDialog.value = true
     return
   }
@@ -120,6 +133,7 @@ onMounted(() => {
   isClient.value = false
   requestAnimationFrame(() => {
     const params = new URLSearchParams(window.location.search)
+    authStore.consumeCallbackToken()
     targetUserId.value = params.get('uid') || params.get('target_user_id') || ''
     const keyword = params.get('keyword')
     const categoryId = params.get('categoryId') || params.get('cate_id')
@@ -191,6 +205,7 @@ const handleProductClick = (productId: string) => {
 }
 
 const handleLoginSuccess = () => {
+  showLoginDialog.value = false
   isLoggedIn.value = true
   loadCurrentUser().then(() => loadHomeData())
   if (homeProfile.value) {

@@ -76,19 +76,23 @@ PG2muixAGitUB4jcBQIDAQAB
     }
 
     /**解密（必须有 token，失败抛错） */
-    public static function decryptToken()
+    private static function getBearerTokenFromHeader()
     {
         $headers = request()->header();
-        if (empty($headers['authorization-token'])) {
-            throwError('请先授权登录', Config::get('status.not_logged'));
-        }
-        $secret = $headers['authorization-token'];
+        $secret = $headers['authorization-token'] ?? $headers['authorization'] ?? '';
         if (!$secret) {
-            throwError('请先授权登录', Config::get('status.not_logged'));
+            return '';
         }
-        if (strpos($secret, 'Bearer') !== false) {
-            $secret = str_replace('Bearer ', '', $secret);
-        } else {
+        if (stripos($secret, 'Bearer ') === 0) {
+            return trim(substr($secret, 7));
+        }
+        return '';
+    }
+
+    public static function decryptToken()
+    {
+        $secret = self::getBearerTokenFromHeader();
+        if (!$secret) {
             throwError('请先授权登录', Config::get('status.not_logged'));
         }
         $key = self::PUBLIC_KEY_PATH;
@@ -104,17 +108,8 @@ PG2muixAGitUB4jcBQIDAQAB
     /**尝试解密（可选 token，没有或无效时返回 null，不抛错） */
     public static function tryDecryptToken()
     {
-        $headers = request()->header();
-        if (empty($headers['authorization-token'])) {
-            return null;
-        }
-        $secret = $headers['authorization-token'];
+        $secret = self::getBearerTokenFromHeader();
         if (!$secret) {
-            return null;
-        }
-        if (strpos($secret, 'Bearer') !== false) {
-            $secret = str_replace('Bearer ', '', $secret);
-        } else {
             return null;
         }
         $key = self::PUBLIC_KEY_PATH;

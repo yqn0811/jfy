@@ -9,7 +9,7 @@ import ProductImageGallery from './ProductImageGallery.vue'
 import ShareDialog from './ShareDialog.vue'
 import DownloadDialog from './DownloadDialog.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
-import { authStore, pcApi } from '@/lib/api'
+import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
 import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import type { ProductImageData } from '@/data/ProductImageData'
@@ -48,6 +48,7 @@ const canDownload = computed(() => {
 })
 
 const loadProduct = async () => {
+  authStore.consumeCallbackToken()
   if (!authStore.isLoggedIn()) {
     isLoggedIn.value = false
     showLoginDialog.value = true
@@ -68,7 +69,12 @@ const loadProduct = async () => {
     product.value = mapProduct(detail, targetUserId.value)
     productImages.value = mapProductImagesFromDetail(detail, product.value.id)
     isFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
-    const currentUid = String(authStore.getUser<any>()?.id || authStore.getUser<any>()?.uid || '')
+    let currentUser = authStore.getUser<any>() || {}
+    if (!getCurrentUserId(currentUser)) {
+      currentUser = await pcApi.getCurrentUser()
+      authStore.setUser(currentUser)
+    }
+    const currentUid = getCurrentUserId(currentUser)
     isOwnerView.value = !!currentUid && currentUid === String(detail?.uid || product.value.ownerUserId)
     if (isLoggedIn.value) pcApi.addVisit('product', product.value.id).catch(() => {})
   } catch (error: any) {
@@ -83,6 +89,7 @@ onMounted(() => {
 
   requestAnimationFrame(() => {
     const params = new URLSearchParams(window.location.search)
+    authStore.consumeCallbackToken()
     productId.value = params.get('productId') || params.get('product_id') || ''
     targetUserId.value = params.get('uid') || params.get('target_user_id') || ''
     isLoggedIn.value = authStore.isLoggedIn()
@@ -162,6 +169,7 @@ const handleCloseDrawer = (open = false) => {
 }
 
 const handleLoginSuccess = () => {
+  showLoginDialog.value = false
   isLoggedIn.value = true
   toast.success('登录成功')
   loadProduct()

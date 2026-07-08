@@ -10,7 +10,7 @@ import ProductGrid from '@/components/category_browser/ProductGrid.vue'
 import AccessDeniedPlaceholder from '@/components/category_browser/AccessDeniedPlaceholder.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
-import { authStore, pcApi } from '@/lib/api'
+import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
 import { mapCategory, mapHomeProfile, mapProduct, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { CategoryVO } from '@/data/CategoryService'
 import type { ProductData } from '@/data/ProductData'
@@ -73,12 +73,29 @@ const hasContent = computed(() => {
 })
 
 const loadCategoryData = async () => {
+  authStore.consumeCallbackToken()
   if (!authStore.isLoggedIn()) {
     isLoggedIn.value = false
     showLoginDialog.value = true
     return
   }
   isLoggedIn.value = true
+  if (!targetUserId.value) {
+    let user = authStore.getUser<any>() || {}
+    if (!getCurrentUserId(user)) {
+      try {
+        user = await pcApi.getCurrentUser()
+        authStore.setUser(user)
+      } catch (error: any) {
+        authStore.clearToken()
+        isLoggedIn.value = false
+        showLoginDialog.value = true
+        toast.error(error?.message || '登录已失效，请重新扫码')
+        return
+      }
+    }
+    targetUserId.value = getCurrentUserId(user)
+  }
   if (!categoryId.value) {
     isAccessDenied.value = true
     return
@@ -145,6 +162,7 @@ onMounted(() => {
   isClient.value = false
   
   const params = new URLSearchParams(window.location.search)
+  authStore.consumeCallbackToken()
   targetUserId.value = params.get('uid') || params.get('target_user_id') || ''
   categoryId.value = params.get('categoryId') || params.get('cate_id') || ''
   parentId.value = params.get('parentId') || ''

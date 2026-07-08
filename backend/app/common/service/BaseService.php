@@ -24,7 +24,7 @@ class BaseService extends BaseController
     protected function getUserInfo()
     {
         $header = request()->header();
-        if(isset($header['authorization-token'])){
+        if(isset($header['authorization-token']) || isset($header['authorization'])){
             $result = JwtService::decryptToken();
             if(!empty($result->user_id)){
                 return WdXcxUser::where('id', $result->user_id)->find();

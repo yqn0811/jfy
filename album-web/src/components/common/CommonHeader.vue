@@ -86,6 +86,16 @@ const isActive = (href: string) => {
 onMounted(() => {
   authStore.consumeCallbackToken();
   userInfo.value = authStore.getUser<any>() || {};
+  if (authStore.isLoggedIn()) {
+    pcApi.getCurrentUser()
+      .then((profile) => {
+        userInfo.value = profile || {};
+        authStore.setUser(profile);
+      })
+      .catch(() => {
+        // 头部资料加载失败不影响页面主体登录校验
+      });
+  }
 });
 </script>
 

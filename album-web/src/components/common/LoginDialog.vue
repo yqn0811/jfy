@@ -5,7 +5,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
@@ -148,7 +147,7 @@ onBeforeUnmount(stopWaitingScript)
       <DialogHeader class="items-center text-center">
         <DialogTitle class="text-xl">微信扫码登录</DialogTitle>
         <DialogDescription class="text-sm">
-          使用微信扫描二维码，登录后自动返回当前页面
+          使用微信扫码后自动进入
         </DialogDescription>
       </DialogHeader>
 
@@ -194,13 +193,6 @@ onBeforeUnmount(stopWaitingScript)
           打开微信登录页面
         </Button>
       </div>
-
-      <DialogFooter class="sm:justify-center border-t pt-4">
-        <div class="flex items-center text-xs text-muted-foreground">
-          <SafeIcon name="ShieldCheck" :size="12" class="mr-1 text-primary" />
-          <span>复用家纺云 PC 端微信安全登录</span>
-        </div>
-      </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>
