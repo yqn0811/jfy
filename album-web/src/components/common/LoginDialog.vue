@@ -24,6 +24,7 @@ const isClient = ref(true);
 const loginStatus = ref<'loading' | 'scanning' | 'expired' | 'success'>('loading');
 const qrCodeUrl = ref('');
 const scene = ref('');
+const loginError = ref('');
 let pollTimer: ReturnType<typeof window.setInterval> | null = null;
 
 const stopPolling = () => {
@@ -85,6 +86,7 @@ const startPolling = () => {
 
 const loadQrcode = async () => {
   loginStatus.value = 'loading';
+  loginError.value = '';
   stopPolling();
   try {
     const data = await pcApi.getLoginQrcode();
@@ -96,7 +98,11 @@ const loadQrcode = async () => {
     startPolling();
   } catch (error: any) {
     loginStatus.value = 'expired';
-    toast.error(error?.message || '二维码生成失败');
+    const message = error?.message || '';
+    loginError.value = message.includes('48001') || message.includes('api unauthorized')
+      ? '当前微信登录二维码暂不可用，请联系管理员开通公众号二维码权限。'
+      : (message || '二维码生成失败，请稍后重试。');
+    toast.error(loginError.value);
   }
 };
 
@@ -163,7 +169,7 @@ const handleUpdateOpen = (value: boolean) => {
             v-if="loginStatus === 'expired'" 
             class="absolute inset-0 flex flex-col items-center justify-center bg-background/60 backdrop-blur-[1px]"
           >
-            <p class="text-sm font-medium mb-3">二维码已失效</p>
+            <p class="text-sm font-medium mb-3">{{ loginError || '二维码已失效' }}</p>
             <Button size="sm" variant="primary" @click="handleRefresh">
               <SafeIcon name="RefreshCw" :size="14" class="mr-2" />
               点击刷新
