@@ -34,8 +34,8 @@ const innerStyle = computed(() => ({
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: linear-gradient(180deg, #ffbc00 0%, #ffd333 100%);
-  box-shadow: 0 6px 16px rgba(236, 160, 0, 0.24);
+  background: linear-gradient(180deg, #d89500 0%, #e5ad18 100%);
+  box-shadow: 0 6px 16px rgba(184, 126, 0, 0.22);
 }
 
 .brand-mark-inner {

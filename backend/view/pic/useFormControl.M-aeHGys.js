@@ -1,0 +1,1 @@
+import{t as toValue,u as unrefElement}from"./index.DDTC22ov.js";import{g as computed}from"./runtime-core.esm-bundler.lG8cH2JG.js";function useFormControl(el){return computed(()=>toValue(el)?!!unrefElement(el)?.closest("form"):!0)}export{useFormControl as u};
