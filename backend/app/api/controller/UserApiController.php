@@ -8,6 +8,7 @@ use app\common\service\bridge\JiafangyunEntitlementSyncService;
 use app\common\service\user\UserService;
 use app\common\service\WxService;
 use think\facade\Cache;
+use think\facade\Config;
 use app\index\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
@@ -846,6 +847,64 @@ class UserApiController extends ApiBaseController
             'data_url' => $dataUrl,
             'scene' => $scene
         ]);
+    }
+
+    /**
+     * 获取PC网页登录配置，复用旧相册微信开放平台扫码登录链路
+     */
+    public function getLoginOauthConfig()
+    {
+        $params = $this->request->getMore([
+            ['redirect', ''],
+        ]);
+
+        $redirect = trim((string)$params['redirect']);
+        if (!$redirect) {
+            $redirect = ROOT_HOST . '/';
+        }
+        if (!$this->isAllowedPcLoginRedirect($redirect)) {
+            $redirect = 'https://pic.jfyuntu.com/pic/';
+        }
+
+        $callback = trim((string)env('JIAFANGYUN_PC_LOGIN_CALLBACK', ''));
+        if (!$callback) {
+            $callback = 'https://www.jfyuntu.com/index.php/api/user/login/callback';
+        }
+
+        $state = base64_encode($redirect);
+        $appid = Config::get('miniprogram.account_appid');
+        $authUrl = 'https://open.weixin.qq.com/connect/qrconnect?' . http_build_query([
+            'appid' => $appid,
+            'redirect_uri' => $callback,
+            'response_type' => 'code',
+            'scope' => 'snsapi_login',
+            'state' => $state,
+        ]) . '#wechat_redirect';
+
+        $this->result([
+            'appid' => $appid,
+            'scope' => 'snsapi_login',
+            'redirect_uri' => $callback,
+            'state' => $state,
+            'auth_url' => $authUrl,
+        ]);
+    }
+
+    private function isAllowedPcLoginRedirect($redirect)
+    {
+        $parts = parse_url($redirect);
+        if (!$parts || empty($parts['scheme']) || empty($parts['host'])) {
+            return false;
+        }
+        if (!in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+            return false;
+        }
+        $host = strtolower($parts['host']);
+        if (in_array($host, ['localhost', '127.0.0.1'], true)) {
+            return true;
+        }
+        return $host === 'jfyuntu.com' || substr($host, -12) === '.jfyuntu.com'
+            || $host === 'izhixu.com' || substr($host, -11) === '.izhixu.com';
     }
 
     /**

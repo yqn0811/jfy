@@ -4,25 +4,13 @@ import { toast } from 'vue-sonner'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
 import { authStore, pcApi } from '@/lib/api'
-import { isLocalMockEnabled } from '@/lib/mock-api'
 
 const isReady = ref(false)
 const isAuthenticated = ref(false)
 const showLoginDialog = ref(false)
 
-const enterMockSession = async () => {
-  const data = await pcApi.checkLoginStatus('mock_scene')
-  const token = data?.token || data?.access_token || data?.authorization
-  if (token) authStore.setToken(token)
-  if (data?.user || data?.user_info) authStore.setUser(data.user || data.user_info)
-}
-
 const verifyLogin = async () => {
   authStore.consumeCallbackToken()
-
-  if (!authStore.isLoggedIn() && isLocalMockEnabled()) {
-    await enterMockSession()
-  }
 
   isAuthenticated.value = authStore.isLoggedIn()
   if (!isAuthenticated.value) {

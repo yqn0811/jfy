@@ -9,10 +9,12 @@ import type { PlanPackageData } from '@/data/PlanPackageData'
 interface Props {
   plan: PlanPackageData
   isCurrent?: boolean
+  isLoading?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isCurrent: false,
+  isLoading: false,
 })
 
 const emit = defineEmits<{
@@ -73,10 +75,11 @@ const formatCapacity = (mb: number): string => {
       <Button 
         v-if="!isCurrent"
         class="w-full" 
+        :disabled="props.isLoading"
         @click="emit('upgrade')"
       >
-        <SafeIcon name="ShoppingCart" :size="16" class="mr-2" />
-        立即升级
+        <SafeIcon :name="props.isLoading ? 'Loader2' : 'ShoppingCart'" :size="16" :class="['mr-2', props.isLoading && 'animate-spin']" />
+        {{ props.isLoading ? '正在创建订单' : '立即升级' }}
       </Button>
       <Button 
         v-else

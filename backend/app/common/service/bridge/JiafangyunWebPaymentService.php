@@ -4,6 +4,7 @@ namespace app\common\service\bridge;
 
 use app\common\service\BaseService;
 use app\common\service\user\VipgradeService;
+use cores\utils\Utils;
 use think\App;
 
 class JiafangyunWebPaymentService extends BaseService
@@ -127,9 +128,29 @@ class JiafangyunWebPaymentService extends BaseService
             'payment_url' => $codeUrl,
             'code_url' => $codeUrl,
             'qr_code_data' => $order['qr_code_data'] ?? '',
+            'qr_image' => $this->makeQrImage($codeUrl, $order['qr_code_data'] ?? ''),
             'expires_at' => $order['expires_at'] ?? null,
             'raw' => $raw,
         ];
+    }
+
+    private function makeQrImage($codeUrl, $qrCodeData)
+    {
+        if (is_string($qrCodeData) && strpos($qrCodeData, 'data:image/') === 0) {
+            return $qrCodeData;
+        }
+        if (!$codeUrl) {
+            return '';
+        }
+        try {
+            $dir = public_path() . 'uploads/qrcode';
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0777, true);
+            }
+            return Utils::createQrcode($codeUrl, '', true);
+        } catch (\Throwable $e) {
+            return '';
+        }
     }
 
     private function resolveMembershipPlanIdByLegacyGrade($param)

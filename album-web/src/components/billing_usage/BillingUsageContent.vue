@@ -5,6 +5,14 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import StorageCard from '@/components/billing_usage/StorageCard.vue'
 import TrafficCard from '@/components/billing_usage/TrafficCard.vue'
@@ -28,9 +36,17 @@ const storageUsage = ref({
 const plans = ref<PlanPackageData[]>([])
 const orders = ref<OrderData[]>([])
 const isLoading = ref(false)
+const isCreatingOrder = ref(false)
+const paymentDialogOpen = ref(false)
+const activePayment = ref<any>(null)
+let paymentTimer: ReturnType<typeof window.setInterval> | null = null
 
 onMounted(() => {
   loadBilling()
+})
+
+onBeforeUnmount(() => {
+  stopPaymentPolling()
 })
 
 const parseSpaceToMb = (value: any) => {
@@ -58,7 +74,7 @@ const mapOrder = (item: any): OrderData => ({
   packageId: String(item.plan_id || item.membership_plan_id || ''),
   orderNo: item.order_no || item.order_id || '',
   amount: String(item.amount || item.pay_price || item.price || '0.00'),
-  status: Number(item.status) === 1 || item.status === 'success' || item.pay_status === 'paid' ? 'success' : Number(item.status) === -1 || item.status === 'failed' ? 'failed' : 'pending',
+  status: item.status === 'paid' || Number(item.status) === 1 || item.status === 'success' || item.pay_status === 'paid' ? 'success' : Number(item.status) === -1 || item.status === 'failed' ? 'failed' : 'pending',
   createdAt: item.create_time || item.created_at || '',
   updatedAt: item.pay_time || item.update_time || item.updated_at || '',
 })
@@ -108,17 +124,80 @@ const trafficPercent = computed(() => {
 
 const isCapacityWarning = computed(() => usagePercent.value > 80)
 
+const paymentQrImage = computed(() => {
+  const order = activePayment.value || {}
+  return order.qr_image || order.qr_code_data || order.qrcode || order.qrcode_url || ''
+})
+
+const paymentUrl = computed(() => {
+  const order = activePayment.value || {}
+  return order.payment_url || order.code_url || ''
+})
+
+const paymentAmount = computed(() => {
+  const order = activePayment.value || {}
+  if (order.amount) return String(order.amount)
+  const cents = Number(order.amount_cents || 0)
+  return cents > 0 ? (cents / 100).toFixed(2) : '0.00'
+})
+
+const paymentOrderNo = computed(() => {
+  const order = activePayment.value || {}
+  return order.order_no || order.order_id || ''
+})
+
+const stopPaymentPolling = () => {
+  if (paymentTimer) {
+    window.clearInterval(paymentTimer)
+    paymentTimer = null
+  }
+}
+
+const closePaymentDialog = () => {
+  paymentDialogOpen.value = false
+  stopPaymentPolling()
+}
+
+const pollPaymentStatus = (orderNo: string) => {
+  stopPaymentPolling()
+  if (!orderNo) return
+  const check = async () => {
+    try {
+      const data = await pcApi.getPaymentOrderStatus(orderNo)
+      const status = String(data?.status || data?.pay_status || '').toLowerCase()
+      if (status === 'paid' || status === 'success') {
+        toast.success('支付成功，权益已刷新')
+        stopPaymentPolling()
+        closePaymentDialog()
+        await loadBilling()
+      } else if (status === 'closed' || status === 'expired' || status === 'cancelled' || status === 'failed') {
+        toast.error('订单已失效，请重新下单')
+        stopPaymentPolling()
+        await loadBilling()
+      }
+    } catch {
+      // 轮询失败保留弹窗，下一轮继续恢复。
+    }
+  }
+  paymentTimer = window.setInterval(check, 3000)
+  check()
+}
+
 const handleUpgrade = async (planId: string) => {
   const plan = plans.value.find(p => p.id === planId)
   if (!plan) return
 
+  isCreatingOrder.value = true
   try {
     const order = await pcApi.createMembershipOrder({ membership_plan_id: plan.id, plan_id: plan.id })
-    toast.success(order?.pay_url ? '订单已创建，请完成支付' : '订单已创建')
-    if (order?.pay_url) window.open(order.pay_url, '_blank')
-    await loadBilling()
+    activePayment.value = { ...order, plan_name: plan.name }
+    paymentDialogOpen.value = true
+    toast.success('订单已创建，请使用微信扫码支付')
+    pollPaymentStatus(order?.order_no || order?.order_id || '')
   } catch (error: any) {
     toast.error(error?.message || '下单失败')
+  } finally {
+    isCreatingOrder.value = false
   }
 }
 
@@ -196,6 +275,7 @@ const handleBackToWorkbench = () => {
             :key="plan.id"
             :plan="plan"
             :is-current="storageUsage?.planName === plan.name"
+            :is-loading="isCreatingOrder"
             @upgrade="handleUpgrade(plan.id)"
           />
         </div>
@@ -243,5 +323,50 @@ const handleBackToWorkbench = () => {
         </div>
       </CardContent>
     </Card>
+
+    <Dialog :open="paymentDialogOpen" @update:open="(val) => val ? (paymentDialogOpen = val) : closePaymentDialog()">
+      <DialogContent class="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>微信扫码支付</DialogTitle>
+          <DialogDescription>订单创建成功，请使用微信扫描二维码完成支付</DialogDescription>
+        </DialogHeader>
+
+        <div class="grid gap-5 py-2 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
+          <div class="mx-auto flex h-56 w-56 items-center justify-center rounded-lg border border-border bg-white p-3">
+            <img
+              v-if="paymentQrImage"
+              :src="paymentQrImage"
+              alt="微信支付二维码"
+              class="h-full w-full object-contain"
+            />
+            <div v-else class="flex flex-col items-center text-muted-foreground">
+              <SafeIcon name="QrCode" :size="52" class="mb-2" />
+              <span class="text-sm">二维码生成中</span>
+            </div>
+          </div>
+
+          <div class="min-w-0 text-center sm:text-left">
+            <p class="text-sm text-muted-foreground">购买套餐</p>
+            <h3 class="mt-1 text-lg font-semibold text-foreground">{{ activePayment?.plan_name || '资源包' }}</h3>
+            <p class="mt-4 text-3xl font-bold text-primary">¥{{ paymentAmount }}</p>
+            <p class="mt-3 break-all text-xs text-muted-foreground">订单号：{{ paymentOrderNo || '-' }}</p>
+            <p class="mt-4 inline-flex items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm text-primary">
+              <SafeIcon name="Loader2" :size="14" class="animate-spin" />
+              等待支付结果
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter class="sm:justify-between">
+          <Button variant="outline" @click="closePaymentDialog">稍后支付</Button>
+          <Button v-if="paymentUrl" as-child>
+            <a :href="paymentUrl" target="_blank" rel="noopener noreferrer">
+              <SafeIcon name="ExternalLink" :size="14" class="mr-2" />
+              打开支付链接
+            </a>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

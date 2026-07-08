@@ -1,194 +1,205 @@
-
 <script setup lang="ts">
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogDescription,
-  DialogFooter
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import SafeIcon from '@/components/common/SafeIcon.vue';
-import { toast } from 'vue-sonner';
-import { authStore, pcApi } from '@/lib/api';
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import SafeIcon from '@/components/common/SafeIcon.vue'
+import { toast } from 'vue-sonner'
+import { pcApi } from '@/lib/api'
+import { isLocalMockEnabled } from '@/lib/mock-api'
 
 interface Props {
-  open: boolean;
+  open: boolean
 }
 
-const props = defineProps<Props>();
-const emit = defineEmits(['update:open', 'login-success']);
-
-const isClient = ref(true);
-const loginStatus = ref<'loading' | 'scanning' | 'expired' | 'success'>('loading');
-const qrCodeUrl = ref('');
-const scene = ref('');
-const loginError = ref('');
-let pollTimer: ReturnType<typeof window.setInterval> | null = null;
-
-const stopPolling = () => {
-  if (pollTimer) {
-    window.clearInterval(pollTimer);
-    pollTimer = null;
+declare global {
+  interface Window {
+    WxLogin?: new (config: Record<string, any>) => any
   }
-};
+}
 
-const resolveQrPayload = (data: any) => {
-  qrCodeUrl.value = data?.qrcode || data?.qrcode_url || data?.data_url || data?.url || data?.image || data?.image_url || '';
-  scene.value = data?.scene || data?.ticket || data?.key || data?.uuid || '';
-};
+const props = defineProps<Props>()
+const emit = defineEmits(['update:open', 'login-success'])
 
-const completeLogin = async (token: string, user: any = null) => {
-  authStore.setToken(token);
-  if (user) authStore.setUser(user);
-  try {
-    const profile = await pcApi.getCurrentUser();
-    authStore.setUser(profile);
-  } catch {
-    // token 已保存，资料接口失败不阻断登录完成
+const status = ref<'loading' | 'ready' | 'error' | 'local'>('loading')
+const loginError = ref('')
+const authUrl = ref('')
+const containerId = `wx-login-${Math.random().toString(36).slice(2)}`
+let scriptPollTimer: ReturnType<typeof window.setInterval> | null = null
+
+const stopWaitingScript = () => {
+  if (scriptPollTimer) {
+    window.clearInterval(scriptPollTimer)
+    scriptPollTimer = null
   }
-  loginStatus.value = 'success';
-  toast.success('登录成功');
-  stopPolling();
-  setTimeout(() => {
-    emit('update:open', false);
-    emit('login-success');
-    loginStatus.value = 'scanning';
-  }, 800);
-};
+}
 
-const startPolling = () => {
-  stopPolling();
-  if (!scene.value) return;
-  pollTimer = window.setInterval(async () => {
-    try {
-      const data = await pcApi.checkLoginStatus(scene.value);
-      const status = String(data?.status || data?.login_status || '').toLowerCase();
-      const token = data?.token || data?.access_token || data?.authorization;
-      if (token) {
-        await completeLogin(token, data?.user || data?.user_info || null);
-        return;
-      }
-      if (status === 'expired' || Number(data?.expired || 0) === 1) {
-        loginStatus.value = 'expired';
-        stopPolling();
-      }
-    } catch (error: any) {
-      const message = error?.message || '';
-      if (message.includes('过期') || message.includes('失效')) {
-        loginStatus.value = 'expired';
-        stopPolling();
-      }
-    }
-  }, 1800);
-};
+const getRedirectUrl = () => {
+  if (typeof window === 'undefined') return ''
+  return window.location.href
+}
 
-const loadQrcode = async () => {
-  loginStatus.value = 'loading';
-  loginError.value = '';
-  stopPolling();
+const renderWxLogin = (config: any) => {
+  const container = document.getElementById(containerId)
+  if (!container) return false
+  container.innerHTML = ''
+
+  if (!window.WxLogin) return false
+
+  new window.WxLogin({
+    self_redirect: false,
+    id: containerId,
+    appid: config.appid,
+    scope: config.scope || 'snsapi_login',
+    redirect_uri: encodeURIComponent(config.redirect_uri),
+    state: config.state,
+    style: '',
+    href: '',
+  })
+  status.value = 'ready'
+  return true
+}
+
+const openAuthUrl = () => {
+  if (!authUrl.value) return
+  window.location.href = authUrl.value
+}
+
+const enterLocalMock = async () => {
   try {
-    const data = await pcApi.getLoginQrcode();
-    resolveQrPayload(data);
-    if (!qrCodeUrl.value) {
-      throw new Error('二维码生成失败');
+    const data = await pcApi.checkLoginStatus('mock_scene')
+    const token = data?.token || data?.access_token || data?.authorization
+    if (!token) throw new Error('本地登录失败')
+    localStorage.setItem('jfyuntu_pc_token', token)
+    localStorage.setItem('token', token)
+    if (data?.user || data?.user_info) {
+      const user = JSON.stringify(data.user || data.user_info)
+      localStorage.setItem('jfyuntu_pc_user', user)
+      localStorage.setItem('userInfo', user)
     }
-    loginStatus.value = 'scanning';
-    startPolling();
+    emit('update:open', false)
+    emit('login-success')
   } catch (error: any) {
-    loginStatus.value = 'expired';
-    const message = error?.message || '';
-    loginError.value = message.includes('48001') || message.includes('api unauthorized')
-      ? '当前微信登录二维码暂不可用，请联系管理员开通公众号二维码权限。'
-      : (message || '二维码生成失败，请稍后重试。');
-    toast.error(loginError.value);
+    toast.error(error?.message || '本地登录失败')
   }
-};
+}
 
-onMounted(() => {
-  isClient.value = false;
-  setTimeout(() => {
-    isClient.value = true;
-  }, 0);
-});
+const loadOauthLogin = async () => {
+  stopWaitingScript()
+  loginError.value = ''
+  authUrl.value = ''
+  status.value = 'loading'
 
-watch(() => props.open, (open) => {
-  if (open) {
-    loadQrcode();
-  } else {
-    stopPolling();
+  if (isLocalMockEnabled()) {
+    status.value = 'local'
+    return
   }
-}, { immediate: true });
 
-const handleRefresh = () => {
-  loadQrcode();
-};
+  try {
+    const data = await pcApi.getLoginOauthConfig(getRedirectUrl())
+    authUrl.value = data?.auth_url || ''
+    if (!data?.appid || !data?.redirect_uri || !data?.state) {
+      throw new Error('微信登录配置缺失')
+    }
 
-const handleUpdateOpen = (value: boolean) => {
-  emit('update:open', value);
-};
+    await nextTick()
+    if (renderWxLogin(data)) return
 
+    let retryTimes = 0
+    scriptPollTimer = window.setInterval(() => {
+      retryTimes += 1
+      if (renderWxLogin(data) || retryTimes >= 20) {
+        stopWaitingScript()
+        if (retryTimes >= 20 && !window.WxLogin) {
+          status.value = authUrl.value ? 'ready' : 'error'
+          if (!authUrl.value) loginError.value = '微信登录组件加载失败，请刷新页面重试'
+        }
+      }
+    }, 250)
+  } catch (error: any) {
+    status.value = 'error'
+    loginError.value = error?.message || '微信登录初始化失败，请稍后重试'
+    toast.error(loginError.value)
+  }
+}
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      loadOauthLogin()
+    } else {
+      stopWaitingScript()
+    }
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(stopWaitingScript)
 </script>
 
 <template>
-  <Dialog :open="open" @update:open="handleUpdateOpen">
-    <DialogContent class="sm:max-w-[400px] gap-6">
+  <Dialog :open="open" @update:open="emit('update:open', $event)">
+    <DialogContent class="sm:max-w-[430px] gap-6">
       <DialogHeader class="items-center text-center">
-        <DialogTitle class="text-xl">微信扫码安全登录</DialogTitle>
+        <DialogTitle class="text-xl">微信扫码登录</DialogTitle>
         <DialogDescription class="text-sm">
-          扫码关注公众号，实时接收订单及产品更新通知
+          使用微信扫描二维码，登录后自动返回当前页面
         </DialogDescription>
       </DialogHeader>
 
-      <div class="flex flex-col items-center justify-center space-y-4 py-4">
-        <div class="relative w-48 h-48 border border-border rounded-lg bg-white p-2 flex items-center justify-center overflow-hidden">
-          <!-- 二维码图像 -->
-          <img 
-            v-if="loginStatus !== 'success' && qrCodeUrl"
-            :src="qrCodeUrl" 
-            alt="WeChat Login QR Code"
-            class="w-full h-full object-contain"
-            :class="loginStatus === 'expired' && 'blur-[2px] opacity-20'"
-          />
-          <div v-else-if="loginStatus === 'loading'" class="flex flex-col items-center text-muted-foreground">
-            <SafeIcon name="Loader2" :size="30" class="animate-spin mb-2" />
-            <p class="text-sm">二维码生成中</p>
-          </div>
-          
-          <!-- 成功状态覆盖 -->
-          <div v-if="loginStatus === 'success'" class="flex flex-col items-center animate-in fade-in zoom-in duration-300">
-            <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-3">
-              <SafeIcon name="Check" :size="32" class="text-primary" />
-            </div>
-            <p class="text-primary font-medium">登录成功</p>
+      <div class="flex flex-col items-center justify-center gap-4 py-2">
+        <div class="relative h-[310px] w-[310px] overflow-hidden rounded-lg border border-border bg-white">
+          <div :id="containerId" class="h-full w-full" />
+
+          <div
+            v-if="status === 'loading'"
+            class="absolute inset-0 flex flex-col items-center justify-center bg-white text-muted-foreground"
+          >
+            <SafeIcon name="Loader2" :size="30" class="mb-2 animate-spin" />
+            <p class="text-sm">正在加载微信登录</p>
           </div>
 
-          <!-- 过期遮罩 -->
-          <div 
-            v-if="loginStatus === 'expired'" 
-            class="absolute inset-0 flex flex-col items-center justify-center bg-background/60 backdrop-blur-[1px]"
+          <div
+            v-else-if="status === 'local'"
+            class="absolute inset-0 flex flex-col items-center justify-center bg-white p-6 text-center"
           >
-            <p class="text-sm font-medium mb-3">{{ loginError || '二维码已失效' }}</p>
-            <Button size="sm" variant="primary" @click="handleRefresh">
+            <SafeIcon name="MonitorCog" :size="34" class="mb-3 text-primary" />
+            <p class="text-sm font-medium text-foreground">本地开发环境</p>
+            <p class="mt-1 text-xs text-muted-foreground">微信回调不支持 localhost，可使用本地会话预览页面</p>
+            <Button class="mt-4" size="sm" @click="enterLocalMock">
+              进入本地预览
+            </Button>
+          </div>
+
+          <div
+            v-else-if="status === 'error'"
+            class="absolute inset-0 flex flex-col items-center justify-center bg-white p-6 text-center"
+          >
+            <SafeIcon name="CircleAlert" :size="34" class="mb-3 text-destructive" />
+            <p class="text-sm font-medium text-foreground">{{ loginError || '微信登录加载失败' }}</p>
+            <Button class="mt-4" size="sm" variant="outline" @click="loadOauthLogin">
               <SafeIcon name="RefreshCw" :size="14" class="mr-2" />
-              点击刷新
+              重新加载
             </Button>
           </div>
         </div>
 
-        <div class="flex flex-col items-center space-y-2">
-          <p v-if="loginStatus === 'scanning'" class="text-sm flex items-center text-muted-foreground">
-            <SafeIcon name="Loader2" :size="14" class="mr-2 animate-spin" />
-            正在等待扫码...
-          </p>
-        </div>
+        <Button v-if="authUrl && status !== 'local'" variant="outline" class="w-[310px]" @click="openAuthUrl">
+          <SafeIcon name="ExternalLink" :size="14" class="mr-2" />
+          打开微信登录页面
+        </Button>
       </div>
 
-      <DialogFooter class="sm:justify-center flex-col items-center gap-2 border-t pt-4">
+      <DialogFooter class="sm:justify-center border-t pt-4">
         <div class="flex items-center text-xs text-muted-foreground">
           <SafeIcon name="ShieldCheck" :size="12" class="mr-1 text-primary" />
-          <span>家纺云技术提供安全加密保护</span>
+          <span>复用家纺云 PC 端微信安全登录</span>
         </div>
       </DialogFooter>
     </DialogContent>

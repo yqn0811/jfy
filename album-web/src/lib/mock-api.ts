@@ -603,6 +603,17 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
         scene: 'mock_scene',
       }) as T
 
+    case 'user/login/oauth_config': {
+      const redirect = String(params.redirect || currentOrigin())
+      return ok({
+        appid: 'mock_appid',
+        scope: 'snsapi_login',
+        redirect_uri: `${currentOrigin()}/api/user/login/callback`,
+        state: btoa(redirect),
+        auth_url: redirect,
+      }) as T
+    }
+
     case 'user/login/status':
       return ok({ status: 'success', token: MOCK_TOKEN, user: state.user }) as T
 
@@ -805,24 +816,33 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
     case 'web_payment/membership/order/create': {
       const planId = String(body.membership_plan_id || body.plan_id || '')
       const plan = state.plans.find(item => String(item.id) === planId)
+      const orderNo = `MOCK${Date.now()}`
+      const amount = String(plan?.price || '0').replace(/[^\d.]/g, '') || '0.00'
+      const paymentUrl = `weixin://wxpay/bizpayurl?pr=${orderNo}`
       const order = {
         id: `order_${Date.now()}`,
         packageId: planId,
         plan_id: planId,
         membership_plan_id: planId,
-        orderNo: `MOCK${Date.now()}`,
-        order_no: `MOCK${Date.now()}`,
-        amount: String(plan?.price || '0').replace(/[^\d.]/g, '') || '0.00',
+        orderNo,
+        order_no: orderNo,
+        amount,
+        amount_cents: Math.round(Number(amount) * 100),
         status: 'pending',
         create_time: nowText(),
         createdAt: nowText(),
         updatedAt: nowText(),
-        pay_url: '',
+        payment_url: paymentUrl,
+        code_url: paymentUrl,
+        qr_image: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentUrl)}`,
       }
       state.orders.unshift(order)
       saveState(state)
       return ok(order) as T
     }
+
+    case 'web_payment/order/status':
+      return ok({ status: 'pending' }) as T
 
     case 'album/ai/resources':
       return ok(listPayload(state.resources)) as T

@@ -207,6 +207,8 @@ export async function apiUpload<T = any>(
 }
 
 export const pcApi = {
+  getLoginOauthConfig: (redirect = '') =>
+    apiRequest<any>('user/login/oauth_config', { params: { redirect, timestamp: Date.now() }, auth: false }),
   getLoginQrcode: () => apiRequest<any>('user/login/qrcode', { auth: false }),
   checkLoginStatus: (scene: string) =>
     apiRequest<any>('user/login/status', { params: { scene, timestamp: Date.now() }, auth: false }),
@@ -305,6 +307,8 @@ export const pcApi = {
   getSubscriptionPlans: () => apiRequest<any>('web_payment/subscription/plans', { auth: false }),
   createMembershipOrder: (body: Record<string, any>) =>
     apiRequest<any>('web_payment/membership/order/create', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
+  getPaymentOrderStatus: (orderNo: string) =>
+    apiRequest<any>('web_payment/order/status', { params: { order_no: orderNo, timestamp: Date.now() } }),
   getPaymentOrders: (params: Record<string, any> = {}) =>
     apiRequest<any>('web_payment/orders', { params: { page: 1, page_size: 20, timestamp: Date.now(), ...params } }),
 
