@@ -31,10 +31,19 @@ class UserApiController extends ApiBaseController
         if ($shareCode !== '') {
             return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $shareCode);
         }
-        if ($requireShareCode) {
+        if ($requireShareCode && !$this->getOptionalVisitorUid()) {
             throwError('分享链接无效');
         }
         return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $inviteCode, true);
+    }
+
+    private function getOptionalVisitorUid()
+    {
+        try {
+            return (int)request()->userID();
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     /**微信用户获取openid
