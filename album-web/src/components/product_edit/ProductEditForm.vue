@@ -35,6 +35,22 @@ interface FormState {
   detailChartImages: ProductImageData[]
 }
 
+interface Props {
+  productId?: string
+  embedded?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  productId: '',
+  embedded: false,
+})
+
+const emit = defineEmits<{
+  (e: 'cancel'): void
+  (e: 'saved', productId: string): void
+  (e: 'preview', productId: string): void
+}>()
+
 const isClient = ref(true)
 const isLoading = ref(false)
 const isSaving = ref(false)
@@ -78,7 +94,7 @@ onMounted(() => {
   })
 
   const params = new URLSearchParams(window.location.search)
-  const id = params.get('productId')
+  const id = props.productId || params.get('productId')
 
   loadCategories()
   if (id) {
@@ -131,6 +147,10 @@ const handleCancel = () => {
     const confirmed = window.confirm('您有未保存的更改，确定要放弃吗？')
     if (!confirmed) return
   }
+  if (props.embedded) {
+    emit('cancel')
+    return
+  }
   window.location.href = './product-management.html'
 }
 
@@ -166,7 +186,11 @@ const handleSave = async () => {
     }
 
     toast.success('设置已保存')
-    window.location.href = './product-management.html'
+    if (props.embedded) {
+      emit('saved', formState.value.id || productId.value || '')
+    } else {
+      window.location.href = './product-management.html'
+    }
   } catch (error) {
     console.error('Failed to save product:', error)
     toast.error('保存失败，请稍后重试')
@@ -196,7 +220,12 @@ const handleSaveAndPreview = async () => {
     }
 
     toast.success('设置已保存')
-    window.location.href = `./product-detail.html?productId=${formState.value.id}`
+    if (props.embedded) {
+      emit('preview', formState.value.id)
+      emit('saved', formState.value.id)
+    } else {
+      window.location.href = `./product-detail.html?productId=${formState.value.id}`
+    }
   } catch (error) {
     console.error('Failed to save product:', error)
     toast.error('保存失败，请稍后重试')
@@ -279,7 +308,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
 
   <div v-else class="flex flex-col h-full overflow-hidden">
     <!-- Header Section -->
-    <div class="flex items-center justify-between border-b border-border pb-4 mb-6">
+    <div v-if="!props.embedded" class="flex items-center justify-between border-b border-border pb-4 mb-6">
       <div>
         <h1 class="text-page-title">{{ isEditMode ? '编辑产品' : '新建产品' }}</h1>
         <p class="text-caption mt-1">

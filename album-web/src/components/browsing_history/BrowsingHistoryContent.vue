@@ -17,6 +17,14 @@ import { buildPcTargetUrl, mapPcRecord, unwrapList, type PcRecordItem } from '@/
 
 type TabType = 'all' | 'homepage' | 'category' | 'product'
 
+interface Props {
+  embedded?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  embedded: false,
+})
+
 const isClient = ref(true)
 const activeTab = ref<TabType>('all')
 const keyword = ref('')
@@ -158,18 +166,19 @@ watch(currentPage, () => {
 </script>
 
 <template>
-  <div class="page-body space-y-6">
+  <div :class="props.embedded ? 'space-y-4' : 'page-body space-y-6'">
     <!-- Page Header -->
-    <div class="flex flex-col gap-2">
+    <div v-if="!props.embedded" class="flex flex-col gap-2">
       <h1 class="text-page-title">浏览足迹</h1>
       <p class="text-caption">你浏览过的主页、分类和产品会展示在这里</p>
     </div>
 
     <!-- Filter & Search Bar -->
-    <div class="surface-base card-padding space-y-4">
+    <div :class="props.embedded ? '' : 'surface-base card-padding'">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <!-- Tabs -->
-      <Tabs :value="activeTab" @update:model-value="handleTabChange" class="w-full">
-        <TabsList class="grid w-full grid-cols-4 h-auto bg-muted p-1">
+      <Tabs :value="activeTab" @update:model-value="handleTabChange" class="lg:w-auto">
+        <TabsList class="grid w-full grid-cols-4 h-auto bg-muted p-1 lg:w-[420px]">
           <TabsTrigger value="all" class="data-[state=active]:bg-card data-[state=active]:text-primary">
             全部
           </TabsTrigger>
@@ -186,7 +195,7 @@ watch(currentPage, () => {
       </Tabs>
 
       <!-- Search Input -->
-      <div class="relative">
+      <div class="relative min-w-0 flex-1 lg:max-w-md">
         <SafeIcon
           name="Search"
           :size="18"
@@ -200,6 +209,7 @@ watch(currentPage, () => {
           @input="handleKeywordInput"
           @keyup.enter="handleSearch"
         />
+      </div>
       </div>
     </div>
 

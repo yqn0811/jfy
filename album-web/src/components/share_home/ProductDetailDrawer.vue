@@ -41,6 +41,11 @@ const showShareDialog = ref(false)
 
 const colorImages = computed(() => productImages.value.filter(item => item.type === 'colorChart'))
 const detailImages = computed(() => productImages.value.filter(item => item.type === 'detailChart'))
+const shareTargetUserId = computed(() => {
+  if (typeof window === 'undefined') return ''
+  const params = new URLSearchParams(window.location.search)
+  return params.get('uid') || params.get('target_user_id') || ''
+})
 
 const loadProduct = async () => {
   isLoading.value = true
@@ -239,7 +244,7 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
     v-if="product"
     :open="showShareDialog"
     :product-id="product.id"
-    :target-user-id="new URLSearchParams(window.location.search).get('uid') || new URLSearchParams(window.location.search).get('target_user_id') || ''"
+    :target-user-id="shareTargetUserId"
     @update:open="showShareDialog = $event"
   />
 </template>

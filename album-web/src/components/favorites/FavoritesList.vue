@@ -16,6 +16,14 @@ import { buildPcTargetUrl, mapPcRecord, unwrapList, type PcRecordItem } from '@/
 
 type FavoriteType = 'all' | 'homepage' | 'category' | 'product'
 
+interface Props {
+  embedded?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  embedded: false,
+})
+
 const isClient = ref(true)
 const isLoading = ref(false)
 const activeTab = ref<FavoriteType>('all')
@@ -153,6 +161,10 @@ const handleRemoveFavorite = async () => {
 }
 
 const handleGoToBrowse = () => {
+  if (props.embedded) {
+    window.location.href = './share-home.html'
+    return
+  }
   window.location.href = './share-home.html'
 }
 
@@ -169,19 +181,19 @@ const handleLoginSuccess = async () => {
 </script>
 
 <template>
-  <div class="page-body flex flex-col min-h-screen">
+  <div :class="props.embedded ? 'flex min-h-0 flex-col' : 'page-body flex flex-col min-h-screen'">
     <!-- Page Header -->
-    <div class="mb-6">
+    <div v-if="!props.embedded" class="mb-6">
       <h1 class="text-page-title mb-2">我的收藏</h1>
       <p class="text-caption">你收藏的主页、分类和产品会展示在这里</p>
     </div>
 
     <!-- Filter Bar -->
-    <div class="surface-base card-padding mb-6">
-      <div class="flex flex-col gap-4">
+    <div :class="props.embedded ? 'mb-4' : 'surface-base card-padding mb-6'">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <!-- Tabs -->
-        <Tabs :model-value="activeTab" @update:model-value="(value) => handleTabChange(value as FavoriteType)">
-          <TabsList class="grid w-full grid-cols-4 bg-muted/50">
+        <Tabs :model-value="activeTab" @update:model-value="(value) => handleTabChange(value as FavoriteType)" class="lg:w-auto">
+          <TabsList class="grid w-full grid-cols-4 bg-muted/50 lg:w-[420px]">
             <TabsTrigger v-for="tab in tabOptions" :key="tab.value" :value="tab.value">
               {{ tab.label }}
             </TabsTrigger>
@@ -189,7 +201,7 @@ const handleLoginSuccess = async () => {
         </Tabs>
 
         <!-- Search -->
-        <div class="flex gap-2">
+        <div class="flex min-w-0 flex-1 gap-2 lg:max-w-md">
           <Input
             v-model="searchKeyword"
             placeholder="搜索收藏内容"
@@ -209,7 +221,7 @@ const handleLoginSuccess = async () => {
       <!-- SSG Placeholder - will be replaced on client hydration -->
     </div>
 
-    <div v-if="isClient" class="flex-1 flex flex-col">
+    <div v-if="isClient" class="flex-1 flex flex-col min-h-0">
       <div v-if="!isLoggedIn" class="flex-1 flex items-center justify-center">
         <EmptyState
           icon="ShieldCheck"

@@ -23,9 +23,18 @@ import { toast } from 'vue-sonner'
 
 interface Props {
   productId?: string
+  embedded?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  productId: '',
+  embedded: false,
+})
+const emit = defineEmits<{
+  (e: 'cancel'): void
+  (e: 'saved'): void
+  (e: 'view-product', productId: string): void
+}>()
 const currentProductId = ref(props.productId || '')
 
 const productData = ref<Partial<ProductVO> | null>(null)
@@ -208,6 +217,7 @@ const handleSave = async () => {
     const data = await pcApi.saveBatchUploadPassword(updatedData)
     applyBatchData(data)
     toast.success('设置已保存')
+    emit('saved')
   } catch (err) {
     toast.error((err as any)?.message || '保存失败，请稍后重试')
   } finally {
@@ -217,11 +227,19 @@ const handleSave = async () => {
 
 // 取消
 const handleCancel = () => {
+  if (props.embedded) {
+    emit('cancel')
+    return
+  }
   window.location.href = './product-management.html'
 }
 
 // 查看产品
 const handleViewProduct = () => {
+  if (props.embedded) {
+    emit('view-product', currentProductId.value)
+    return
+  }
   window.location.href = `./product-detail.html?productId=${currentProductId.value}`
 }
 
@@ -249,9 +267,9 @@ const expireLabel = computed(() => {
 </script>
 
 <template>
-  <div class="page-body space-y-6">
+  <div :class="props.embedded ? 'space-y-5' : 'page-body space-y-6'">
     <!-- 页面标题 -->
-    <div class="flex items-center justify-between">
+    <div v-if="!props.embedded" class="flex items-center justify-between">
       <div>
         <h1 class="text-page-title">批量上传设置</h1>
         <p class="text-caption mt-1">为产品生成协作上传链接，邀请团队成员上传花色图和详情图</p>

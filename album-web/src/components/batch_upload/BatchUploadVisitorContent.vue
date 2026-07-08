@@ -168,6 +168,10 @@ const handleViewProduct = () => {
   }
 }
 
+const handleBackHome = () => {
+  window.location.href = './share-home.html'
+}
+
 const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
   uploadingState.value[type] = value
 }
@@ -291,7 +295,7 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
       </div>
       <Button
         variant="outline"
-        @click="() => window.location.href = './share-home.html'"
+        @click="handleBackHome"
       >
         返回主页
       </Button>

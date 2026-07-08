@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
+  Dialog,
+  DialogScrollContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -14,6 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import SafeIcon from "@/components/common/SafeIcon.vue";
 import LoginDialog from "@/components/common/LoginDialog.vue";
+import FavoritesList from "@/components/favorites/FavoritesList.vue";
+import BrowsingHistoryContent from "@/components/browsing_history/BrowsingHistoryContent.vue";
 import { cn } from "@/lib/utils";
 import { authStore, pcApi } from "@/lib/api";
 
@@ -33,6 +42,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const searchQuery = ref("");
 const showLoginDialog = ref(false);
+const quickPanel = ref<"favorites" | "history" | "">("");
 const userInfo = ref<any>({});
 const isHydrated = ref(false);
 const loggedIn = computed(() => isHydrated.value && (props.isAuthenticated || authStore.isLoggedIn()));
@@ -40,8 +50,8 @@ const displayName = computed(() => userInfo.value?.company_name || userInfo.valu
 const displayAvatar = computed(() => userInfo.value?.avatar || userInfo.value?.company_logo || props.userAvatar);
 
 const navItems = [
-  { name: "我的收藏", href: "./favorites.html", icon: "Heart" },
-  { name: "浏览足迹", href: "./browsing-history.html", icon: "History" },
+  { name: "我的收藏", href: "./favorites.html", icon: "Heart", panel: "favorites" as const },
+  { name: "浏览足迹", href: "./browsing-history.html", icon: "History", panel: "history" as const },
 ];
 
 const handleSearch = () => {
@@ -52,6 +62,10 @@ const handleSearch = () => {
 
 const handleNavigate = (href: string) => {
   window.location.href = href;
+};
+
+const handleNavClick = (item: typeof navItems[number]) => {
+  quickPanel.value = item.panel;
 };
 
 const handleMerchantLogin = () => {
@@ -139,9 +153,9 @@ onMounted(() => {
             variant="ghost"
             :class="cn(
               'flex items-center gap-2 px-4 h-10 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all',
-              isActive(item.href) && 'text-primary bg-primary/10'
+              (isActive(item.href) || quickPanel === item.panel) && 'text-primary bg-primary/10'
             )"
-            @click="handleNavigate(item.href)"
+            @click="handleNavClick(item)"
           >
             <SafeIcon :name="item.icon" :size="20" />
             <span class="text-sm font-medium">{{ item.name }}</span>
@@ -199,5 +213,33 @@ onMounted(() => {
       @update:open="showLoginDialog = $event"
       @login-success="handleLoginSuccess"
     />
+
+    <Dialog :open="quickPanel === 'favorites'" @update:open="(val) => quickPanel = val ? 'favorites' : ''">
+      <DialogScrollContent class="max-h-[88vh] max-w-[1120px] overflow-hidden p-0">
+        <div class="flex max-h-[88vh] min-h-[620px] flex-col">
+          <DialogHeader class="border-b border-border px-6 py-5">
+            <DialogTitle>我的收藏</DialogTitle>
+            <DialogDescription>查看你收藏的主页、分类和产品</DialogDescription>
+          </DialogHeader>
+          <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <FavoritesList v-if="quickPanel === 'favorites'" embedded />
+          </div>
+        </div>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="quickPanel === 'history'" @update:open="(val) => quickPanel = val ? 'history' : ''">
+      <DialogScrollContent class="max-h-[88vh] max-w-[1120px] overflow-hidden p-0">
+        <div class="flex max-h-[88vh] min-h-[620px] flex-col">
+          <DialogHeader class="border-b border-border px-6 py-5">
+            <DialogTitle>浏览足迹</DialogTitle>
+            <DialogDescription>查看你浏览过的主页、分类和产品</DialogDescription>
+          </DialogHeader>
+          <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <BrowsingHistoryContent v-if="quickPanel === 'history'" embedded />
+          </div>
+        </div>
+      </DialogScrollContent>
+    </Dialog>
   </header>
 </template>

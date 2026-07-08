@@ -132,6 +132,10 @@ const handleSearch = (event: Event) => {
   searchKeyword.value = target.value
   loadTrash()
 }
+
+const handleBackToWorkbench = () => {
+  window.location.href = './management-workbench.html'
+}
 </script>
 
 <template>
@@ -143,7 +147,7 @@ const handleSearch = (event: Event) => {
         <Button 
           variant="outline" 
           size="sm"
-          @click="() => window.location.href = './management-workbench.html'"
+          @click="handleBackToWorkbench"
         >
           <SafeIcon name="ArrowLeft" :size="16" class="mr-2" />
           返回工作台
@@ -153,9 +157,10 @@ const handleSearch = (event: Event) => {
     </div>
 
     <!-- 筛选和搜索区域 -->
-    <div class="page-body border-b border-border space-y-4">
-      <Tabs :value="activeTab" @update:model-value="handleTabChange" class="w-full">
-        <TabsList class="grid w-full grid-cols-4 bg-muted/50">
+    <div class="page-body border-b border-border">
+      <div class="flex items-center justify-between gap-4">
+      <Tabs :value="activeTab" @update:model-value="handleTabChange" class="shrink-0">
+        <TabsList class="grid w-[420px] grid-cols-4 bg-muted/50">
           <TabsTrigger value="all">全部</TabsTrigger>
           <TabsTrigger value="product">产品</TabsTrigger>
           <TabsTrigger value="category">分类</TabsTrigger>
@@ -163,8 +168,8 @@ const handleSearch = (event: Event) => {
         </TabsList>
       </Tabs>
 
-      <div class="flex items-center gap-3">
-        <div class="flex-1 relative">
+      <div class="flex min-w-0 flex-1 items-center gap-3">
+        <div class="relative min-w-0 flex-1">
           <SafeIcon 
             name="Search" 
             class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" 
@@ -178,6 +183,7 @@ const handleSearch = (event: Event) => {
             @input="handleSearch"
           />
         </div>
+      </div>
       </div>
     </div>
 
