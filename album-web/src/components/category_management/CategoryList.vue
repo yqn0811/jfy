@@ -253,7 +253,7 @@ const toggleSortDirection = () => {
     </div>
 
     <!-- 列表区域 -->
-    <div v-if="!isClient || isLoading" class="flex-1 overflow-y-auto min-h-0 surface-raised">
+    <div class="flex-1 overflow-y-auto min-h-0 surface-raised">
       <div class="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -331,7 +331,7 @@ const toggleSortDirection = () => {
     </div>
 
     <!-- 分页 -->
-    <div v-if="!isClient && totalItems > 0" class="border-t border-border pt-4">
+    <div v-if="isClient && totalItems > 0" class="border-t border-border pt-4">
       <Pagination
         :current="currentPage"
         :total="totalItems"

@@ -10,12 +10,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import type { ProductData } from '@/data/ProductData'
@@ -51,20 +45,23 @@ const getSortIcon = (key: string) => {
   return props.sortDirection === 'asc' ? 'ArrowUp' : 'ArrowDown'
 }
 
-const SortableHeader = (key: string, label: string) => ({
-  key,
-  label,
-  sortable: true,
-})
+const getCategoryText = (product: ProductData) => {
+  if (product.categoryNames?.length) return product.categoryNames.join('、')
+  if (product.categoryName) return product.categoryName
+  if (product.categoryIds?.length) {
+    return product.categoryIds.map(id => props.categoryNameMap[id] || `分类 ${id}`).join('、')
+  }
+  return product.categoryId ? (props.categoryNameMap[product.categoryId] || `分类 ${product.categoryId}`) : '-'
+}
 
 const columns = [
-  { key: 'name', label: '产品名称', width: 'w-40' },
-  { key: 'categoryId', label: '所属分类', width: 'w-32' },
+  { key: 'name', label: '产品名称', width: 'min-w-56' },
+  { key: 'categoryId', label: '所属分类', width: 'min-w-40' },
   { key: 'colorChartCount', label: '花色图', width: 'w-24' },
   { key: 'detailChartCount', label: '详情图', width: 'w-24' },
   { key: 'visibility', label: '可见性', width: 'w-28' },
   { key: 'updatedAt', label: '更新时间', width: 'w-40' },
-  { key: 'actions', label: '操作', width: 'w-32' },
+  { key: 'actions', label: '操作', width: 'w-80' },
 ]
 </script>
 
@@ -125,8 +122,8 @@ const columns = [
           </TableCell>
 
           <!-- 所属分类 -->
-          <TableCell class="w-32 px-4 py-3 text-sm">
-            {{ product.categoryId ? (props.categoryNameMap[product.categoryId] || `分类 ${product.categoryId}`) : '-' }}
+          <TableCell class="min-w-40 px-4 py-3 text-sm text-muted-foreground">
+            <span class="line-clamp-2">{{ getCategoryText(product) }}</span>
           </TableCell>
 
           <!-- 花色图数量 -->
@@ -150,8 +147,8 @@ const columns = [
           </TableCell>
 
           <!-- 操作 -->
-          <TableCell class="w-32 px-4 py-3">
-            <div class="flex items-center gap-1">
+          <TableCell class="w-80 px-4 py-3">
+            <div class="flex flex-wrap items-center gap-1.5">
               <Button
                 variant="ghost"
                 size="sm"
@@ -161,37 +158,33 @@ const columns = [
                 <SafeIcon name="Edit2" :size="14" class="mr-1" />
                 编辑
               </Button>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger as-child>
-                  <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
-                    <SafeIcon name="MoreVertical" :size="16" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" class="w-48">
-                  <DropdownMenuItem
-                    class="cursor-pointer"
-                    @click="emit('batch-upload', product.id)"
-                  >
-                    <SafeIcon name="Upload" :size="14" class="mr-2" />
-                    批量上传
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    class="cursor-pointer"
-                    @click="emit('share', product)"
-                  >
-                    <SafeIcon name="Share2" :size="14" class="mr-2" />
-                    分享产品
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    class="cursor-pointer text-destructive focus:text-destructive"
-                    @click="emit('delete', product)"
-                  >
-                    <SafeIcon name="Trash2" :size="14" class="mr-2" />
-                    删除
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 px-2 text-xs"
+                @click="emit('batch-upload', product.id)"
+              >
+                <SafeIcon name="Upload" :size="14" class="mr-1" />
+                批量上传
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 px-2 text-xs"
+                @click="emit('share', product)"
+              >
+                <SafeIcon name="Share2" :size="14" class="mr-1" />
+                分享产品
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 px-2 text-xs text-destructive hover:text-destructive"
+                @click="emit('delete', product)"
+              >
+                <SafeIcon name="Trash2" :size="14" class="mr-1" />
+                删除
+              </Button>
             </div>
           </TableCell>
         </TableRow>

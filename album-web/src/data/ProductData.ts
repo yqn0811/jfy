@@ -5,6 +5,9 @@ export interface ProductData {
   id: string
   homeId: string
   categoryId?: string
+  categoryIds?: string[]
+  categoryName?: string
+  categoryNames?: string[]
   ownerUserId: string
   name: string
   intro: string

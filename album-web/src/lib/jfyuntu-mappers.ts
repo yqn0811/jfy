@@ -50,6 +50,25 @@ const countImages = (value: any) => {
   return 0
 }
 
+const splitStringList = (value: any) => {
+  if (Array.isArray(value)) return value.map(item => String(item)).filter(Boolean)
+  if (typeof value === 'string' && value.trim()) {
+    return value.split(',').map(item => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+const formatDateText = (value: any) => {
+  if (!value) return ''
+  if (typeof value === 'string' && /[年/-]/.test(value)) return value
+  const numberValue = Number(value)
+  if (!Number.isFinite(numberValue) || numberValue <= 0) return String(value)
+  const timestamp = numberValue > 10_000_000_000 ? numberValue : numberValue * 1000
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
 export const mapHomeProfile = (raw: any): HomeProfileData => {
   const info = raw?.user_info || raw?.info || raw || {}
   const userId = String(
@@ -92,17 +111,22 @@ export const mapCategory = (raw: any, homeId = ''): CategoryData => ({
   visibility: Number(raw.private_type) === 2 ? 'private' : Number(raw.private_type) === 4 ? 'shared' : 'public',
   layout: Number(raw.layout_type || raw.pic_layout) === 2 ? 'list' : 'grid',
   isTop: Number(raw.set_top || 0) === 1,
-  updatedAt: raw.update_time || raw.updated_at || '',
-  createdAt: raw.create_time || raw.created_at || '',
+  updatedAt: formatDateText(raw.update_time || raw.updated_at || ''),
+  createdAt: formatDateText(raw.create_time || raw.created_at || ''),
 })
 
 export const mapProduct = (raw: any, homeId = ''): ProductData => {
   const colorImages = raw.pic_ids_arr || raw.pic_list || raw.color_images || raw.pictures || []
   const detailImages = raw.detail_pic_ids_arr || raw.detail_pic_list || raw.detail_pictures || []
+  const categoryIds = splitStringList(raw.category_ids || raw.categoryIds || raw.category_id || raw.pid)
+  const categoryNames = splitStringList(raw.category_names || raw.categoryNames || raw.category_name || raw.categoryName)
   return {
     id: String(raw.id || raw.fid || raw.product_id || ''),
     homeId: String(homeId || raw.uid || raw.home_id || ''),
-    categoryId: raw.pid ? String(raw.pid) : raw.category_id ? String(raw.category_id) : '',
+    categoryId: categoryIds[0] || '',
+    categoryIds,
+    categoryName: categoryNames[0] || '',
+    categoryNames,
     ownerUserId: String(raw.uid || raw.owner_uid || raw.ownerUserId || ''),
     name: raw.folder_name || raw.name || '未命名产品',
     intro: raw.folder_desc || raw.desc || raw.intro || '',
@@ -113,8 +137,8 @@ export const mapProduct = (raw: any, homeId = ''): ProductData => {
     sortOrder: Number(raw.sort || raw.sortOrder || 0),
     colorChartCount: Number(raw.color_chart_count || raw.pic_count || 0) || countImages(colorImages || raw.pic_ids),
     detailChartCount: Number(raw.detail_chart_count || raw.detail_pic_count || 0) || countImages(detailImages || raw.detail_pic_ids),
-    updatedAt: raw.update_time || raw.updated_at || '',
-    createdAt: raw.create_time || raw.created_at || '',
+    updatedAt: formatDateText(raw.update_time || raw.updated_at || ''),
+    createdAt: formatDateText(raw.create_time || raw.created_at || ''),
   }
 }
 

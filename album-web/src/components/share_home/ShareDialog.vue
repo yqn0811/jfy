@@ -35,7 +35,13 @@ const shareDescription = ref(props.homeProfile.shareDescription || props.homePro
 
 const buildPcShareUrl = () => {
   const params = new URLSearchParams({ uid: props.homeProfile.ownerUserId || props.homeProfile.id })
-  return `${window.location.origin}/share-home.html?${params.toString()}`
+  const url = new URL('./share-home.html', window.location.href)
+  url.search = params.toString()
+  return url.toString()
+}
+
+const pickShareLink = (data: any) => {
+  return data?.pc_link || data?.web_link || data?.share_link || data?.link || data?.url_link || ''
 }
 
 const loadShareData = async () => {
@@ -49,7 +55,7 @@ const loadShareData = async () => {
       pcApi.getHomeShareLink(props.homeProfile.id).catch(() => null),
       pcApi.getHomeMiniCode(props.homeProfile.id, 'home').catch(() => null),
     ])
-    shareUrl.value = linkData?.pc_link || linkData?.web_link || shareUrl.value
+    shareUrl.value = pickShareLink(linkData) || shareUrl.value
     miniCodeUrl.value = codeData?.qrcode || codeData?.qrcode_url || ''
     miniPath.value = codeData?.mini_path || linkData?.mini_path || ''
   } finally {
@@ -110,7 +116,7 @@ const handleShare = (platform: string) => {
           <label class="text-sm font-medium">分享链接</label>
           <div class="flex gap-2">
             <Input
-              :value="shareUrl"
+              :model-value="shareUrl"
               readonly
               class="flex-1 bg-muted/50 border-none text-xs"
             />

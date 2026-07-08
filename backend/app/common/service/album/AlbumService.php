@@ -1131,13 +1131,14 @@ class AlbumService extends BaseService
                     $query->where('private_type', '<>', 2);
                 }
             })
-            ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,share_times, visit_times,uid, set_top, is_hot, sort, pic_ids, detail_pic_ids')
+            ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,update_time,share_times, visit_times,uid, set_top, is_hot, sort, pid, pic_ids, detail_pic_ids')
             ->order('is_hot desc, ' . $order)
             ->paginate($param['limit'] ?? 10)->each(function ($item)use($visitor_uid){
                 $item->pic_ids_arr = $this->normalizeIdList($item->pic_ids);
                 $item->detail_pic_ids_arr = $this->normalizeIdList($item->detail_pic_ids);
                 if ((int)$item->folder_type === 2) {
                     $this->hydrateProductThumb($item);
+                    $this->hydrateProductCategorySummary($item);
                 }
                 $item->son_count = $item->SonCount;
                 // 分类增加子产品数量（去重：直系产品 + 关联产品）
@@ -1246,7 +1247,7 @@ class AlbumService extends BaseService
                     $query->whereLike('folder_name', '%'.$param['key'].'%');
                 }
             })
-            ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,share_times,visit_times,uid,set_top,pid')
+            ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,update_time,share_times,visit_times,uid,set_top,pid')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->paginate([
                 'list_rows' => $limit,
@@ -1275,6 +1276,30 @@ class AlbumService extends BaseService
             'total_folder' => $total_num,
             'total_album' => 0,
         ];
+    }
+
+    private function hydrateProductCategorySummary($item)
+    {
+        if (!$item || (int)$item->folder_type !== 2) {
+            return;
+        }
+        $bindIds = WdXcxProductCategoryBind::where('product_id', $item->id)
+            ->where('userid', $item->uid)
+            ->column('category_id');
+        $directId = ((int)$item->pid > 0) ? [(int)$item->pid] : [];
+        $categoryIds = array_values(array_unique(array_filter(array_map('intval', array_merge($directId, $bindIds ?: [])))));
+        $item->category_ids = $categoryIds;
+        $item->category_id = $categoryIds[0] ?? 0;
+        if (empty($categoryIds)) {
+            $item->category_names = [];
+            $item->category_name = '';
+            return;
+        }
+        $names = WdXcxAlbumFolder::whereIn('id', $categoryIds)
+            ->where('folder_type', 1)
+            ->column('folder_name');
+        $item->category_names = array_values($names ?: []);
+        $item->category_name = $item->category_names[0] ?? '';
     }
 
     private function getCategoryChildCount($categoryId)

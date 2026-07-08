@@ -1,5 +1,5 @@
 import { c as createComponent, b as createAstro, r as renderComponent, a as renderTemplate, m as maybeRenderHead, d as renderSlot } from "./astro/server.DafmnnCm.js";
-import { $ as $$BaseLayout } from "./BaseLayout.BgPnvqQg.js";
+import { $ as $$BaseLayout } from "./BaseLayout.BHhPB8Is.js";
 const $$Astro = createAstro();
 const $$ManagementLayout = createComponent(($$result, $$props, $$slots) => {
   const Astro = $$result.createAstro($$Astro, $$props, $$slots);
