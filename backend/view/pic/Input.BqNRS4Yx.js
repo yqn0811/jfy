@@ -1,22 +1,28 @@
 import { defineComponent, useSSRContext, mergeProps } from "vue";
 import { useVModel } from "@vueuse/core";
-import { c as cn } from "./index.CHN9pADe.js";
+import { c as cn } from "./index.DMmv2-2r.js";
 import { ssrRenderAttrs, ssrGetDynamicModelProps } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.Dnq8fxXw.js";
+import { _ as _export_sfc } from "./BaseLayout.BgPnvqQg.js";
 const fallbackImage = "https://api.jfyuntu.com/image/static/footer/jfyuntu.png";
 const toArray = (value) => {
   if (!value) return [];
   if (Array.isArray(value)) return value;
   if (Array.isArray(value.data)) return value.data;
+  if (Array.isArray(value.list)) return value.list;
+  if (Array.isArray(value?.list?.data)) return value.list.data;
   if (Array.isArray(value.lists)) return value.lists;
   if (Array.isArray(value?.lists?.data)) return value.lists.data;
+  if (Array.isArray(value.plans)) return value.plans;
   return [];
 };
 const unwrapList = (value) => {
   if (Array.isArray(value)) return value;
   if (Array.isArray(value?.data)) return value.data;
+  if (Array.isArray(value?.list)) return value.list;
+  if (Array.isArray(value?.list?.data)) return value.list.data;
   if (Array.isArray(value?.lists?.data)) return value.lists.data;
   if (Array.isArray(value?.lists)) return value.lists;
+  if (Array.isArray(value?.plans)) return value.plans;
   if (Array.isArray(value?.categories)) return value.categories;
   if (Array.isArray(value?.products)) return value.products;
   return [];

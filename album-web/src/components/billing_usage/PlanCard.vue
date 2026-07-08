@@ -22,6 +22,7 @@ const emit = defineEmits<{
 }>()
 
 const formatCapacity = (mb: number): string => {
+  if (!mb) return '按套餐配置'
   return (mb / 1024).toFixed(0) + ' GB'
 }
 </script>
@@ -52,20 +53,29 @@ const formatCapacity = (mb: number): string => {
       <!-- 价格 -->
       <div class="space-y-1">
         <p class="text-3xl font-bold text-primary">{{ plan.price }}</p>
+        <p v-if="plan.originalPrice && plan.originalPrice !== plan.price" class="text-xs text-muted-foreground line-through">
+          {{ plan.originalPrice }}
+        </p>
         <p class="text-xs text-muted-foreground">包含以下权益</p>
       </div>
 
       <!-- 权益列表 -->
       <div class="space-y-2 py-3 border-y border-border">
-        <div class="flex items-center gap-2 text-sm">
+        <div v-if="plan.features?.length" class="space-y-2">
+          <div v-for="feature in plan.features" :key="feature" class="flex items-center gap-2 text-sm">
+            <SafeIcon name="Check" :size="16" class="text-success shrink-0" />
+            <span>{{ feature }}</span>
+          </div>
+        </div>
+        <div v-else class="flex items-center gap-2 text-sm">
           <SafeIcon name="Check" :size="16" class="text-success shrink-0" />
           <span>存储空间：{{ formatCapacity(plan.capacityMb) }}</span>
         </div>
-        <div class="flex items-center gap-2 text-sm">
+        <div v-if="plan.trafficGb > 0" class="flex items-center gap-2 text-sm">
           <SafeIcon name="Check" :size="16" class="text-success shrink-0" />
           <span>月度流量：{{ plan.trafficGb }} GB</span>
         </div>
-        <div class="flex items-center gap-2 text-sm">
+        <div v-if="plan.concurrentRights > 0" class="flex items-center gap-2 text-sm">
           <SafeIcon name="Check" :size="16" class="text-success shrink-0" />
           <span>并发权益：{{ plan.concurrentRights }} 人</span>
         </div>

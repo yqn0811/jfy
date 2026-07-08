@@ -57,16 +57,57 @@ const parseSpaceToMb = (value: any) => {
   return number
 }
 
+const bytesToMb = (value: any) => {
+  const bytes = Number(value || 0)
+  return bytes > 0 ? bytes / 1024 / 1024 : 0
+}
+
+const formatMoney = (item: any, field: string) => {
+  const value = item[field]
+  if (value === undefined || value === null || value === '') return ''
+  const text = String(value)
+  if (text.includes('¥')) return text
+  const number = Number(value)
+  if (!Number.isFinite(number)) return text
+  return `¥${(number / 100).toFixed(number % 100 === 0 ? 0 : 2)}`
+}
+
+const normalizePrice = (item: any) => {
+  if (item.price_text || item.amount_text) return item.price_text || item.amount_text
+  if (item.price && String(item.price).includes('¥')) return item.price
+  if (item.current_price_cents !== undefined) return `${formatMoney(item, 'current_price_cents')}${item.display_unit || ''}`
+  if (item.price) return `¥${item.price}${item.display_unit || ''}`
+  return '¥0'
+}
+
+const normalizeCapacityMb = (item: any) => {
+  const benefits = item.benefits_json || item.benefits || {}
+  return (
+    Number(item.capacity_mb || item.space_size || item.capacity || 0) ||
+    bytesToMb(benefits.resource_storage_capacity_bytes || item.resource_storage_capacity_bytes) ||
+    Number(benefits.resource_storage_capacity_gb || item.resource_storage_capacity_gb || 0) * 1024 ||
+    parseSpaceToMb(item.space_text || item.space || item.name)
+  )
+}
+
+const normalizeFeatures = (item: any) => {
+  const benefits = item.benefits_json || item.benefits || {}
+  const features = item.promo_features || benefits.features || item.features || []
+  return Array.isArray(features) ? features.map((feature: any) => String(feature)).filter(Boolean) : []
+}
+
 const mapPlan = (item: any): PlanPackageData => ({
   id: String(item.id || item.plan_id || item.grade || ''),
   name: item.name || item.title || item.grade_name || '资源包',
-  capacityMb: Number(item.capacity_mb || item.space_size || item.capacity || 0) || parseSpaceToMb(item.space_text || item.space),
-  price: item.price ? `¥${item.price}` : item.price_text || item.amount_text || '¥0',
+  capacityMb: normalizeCapacityMb(item),
+  price: normalizePrice(item),
+  originalPrice: formatMoney(item, 'original_price_cents'),
   concurrentRights: Number(item.concurrent_rights || item.concurrent || item.concurrent_limit || 0),
   trafficGb: Number(item.traffic_gb || item.flow_gb || item.traffic || 0),
-  durationLabel: item.duration_label || item.buy_time_text || item.period || '长期',
-  isRecommended: Number(item.is_recommend || item.recommended || 0) === 1,
-  createdAt: item.create_time || '',
+  durationLabel: item.duration_label || item.buy_time_text || item.period || item.plan_subtitle || '长期有效',
+  features: normalizeFeatures(item),
+  isRecommended: Number(item.is_recommend || item.recommended || item.is_popular || 0) === 1,
+  createdAt: item.create_time || item.created_at || '',
 })
 
 const mapOrder = (item: any): OrderData => ({

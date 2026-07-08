@@ -1,8 +1,8 @@
 import { defineComponent, computed, useSSRContext, mergeProps, withCtx, createTextVNode, toDisplayString, createBlock, createCommentVNode, createVNode, openBlock } from "vue";
-import { A as AvatarFallback, a as AvatarImage, b as Avatar } from "./StandardLayout.L4tMStHn.js";
-import { c as cn } from "./index.CHN9pADe.js";
+import { A as AvatarFallback, a as AvatarImage, b as Avatar } from "./StandardLayout.D3WYD0pz.js";
+import { c as cn } from "./index.DMmv2-2r.js";
 import { ssrRenderComponent, ssrInterpolate } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.Dnq8fxXw.js";
+import { _ as _export_sfc } from "./BaseLayout.BgPnvqQg.js";
 const _sfc_main = defineComponent({ __name: "UserAvatar", props: { src: { default: "" }, name: {}, size: { default: "md" }, class: { default: "" } }, setup(__props, { expose: __expose }) {
   __expose();
   const props = __props, initials = computed(() => {

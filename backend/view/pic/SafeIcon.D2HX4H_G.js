@@ -2,7 +2,7 @@ import { defineComponent, computed, useSSRContext, createVNode, resolveDynamicCo
 import * as LucideIcons from "lucide-vue-next";
 import { Circle } from "lucide-vue-next";
 import { ssrRenderVNode } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.Dnq8fxXw.js";
+import { _ as _export_sfc } from "./BaseLayout.BgPnvqQg.js";
 const _sfc_main = defineComponent({ __name: "SafeIcon", props: { name: {}, size: { default: 24 }, color: {}, strokeWidth: { default: 2 }, class: {} }, setup(__props, { expose: __expose }) {
   __expose();
   const props = __props, IconComponent = computed(() => {

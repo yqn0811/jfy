@@ -1,8 +1,8 @@
 import { cva } from "class-variance-authority";
 import { defineComponent, useSSRContext, mergeProps } from "vue";
-import { c as cn } from "./index.CHN9pADe.js";
+import { c as cn } from "./index.DMmv2-2r.js";
 import { ssrRenderAttrs, ssrRenderSlot } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.Dnq8fxXw.js";
+import { _ as _export_sfc } from "./BaseLayout.BgPnvqQg.js";
 const _sfc_main = defineComponent({ __name: "Badge", props: { variant: {}, class: {} }, setup(__props, { expose: __expose }) {
   __expose();
   const __returned__ = { props: __props, get cn() {

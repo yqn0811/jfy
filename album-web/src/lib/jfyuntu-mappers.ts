@@ -9,16 +9,22 @@ export const toArray = (value: any): any[] => {
   if (!value) return []
   if (Array.isArray(value)) return value
   if (Array.isArray(value.data)) return value.data
+  if (Array.isArray(value.list)) return value.list
+  if (Array.isArray(value?.list?.data)) return value.list.data
   if (Array.isArray(value.lists)) return value.lists
   if (Array.isArray(value?.lists?.data)) return value.lists.data
+  if (Array.isArray(value.plans)) return value.plans
   return []
 }
 
 export const unwrapList = (value: any): any[] => {
   if (Array.isArray(value)) return value
   if (Array.isArray(value?.data)) return value.data
+  if (Array.isArray(value?.list)) return value.list
+  if (Array.isArray(value?.list?.data)) return value.list.data
   if (Array.isArray(value?.lists?.data)) return value.lists.data
   if (Array.isArray(value?.lists)) return value.lists
+  if (Array.isArray(value?.plans)) return value.plans
   if (Array.isArray(value?.categories)) return value.categories
   if (Array.isArray(value?.products)) return value.products
   return []

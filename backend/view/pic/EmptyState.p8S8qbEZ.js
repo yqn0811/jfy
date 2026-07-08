@@ -1,10 +1,10 @@
 import { defineComponent, useSSRContext, mergeProps, withCtx, renderSlot, createVNode } from "vue";
 import { useForwardPropsEmits, TabsRoot, TabsContent, TabsList as TabsList$1, useForwardProps, TabsTrigger as TabsTrigger$1 } from "reka-ui";
 import { ssrRenderComponent, ssrRenderSlot, ssrRenderAttrs, ssrInterpolate } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.Dnq8fxXw.js";
+import { _ as _export_sfc } from "./BaseLayout.BgPnvqQg.js";
 import { reactiveOmit } from "@vueuse/core";
-import { c as cn } from "./index.CHN9pADe.js";
-import { S as SafeIcon } from "./SafeIcon.R9c496e_.js";
+import { c as cn } from "./index.DMmv2-2r.js";
+import { S as SafeIcon } from "./SafeIcon.D2HX4H_G.js";
 /* empty css                                   */
 const _sfc_main$4 = defineComponent({ __name: "Tabs", props: { defaultValue: {}, orientation: {}, dir: {}, activationMode: {}, modelValue: {}, unmountOnHide: { type: Boolean }, asChild: { type: Boolean }, as: {} }, emits: ["update:modelValue"], setup(__props, { expose: __expose, emit: __emit }) {
   __expose();

@@ -1,11 +1,11 @@
 import { defineComponent, ref, onMounted, watch, useSSRContext, mergeProps, withCtx, createTextVNode, createVNode, createBlock, openBlock, toDisplayString } from "vue";
 import { toast } from "vue-sonner";
-import { p as pcApi, e as DialogFooter, f as DialogDescription, D as DialogTitle, a as DialogHeader, b as DialogContent, c as Dialog } from "./DialogTrigger.gT1u1xZb.js";
-import { B as Button } from "./index.CHN9pADe.js";
-import { I as Input } from "./Input.BndlTEAD.js";
-import { S as SafeIcon } from "./SafeIcon.R9c496e_.js";
+import { p as pcApi, e as DialogFooter, f as DialogDescription, D as DialogTitle, a as DialogHeader, b as DialogContent, c as Dialog } from "./DialogTrigger.T7a8imIe.js";
+import { B as Button } from "./index.DMmv2-2r.js";
+import { I as Input } from "./Input.BqNRS4Yx.js";
+import { S as SafeIcon } from "./SafeIcon.D2HX4H_G.js";
 import { ssrRenderComponent, ssrRenderAttr, ssrInterpolate } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.Dnq8fxXw.js";
+import { _ as _export_sfc } from "./BaseLayout.BgPnvqQg.js";
 const _sfc_main = defineComponent({ __name: "ShareDialog", props: { open: { type: Boolean }, productId: {}, targetUserId: {} }, emits: ["update:open"], setup(__props, { expose: __expose, emit: __emit }) {
   __expose();
   const props = __props, emit = __emit, shareUrl = ref(""), miniCodeUrl = ref(""), miniPath = ref(""), isLoadingShare = ref(false), buildShareUrl = () => {
