@@ -9,6 +9,25 @@ const cache = new Cache();
 let isLoggingIn = false;
 let loginPromise = null;
 
+const normalizeInviteCode = (value) => {
+  if (value === null || value === undefined) return "";
+  const text = String(value).trim();
+  if (!text || text === "null" || text === "undefined") return "";
+  return text;
+};
+
+export const setPendingInviteCode = (inviteCode = "") => {
+  const code = normalizeInviteCode(inviteCode);
+  if (code) {
+    uni.setStorageSync("pending_invite_code", code);
+  }
+  return code;
+};
+
+export const getPendingInviteCode = () => {
+  return normalizeInviteCode(uni.getStorageSync("pending_invite_code"));
+};
+
 /**
  * 无感登录 - 完整流程
  * 1. 获取 openid
@@ -77,8 +96,10 @@ export const silentLogin = (uid) => {
 /**
  * 获取微信小程序 openid
  */
-export const getMiniCode = () => {
+export const getMiniCode = (inviteCode = "") => {
   return new Promise((resolve, reject) => {
+    const pendingInviteCode =
+      setPendingInviteCode(inviteCode) || getPendingInviteCode();
     let openid = uni.getStorageSync("openid");
     if (openid) {
       return resolve(true);
@@ -91,6 +112,7 @@ export const getMiniCode = () => {
             "user/openid",
             {
               code: res.code,
+              invite_code: pendingInviteCode,
             },
             "get",
             {
@@ -205,6 +227,7 @@ const getUserInfo = () => {
             ...res.data,
           };
           uni.setStorageSync("userInfo", userInfo);
+          uni.removeStorageSync("pending_invite_code");
           return resolve(true);
         } else {
           return resolve(false);

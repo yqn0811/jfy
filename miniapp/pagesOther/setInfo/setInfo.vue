@@ -218,6 +218,7 @@
 <script>
 import config from "@/common/config";
 import AddressPicker from "@/components/address-picker/address-picker.vue";
+import { notifyRefresh } from "@/common/helper/refresh.js";
 export default {
   components: {
     AddressPicker,
@@ -276,6 +277,25 @@ export default {
   },
 
   methods: {
+    safeText(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    normalizeIndustryValue(value) {
+      const numeric = Number(value);
+      return this.industryOptions.some((item) => item.value === numeric)
+        ? numeric
+        : "";
+    },
+    getIndustryLabel(value) {
+      const numeric = Number(value);
+      const industry = this.industryOptions.find(
+        (item) => item.value === numeric,
+      );
+      return industry ? industry.label : "";
+    },
     // 获取地址数据
     getAddressData() {
       this.$go("region/tree", {}, "get", {
@@ -445,7 +465,7 @@ export default {
 
     // 获取公司信息
     getCompanyInfo() {
-      const user = uni.getStorageSync("userInfo");
+      const user = uni.getStorageSync("userInfo") || {};
 
       const querys = {
         target_user_id: user.id,
@@ -461,55 +481,45 @@ export default {
       })
         .then((res) => {
           if (res.data) {
+            const info = res.data || {};
+            const industryValue = this.normalizeIndustryValue(
+              info.industry_info,
+            );
+            const addressParts = [
+              this.safeText(info.address_province),
+              this.safeText(info.address_city),
+              this.safeText(info.address_district),
+            ].filter(Boolean);
             this.companyInfo = {
-              name: res.data.company_name,
-              logo: res.data.company_logo,
-              description: res.data.company_desc,
-              phone: res.data.contact_mobile,
-              wechat: res.data.contact_wechat,
-              province: res.data.address_province,
-              city: res.data.address_city,
-              district: res.data.address_district,
-              detailAddress: res.data.address_detail,
-              latitude: res.data.latitude || "",
-              longitude: res.data.longitude || "",
-              showOnHomepage: res.data.is_show_home === 1 ? true : false,
-              industry_info: res.data.industry_info || "",
+              name: this.safeText(info.company_name),
+              logo: this.safeText(info.company_logo),
+              description: this.safeText(info.company_desc),
+              phone: this.safeText(info.contact_mobile),
+              wechat: this.safeText(info.contact_wechat),
+              province: this.safeText(info.address_province),
+              city: this.safeText(info.address_city),
+              district: this.safeText(info.address_district),
+              detailAddress: this.safeText(info.address_detail),
+              latitude: this.safeText(info.latitude),
+              longitude: this.safeText(info.longitude),
+              showOnHomepage:
+                info.is_show_home === undefined || info.is_show_home === null
+                  ? true
+                  : Number(info.is_show_home) === 1,
+              industry_info: industryValue,
             };
 
             // 设置行业显示文本
-            if (res.data.industry_info) {
-              const industry = this.industryOptions.find(
-                (item) => item.value === res.data.industry_info,
-              );
-              if (industry) {
-                this.selectedIndustryText = industry.label;
-              }
-            }
+            this.selectedIndustryText = this.getIndustryLabel(industryValue);
 
             // 如果有地址信息，更新显示文本
-            if (
-              res.data.address_province ||
-              res.data.address_city ||
-              res.data.address_district
-            ) {
-              this.selectedAddressText =
-                res.data.address_province +
-                res.data.address_city +
-                res.data.address_district;
-              if (res.data.province) {
-                this.addressData.push(res.data.address_province);
-              }
-              if (res.data.city) {
-                this.addressData.push(res.data.address_city);
-              }
-              if (res.data.district) {
-                this.addressData.push(res.data.address_district);
-              }
+            this.selectedAddressText = addressParts.join("");
+            if (addressParts.length) {
+              this.addressData = addressParts;
             }
 
             // 如果有经纬度信息，显示已选择位置
-            if (res.data.latitude && res.data.longitude) {
+            if (this.companyInfo.latitude && this.companyInfo.longitude) {
               this.selectedLocationText = "已设置导航位置";
             }
           }
@@ -539,6 +549,43 @@ export default {
       });
     },
 
+    getUploadFileExtension(filePath) {
+      const cleanPath = String(filePath || "").split("?")[0];
+      const match = cleanPath.match(/\.([a-zA-Z0-9]+)$/);
+      const ext = match ? match[1].toLowerCase() : "jpg";
+      return ext.length <= 8 ? ext : "jpg";
+    },
+    buildUploadFileName(filePath) {
+      const now = new Date();
+      const pad = (value, size = 2) => String(value).padStart(size, "0");
+      const stamp =
+        `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
+        `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}` +
+        `${pad(now.getMilliseconds(), 3)}`;
+      const random = Math.random().toString(36).slice(2, 8);
+      return `jf_${stamp}_${random}.${this.getUploadFileExtension(filePath)}`;
+    },
+    prepareUploadFilePath(filePath, uploadName) {
+      return new Promise((resolve) => {
+        if (
+          typeof wx === "undefined" ||
+          !wx.getFileSystemManager ||
+          !wx.env ||
+          !wx.env.USER_DATA_PATH
+        ) {
+          resolve(filePath);
+          return;
+        }
+        const fs = wx.getFileSystemManager();
+        const destPath = `${wx.env.USER_DATA_PATH}/${uploadName}`;
+        fs.copyFile({
+          srcPath: filePath,
+          destPath,
+          success: () => resolve(destPath),
+          fail: () => resolve(filePath),
+        });
+      });
+    },
     // 上传文件到服务器
     uploadFile(filePath, type) {
       uni.showLoading({
@@ -554,49 +601,65 @@ export default {
         sign: this.$base.getASCII(querys),
       };
 
-      uni.uploadFile({
-        url: config.domain + "/api/common/upload",
-        filePath: filePath,
-        name: "file",
-        header: {
-          "content-type": "multipart/form-data",
-          "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
-        },
-        formData: params,
-        success: (uploadRes) => {
-          uni.hideLoading();
-          try {
-            let res = JSON.parse(uploadRes.data);
-            if (res.code === 0 || res.code === 200) {
-              if (type === "logo") {
-                this.companyInfo.logo = res.data.url;
+      const uploadName = this.buildUploadFileName(filePath);
+      this.prepareUploadFilePath(filePath, uploadName).then((uploadPath) => {
+        uni.uploadFile({
+          url: config.domain + "/api/common/upload",
+          filePath: uploadPath,
+          name: "file",
+          header: {
+            "content-type": "multipart/form-data",
+            "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
+          },
+          formData: {
+            ...params,
+            filename: uploadName,
+            file_name: uploadName,
+            original_name: uploadName,
+            name: uploadName,
+          },
+          success: (uploadRes) => {
+            uni.hideLoading();
+            try {
+              let res = JSON.parse(uploadRes.data);
+              if (res.code === 0 || res.code === 200) {
+                if (type === "logo") {
+                  this.companyInfo.logo = res.data.url;
+                }
+                uni.showToast({
+                  title: "上传成功",
+                  icon: "success",
+                });
+              } else {
+                uni.showToast({
+                  title: res.msg || "上传失败",
+                  icon: "none",
+                });
               }
+            } catch (error) {
+              console.error("解析上传结果失败:", error);
               uni.showToast({
-                title: "上传成功",
-                icon: "success",
-              });
-            } else {
-              uni.showToast({
-                title: res.msg || "上传失败",
+                title: "上传失败",
                 icon: "none",
               });
             }
-          } catch (error) {
-            console.error("解析上传结果失败:", error);
+          },
+          fail: (err) => {
+            uni.hideLoading();
+            console.error("上传失败:", err);
             uni.showToast({
-              title: "上传失败",
+              title: "上传失败,请重试",
               icon: "none",
             });
-          }
-        },
-        fail: (err) => {
+          },
+        });
+      }).catch((err) => {
           uni.hideLoading();
           console.error("上传失败:", err);
           uni.showToast({
             title: "上传失败,请重试",
             icon: "none",
           });
-        },
       });
     },
 
@@ -628,7 +691,8 @@ export default {
         return;
       }
       // 验证必填项
-      if (!this.companyInfo.name.trim()) {
+      const companyName = this.safeText(this.companyInfo.name);
+      if (!companyName) {
         uni.showToast({
           title: "请输入公司名称",
           icon: "none",
@@ -648,17 +712,17 @@ export default {
         return;
       }
       const formData = {
-        company_name: this.companyInfo.name,
-        company_logo: this.companyInfo.logo,
-        company_desc: this.companyInfo.description,
-        contact_mobile: this.companyInfo.phone,
-        contact_wechat: this.companyInfo.wechat,
-        address_province: this.companyInfo.province,
-        address_city: this.companyInfo.city,
-        address_district: this.companyInfo.district,
-        address_detail: this.companyInfo.detailAddress,
-        latitude: this.companyInfo.latitude,
-        longitude: this.companyInfo.longitude,
+        company_name: companyName,
+        company_logo: this.safeText(this.companyInfo.logo),
+        company_desc: this.safeText(this.companyInfo.description),
+        contact_mobile: this.safeText(this.companyInfo.phone),
+        contact_wechat: this.safeText(this.companyInfo.wechat),
+        address_province: this.safeText(this.companyInfo.province),
+        address_city: this.safeText(this.companyInfo.city),
+        address_district: this.safeText(this.companyInfo.district),
+        address_detail: this.safeText(this.companyInfo.detailAddress),
+        latitude: this.safeText(this.companyInfo.latitude),
+        longitude: this.safeText(this.companyInfo.longitude),
         is_show_home: this.companyInfo.showOnHomepage ? 1 : 0,
         industry_info: this.companyInfo.industry_info,
       };
@@ -682,21 +746,42 @@ export default {
       })
         .then((res) => {
           uni.hideLoading();
+          this.finishIntegralTask("complete_profile");
           uni.showToast({
             title: "保存成功",
             icon: "success",
           });
+          this.notifyHomeChanged();
           setTimeout(() => {
-            if (this.fromPage === "index") {
-              uni.$emit("refreshIndexData");
-            }
             uni.navigateBack();
           }, 1500);
         })
         .catch((err) => {
           uni.hideLoading();
           console.error("保存失败:", err);
-        });
+      });
+    },
+    notifyHomeChanged() {
+      notifyRefresh("home");
+    },
+    finishIntegralTask(taskKey) {
+      if (!this.$go || !taskKey) {
+        return;
+      }
+      const querys = {
+        task_key: taskKey,
+        timestamp: new Date().getTime(),
+      };
+      const data = {
+        ...querys,
+        sign: this.$base ? this.$base.getASCII(querys) : "",
+      };
+      this.$go("integral/task/finish", data, "post", {
+        show_err: false,
+        loading: false,
+      }).catch((err) => {
+        console.log("积分任务完成失败:", err);
+      });
     },
   },
 };

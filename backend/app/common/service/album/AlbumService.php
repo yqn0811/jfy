@@ -81,6 +81,11 @@ class AlbumService extends BaseService
             'idx_is_hot',
             "ALTER TABLE `wd_xcx_album_folder` ADD INDEX `idx_is_hot`(`is_hot`)"
         );
+        self::ensureColumnExists(
+            'wd_xcx_album_folder',
+            'hide_detail_pictures',
+            "ALTER TABLE `wd_xcx_album_folder` ADD COLUMN `hide_detail_pictures` tinyint(1) NOT NULL DEFAULT 0 COMMENT '分享访客隐藏详情图 1隐藏 0展示' AFTER `detail_pic_ids`"
+        );
     }
 
     private static function ensureColumnExists($table, $column, $alterSql)
@@ -390,6 +395,7 @@ class AlbumService extends BaseService
      */
     public function createAlbumFolder($param, $uid)
     {
+        $this->ensureProductStatusColumns();
         if(empty($param['folder_name'])){
             throwError('请输入名称');
         }
@@ -479,6 +485,9 @@ class AlbumService extends BaseService
         if(isset($param['detail_pic_ids'])){
             $saveData['detail_pic_ids'] = is_array($param['detail_pic_ids']) ? implode(',', $param['detail_pic_ids']) : $param['detail_pic_ids'];
         }
+        if(isset($param['hide_detail_pictures'])){
+            $saveData['hide_detail_pictures'] = (int)$param['hide_detail_pictures'] === 1 ? 1 : 0;
+        }
         $folder->save($saveData);
 
         // 如果是创建产品(type=2)且指定了分类(valid_fids不为空)，添加关联记录
@@ -556,6 +565,7 @@ class AlbumService extends BaseService
 
     public function editAlbumFolder($param, $uid)
     {
+        $this->ensureProductStatusColumns();
         $folder = WdXcxAlbumFolder::where('id', $param['fid'])->find();
         if(!$folder){
             throwError('相册不存在');
@@ -596,6 +606,9 @@ class AlbumService extends BaseService
         }
         if(isset($param['detail_pic_ids'])){
             $updateData['detail_pic_ids'] = is_array($param['detail_pic_ids']) ? implode(',', $param['detail_pic_ids']) : $param['detail_pic_ids'];
+        }
+        if(isset($param['hide_detail_pictures'])){
+            $updateData['hide_detail_pictures'] = (int)$param['hide_detail_pictures'] === 1 ? 1 : 0;
         }
         
         // 如果是产品(type=2)且提供了category_ids，更新分类绑定
@@ -1553,6 +1566,9 @@ class AlbumService extends BaseService
             $updateData['new_thumb'] = $param['new_thumb'];
             $updateData['new_thumb_time'] = time();
         }
+        if(array_key_exists('hide_detail_pictures', $param) && $param['hide_detail_pictures'] !== null){
+            $updateData['hide_detail_pictures'] = (int)$param['hide_detail_pictures'] === 1 ? 1 : 0;
+        }
         if(!empty($updateData)){
             $product->save($updateData);
         }
@@ -1994,7 +2010,6 @@ class AlbumService extends BaseService
 
     private function getUploadCode($fid, $uid)
     {
-        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $info = WdXcxUserAlbumUploadCode::where([
             'fid' => $fid,
             'uid' => $uid,
@@ -2010,20 +2025,10 @@ class AlbumService extends BaseService
                 'fid' => $fid,
                 'uid' => $uid,
                 'upload_code' => $code,
-                'upload_enabled' => 0,
             ]);
             return $code;
         }
         return $info->upload_code;
-    }
-
-    private function getBatchUploadRecord($fid, $uid)
-    {
-        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
-        return WdXcxUserAlbumUploadCode::where([
-            'fid' => $fid,
-            'uid' => $uid,
-        ])->find();
     }
 
     public function getBatchUploadLink($fid, $uid)
@@ -2037,21 +2042,16 @@ class AlbumService extends BaseService
         if($folder->uid != $uid && !$folder->checkFolderRule($uid)){
             throwError('您没有权限操作此产品');
         }
-        (new WdXcxUser())->ensureUploadPasswordColumns();
         $code = $this->getUploadCode($fid, $folder->uid);
-        $record = $this->getBatchUploadRecord($fid, $folder->uid);
-        $user = WdXcxUser::where('id', $folder->uid)->find();
         $url = 'https://pic.jfyuntu.com/assets/page/product-list.html?uploadd_code=' . urlencode($code);
-        $uploadEnabled = $record ? (int)$record->upload_enabled : 0;
-        $password = ($uploadEnabled && $user) ? ($user->upload_pwd ?: '') : '';
-        $expireTime = ($uploadEnabled && $user) ? (int)$user->upload_pwd_expire_time : 0;
+        (new WdXcxUser())->ensureUploadPasswordColumns();
+        $user = WdXcxUser::where('id', $folder->uid)->field('upload_pwd,upload_pwd_expire_time')->find();
+        $expireTime = $user ? (int)$user->upload_pwd_expire_time : 0;
         return [
             'upload_url' => $url,
             'url' => $url,
             'code' => $code,
-            'upload_enabled' => $uploadEnabled,
-            'access_enabled' => $uploadEnabled,
-            'password' => $password,
+            'password' => $user && $user->upload_pwd ? $user->upload_pwd : '',
             'password_expire_time' => $expireTime,
             'upload_pwd_expire_time' => $expireTime,
         ];
@@ -2165,7 +2165,8 @@ class AlbumService extends BaseService
                 'flag' => 1,
                 'gid' => $params['pid'],
                 'uid' => $uid,
-                'file_type' => $params['file_type']
+                'file_type' => $params['file_type'],
+                'original_names' => $params['original_names'] ?? [],
             ]);
             $createdRelations = [];
             if(count($data) > 0){ //存入相关相册
@@ -2345,6 +2346,7 @@ class AlbumService extends BaseService
      */
     public function userUpdateFolderSet($param, $uid)
     {
+        $this->ensureProductStatusColumns();
         $folder_info = WdXcxAlbumFolder::where('id', $param['fid'])->find();
         if(!$folder_info){
             throwError('相册不存在');
@@ -2379,6 +2381,9 @@ class AlbumService extends BaseService
             }
             if (isset($param['pic_layout']) && $param['pic_layout'] !== '') {
                 $folder_info->pic_layout = ((int)$param['pic_layout'] === 1 ? 1 : 2);
+            }
+            if (isset($param['hide_detail_pictures']) && $param['hide_detail_pictures'] !== null) {
+                $folder_info->hide_detail_pictures = (int)$param['hide_detail_pictures'] === 1 ? 1 : 0;
             }
             if (isset($param['sort_type'])) {
                 $folder_info->sort_type = $param['sort_type'];
@@ -2682,6 +2687,7 @@ class AlbumService extends BaseService
      */
     public function getProductDetail($product_id, $uid = 0)
     {
+        $this->ensureProductStatusColumns();
         $product = WdXcxAlbumFolder::where('id', $product_id)->where('folder_type', 2)->find();
         if (!$product) {
             throwError('产品不存在');
@@ -2706,7 +2712,11 @@ class AlbumService extends BaseService
                 });
         }
 
-        $detail_pic_ids = $this->normalizeIdList($product->detail_pic_ids);
+        $hideDetailPictures = (int)($product->hide_detail_pictures ?? 0) === 1;
+        $product->hide_detail_pictures = $hideDetailPictures ? 1 : 0;
+        $detail_pic_ids = $hideDetailPictures && (int)$product->uid !== (int)$uid
+            ? []
+            : $this->normalizeIdList($product->detail_pic_ids);
         $product->detail_pic_list = [];
         if (!empty($detail_pic_ids)) {
             $detailOrder = implode(',', $detail_pic_ids);

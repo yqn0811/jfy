@@ -30,19 +30,7 @@ export default {
         visible: { type: Boolean, default: false },
         category: { type: Object, default: null } // 传入当前分类对象
     },
-    emits: ['update:visible', 'add-product', 'remove-product', 'edit-info', 'order', 'toggle-single', 'toggle-share', 'set-private', 'delete-category'],
-    data() {
-        return {
-            single: false,
-            onlyShare: false,
-            isPrivate: false
-        }
-    },
-    watch: {
-        visible(val) {
-            if (val) this.loadState()
-        }
-    },
+    emits: ['update:visible', 'class-sort'],
     computed: {
         categoryCount() {
             return (this.category && (this.category.count || this.category.pic_count)) || 0
@@ -51,13 +39,6 @@ export default {
     methods: {
         close() {
             this.$emit('update:visible', false)
-        },
-        loadState() {
-            // 从 category 读取当前状态
-            if (!this.category) return
-            this.single = !!this.category.single_display
-            this.onlyShare = !!this.category.only_share
-            this.isPrivate = !!this.category.is_private
         },
         classSort() {
             this.$emit('class-sort', this.category)

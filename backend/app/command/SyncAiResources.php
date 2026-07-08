@@ -20,18 +20,17 @@ class SyncAiResources extends Command
             ->addOption('uid', null, Option::VALUE_OPTIONAL, '只同步指定用户ID', 0)
             ->addOption('since', null, Option::VALUE_OPTIONAL, '只同步该日期后的图片，格式 YYYY-MM-DD', date('Y-m-d', strtotime('-30 days')))
             ->addOption('limit', null, Option::VALUE_OPTIONAL, '最多处理图片数量', 500)
-            ->addOption('summary', null, Option::VALUE_NONE, '只输出汇总和进度')
+            ->addOption('quiet', null, Option::VALUE_NONE, '只输出汇总和进度')
             ->addOption('dry-run', null, Option::VALUE_NONE, '只统计不实际同步');
     }
 
     protected function execute(Input $input, Output $output)
     {
-        $this->ensureCliServerHost();
         $uid = max(0, (int)$input->getOption('uid'));
         $limit = max(1, min(5000, (int)$input->getOption('limit')));
         $since = trim((string)$input->getOption('since'));
         $sinceTime = $this->parseSinceTime($since);
-        $summary = (bool)$input->getOption('summary');
+        $quiet = (bool)$input->getOption('quiet');
         $dryRun = (bool)$input->getOption('dry-run');
 
         $query = WdXcxPic::where('uid', '>', 0)
@@ -52,7 +51,7 @@ class SyncAiResources extends Command
 
         foreach ($pictures as $picture) {
             $total++;
-            if (!$summary) {
+            if (!$quiet) {
                 $output->writeln(sprintf('pic_id=%s uid=%s name=%s', $picture->id, $picture->uid, $picture->pic_name));
             } elseif ($total % 50 === 0) {
                 $output->writeln(sprintf('processed=%d synced=%d failed=%d album_relations=%d', $total, $synced, $failed, $albumSynced));
@@ -101,13 +100,6 @@ class SyncAiResources extends Command
         }
         $time = strtotime($since . ' 00:00:00');
         return $time ?: strtotime('-30 days');
-    }
-
-    private function ensureCliServerHost()
-    {
-        if (empty($_SERVER['HTTP_HOST'])) {
-            $_SERVER['HTTP_HOST'] = parse_url((string)request()->domain(), PHP_URL_HOST) ?: 'www.jfyuntu.com';
-        }
     }
 
     private function resolveRelationOwnerUid($relation)

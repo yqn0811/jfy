@@ -83,6 +83,58 @@ abstract class UploadFile
         return $name;
     }
 
+    protected function getUploadNameForIndex($file, $fileType = 1, $index = null, $originalNames = [])
+    {
+        $clientName = '';
+        if (is_array($originalNames)) {
+            if ($index !== null && isset($originalNames[$index])) {
+                $clientName = (string)$originalNames[$index];
+            } elseif (isset($originalNames['default'])) {
+                $clientName = (string)$originalNames['default'];
+            }
+        }
+        if ($clientName !== '') {
+            $safeName = $this->normalizeClientUploadName($clientName, $file, $fileType);
+            if ($safeName !== '') {
+                return $safeName;
+            }
+        }
+        return $this->getUploadName($file, $fileType);
+    }
+
+    protected function normalizeClientUploadName($name, $file, $fileType = 1)
+    {
+        $name = urldecode((string)$name);
+        $name = str_replace(["\\", "/"], '_', $name);
+        $name = preg_replace('/[\\x00-\\x1F:*?"<>|]/u', '_', $name);
+        $name = trim($name);
+        $name = trim($name, '.');
+        if ($name === '') {
+            return '';
+        }
+        if (function_exists('mb_strlen') && mb_strlen($name, 'UTF-8') > 120) {
+            $name = mb_substr($name, 0, 120, 'UTF-8');
+        } elseif (strlen($name) > 180) {
+            $name = substr($name, 0, 180);
+        }
+        $expectedExt = $this->getExt($name, $file, $fileType);
+        $nameExt = strtolower((string)pathinfo($name, PATHINFO_EXTENSION));
+        if ($nameExt === '') {
+            return $name . '.' . $expectedExt;
+        }
+        if (!$this->isAllowedClientUploadExt($nameExt, $fileType)) {
+            return '';
+        }
+        return $name;
+    }
+
+    protected function isAllowedClientUploadExt($ext, $fileType = 1)
+    {
+        $imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
+        $videoExts = ['avi', 'wmv', 'mpeg', 'mp4', 'm4v', 'mov', 'asf', 'flv', 'f4v', 'rmvb', 'rm', '3gp', 'vob'];
+        return in_array(strtolower((string)$ext), $fileType == 1 ? $imageExts : $videoExts, true);
+    }
+
     protected function getMimeType($path)
     {
         if (!$path || !is_file($path)) {

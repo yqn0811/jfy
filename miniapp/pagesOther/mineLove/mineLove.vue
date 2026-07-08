@@ -124,6 +124,12 @@
 
 <script>
 	import config from '@/common/config'
+	import { notifyFolderRefresh } from '@/common/helper/refresh.js';
+	import {
+		buildUploadNameFormData,
+		normalizeSelectedUploadFile,
+		prepareNamedUploadFile,
+	} from '@/common/helper/uploadName.js';
 	export default {
 		data() {
 			return {
@@ -301,6 +307,7 @@
 						icon:'none'
 					})
 					this.inputShow = false
+					notifyFolderRefresh(this.folder_type)
 					this.getAlbumList()
 				})
 			},
@@ -481,6 +488,31 @@
 					}
 				});
 			},
+			uploadSelectedFile(file, params) {
+				const selectedFile = normalizeSelectedUploadFile(file, params.file_type || 1)
+				if (!selectedFile.path) {
+					return Promise.reject(new Error('文件路径为空'))
+				}
+				return prepareNamedUploadFile(selectedFile.path, selectedFile.name).then((uploadPath) => {
+					return new Promise((resolve, reject) => {
+						uni.uploadFile({
+							url: config.domain + '/api/common/upload',
+							filePath: uploadPath,
+							name: 'file',
+							header: {
+								'content-type': 'multipart/form-data',
+								'authorization-token': `Bearer ${uni.getStorageSync('token')}`
+							},
+							formData: {
+								...params,
+								...buildUploadNameFormData(selectedFile.name)
+							},
+							success: resolve,
+							fail: reject
+						})
+					})
+				})
+			},
 			// 上传图片
 			uploadImage() {
 				let that = this
@@ -489,7 +521,9 @@
 					sizeType: ['compressed'],
 					sourceType: ['album', 'camera'],
 					success: (res) => {
-						const tempFilePaths = res.tempFilePaths;
+						const tempFiles = res.tempFiles && res.tempFiles.length
+							? res.tempFiles
+							: (res.tempFilePaths || []).map(path => ({ path }));
 
 						uni.showLoading({
 							title: '上传中...',
@@ -497,7 +531,7 @@
 						});
 
 						let uploadCount = 0;
-						const totalCount = tempFilePaths.length;
+						const totalCount = tempFiles.length;
 						const uploadedUrls = [];
 						const failedCount = 0;
 						let querys = {
@@ -511,25 +545,23 @@
 						}
 						console.log(params)
 
-						tempFilePaths.forEach((filePath, index) => {
-							uni.uploadFile({
-								url: config.domain + '/api/common/upload',
-								filePath: filePath,
-								name: 'file',
-								header: {
-									'content-type': 'multipart/form-data', // 默认值
-									'authorization-token': `Bearer ${uni.getStorageSync('token')}`
-								},
-								formData: params,
-								success: (uploadRes) => {
+						tempFiles.forEach((file, index) => {
+							this.uploadSelectedFile(file, params)
+								.then((uploadRes) => {
 									uploadCount++;
 									if (uploadCount === totalCount) {
 										uni.hideLoading()
 										that.getDetail()
 									}
-
-								},
-							});
+								})
+								.catch((err) => {
+									console.error('上传失败:', err)
+									uploadCount++;
+									if (uploadCount === totalCount) {
+										uni.hideLoading()
+										that.getDetail()
+									}
+								});
 						});
 					},
 					fail: (err) => {
@@ -566,20 +598,19 @@
 							sign: this.$base.getASCII(querys)
 						}
 
-						uni.uploadFile({
-							url: config.domain + '/api/common/upload',
-							filePath: tempFilePath,
-							name: 'file',
-							header: {
-								'content-type': 'multipart/form-data', // 默认值
-								'authorization-token': `Bearer ${uni.getStorageSync('token')}`
-							},
-							formData: params,
-							success: (uploadRes) => {
+						this.uploadSelectedFile({ ...res, path: tempFilePath }, params)
+							.then((uploadRes) => {
 								uni.hideLoading();
 								that.getDetail()
-							},
-						});
+							})
+							.catch((err) => {
+								console.error('上传失败:', err)
+								uni.hideLoading();
+								uni.showToast({
+									title: '上传失败',
+									icon: 'none'
+								})
+							});
 					},
 				});
 			},
@@ -621,23 +652,22 @@
 						}
 
 						tempFiles.forEach((file, index) => {
-							uni.uploadFile({
-								url: config.domain + '/api/common/upload',
-								filePath: file.path,
-								name: 'file',
-								header: {
-									'content-type': 'multipart/form-data', // 默认值
-									'authorization-token': `Bearer ${uni.getStorageSync('token')}`
-								},
-								formData: params,
-								success: (uploadRes) => {
+							this.uploadSelectedFile(file, params)
+								.then((uploadRes) => {
 									uploadCount++;
 									if (uploadCount === totalCount) {
 										uni.hideLoading()
 										that.getDetail()
 									}
-								},
-							});
+								})
+								.catch((err) => {
+									console.error('上传失败:', err)
+									uploadCount++;
+									if (uploadCount === totalCount) {
+										uni.hideLoading()
+										that.getDetail()
+									}
+								});
 						});
 					},
 				});

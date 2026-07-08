@@ -34,6 +34,17 @@
         <!-- 登录按钮 -->
         <view class="login-section">
           <button
+            v-if="needPrivacyAuthorization"
+            class="login-btn"
+            :class="{ disabled: !agreed }"
+            :disabled="!agreed || loading"
+            open-type="agreePrivacyAuthorization"
+            @agreeprivacyauthorization="handleAgreePrivacyAuthorization"
+          >
+            同意隐私保护指引
+          </button>
+          <button
+            v-else
             class="login-btn"
             :class="{ disabled: !agreed }"
             :disabled="!agreed || loading"
@@ -54,29 +65,36 @@
 </template>
 
 <script>
-import { getMiniCode, login } from "@/common/request/api.js";
+import { getMiniCode, login, setPendingInviteCode } from "@/common/request/api.js";
 
 export default {
   data() {
     return {
       uid: "",
+      inviteCode: "",
       agreed: false, // 是否同意协议
       loading: false, // 登录中状态
+      needPrivacyAuthorization: false,
     };
   },
   onLoad(options) {
     if(options.uid){
       this.uid = options.uid
     }
+    if (options.invite_code) {
+      this.inviteCode = String(options.invite_code || "").trim();
+      setPendingInviteCode(this.inviteCode);
+    }
     // 页面加载时先获取 openid
     this.initOpenId();
+    this.checkPrivacySetting();
     console.log(this.$go);
   },
   methods: {
     // 初始化获取 openid
     async initOpenId() {
       try {
-        await getMiniCode();
+        await getMiniCode(this.inviteCode);
         console.log("openid 获取成功");
       } catch (error) {
         console.error("获取 openid 失败:", error);
@@ -90,9 +108,34 @@ export default {
 
     // 打开协议页面
     openAgreement(type) {
-      // 这里可以跳转到协议详情页
+      uni.navigateTo({
+        url: `/pagesOther/agreement/agreement?type=${type}`,
+      });
+    },
+
+    checkPrivacySetting() {
+      if (typeof wx === "undefined" || !wx.getPrivacySetting) {
+        return;
+      }
+      wx.getPrivacySetting({
+        success: (res) => {
+          this.needPrivacyAuthorization = Boolean(res.needAuthorization);
+        },
+      });
+    },
+
+    handleAgreePrivacyAuthorization(e) {
+      const errMsg = (e && e.detail && e.detail.errMsg) || "";
+      if (errMsg && errMsg.indexOf("ok") === -1) {
+        uni.showToast({
+          title: "请先同意隐私保护指引",
+          icon: "none",
+        });
+        return;
+      }
+      this.needPrivacyAuthorization = false;
       uni.showToast({
-        title: type === "user" ? "用户服务协议" : "隐私保护政策",
+        title: "已同意隐私保护指引",
         icon: "none",
       });
     },
@@ -102,6 +145,14 @@ export default {
       if (!this.agreed) {
         uni.showToast({
           title: "请先同意用户协议",
+          icon: "none",
+        });
+        return;
+      }
+
+      if (this.needPrivacyAuthorization) {
+        uni.showToast({
+          title: "请先同意隐私保护指引",
           icon: "none",
         });
         return;
@@ -121,7 +172,7 @@ export default {
         this.loading = true;
         try {
           // 确保有 openid
-          await getMiniCode();
+          await getMiniCode(this.inviteCode);
 
           // 调用登录接口
           const loginSuccess = await login(code);

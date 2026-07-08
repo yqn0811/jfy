@@ -20,10 +20,14 @@ class AiResourceBridgeService extends BaseService
     public function __construct(App $app)
     {
         parent::__construct($app);
-        $this->apiBase = rtrim((string)env('AI_RESOURCE_API_BASE', getenv('AI_RESOURCE_API_BASE') ?: 'https://ai.jfyuntu.com/api/v1'), '/');
+        $this->apiBase = rtrim((string)$this->readBridgeConfig(
+            'JIAFANGYUN_BRIDGE_API_BASE',
+            'AI_RESOURCE_API_BASE',
+            'https://ai-test.jfyuntu.com/api/v1'
+        ), '/');
         $this->bridgeToken = trim((string)env(
-            'AI_RESOURCE_BRIDGE_TOKEN',
-            getenv('AI_RESOURCE_BRIDGE_TOKEN') ?: (getenv('JIAFANGYUN_BRIDGE_TOKEN') ?: '')
+            'JIAFANGYUN_BRIDGE_TOKEN',
+            getenv('JIAFANGYUN_BRIDGE_TOKEN') ?: (getenv('AI_RESOURCE_BRIDGE_TOKEN') ?: '')
         ));
         $this->bridgeMode = strtolower(trim((string)env('AI_RESOURCE_BRIDGE_MODE', getenv('AI_RESOURCE_BRIDGE_MODE') ?: 'all')));
         if (!in_array($this->bridgeMode, ['off', 'whitelist', 'all'], true)) {
@@ -345,6 +349,21 @@ class AiResourceBridgeService extends BaseService
             }
         }
         return array_values(array_unique($ids));
+    }
+
+    private function readBridgeConfig($primary, $legacy, $default)
+    {
+        $value = env($primary, '');
+        if ($value === null || $value === '') {
+            $value = env($legacy, '');
+        }
+        if ($value === null || $value === '') {
+            $value = getenv($primary) ?: getenv($legacy);
+        }
+        if ($value === null || $value === false || $value === '') {
+            $value = $default;
+        }
+        return (string)$value;
     }
 
     private function syncProductPictureIds($uid, $product, $picIds, $role)

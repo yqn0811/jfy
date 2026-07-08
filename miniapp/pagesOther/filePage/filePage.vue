@@ -162,6 +162,7 @@
 import {
 	getMiniCode
 } from '@/common/request/api.js';
+import { notifyFolderRefresh } from '@/common/helper/refresh.js';
 export default {
 	data() {
 		return {
@@ -591,6 +592,7 @@ export default {
 				});
 				this.folder_name_input = '';
 				this.show = false;
+				notifyFolderRefresh(this.folder_type);
 				this.getList();
 			});
 		}

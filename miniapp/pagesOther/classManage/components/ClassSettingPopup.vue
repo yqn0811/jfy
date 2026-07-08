@@ -61,9 +61,26 @@
             </view>
           </view>
         </view>
-        <view class="group-title">可见范围</view>
-        <view class="row item">
+        <view class="group-title-row">
+          <view class="group-title">可见范围</view>
+          <text class="status-pill">{{ visibilityLabel }}</text>
+        </view>
+        <view
+          class="row item visibility-row"
+          :class="{ active: privateType === 1 }"
+          @tap="setVisibility(1)"
+        >
           <view class="left">
+            <image src="/static/icon/Frame@2x(30).png" class="icon-small" />
+            <view>
+              <text class="row-text">设为公开</text>
+              <text class="hint">会在主页和分类列表中展示</text>
+            </view>
+          </view>
+          <text class="hint">{{ privateType === 1 ? "当前" : "" }}</text>
+        </view>
+        <view class="row item">
+          <view class="left" @tap="setVisibility(4)">
             <image src="/static/icon/Frame@2x(30).png" class="icon-small" />
             <view>
               <text class="row-text">仅单独分享可见</text>
@@ -73,6 +90,7 @@
           <view class="switch-wrap">
             <u-switch
               v-model="onlyShare"
+              :disabled="saving"
               @change="onSwitchOnlyShare"
               active-color="#333"
             />
@@ -83,10 +101,13 @@
           <view class="left">
             <image src="/static/icon/lock-2.png" class="icon-small" />
             <view>
-              <text class="row-text">设为私密</text>
+              <text class="row-text">{{
+                privateType === 2 ? "取消私密" : "设为私密"
+              }}</text>
+              <text class="hint">设为后仅自己可见</text>
             </view>
           </view>
-          <text class="hint">仅自己可见</text>
+          <text class="hint">{{ privateType === 2 ? "当前" : "" }}</text>
         </view>
         <view class="row" @tap="confirmDelete">
           <view class="left">
@@ -127,11 +148,19 @@ export default {
     return {
       single: 1,
       onlyShare: false,
+      privateType: 1,
+      saving: false,
     };
   },
   watch: {
     visible(val) {
       if (val) this.loadState();
+    },
+    category: {
+      handler() {
+        if (this.visible) this.loadState();
+      },
+      deep: true,
     },
   },
   computed: {
@@ -144,6 +173,11 @@ export default {
           0,
       );
     },
+    visibilityLabel() {
+      if (this.privateType === 2) return "私密";
+      if (this.privateType === 4) return "仅分享可见";
+      return "公开";
+    },
   },
   methods: {
     close() {
@@ -153,7 +187,8 @@ export default {
       // 从 category 读取当前状态
       if (!this.category) return;
       this.single = this.normalizeLayoutType(this.category.layout_type);
-      this.onlyShare = Number(this.category.private_type) === 4;
+      this.privateType = this.normalizePrivateType(this.category.private_type);
+      this.onlyShare = this.privateType === 4;
     },
     emitAddChildCategory() {
       this.$emit("add-child-category", this.category);
@@ -172,6 +207,10 @@ export default {
     },
     normalizeLayoutType(value) {
       return Number(value) === 2 ? 2 : 1;
+    },
+    normalizePrivateType(value) {
+      const type = Number(value);
+      return type === 2 || type === 4 ? type : 1;
     },
     async saveSingle() {
       if (this.$go) {
@@ -201,13 +240,16 @@ export default {
       }
     },
     async onSwitchPrivate() {
+      if (this.privateType === 2) {
+        await this.setVisibility(1);
+        return;
+      }
       uni.showModal({
         title: "是否设置为私密",
         content: "",
         success: async (res) => {
           if (res.confirm) {
-            await this.albumEditFolder(2);
-            this.onlyShare = false;
+            await this.setVisibility(2);
           } else if (res.cancel) {
             console.log("用户点击取消");
           }
@@ -215,32 +257,63 @@ export default {
       });
     },
     async onSwitchOnlyShare(e) {
-      const private_type = e ? 4 : 1;
-      await this.albumEditFolder(private_type);
-      this.onlyShare = e;
+      const checked =
+        typeof e === "object" && e && e.value !== undefined ? e.value : e;
+      await this.setVisibility(checked ? 4 : 1);
+    },
+    async setVisibility(privateType) {
+      if (!this.category || !this.category.id || this.saving) return;
+      const nextType = this.normalizePrivateType(privateType);
+      const prevType = this.privateType;
+      if (prevType === nextType) return;
+
+      this.privateType = nextType;
+      this.onlyShare = nextType === 4;
+      const saved = await this.albumEditFolder(nextType);
+      if (!saved) {
+        this.privateType = prevType;
+        this.onlyShare = prevType === 4;
+      }
     },
     async albumEditFolder(private_type) {
       if (this.$go) {
+        this.saving = true;
         const data = {
           fid: this.category.id,
           private_type,
           folder_type: 1,
+          timestamp: Date.now(),
         };
+        const params = this.$base
+          ? { ...data, sign: this.$base.getASCII(data) }
+          : data;
         // 使用项目已有请求封装
-        const res = await this.$go("album/edit/folder", data, "post", {
-          show_err: true,
-        });
-        if (res.code === 0) {
-          uni.showToast({
-            title: "修改成功",
-            icon: "success",
-            mask: true,
+        try {
+          const res = await this.$go("album/edit/folder", params, "post", {
+            show_err: true,
           });
-          setTimeout(() => {
+          if (res && res.code === 0) {
+            if (this.$set) {
+              this.$set(this.category, "private_type", private_type);
+            } else {
+              this.category.private_type = private_type;
+            }
+            uni.showToast({
+              title: "修改成功",
+              icon: "success",
+              mask: true,
+            });
             uni.$emit("refreshClassManageData");
-          }, 1500);
+            return true;
+          }
+        } catch (e) {
+          console.error(e);
+          uni.showToast({ title: "保存失败", icon: "none" });
+        } finally {
+          this.saving = false;
         }
       }
+      return false;
     },
     confirmDelete() {
       uni.showModal({
@@ -377,6 +450,25 @@ export default {
   font-size: 28rpx;
   color: #333333;
   padding: 8rpx 0 12rpx 6rpx;
+}
+
+.group-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 4rpx;
+}
+
+.status-pill {
+  padding: 6rpx 18rpx;
+  border-radius: 999rpx;
+  background: #f4f5f7;
+  font-size: 22rpx;
+  color: #666666;
+}
+
+.visibility-row.active .row-text {
+  font-weight: 600;
 }
 
 .switch-wrap {

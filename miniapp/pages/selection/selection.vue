@@ -78,19 +78,23 @@ export default {
       total: 0,
       baseInfo: {},
       currentTime: "9:41",
+      disableAutoRedirect: false,
     };
   },
-  onLoad() {
+  onLoad(options = {}) {
     const systemInfo = this.$base.getSystemInfoCompat();
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.totalHeight = this.statusBarHeight + this.navigationBarHeight;
+    this.disableAutoRedirect =
+      options.disableAutoRedirect === "1" || options.from === "home_info_missing";
     this.updateTime();
   },
   onShow() {
     const token = uni.getStorageSync("token");
     console.log(token);
-    if (token) {
+    if (token && !this.disableAutoRedirect) {
       uni.redirectTo({ url: "/pages/index/index" });
+      return;
     }
     this.getList();
     this.getBaseInfo();
@@ -211,6 +215,13 @@ export default {
       });
     },
     openPop() {
+      const token = uni.getStorageSync("token");
+      if (token) {
+        uni.navigateTo({
+          url: "/pagesOther/setInfo/setInfo",
+        });
+        return;
+      }
       uni.redirectTo({
         url: "/pages/login/login",
       });

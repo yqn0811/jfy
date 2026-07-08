@@ -4,8 +4,6 @@ namespace app\api\controller;
 
 use app\common\model\album\WdXcxAlbumFolder;
 use app\common\model\album\WdXcxAlbumShareBind;
-use app\common\model\user\WdXcxUser;
-use app\common\model\user\WdXcxUserAlbumUploadCode;
 use app\common\service\album\AiResourceBridgeService;
 use app\common\service\album\AlbumService;
 use think\App;
@@ -35,6 +33,7 @@ class AlbumApiController extends ApiBaseController
             ['visible_type', 1],
             ['pic_ids', []], // 花色图
             ['detail_pic_ids', []], // 详情图
+            ['hide_detail_pictures', 0], // 1:分享页隐藏详情图 0:展示
         ]);
         if ($param['folder_type'] == 2 && empty($param['pic_ids'])) {
             throwError('请选择花色图');
@@ -60,6 +59,7 @@ class AlbumApiController extends ApiBaseController
             ['visible_type', null],
             ['pic_ids', null], 
             ['detail_pic_ids', null],
+            ['hide_detail_pictures', null],
         ]);
         if(empty($param['fid'])){
             throwError('请选择分类');
@@ -157,6 +157,7 @@ class AlbumApiController extends ApiBaseController
             ['private_type', null],
             ['pic_layout', null],
             ['new_thumb', null],
+            ['hide_detail_pictures', null],
         ]);
         if(empty($param['id'])){
             throwError('请选择产品');
@@ -185,63 +186,6 @@ class AlbumApiController extends ApiBaseController
             throwError('请选择产品');
         }
         $this->result($this->album_service->resetBatchUploadLink($param['fid'], request()->userID()), 0, '重置成功');
-    }
-
-    public function saveBatchUploadPassword()
-    {
-        $param = $this->request->postMore([
-            ['fid', 0],
-            ['upload_pwd', ''],
-            ['upload_pwd_expire_time', 0],
-            ['upload_enabled', 0],
-        ]);
-        if(empty($param['fid'])){
-            throwError('请选择产品');
-        }
-        $folder = WdXcxAlbumFolder::where('id', $param['fid'])
-            ->where('folder_type', 2)
-            ->find();
-        if(!$folder){
-            throwError('产品不存在');
-        }
-        $uid = request()->userID();
-        if($folder->uid != $uid){
-            throwError('您没有权限操作此产品');
-        }
-        $password = trim((string)$param['upload_pwd']);
-        $uploadEnabled = (int)$param['upload_enabled'] === 1 ? 1 : 0;
-        if($uploadEnabled && $password === ''){
-            throwError('开启访问密码时请设置密码');
-        }
-        if($password !== '' && !preg_match('/^[A-Za-z0-9]{4}$/', $password)){
-            throwError('上传密码格式错误');
-        }
-        (new WdXcxUser())->ensureUploadPasswordColumns();
-        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
-        $code = $this->album_service->getBatchUploadLink($folder->id, $folder->uid)['code'];
-        WdXcxUserAlbumUploadCode::where([
-            'fid' => $folder->id,
-            'uid' => $folder->uid,
-            'upload_code' => $code,
-        ])->update([
-            'upload_enabled' => $uploadEnabled,
-        ]);
-        $expireTime = $uploadEnabled ? max(0, (int)$param['upload_pwd_expire_time']) : 0;
-        if($uploadEnabled){
-            WdXcxUser::where('id', $folder->uid)->update([
-                'upload_pwd' => $password,
-                'upload_pwd_expire_time' => $expireTime,
-            ]);
-        }else{
-            $password = '';
-        }
-        $this->result([
-            'upload_enabled' => $uploadEnabled,
-            'access_enabled' => $uploadEnabled,
-            'password' => $password,
-            'password_expire_time' => $expireTime,
-            'upload_pwd_expire_time' => $expireTime,
-        ], 0, '保存成功');
     }
 
     public function deleteAlbumFolder()
@@ -393,9 +337,31 @@ class AlbumApiController extends ApiBaseController
             'files' => $files,
             'file_type' => $file_type,
             'pid' => $pid,
-            'upload_field' => $upload_field
+            'upload_field' => $upload_field,
+            'original_names' => $this->getUploadOriginalNames($this->request->post()),
         ], $uid);
         $this->result($result['data'], 0, $result['msg']);
+    }
+
+    private function getUploadOriginalNames($param)
+    {
+        $names = [];
+        foreach (['original_name', 'filename', 'file_name', 'name'] as $field) {
+            if (!isset($param[$field]) || $param[$field] === '') {
+                continue;
+            }
+            $value = $param[$field];
+            if (is_array($value)) {
+                foreach ($value as $index => $name) {
+                    if ($name !== '') {
+                        $names[$index] = (string)$name;
+                    }
+                }
+            } elseif (empty($names)) {
+                $names['default'] = (string)$value;
+            }
+        }
+        return $names;
     }
 
 
@@ -508,6 +474,7 @@ class AlbumApiController extends ApiBaseController
             ['editer_delete_pic', ''],
             ['editer_delete', ''],
             ['private_type', 1],
+            ['hide_detail_pictures', null],
         ]);
         if(empty($param['fid'])){
             throwError('请选择文件夹');

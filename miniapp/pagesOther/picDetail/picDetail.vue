@@ -91,6 +91,15 @@
               mode="aspectFit"
               class="preview-image"
             />
+            <view v-if="displayWatermarkText" class="watermark-layer">
+              <text
+                v-for="index in 12"
+                :key="index"
+                class="watermark-text"
+              >
+                {{ displayWatermarkText }}
+              </text>
+            </view>
           </view>
         </swiper-item>
       </swiper>
@@ -135,17 +144,30 @@
 
     <!-- 图片底部操作栏 -->
     <view v-else class="toolbar" :class="{ hide: !showActions }">
-      <view
-        v-for="(tool, index) in toolList"
-        :key="index"
-        class="tool-item"
-        @tap.stop="handleToolClick(tool.action)"
-      >
-        <view class="tool-icon">
-          <image :src="tool.icon" mode="aspectFit"></image>
+      <block v-for="(tool, index) in toolList" :key="index">
+        <button
+          v-if="tool.action === 'handleShare'"
+          class="tool-item share-tool-button"
+          open-type="share"
+          hover-class="tool-item-active"
+          @tap.stop="syncCurrentPictureState"
+        >
+          <view class="tool-icon">
+            <image :src="tool.icon" mode="aspectFit"></image>
+          </view>
+          <text class="tool-text">{{ tool.text }}</text>
+        </button>
+        <view
+          v-else
+          class="tool-item"
+          @tap.stop="handleToolClick(tool.action)"
+        >
+          <view class="tool-icon">
+            <image :src="tool.icon" mode="aspectFit"></image>
+          </view>
+          <text class="tool-text">{{ tool.text }}</text>
         </view>
-        <text class="tool-text">{{ tool.text }}</text>
-      </view>
+      </block>
     </view>
 
     <!-- 删除确认弹窗 -->
@@ -267,6 +289,9 @@
 </template>
 
 <script>
+import { notifyFolderRefresh } from "@/common/helper/refresh.js";
+import { notifyRefresh } from "@/common/helper/refresh.js";
+
 export default {
   data() {
     return {
@@ -362,10 +387,18 @@ export default {
       uid: "",
       picId: "",
       fromPage: "",
+      ownerHomeInfo: null,
+      ownerHomeInfoLoading: false,
+      remotePictureLoading: false,
     };
   },
 
-  onLoad(options) {
+  async onLoad(options) {
+    const sceneOptions = this.parseSceneOptions(options);
+    options = {
+      ...(options || {}),
+      ...sceneOptions,
+    };
     // 获取系统信息
     const systemInfo = this.$base.getSystemInfoCompat();
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
@@ -375,12 +408,10 @@ export default {
       this.pic_type = options.pic_type;
     }
     this.fromPage = options.fromPage;
-    this.picId = options.pic_id;
-    if (
-      (options.uid && options.uid != "undefined" && options.uid != null) ||
-      options.fromPage === "styleResult"
-    ) {
-      this.uid = options.uid;
+    this.picId = this.normalizeShareParam(options.pic_id);
+    const optionUid = this.normalizeShareParam(options.uid);
+    if (optionUid || options.fromPage === "styleResult") {
+      this.uid = optionUid;
 
       console.log(options);
       this.toolList = [
@@ -396,102 +427,203 @@ export default {
         },
       ];
     }
-    this.picList = uni.getStorageSync("picList");
     this.option_flag = options.option_flag;
     this.source = options.source || "";
     console.log(this.option_flag, "this.option_flag");
 
-    // 设置当前项，根据传递的pic_id查找
-    if (this.picList && this.picList.length > 0) {
-      let found = false;
-      // 优先根据pic_id查找对应的图片
-      console.log(options.pic_id, "options.pic_id");
-      if (options.pic_id) {
-        // 遍历数组找到对应的图片项
-        for (let i = 0; i < this.picList.length; i++) {
-          const item = this.picList[i];
-          // 直接在item上查找pic_id
-          console.log(item.pic_id, "item.pic_id");
-          if (item.pic_id == options.pic_id) {
-            this.currentItem = item;
-            this.currentIndex = i;
-            console.log("找到图片项:", this.currentItem, "索引:", i);
-            found = true;
-            break;
-          }
-        }
-      }
-
-      // 如果没有找到或没有提供pic_id，则使用第一个图片
-      if (!found) {
-        this.currentItem = this.picList[0];
-        this.currentIndex = 0;
-        console.log("未找到指定图片项，使用第一张图片:", this.currentItem);
-      }
+    this.picList = this.isVisitorMode() ? [] : uni.getStorageSync("picList");
+    if (!Array.isArray(this.picList)) {
+      this.picList = [];
     }
 
-    this.loadImageInfo();
+    this.applyInitialPictureState();
+    if (this.isVisitorMode() && this.picId && this.uid) {
+      await this.loadSharedPictureDetail();
+    } else {
+      this.loadImageInfo();
+    }
+    this.ensureCurrentPicture();
     this.loadAlbumList();
+    this.loadOwnerHomeInfo();
 
     // 初始化视频上下文
     this.$nextTick(() => {
       this.initVideoContext();
     });
   },
-  async onShareAppMessage() {
-    console.log("触发分享");
-
-    // 先尝试从缓存读取分享数据
-    let shareData = uni.getStorageSync("shareDataForPage");
-
-    // 如果缓存中没有，则重新获取
-    if (!shareData) {
-      const enterpriseInfo = uni.getStorageSync("enterpriseInfo");
-      const userInfo = uni.getStorageSync("userInfo");
-
-      try {
-        const shareConfig = await this.$getShareConfig({
-          type: "link",
-          userId: this.uid ? this.uid : userInfo.id,
-          title: `分享图片`,
-          path: "/pages/index/index",
-        });
-
-        if (shareConfig && shareConfig.code === 0) {
-          shareData = {
-            title: `分享图片`,
-            path: shareConfig.share_link,
-            imageUrl: enterpriseInfo.home_share_image || this.currentImageUrl,
-          };
-        } else {
-          // 如果获取失败，使用默认数据
-          shareData = {
-            title: `分享图片`,
-            path: "/pages/index/index",
-            imageUrl: this.currentImageUrl,
-          };
-        }
-      } catch (error) {
-        console.error("获取分享配置失败:", error);
-        shareData = {
-          title: `分享图片`,
-          path: "/pages/index/index",
-          imageUrl: this.currentImageUrl,
-        };
-      }
-    }
-
-    // 清除缓存
-    uni.removeStorageSync("shareDataForPage");
-
+  onShareAppMessage() {
+    const shareData = this.buildPictureShareData();
     return {
       title: shareData.title || "分享图片",
-      path: shareData.path || "/pages/index/index",
+      path: shareData.path,
       imageUrl: shareData.imageUrl || this.currentImageUrl,
     };
   },
+  computed: {
+    displayWatermarkText() {
+      if (!this.isVisitorMode() || !this.ownerHomeInfo) return "";
+      return this.normalizeShareParam(this.ownerHomeInfo.home_watermark_text);
+    },
+  },
 
   methods: {
+    parseSceneOptions(options = {}) {
+      if (!options.scene || !this.$parseShareScene) return {};
+      return this.$parseShareScene(options.scene);
+    },
+    normalizeShareParam(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    normalizePictureItem(item = {}) {
+      const id = item.pic_id || item.id || this.picId || "";
+      const pictureUrl =
+        item.picture_url ||
+        item.imgurl ||
+        item.imageField ||
+        item.src ||
+        item.url ||
+        this.currentImageUrl ||
+        "";
+      const originalUrl =
+        item.picture_url_original ||
+        item.original_url ||
+        item.originalUrl ||
+        pictureUrl;
+      return {
+        ...item,
+        id,
+        pic_id: id,
+        picture_url: pictureUrl,
+        picture_url_original: originalUrl,
+        pic_beizhu: item.pic_beizhu || item.pic_name || item.name || "",
+        pic_name: item.pic_name || item.pic_beizhu || item.name || "",
+      };
+    },
+    getCurrentPictureId() {
+      const current = this.currentItem || this.imageInfo || {};
+      return this.normalizeShareParam(current.pic_id || current.id || this.picId);
+    },
+    syncCurrentPictureState() {
+      const current = this.normalizePictureItem(this.currentItem || this.imageInfo);
+      this.currentItem = current;
+      this.imageInfo = { ...this.imageInfo, ...current };
+      this.picId = current.pic_id || current.id || this.picId;
+      this.currentImageUrl = current.picture_url || this.currentImageUrl;
+    },
+    applyInitialPictureState() {
+      if (!this.picList || !this.picList.length) return;
+      let foundIndex = -1;
+      if (this.picId) {
+        foundIndex = this.picList.findIndex((item) => {
+          const normalized = this.normalizePictureItem(item);
+          return String(normalized.pic_id) === String(this.picId);
+        });
+      }
+      this.currentIndex = foundIndex >= 0 ? foundIndex : 0;
+      this.currentItem = this.normalizePictureItem(this.picList[this.currentIndex]);
+      this.imageInfo = { ...this.imageInfo, ...this.currentItem };
+      this.picId = this.currentItem.pic_id || this.picId;
+      this.currentImageUrl = this.currentItem.picture_url || "";
+      this.remark = this.imageInfo.pic_beizhu || this.imageInfo.pic_name || "";
+    },
+    buildPictureSharePath() {
+      const ownerId =
+        this.uid || (this.$getCurrentUserId ? this.$getCurrentUserId() : "");
+      const query = [];
+      const picId = this.getCurrentPictureId();
+      if (picId) query.push(`pic_id=${picId}`);
+      if (ownerId) query.push(`uid=${ownerId}`);
+      query.push("source=share");
+      return `/pagesOther/picDetail/picDetail${query.length ? `?${query.join("&")}` : ""}`;
+    },
+    buildPictureShareData() {
+      this.syncCurrentPictureState();
+      return {
+        title: this.imageInfo.pic_beizhu || this.imageInfo.pic_name || "分享图片",
+        path: this.buildPictureSharePath(),
+        imageUrl: this.currentImageUrl,
+      };
+    },
+    isVisitorMode() {
+      return !!(this.uid || this.source === "share");
+    },
+    isOwnerSaveAllowed() {
+      if (!this.isVisitorMode()) return true;
+      if (!this.ownerHomeInfo) return false;
+      return Number(this.ownerHomeInfo.visit_allow_save_pic || 0) === 1;
+    },
+    async loadOwnerHomeInfo() {
+      if (!this.isVisitorMode() || !this.uid || this.ownerHomeInfoLoading) {
+        return;
+      }
+      this.ownerHomeInfoLoading = true;
+      try {
+        const res = await this.$go(
+          "user/home/info",
+          { target_user_id: this.uid },
+          "get",
+          { show_err: false, loading: false },
+        );
+        if (res && res.code === 0 && res.data) {
+          this.ownerHomeInfo = res.data;
+        }
+      } catch (err) {
+        console.error("获取主页权限失败:", err);
+      } finally {
+        this.ownerHomeInfoLoading = false;
+      }
+    },
+    async loadSharedPictureDetail() {
+      if (!this.picId || !this.uid || this.remotePictureLoading) return;
+      this.remotePictureLoading = true;
+      try {
+        const res = await this.$go(
+          "user/home/picture/detail",
+          {
+            target_user_id: this.uid,
+            pic_id: this.picId,
+          },
+          "get",
+          { show_err: true, loading: true },
+        );
+        if (res && res.code === 0 && res.data) {
+          const item = this.normalizePictureItem(res.data);
+          this.picList = [item];
+          this.currentIndex = 0;
+          this.currentItem = item;
+          this.imageInfo = { ...this.imageInfo, ...item };
+          this.picId = item.pic_id || item.id;
+          this.currentImageUrl = item.picture_url;
+          this.remark = item.pic_beizhu || item.pic_name || "";
+        }
+      } catch (err) {
+        console.error("加载分享图片失败:", err);
+      } finally {
+        this.remotePictureLoading = false;
+      }
+    },
+    ensureCurrentPicture() {
+      if (this.picList.length || !this.picId) return;
+      const pictureUrl =
+        this.imageInfo.picture_url ||
+        this.imageInfo.imgurl ||
+        this.currentImageUrl ||
+        "";
+      const item = {
+        ...this.imageInfo,
+        pic_id: this.picId,
+        id: this.imageInfo.id || this.picId,
+        picture_url: pictureUrl,
+        picture_url_original: this.imageInfo.picture_url_original || pictureUrl,
+      };
+      this.picList = [item];
+      this.currentItem = item;
+      this.currentIndex = 0;
+      this.currentImageUrl = pictureUrl;
+    },
     // 返回上一页
     goBack() {
       uni.navigateBack();
@@ -653,11 +785,12 @@ export default {
     onSwiperChange(e) {
       const current = e.detail.current;
       this.currentIndex = current;
-      this.currentItem = this.picList[current];
+      this.currentItem = this.normalizePictureItem(this.picList[current] || {});
       // 同步更新 imageInfo 和相关字段，确保 pic_id 始终为当前图片
       this.imageInfo = { ...this.imageInfo, ...this.currentItem };
-      this.currentImageUrl = this.imageInfo.picture_url;
-      this.remark = this.imageInfo.pic_beizhu;
+      this.picId = this.currentItem.pic_id || this.currentItem.id || this.picId;
+      this.currentImageUrl = this.currentItem.picture_url;
+      this.remark = this.imageInfo.pic_beizhu || this.imageInfo.pic_name || "";
 
       // 重置视频状态
       if (this.isPlaying) {
@@ -679,64 +812,18 @@ export default {
       }
     },
     async handleShare() {
-      // 先获取分享配置
-      const enterpriseInfo = uni.getStorageSync("enterpriseInfo");
-      const userInfo = uni.getStorageSync("userInfo");
-
-      try {
-        const shareConfig = await this.$getShareConfig({
-          type: "link",
-          userId: this.uid ? this.uid : userInfo.id,
-          title: `分享图片`,
-          path:
-            "/pagesOther/picDetail/picDetail?pic_id=" +
-            this.picId +
-            "&uid=" +
-            this.uid +
-            "&fromPage=styleResult",
-        });
-
-        if (shareConfig && shareConfig.code === 0) {
-          // 设置分享数据到全局，供 onShareAppMessage 使用
-          uni.setStorageSync("shareDataForPage", {
-            title: `分享图片`,
-            path: shareConfig.share_link,
-            imageUrl: enterpriseInfo.home_share_image || this.currentImageUrl,
-          });
-
-          // 调用微信分享菜单
-          if (typeof wx !== "undefined" && wx.showShareMenu) {
-            try {
-              await wx.showShareMenu({ withShareTicket: true });
-              // 提示用户点击右上角分享
-              uni.showToast({
-                title: "请点击右上角分享",
-                icon: "none",
-                duration: 2000,
-              });
-            } catch (e) {
-              console.error("显示分享菜单失败:", e);
-            }
-          } else {
-            uni.showToast({
-              title: "请点击右上角分享",
-              icon: "none",
-              duration: 2000,
-            });
-          }
-        } else {
-          uni.showToast({
-            title: shareConfig?.msg || "主页未公开",
-            icon: "none",
-          });
+      if (typeof wx !== "undefined" && wx.showShareMenu) {
+        try {
+          await wx.showShareMenu({ withShareTicket: true });
+        } catch (e) {
+          console.error("显示分享菜单失败:", e);
         }
-      } catch (error) {
-        console.error("获取分享配置失败:", error);
-        uni.showToast({
-          title: "分享失败",
-          icon: "none",
-        });
       }
+      uni.showToast({
+        title: "请点击右上角分享",
+        icon: "none",
+        duration: 2000,
+      });
     },
     // ==================== 数据加载 ====================
 
@@ -744,18 +831,31 @@ export default {
     loadImageInfo() {
       const picInfo = uni.getStorageSync("picInfo");
       if (picInfo) {
-        this.imageInfo = { ...this.imageInfo, ...picInfo };
+        const currentPicInfo = this.normalizePictureItem(picInfo);
+        if (
+          this.picId &&
+          currentPicInfo.pic_id &&
+          String(currentPicInfo.pic_id) !== String(this.picId)
+        ) {
+          return;
+        }
+        this.imageInfo = { ...this.imageInfo, ...currentPicInfo };
         this.currentImageUrl = this.imageInfo.picture_url;
-        this.remark = this.imageInfo.pic_beizhu;
+        this.picId = this.imageInfo.pic_id || this.imageInfo.id || this.picId;
+        this.remark = this.imageInfo.pic_beizhu || this.imageInfo.pic_name || "";
         // 如果没有设置currentItem，则使用imageInfo
         if (!this.currentItem) {
-          this.currentItem = { ...this.imageInfo };
+          this.currentItem = this.normalizePictureItem(this.imageInfo);
         }
       }
     },
 
     // 加载相册列表
     loadAlbumList(fid = 0) {
+      if (this.uid || this.source === "share") {
+        this.albumList = [];
+        return;
+      }
       const params = this.buildApiParams({ fid });
 
       this.$go("album/show/folder", params, "post", { show_err: true })
@@ -853,7 +953,7 @@ export default {
     },
 
     // 保存媒体到相册
-    handleDownload() {
+    async handleDownload() {
       const currentItem = this.currentItem || this.imageInfo;
       const fileUrl =
         currentItem.picture_url_original || currentItem.picture_url;
@@ -867,7 +967,20 @@ export default {
         return;
       }
 
-      let userInfo = uni.getStorageSync("userInfo");
+      if (this.isVisitorMode()) {
+        if (!this.ownerHomeInfo && this.uid) {
+          await this.loadOwnerHomeInfo();
+        }
+        if (!this.isOwnerSaveAllowed()) {
+          uni.showToast({
+            title: "商户未开放保存权限",
+            icon: "none",
+          });
+          return;
+        }
+      }
+
+      let userInfo = uni.getStorageSync("userInfo") || {};
       if (userInfo.grade_level == 0) {
         uni.showToast({
           title: "请先升级成为会员",
@@ -972,7 +1085,7 @@ export default {
         return;
       }
 
-      let userInfo = uni.getStorageSync("userInfo");
+      let userInfo = uni.getStorageSync("userInfo") || {};
       if (userInfo.grade_level == 0) {
         uni.showToast({
           title: "请先升级成为会员",
@@ -1008,7 +1121,7 @@ export default {
           icon: "none",
         });
       } else {
-        let userInfo = uni.getStorageSync("userInfo");
+        let userInfo = uni.getStorageSync("userInfo") || {};
         if (userInfo.grade_level == 1) {
           uni.showToast({
             title: "请先升级成为会员",
@@ -1021,8 +1134,9 @@ export default {
     },
 
     submitRemark() {
+      const picId = this.getCurrentPictureId();
       const params = {
-        pic_id: this.picId,
+        pic_id: picId,
         pic_name: this.remark,
       };
       this.$go("album/pics/rename", params, "post", { show_err: true })
@@ -1031,14 +1145,23 @@ export default {
             title: "重命名成功",
             icon: "success",
           });
-          // 更新当前项与列表中的备注，保持 UI 与数据一致
-          this.imageInfo.pic_beizhu = this.remark;
+          const newName = this.remark;
+          this.imageInfo.pic_beizhu = newName;
+          this.imageInfo.pic_name = newName;
           if (this.currentItem) {
-            this.currentItem.pic_beizhu = this.remark;
+            this.currentItem.pic_beizhu = newName;
+            this.currentItem.pic_name = newName;
           }
           if (Array.isArray(this.picList) && this.picList[this.currentIndex]) {
-            this.picList[this.currentIndex].pic_beizhu = this.remark;
+            this.picList[this.currentIndex].pic_beizhu = newName;
+            this.picList[this.currentIndex].pic_name = newName;
+            uni.setStorageSync("picList", this.picList);
           }
+          uni.setStorageSync("picInfo", {
+            ...this.imageInfo,
+            pic_id: picId,
+          });
+          notifyRefresh(["product", "category", "home"]);
           this.closeRemarkPopup();
         })
         .catch((err) => {
@@ -1148,6 +1271,7 @@ export default {
           });
           this.createPopup.show = false;
           this.createPopup.name = "";
+          notifyFolderRefresh(this.createPopup.type);
           this.loadAlbumList();
         })
         .catch((err) => {
@@ -1280,11 +1404,35 @@ export default {
   align-items: center;
   justify-content: center;
   background-color: #333;
+  position: relative;
 
   .preview-image {
     width: 100%;
     height: 100%;
   }
+}
+
+.watermark-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: 80rpx 48rpx;
+  opacity: 0.28;
+  transform: rotate(-24deg);
+}
+
+.watermark-text {
+  min-width: 240rpx;
+  text-align: center;
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 600;
+  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.42);
 }
 
 // ==================== 视频预览区域 ====================
@@ -1393,6 +1541,23 @@ export default {
     &:active .tool-icon {
       transform: scale(0.9);
     }
+  }
+
+  .share-tool-button {
+    padding: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    line-height: 1;
+
+    &::after {
+      border: 0;
+    }
+  }
+
+  .tool-item-active .tool-icon {
+    transform: scale(0.9);
   }
 }
 

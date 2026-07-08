@@ -275,6 +275,7 @@
       :uid="uid || ''"
       type="selection"
       :hid="styleId"
+      :cover-url="shareCoverUrl"
     />
   </view>
 </template>
@@ -313,6 +314,11 @@ export default {
   },
 
   onLoad(options) {
+    const sceneOptions = this.parseSceneOptions(options);
+    options = {
+      ...(options || {}),
+      ...sceneOptions,
+    };
     const systemInfo = this.$base.getSystemInfoCompat();
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.totalHeight = this.statusBarHeight + this.navigationBarHeight;
@@ -320,12 +326,40 @@ export default {
       this.styleId = options.id;
       this.uid = options.uid;
       this.fromPage = options.fromPage;
-      this.shareUrl = `/pagesOther/styleResult/styleResult?id=${this.styleId}&uid=${this.uid}`;
+      this.shareUrl = this.buildShareUrl();
       this.getStyleDetail();
     }
   },
 
+  computed: {
+    shareCoverUrl() {
+      return this.getShareImage();
+    },
+  },
+
   methods: {
+    parseSceneOptions(options = {}) {
+      if (!options.scene || !this.$parseShareScene) return {};
+      return this.$parseShareScene(options.scene);
+    },
+    normalizeShareParam(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    buildShareUrl() {
+      const uid = this.normalizeShareParam(this.uid);
+      return `/pagesOther/styleResult/styleResult?id=${this.styleId}${uid ? `&uid=${uid}` : ""}`;
+    },
+    getShareImage() {
+      return (
+        this.orderInfo.share_img ||
+        this.productList[0]?.src ||
+        this.productList[0]?.image ||
+        ""
+      );
+    },
     goBack() {
       uni.navigateBack();
     },
@@ -346,6 +380,7 @@ export default {
     },
 
     handleShare() {
+      this.shareUrl = this.buildShareUrl();
       this.sharePopupVisible = true;
     },
 
@@ -607,29 +642,24 @@ export default {
   onShareAppMessage() {
     const userInfo = uni.getStorageSync("userInfo");
     const enterpriseInfo = uni.getStorageSync("enterpriseInfo");
+    const sharePath = this.buildShareUrl();
+    const imageUrl = this.getShareImage();
     return {
       title: `${enterpriseInfo.company_name || ""}的选款单 - ${this.orderInfo.name || ""}`,
-      path: `/pagesOther/styleResult/styleResult?id=${this.styleId}&uid=${this.uid || userInfo.id}`,
-      imageUrl:
-        this.orderInfo.share_img ||
-        this.productList[0]?.src ||
-        this.productList[0]?.image ||
-        "",
+      path: sharePath || `/pagesOther/styleResult/styleResult?id=${this.styleId}&uid=${this.uid || userInfo.id}`,
+      imageUrl,
     };
   },
 
   onShareTimeline() {
     const userInfo = uni.getStorageSync("userInfo");
     const enterpriseInfo = uni.getStorageSync("enterpriseInfo");
+    const imageUrl = this.getShareImage();
 
     return {
       title: `${enterpriseInfo.company_name || ""}的选款单 - ${this.orderInfo.name || ""}`,
       query: `id=${this.styleId}&uid=${this.uid || userInfo.id}`,
-      imageUrl:
-        this.orderInfo.share_img ||
-        this.productList[0]?.src ||
-        this.productList[0]?.image ||
-        "",
+      imageUrl,
     };
   },
 };

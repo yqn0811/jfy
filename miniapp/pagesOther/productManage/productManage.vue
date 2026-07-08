@@ -144,6 +144,7 @@ export default {
       columns: 2,
       page: 1,
       pageSize: 20,
+      lastProductRefreshAt: "",
       placeholder: "/static/image/pic.png",
     };
   },
@@ -158,12 +159,31 @@ export default {
     this.fetchCategories();
     this.fetchList();
   },
+  onShow() {
+    this.consumeProductRefreshMarker();
+  },
   onUnload() {
     uni.$off("refreshProductManageData", this.handleRefreshData);
   },
   methods: {
-    handleRefreshData() {
-      this.fetchList();
+    handleRefreshData(marker) {
+      this.markProductRefreshConsumed(marker);
+      this.fetchCategories();
+      this.fetchList(true);
+    },
+    consumeProductRefreshMarker() {
+      const marker = uni.getStorageSync("productListNeedsRefresh");
+      const consumedMarker = uni.getStorageSync(
+        "productListNeedsRefreshManageConsumed",
+      );
+      if (!marker || marker === this.lastProductRefreshAt || marker === consumedMarker) return;
+      this.markProductRefreshConsumed(marker);
+      this.handleRefreshData();
+    },
+    markProductRefreshConsumed(marker) {
+      if (!marker) return;
+      this.lastProductRefreshAt = marker;
+      uni.setStorageSync("productListNeedsRefreshManageConsumed", marker);
     },
     handleImageClick(data) {
       uni.navigateTo({
@@ -359,7 +379,7 @@ export default {
     },
 
     createProduct() {
-      uni.navigateTo({ url: "/pagesOther/addProduct/addProduct" });
+      uni.navigateTo({ url: "/pagesOther/addProduct/addProduct?fromPage=productManage" });
     },
   },
 };

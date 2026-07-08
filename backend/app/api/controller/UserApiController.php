@@ -8,7 +8,6 @@ use app\common\service\bridge\JiafangyunEntitlementSyncService;
 use app\common\service\user\UserService;
 use app\common\service\WxService;
 use think\facade\Cache;
-use think\facade\Config;
 use app\index\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
@@ -365,23 +364,17 @@ class UserApiController extends ApiBaseController
             'latitude' => $user->latitude,
             'longitude' => $user->longitude,
         ];
-        $capacityBytes = (int)($vipGradeInfo['resource_storage']['capacity_bytes'] ?? 0);
-        if ($capacityBytes <= 0 && $vipGradeInfo['space_size'] > 0) {
-            $capacityBytes = (int)$vipGradeInfo['space_size'] * 1024 * 1024;
+        if($vipGradeInfo['space_size'] > 1024 * 1024){
+            $result['all_space'] = bcdiv($vipGradeInfo['space_size'], 1024 * 1024) . 'T';
+        }elseif ($vipGradeInfo['space_size'] > 1024){
+            $result['all_space'] = bcdiv($vipGradeInfo['space_size'], 1024) . 'G';
+        }else{
+            $result['all_space'] = $vipGradeInfo['space_size'] . 'M';
         }
-        $usedBytes = (int)($vipGradeInfo['resource_storage']['used_bytes'] ?? 0);
-        $localPicSize = WdXcxPic::where('uid', $uid)->sum('size');
-        if ($usedBytes <= 0) {
-            $usedBytes = (int)$localPicSize;
-        }
-
-        $result['all_space'] = $this->formatStorageBytes($capacityBytes);
-        $result['use_space'] = $usedBytes;
-        $result['resource_storage_used_bytes'] = $usedBytes;
-        $result['resource_storage_capacity_bytes'] = $capacityBytes;
-        $result['local_pic_used_bytes'] = (int)$localPicSize;
-        if($usedBytes > 0 && $capacityBytes > 0){
-            $result['space_used'] = bcmul(bcdiv($usedBytes, $capacityBytes, 4), 100, 2);
+        $UserPicSize = WdXcxPic::where('uid', $uid)->sum('size');
+        $result['use_space'] = $UserPicSize;
+        if($UserPicSize > 0 && $vipGradeInfo['space_size'] > 0){
+            $result['space_used'] = bcmul(bcdiv($UserPicSize, $vipGradeInfo['space_size'] * 1024 * 1024, 4), 100, 2);
         }else{
             $result['space_used'] = 0;
         }
@@ -417,22 +410,6 @@ class UserApiController extends ApiBaseController
         }
 
         $this->result($result);
-    }
-
-    private function formatStorageBytes($bytes)
-    {
-        $bytes = (int)$bytes;
-        if ($bytes <= 0) {
-            return '0M';
-        }
-        $mb = (int)ceil($bytes / 1024 / 1024);
-        if($mb > 1024 * 1024){
-            return bcdiv($mb, 1024 * 1024) . 'T';
-        }
-        if($mb > 1024){
-            return bcdiv($mb, 1024) . 'G';
-        }
-        return $mb . 'M';
     }
 
     public function markUserVisitorsRead()
@@ -758,25 +735,6 @@ class UserApiController extends ApiBaseController
         $this->result($this->userService->getHomeProductsDetails($targetUserId, $productId, $visitorUid));
     }
 
-    public function getHomePictureDetail()
-    {
-        $params = $this->request->getMore([
-            ['target_user_id', 0],
-            ['pic_id', 0],
-        ]);
-        $targetUserId = $params['target_user_id'];
-        $picId = $params['pic_id'];
-        if (!$targetUserId || !$picId) {
-            throwError('参数错误');
-        }
-        $visitorUid = 0;
-        try {
-            $visitorUid = request()->userID();
-        } catch (\Exception $e) {
-        }
-        $this->result($this->userService->getHomePictureDetail($targetUserId, $picId, $visitorUid));
-    }
-
     public function getHomeMiniProgramCode()
     {
         $params = $this->request->getMore([
@@ -797,14 +755,12 @@ class UserApiController extends ApiBaseController
         $params = $this->request->getMore([
             ['target_user_id', 0],
             ['path', ''],
-            ['type', 'home'],
-            ['id', 0],
         ]);
         $targetUserId = $params['target_user_id'];
         if (!$targetUserId) {
             throwError('参数错误');
         }
-        $this->result($this->userService->getHomeShareLink($targetUserId, $params['path'], $params['type'], $params['id']));
+        $this->result($this->userService->getHomeShareLink($targetUserId, $params['path']));
     }
 
     public function getHomeSharePoster()
@@ -843,47 +799,52 @@ class UserApiController extends ApiBaseController
      */
     public function getLoginQrcode()
     {
-        $appid = trim((string)Config::get('miniprogram.account_appid'));
-        if ($appid === '') {
-            throwError('微信登录未配置');
+        // 1. 调用微信接口生成二维码
+        try {
+            $app = (new WxService(3))->getAppData();
+            $scene = md5(uniqid(mt_rand(), true));
+            $result = $app->qrcode->temporary($scene, 600);
+            
+            if (!isset($result['ticket'])) {
+                $errMsg = isset($result['errmsg']) ? $result['errmsg'] : 'Unknown error from WeChat';
+                if (isset($result['errcode'])) {
+                    $errMsg .= ' (' . $result['errcode'] . ')';
+                }
+                throw new \Exception($errMsg);
+            }
+
+            $url = $app->qrcode->url($result['ticket']);
+        } catch (\Exception $e) {
+            $msg = '获取二维码失败';
+            if ($e->getCode()) {
+                $msg .= ' [code: ' . $e->getCode() . ']';
+            }
+            if ($e->getMessage()) {
+                $msg .= ': ' . $e->getMessage();
+            }
+            throwError($msg);
         }
 
-        $redirectUrl = trim((string)$this->request->param('redirect', ''));
-        if ($redirectUrl === '') {
-            $redirectUrl = trim((string)$this->request->param('return_url', ''));
-        }
-        if ($redirectUrl === '') {
-            $redirectUrl = 'https://pic.jfyuntu.com/assets/page/product-list.html';
-        }
-
-        $callbackUrl = $this->request->domain() . '/api/user/login/callback';
-        if (strpos($this->request->baseFile(), '/index.php') !== false) {
-            $callbackUrl = $this->request->domain() . '/index.php/api/user/login/callback';
-        }
-        $state = base64_encode($redirectUrl);
-        $scene = md5($state . microtime(true) . mt_rand());
-        $url = 'https://open.weixin.qq.com/connect/qrconnect?' . http_build_query([
-            'appid' => $appid,
-            'redirect_uri' => $callbackUrl,
-            'response_type' => 'code',
-            'scope' => 'snsapi_login',
-            'state' => $state,
-        ]) . '#wechat_redirect';
-
-        // 兼容旧的轮询调用方；开放平台扫码登录成功后会直接跳 callback。
+        // 2. 写入登录态缓存（失败不影响二维码返回）
         try {
             Cache::set('login_scene_' . $scene, 'pending', 600);
         } catch (\Throwable $e) {
         }
 
+        // 3. 尝试转成 dataURL（失败也不阻断）
+        $dataUrl = null;
+        try {
+            $img = @file_get_contents($url);
+            if ($img !== false) {
+                $dataUrl = 'data:image/png;base64,' . base64_encode($img);
+            }
+        } catch (\Throwable $e2) {
+        }
+
         $this->result([
             'url' => $url,
-            'data_url' => null,
-            'scene' => $scene,
-            'mode' => 'web',
-            'appid' => $appid,
-            'redirect_uri' => $callbackUrl,
-            'scope' => 'snsapi_login',
+            'data_url' => $dataUrl,
+            'scene' => $scene
         ]);
     }
 

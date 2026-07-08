@@ -63,7 +63,6 @@ export default {
   onShow: function () {
     console.log("App Show");
   },
-  onLaunch() {},
   onHide: function () {
     console.log("App Hide");
   },
@@ -136,14 +135,19 @@ page {
 }
 
 .page {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
   position: relative;
+  box-sizing: border-box;
+  overflow-x: hidden;
   overflow-y: scroll;
   display: flex;
   flex-direction: column;
   .page-scoll {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 </style>

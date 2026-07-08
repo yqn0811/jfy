@@ -7,7 +7,17 @@ import Cache from "@/common/helper/cache.js";
 import config from "@/common/config";
 import uView from "@/uni_modules/uview-ui";
 import { toggleFavorite, addVisit } from "@/common/helper/favorite.js";
-import { getShareConfig } from "@/common/helper/share.js";
+import {
+  buildPublicSharePath,
+  buildTypedShareTitle,
+  getCategoryShareName,
+  getCurrentUserId,
+  getMerchantShareName,
+  getShareConfig,
+  getShareOwnerId,
+  parseShareScene,
+  normalizeShareValue,
+} from "@/common/helper/share.js";
 import inputPlaceholder from "@/common/helper/inputPlaceholder.js";
 import {
   silentLogin,
@@ -24,6 +34,14 @@ Vue.prototype.$addVisit = addVisit;
 Vue.prototype.$base = base;
 Vue.prototype.$toggleFavorite = toggleFavorite;
 Vue.prototype.$getShareConfig = getShareConfig;
+Vue.prototype.$buildPublicSharePath = buildPublicSharePath;
+Vue.prototype.$buildTypedShareTitle = buildTypedShareTitle;
+Vue.prototype.$getCategoryShareName = getCategoryShareName;
+Vue.prototype.$getCurrentUserId = getCurrentUserId;
+Vue.prototype.$getMerchantShareName = getMerchantShareName;
+Vue.prototype.$getShareOwnerId = getShareOwnerId;
+Vue.prototype.$parseShareScene = parseShareScene;
+Vue.prototype.$normalizeShareValue = normalizeShareValue;
 Vue.prototype.$silentLogin = silentLogin;
 Vue.prototype.$logout = logout;
 Vue.prototype.$checkLoginStatus = checkLoginStatus;

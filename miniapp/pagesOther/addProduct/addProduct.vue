@@ -121,17 +121,21 @@
           </view>
         </view>
 
-        <!-- 说明与复制链接 -->
+        <!-- 大批量上传入口 -->
         <view v-if="pid" class="notice-box">
-          <view class="notice-title">图片较多时，建议用浏览器批量上传</view>
+          <view class="notice-title">大批量上传</view>
           <view class="notice-desc">
-            小程序内适合少量添加。一次上传很多张时，复制下方网址到手机或电脑浏览器打开，上传更稳定。
+            图片很多时，进入产品专属的网页上传页面，可复制链接发给同事或在电脑浏览器打开。
           </view>
-          <view class="url-row" @click="copyLink">
-            <text class="url-text">{{ uploadPageUrl }}</text>
+          <view class="url-row" @click="openBatchUpload">
+            <image class="notice-icon" src="/static/icon/upload-cloud.png" mode="aspectFit" />
+            <view class="url-copy">
+              <text class="url-text">网页上传链接和密码设置</text>
+              <text class="url-subtext">{{ pid ? "已保存产品，可直接进入" : "提交产品信息后可使用" }}</text>
+            </view>
           </view>
-          <view class="copy-btn" :class="{ copied: copiedUploadUrl }" @click="copyLink">
-            {{ copiedUploadUrl ? "已复制，去浏览器打开" : "复制批量上传网址" }}
+          <view class="copy-btn" @click="openBatchUpload">
+            {{ pid ? "进入大批量上传" : "先提交产品信息后使用" }}
           </view>
         </view>
       </view>
@@ -163,6 +167,12 @@
 import UploadPicker from "./components/UploadPicker.vue"; // 根据项目路径调整
 import CategoryMultiSelect from "./components/CategoryMultiSelect.vue";
 import { notifyRefresh } from "@/common/helper/refresh.js";
+import {
+  buildUploadNameFormData,
+  getSelectedUploadFileName,
+  normalizeSelectedUploadFile,
+  prepareNamedUploadFile,
+} from "@/common/helper/uploadName.js";
 export default {
   components: {
     UploadPicker,
@@ -182,7 +192,7 @@ export default {
       coverImages: [], // 花色图数组，元素格式 { src, uploadedUrl, uploading }
       coverImageIds: [],
       maxCoverImages: 100, // 根据需要调整上限
-      uploadPageUrl: "https://pic.jfyuntu.com",
+      hideDetailPictures: false,
       copiedUploadUrl: false,
       // 上传配置（需要按实际后端替换）
       uploadEndpoint: "/api/common/upload",
@@ -330,6 +340,8 @@ export default {
         console.log(res);
         this.productName = res.data.folder_name;
         this.productIntro = res.data.folder_desc;
+        this.hideDetailPictures =
+          Number(res.data.hide_detail_pictures || 0) === 1;
 
         // 回显分类信息（支持多个分类）
         if (res.data.category_ids) {
@@ -456,7 +468,11 @@ export default {
         sourceType: ["album", "camera"],
         maxDuration: 60,
         success: (res) => {
-          const tempPath = res.tempFilePath;
+          const selectedFile = normalizeSelectedUploadFile(
+            { ...res, path: res.tempFilePath },
+            2,
+          );
+          const tempPath = selectedFile.path;
           // 将视频当作图片处理上传：复用 uploadSingleFile，随后把返回地址存入对应数组
           if (target === "cover") {
             const idx =
@@ -465,7 +481,7 @@ export default {
                 uploadedUrl: "",
                 uploading: true,
               }) - 1;
-            this.uploadSingleFile(tempPath, 2)
+            this.uploadSingleFile(tempPath, 2, selectedFile.name)
               .then((res) => {
                 this.$set(this.coverImages, idx, {
                   src: res.url,
@@ -489,7 +505,7 @@ export default {
                 uploadedUrl: "",
                 uploading: true,
               }) - 1;
-            this.uploadSingleFile(tempPath, 2)
+            this.uploadSingleFile(tempPath, 2, selectedFile.name)
               .then((res) => {
                 this.$set(this.detailImages, idx, {
                   src: res.url,
@@ -518,7 +534,11 @@ export default {
           count: 1,
           type: "image",
           success: (res) => {
-            const tempPath = res.tempFiles[0].path;
+            const selectedFile = normalizeSelectedUploadFile(
+              (res.tempFiles && res.tempFiles[0]) || {},
+              1,
+            );
+            const tempPath = selectedFile.path;
             // 立即上传并保存结果（同上）
             if (target === "cover") {
               const idx =
@@ -527,7 +547,7 @@ export default {
                   uploadedUrl: "",
                   uploading: true,
                 }) - 1;
-              this.uploadSingleFile(tempPath)
+              this.uploadSingleFile(tempPath, 1, selectedFile.name)
                 .then((res) => {
                   this.$set(this.coverImages, idx, {
                     src: res.url,
@@ -551,7 +571,7 @@ export default {
                   uploadedUrl: "",
                   uploading: true,
                 }) - 1;
-              this.uploadSingleFile(tempPath)
+              this.uploadSingleFile(tempPath, 1, selectedFile.name)
                 .then((res) => {
                   this.$set(this.detailImages, idx, {
                     src: res.url,
@@ -584,15 +604,20 @@ export default {
       uni.chooseImage({
         count: remain,
         success: (res) => {
-          const paths = res.tempFilePaths;
-          paths.forEach((tempPath) => {
+          const files =
+            res.tempFiles && res.tempFiles.length
+              ? res.tempFiles
+              : (res.tempFilePaths || []).map((path) => ({ path }));
+          files.forEach((file) => {
+            const selectedFile = normalizeSelectedUploadFile(file, 1);
+            const tempPath = selectedFile.path;
             const idx =
               this.coverImages.push({
                 src: tempPath,
                 uploadedUrl: "",
                 uploading: true,
               }) - 1;
-            this.uploadSingleFile(tempPath)
+            this.uploadSingleFile(tempPath, 1, selectedFile.name)
               .then((res) => {
                 console.log(res);
                 if (this.coverImages[idx]) {
@@ -634,9 +659,14 @@ export default {
       uni.chooseImage({
         count: remain,
         success: (res) => {
-          const paths = res.tempFilePaths;
+          const files =
+            res.tempFiles && res.tempFiles.length
+              ? res.tempFiles
+              : (res.tempFilePaths || []).map((path) => ({ path }));
           // 先在界面上添加占位项并显示上传中
-          paths.forEach((tempPath) => {
+          files.forEach((file) => {
+            const selectedFile = normalizeSelectedUploadFile(file, 1);
+            const tempPath = selectedFile.path;
             const idx =
               this.detailImages.push({
                 src: tempPath,
@@ -644,7 +674,7 @@ export default {
                 uploading: true,
               }) - 1;
             // 立即上传每张图片
-            this.uploadSingleFile(tempPath)
+            this.uploadSingleFile(tempPath, 1, selectedFile.name)
               .then((res) => {
                 if (this.detailImages[idx]) {
                   this.$set(this.detailImages, idx, {
@@ -691,15 +721,15 @@ export default {
     },
     // 复制上传链接到剪贴板
     copyLink() {
-      uni.setClipboardData({
-        data: this.uploadPageUrl,
-        success: () => {
-          this.copiedUploadUrl = true;
-          uni.showToast({ title: "已复制，请到浏览器打开", icon: "none" });
-          setTimeout(() => {
-            this.copiedUploadUrl = false;
-          }, 2500);
-        },
+      this.openBatchUpload();
+    },
+    openBatchUpload() {
+      if (!this.pid) {
+        uni.showToast({ title: "请先提交产品信息后再使用大批量上传", icon: "none" });
+        return;
+      }
+      uni.navigateTo({
+        url: "/pagesOther/batchUpload/batchUpload?fid=" + this.pid,
       });
     },
     // 提交：现在图片已在选择时上传，提交只负责发送文本和已上传的图片地址
@@ -730,6 +760,7 @@ export default {
           folder_desc: this.productIntro,
           pic_ids: this.coverImageIds,
           detail_pic_ids: this.detailImageIds,
+          hide_detail_pictures: this.hideDetailPictures ? 1 : 0,
           new_thumb:
             (this.coverImages[0] &&
               (this.coverImages[0].uploadedUrl || this.coverImages[0].src)) ||
@@ -748,6 +779,9 @@ export default {
             ? { ...payload, sign: this.$base.getASCII(payload) }
             : payload;
           await this.$go(url, params, "post", { show_err: true });
+          if (!this.pid) {
+            this.finishIntegralTask("upload_product");
+          }
           uni.showToast({ title: "提交成功", icon: "none" });
           this.notifyProductChanged();
           setTimeout(() => {
@@ -809,49 +843,36 @@ export default {
     notifyProductChanged() {
       notifyRefresh(["product", "home"]);
     },
-    getUploadFileExtension(filePath, fileType = 1) {
-      if (Number(fileType) === 2) return "mp4";
-      const cleanPath = String(filePath || "").split("?")[0];
-      const match = cleanPath.match(/\.([a-zA-Z0-9]+)$/);
-      const ext = match ? match[1].toLowerCase() : "jpg";
-      return ext.length <= 8 ? ext : "jpg";
-    },
-    buildUploadFileName(filePath, fileType = 1) {
-      const now = new Date();
-      const pad = (value, size = 2) => String(value).padStart(size, "0");
-      const stamp =
-        `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
-        `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}` +
-        `${pad(now.getMilliseconds(), 3)}`;
-      const random = Math.random().toString(36).slice(2, 8);
-      return `jf_${stamp}_${random}.${this.getUploadFileExtension(filePath, fileType)}`;
-    },
-    prepareUploadFilePath(filePath, uploadName) {
-      return new Promise((resolve) => {
-        if (
-          typeof wx === "undefined" ||
-          !wx.getFileSystemManager ||
-          !wx.env ||
-          !wx.env.USER_DATA_PATH
-        ) {
-          resolve(filePath);
-          return;
-        }
-        const fs = wx.getFileSystemManager();
-        const destPath = `${wx.env.USER_DATA_PATH}/${uploadName}`;
-        fs.copyFile({
-          srcPath: filePath,
-          destPath,
-          success: () => resolve(destPath),
-          fail: () => resolve(filePath),
-        });
+    finishIntegralTask(taskKey) {
+      if (!this.$go || !taskKey) {
+        return;
+      }
+      const querys = {
+        task_key: taskKey,
+        timestamp: new Date().getTime(),
+      };
+      const data = {
+        ...querys,
+        sign: this.$base ? this.$base.getASCII(querys) : "",
+      };
+      this.$go("integral/task/finish", data, "post", {
+        show_err: false,
+        loading: false,
+      }).catch((err) => {
+        console.log("积分任务完成失败:", err);
       });
     },
+    buildUploadFileName(filePath, fileType = 1, originalName = "") {
+      return getSelectedUploadFileName({ name: originalName }, filePath, fileType);
+    },
+    prepareUploadFilePath(filePath, uploadName) {
+      return prepareNamedUploadFile(filePath, uploadName);
+    },
     // 上传单文件并返回线上访问地址
-    uploadSingleFile(filePath, fileType = 1) {
+    uploadSingleFile(filePath, fileType = 1, originalName = "") {
       const that = this;
       return new Promise((resolve, reject) => {
-        const uploadName = that.buildUploadFileName(filePath, fileType);
+        const uploadName = that.buildUploadFileName(filePath, fileType, originalName);
         that.prepareUploadFilePath(filePath, uploadName).then((uploadPath) => {
           uni.uploadFile({
             url: that.$config.domain + that.uploadEndpoint,
@@ -863,10 +884,7 @@ export default {
             },
             formData: {
               file_type: fileType,
-              filename: uploadName,
-              file_name: uploadName,
-              original_name: uploadName,
-              name: uploadName,
+              ...buildUploadNameFormData(uploadName),
             },
             success: (uploadRes) => {
               try {
@@ -1071,7 +1089,7 @@ export default {
 
     .url-row {
       min-height: 64rpx;
-      padding: 0 20rpx;
+      padding: 18rpx 20rpx;
       background: rgba(255, 255, 255, 0.76);
       border-radius: 14rpx;
       display: flex;
@@ -1079,13 +1097,32 @@ export default {
       box-sizing: border-box;
     }
 
-    .url-text {
+    .notice-icon {
+      width: 42rpx;
+      height: 42rpx;
+      margin-right: 16rpx;
+      flex-shrink: 0;
+    }
+
+    .url-copy {
       flex: 1;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6rpx;
+    }
+
+    .url-text {
       font-size: 25rpx;
-      color: #4f4f4f;
-      font-weight: 600;
-      word-break: break-all;
+      color: #333333;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .url-subtext {
+      font-size: 22rpx;
+      color: #777777;
+      line-height: 1.35;
     }
 
     .copy-btn {

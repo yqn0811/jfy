@@ -148,6 +148,8 @@ export default {
         wechat: "asdad",
       },
       bottomSafe: 0,
+      hasLoadedUser: false,
+      isLoadingUser: false,
     };
   },
   computed: {
@@ -182,12 +184,28 @@ export default {
       ];
     },
   },
+  watch: {
+    visible(value) {
+      if (value) {
+        this.loadUser();
+      }
+    },
+    uid() {
+      this.hasLoadedUser = false;
+      if (this.visible) {
+        this.loadUser();
+      }
+    },
+  },
   mounted() {
-    this.loadUser();
+    if (this.visible) {
+      this.loadUser();
+    }
     this.setSafeArea();
   },
   methods: {
     handleRefreshData() {
+      this.hasLoadedUser = false;
       this.loadUser();
       this.setSafeArea();
     },
@@ -196,15 +214,20 @@ export default {
       this.$emit("update:visible", false);
     },
     loadUser() {
-      const user = uni.getStorageSync("userInfo");
+      if (this.hasLoadedUser || this.isLoadingUser) return;
+      const user = uni.getStorageSync("userInfo") || {};
       const uid = this.uid ? this.uid : user.id;
+      if (!uid) return;
       const data = {
         target_user_id: uid,
       };
+      this.isLoadingUser = true;
       this.$go("user/home/info", data, "get", {
         show_err: false,
       })
         .then((res) => {
+          this.isLoadingUser = false;
+          if (!res || res.code !== 0) return;
           // 合并默认数据和实际数据，确保所有字段都有值
           const userInfo = {
             ...res.data,
@@ -212,8 +235,10 @@ export default {
           };
           this.user = userInfo;
           uni.setStorageSync("enterpriseInfo", userInfo);
+          this.hasLoadedUser = true;
         })
         .catch((err) => {
+          this.isLoadingUser = false;
           console.error("获取商户信息失败:", err);
         });
     },

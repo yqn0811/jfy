@@ -11,7 +11,6 @@ use app\index\model\WdXcxBase;
 use app\index\service\upload\UploadService;
 use think\App;
 use think\facade\Config;
-use think\facade\Db;
 
 class CommonService extends BaseService
 {
@@ -25,16 +24,21 @@ class CommonService extends BaseService
      * @return mixed
      * @throws \cores\exception\BaseException
      */
-    public function uploadImage($param, $uid=0)
+    public function uploadImage($param, $uid=0, $requestParam=[])
     {
-        $new_param = $this->request->post();
+        $new_param = $requestParam ?: $this->request->post();
+        $fileType = isset($new_param['file_type']) ? (int)$new_param['file_type'] : 1;
+        if(!in_array($fileType, [1, 2])){
+            $fileType = 1;
+        }
         try{
             $data = (new UploadService($this->uniacid))->uploadImages([
                 'files' => $param,
                 'flag' => 1,
                 'gid' => 0,
                 'uid' => $uid,
-                'file_type' => 1,
+                'file_type' => $fileType,
+                'original_names' => $this->getUploadOriginalNames($new_param),
             ]);
             if(!empty($new_param['collect_flag'])){
                 foreach ($data as $pic){
@@ -61,6 +65,27 @@ class CommonService extends BaseService
             throwError($exception->getMessage());
         }
         return $data[0];
+    }
+
+    private function getUploadOriginalNames($param)
+    {
+        $names = [];
+        foreach (['original_name', 'filename', 'file_name', 'name'] as $field) {
+            if (!isset($param[$field]) || $param[$field] === '') {
+                continue;
+            }
+            $value = $param[$field];
+            if (is_array($value)) {
+                foreach ($value as $index => $name) {
+                    if ($name !== '') {
+                        $names[$index] = (string)$name;
+                    }
+                }
+            } elseif (empty($names)) {
+                $names['default'] = (string)$value;
+            }
+        }
+        return $names;
     }
 
     /**获取首页基础信息
@@ -113,101 +138,6 @@ class CommonService extends BaseService
     public function getWorkbenchMenu()
     {
         $set = (new \app\common\model\system_set\WdXcxWorkbenchMenuSet())->getBase($this->uniacid);
-        if (!$this->isMemberUpgradeVisible()) {
-            $set = $this->hideMemberUpgradeMenu($set);
-        }
-        return $set;
-    }
-
-    public function getMemberUpgradeConfig()
-    {
-        return [
-            'show_upgrade' => $this->isMemberUpgradeVisible() ? 1 : 0,
-            'mini_program_review_mode' => $this->isMemberUpgradeVisible() ? 0 : 1,
-            'upgrade_url' => 'https://pic.jfyuntu.com/assets/page/product-list.html',
-        ];
-    }
-
-    private function isMemberUpgradeVisible()
-    {
-        $config = $this->getMemberUpgradeSwitch();
-        return (int)($config['show_upgrade'] ?? 0) === 1;
-    }
-
-    private function getMemberUpgradeSwitch()
-    {
-        $this->ensureFeatureSwitchTable();
-        $row = Db::name('wd_xcx_feature_switch')
-            ->where('uniacid', $this->uniacid)
-            ->where('switch_key', 'member_upgrade')
-            ->find();
-        if (!$row) {
-            $now = time();
-            Db::name('wd_xcx_feature_switch')->insert([
-                'uniacid' => $this->uniacid,
-                'switch_key' => 'member_upgrade',
-                'switch_name' => '会员升级入口',
-                'is_enabled' => 0,
-                'config_json' => json_encode(['review_mode' => 1], JSON_UNESCAPED_UNICODE),
-                'create_time' => $now,
-                'update_time' => $now,
-            ]);
-            $row = [
-                'is_enabled' => 0,
-                'config_json' => json_encode(['review_mode' => 1], JSON_UNESCAPED_UNICODE),
-            ];
-        }
-        $config = json_decode((string)($row['config_json'] ?? ''), true);
-        if (!is_array($config)) {
-            $config = [];
-        }
-        $config['show_upgrade'] = (int)($row['is_enabled'] ?? 0);
-        return $config;
-    }
-
-    private function ensureFeatureSwitchTable()
-    {
-        $tables = Db::query("SHOW TABLES LIKE 'wd_xcx_feature_switch'");
-        if ($tables) {
-            return;
-        }
-        Db::execute("
-            CREATE TABLE IF NOT EXISTS `wd_xcx_feature_switch` (
-                `id` int(11) NOT NULL AUTO_INCREMENT,
-                `uniacid` int(11) NOT NULL DEFAULT 1,
-                `switch_key` varchar(64) NOT NULL,
-                `switch_name` varchar(100) NOT NULL DEFAULT '',
-                `is_enabled` tinyint(1) NOT NULL DEFAULT 0,
-                `config_json` text DEFAULT NULL,
-                `create_time` int(11) DEFAULT NULL,
-                `update_time` int(11) DEFAULT NULL,
-                PRIMARY KEY (`id`),
-                UNIQUE KEY `uniq_uniacid_switch_key` (`uniacid`,`switch_key`),
-                KEY `idx_switch_key` (`switch_key`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='前端功能展示开关';
-        ");
-    }
-
-    private function hideMemberUpgradeMenu($set)
-    {
-        foreach ($set as &$group) {
-            foreach ($group as $key => $items) {
-                if (!is_array($items)) {
-                    continue;
-                }
-                $filtered = [];
-                foreach ($items as $item) {
-                    $icon = isset($item['icon']) ? (string)$item['icon'] : '';
-                    $title = isset($item['title']) ? (string)$item['title'] : '';
-                    if ($icon === 'vip' || $title === '升级会员') {
-                        continue;
-                    }
-                    $filtered[] = $item;
-                }
-                $group[$key] = $filtered;
-            }
-        }
-        unset($group);
         return $set;
     }
 

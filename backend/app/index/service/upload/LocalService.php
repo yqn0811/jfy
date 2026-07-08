@@ -48,13 +48,14 @@ class LocalService extends UploadFile
     {
         $files = $parame['files'];
         $arrs = [];
-        foreach($files as $item){
+        foreach($files as $index => $item){
             $fileType = $parame['file_type'] ?? 1;
-            $originalName = $this->getUploadName($item, $fileType);
+            $originalName = $this->getUploadNameForIndex($item, $fileType, $index, $parame['original_names'] ?? []);
+            $saveName = md5(uniqid(microtime(true), true)) . '.' . $this->getExt($originalName, $item, $fileType);
             // 移动到框架应用根目录/public/upimages/ 目录下
-            $file_name = Filesystem::disk('public')->putFileAs($this->move_path, $item, $originalName);
+            $file_name = Filesystem::disk('public')->putFileAs($this->move_path, $item, $saveName);
             if ($file_name) {
-                $url = $this->save_url . $originalName;
+                $url = $this->save_url . $saveName;
                 if($this->type == 0 && !$this->check_illegal($url)){
                     throw new Exception('异常图像文件');
                 }

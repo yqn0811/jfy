@@ -98,13 +98,13 @@
     </view>
     <personal-details
       :use-popup="true"
-      :uid="uid || ''"
+      :uid="getShareOwnerId() || ''"
       :visible="personalVisible"
       @update:visible="(val) => (personalVisible = val)"
     />
     <!-- 分享弹窗（复用组件） -->
     <share-popup
-      :uid="uid || ''"
+      :uid="getShareOwnerId() || ''"
       :visible="shareVisible"
       :title="category.title"
       typeText="产品"
@@ -113,6 +113,7 @@
       :url="shareUrl"
       :mini-qr="shareMiniQr"
       :mini-path="shareMiniPath"
+      :cover-url="shareCoverUrl"
       @update:visible="(val) => (shareVisible = val)"
       @action="onShareAction"
     />
@@ -124,6 +125,10 @@ import UserCard from "@/components/UserCard";
 import ImageGrid from "@/components/ImageGrid";
 import SharePopup from "@/components/SharePopup";
 import PersonalDetails from "@/components/PersonalDetails/index.vue";
+import {
+  consumeRefreshMarker,
+  markRefreshMarkerConsumed,
+} from "@/common/helper/refresh.js";
 
 export default {
   components: { UserCard, ImageGrid, SharePopup, PersonalDetails },
@@ -152,10 +157,18 @@ export default {
       shareMiniPath: "",
       minShowCount: 1, // 控制“没有更多了~”显示逻辑
       uid: "",
+      shareOwnerId: "",
+      lastProductRefreshAt: "",
     };
   },
   onLoad(options) {
-    this.uid = options.uid ? options.uid : "";
+    const sceneOptions = this.parseSceneOptions(options);
+    options = {
+      ...(options || {}),
+      ...sceneOptions,
+    };
+    this.uid = this.normalizeShareParam(options.uid);
+    this.shareOwnerId = this.uid;
     console.log(options);
     // 支持通过 options 传入分类 id
     if (options && options.id) {
@@ -172,36 +185,88 @@ export default {
     }
     uni.$on("refreshProductlData", this.handleRefreshData);
   },
+  onShow() {
+    this.consumeProductRefreshMarker();
+  },
+  onUnload() {
+    uni.$off("refreshProductlData", this.handleRefreshData);
+  },
   onShareAppMessage() {
     return {
       title: this.category.title || "产品分享",
       path: this.buildShareUrl(),
-      imageUrl: this.images[0]?.imageField || this.imagesDetails[0]?.imageField || "",
+      imageUrl: this.shareCoverUrl,
     };
   },
   computed: {
     isSelectionListEnabled() {
       return Boolean(this.$config && this.$config.features && this.$config.features.selectionList);
     },
+    shareCoverUrl() {
+      return this.images[0]?.imageField || this.imagesDetails[0]?.imageField || "";
+    },
   },
   methods: {
+    parseSceneOptions(options = {}) {
+      if (!options.scene || !this.$parseShareScene) return {};
+      const scene = this.$parseShareScene(options.scene);
+      if (scene.type === "product" && scene.id) {
+        scene.id = scene.id;
+      }
+      return scene;
+    },
     normalizePicColumns(value) {
       return Number(value) === 1 ? 1 : 2;
+    },
+    normalizeProductPicture(item = {}, fallbackPoster = "") {
+      const imageUrl =
+        item.imgurl ||
+        item.picture_url ||
+        item.src ||
+        item.url ||
+        item.imageField ||
+        item.file_url ||
+        item.original_url ||
+        "";
+      return {
+        id: item.id || item.pic_id || "",
+        imageField: imageUrl,
+        imgurl: imageUrl,
+        picture_url: imageUrl,
+        picture_url_original:
+          item.picture_url_original || item.original_url || imageUrl,
+        nameField: item.pic_name || item.name || "",
+        pic_name: item.pic_name || item.name || "",
+        file_type: item.file_type || 1,
+        poster: item.poster || fallbackPoster || imageUrl,
+      };
     },
     buildShareUrl() {
       if (!this.productId) {
         return "/pagesOther/productDetail/productDetail";
       }
-      let url = `/pagesOther/productDetail/productDetail?id=${this.productId}`;
-      if (this.uid) {
-        url += `&uid=${this.uid}`;
-      }
-      return url;
+      return this.$buildPublicSharePath
+        ? this.$buildPublicSharePath("product", this.productId, this.getShareOwnerId())
+        : `/pagesOther/productDetail/productDetail?id=${this.productId}${this.getShareOwnerId() ? `&uid=${this.getShareOwnerId()}` : ""}`;
     },
-    async loadUserInfo() {
+    normalizeShareParam(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    getShareOwnerId() {
+      return (
+        this.shareOwnerId ||
+        this.uid ||
+        (this.$getCurrentUserId ? this.$getCurrentUserId() : "")
+      );
+    },
+    async loadUserInfo(targetUserId = this.getShareOwnerId()) {
       try {
+        if (!targetUserId) return;
         const data = {
-          target_user_id: this.uid,
+          target_user_id: targetUserId,
         };
         const res = await this.$go("user/home/info", data, "get", {
           show_err: false,
@@ -218,8 +283,28 @@ export default {
         console.error(e);
       }
     },
-    handleRefreshData() {
+    handleRefreshData(marker) {
+      this.markProductRefreshConsumed(marker);
       this.loadProductDetail();
+    },
+    consumeProductRefreshMarker() {
+      if (this.uid) return;
+      const marker = consumeRefreshMarker(
+        "product",
+        "productListNeedsRefreshPublicDetailConsumed",
+        this.lastProductRefreshAt,
+      );
+      if (!marker) return;
+      this.markProductRefreshConsumed(marker);
+      this.handleRefreshData();
+    },
+    markProductRefreshConsumed(marker) {
+      if (!marker) return;
+      this.lastProductRefreshAt = marker;
+      markRefreshMarkerConsumed(
+        "productListNeedsRefreshPublicDetailConsumed",
+        marker,
+      );
     },
     async loadProductDetail() {
       try {
@@ -242,30 +327,39 @@ export default {
           const res = await this.$go(url, data, methods, { show_err: true });
           const d = res && res.data ? res.data : {};
           this.isFavorited = d.is_collect ? true : false;
+          const coverPics = Array.isArray(d.pic_list) ? d.pic_list : [];
+          const detailPics = Array.isArray(d.detail_pic_list)
+            ? d.detail_pic_list
+            : [];
+          const coverItems = coverPics.map((item) =>
+            this.normalizeProductPicture(item),
+          );
+          const fallbackPoster = coverItems[0] ? coverItems[0].imageField : "";
+          const detailItems = detailPics.map((item) =>
+            this.normalizeProductPicture(item, fallbackPoster),
+          );
           const picList = [];
-          this.images = d.pic_list.map((item) => {
+          this.images = coverItems.map((item) => {
             picList.push({
               pic_id: item.id,
-              picture_url: item.imgurl,
-              poster: d.pic_list[0].imgurl,
-            });
-            return {
               id: item.id,
-              imageField: item.imgurl,
-              nameField: item.pic_name,
-            };
+              picture_url: item.imageField,
+              picture_url_original: item.picture_url_original,
+              pic_name: item.pic_name,
+              poster: fallbackPoster,
+            });
+            return item;
           });
-          this.imagesDetails = d.detail_pic_list.map((item) => {
+          this.imagesDetails = detailItems.map((item) => {
             picList.push({
               pic_id: item.id,
-              picture_url: item.imgurl,
+              id: item.id,
+              picture_url: item.imageField,
+              picture_url_original: item.picture_url_original,
+              pic_name: item.pic_name,
               poster: "",
             });
-            return {
-              id: item.id,
-              imageField: item.imgurl,
-              nameField: item.pic_name,
-            };
+            return item;
           });
           uni.setStorageSync("picList", picList);
           this.category.title = d.folder_name || "";
@@ -274,10 +368,10 @@ export default {
           this.isFavorited = !!d.is_collect;
 
           // 尝试补全用户信息：如果接口返回了 user_id 且当前未指定 uid，则获取用户信息
-          if (!this.uid && (d.user_id || d.uid)) {
-            this.uid = d.user_id || d.uid;
+          if (!this.shareOwnerId && (d.user_id || d.uid)) {
+            this.shareOwnerId = d.user_id || d.uid;
             this.shareUrl = this.buildShareUrl();
-            this.loadUserInfo();
+            this.loadUserInfo(this.shareOwnerId);
           }
           // 如果接口直接返回了用户信息（user_info 对象或扁平字段）
           if (d.user_info || d.company_name || d.nickname) {
@@ -297,12 +391,19 @@ export default {
       }
     },
     handleImageClick(data) {
+      const uidQuery = this.uid ? "&uid=" + this.uid : "";
+      const item = this.normalizeProductPicture(data);
+      uni.setStorageSync("picInfo", {
+        ...item,
+        pic_id: item.id,
+        picture_url: item.imageField,
+        picture_url_original: item.picture_url_original || item.imageField,
+      });
       uni.navigateTo({
         url:
           "/pagesOther/picDetail/picDetail?pic_id=" +
-          data.id +
-          "&uid=" +
-          this.uid,
+          item.id +
+          uidQuery,
       });
     },
     contactOwner() {

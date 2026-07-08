@@ -278,6 +278,12 @@ import config from '@/common/config'
 import {
 	getMiniCode
 } from '@/common/request/api.js';
+import { notifyFolderRefresh } from '@/common/helper/refresh.js';
+import {
+	buildUploadNameFormData,
+	normalizeSelectedUploadFile,
+	prepareNamedUploadFile,
+} from '@/common/helper/uploadName.js';
 
 export default {
 	data() {
@@ -609,6 +615,7 @@ export default {
 						icon: 'none'
 					})
 					this.inputShow = false
+					notifyFolderRefresh(this.folder_type)
 					this.getAlbumList()
 				})
 		},
@@ -824,6 +831,18 @@ export default {
 
 		/** 上传文件公共方法 */
 		async uploadFiles(files, fileType) {
+			const selectedFiles = (files || [])
+				.map(file => normalizeSelectedUploadFile(file, fileType))
+				.filter(file => file.path)
+
+			if (selectedFiles.length === 0) {
+				uni.showToast({
+					title: '未选择文件',
+					icon: 'none'
+				})
+				return
+			}
+
 			uni.showLoading({
 				title: '上传中...',
 				mask: true
@@ -839,11 +858,11 @@ export default {
 			const params = this.buildRequestData(querys)
 
 			let uploadCount = 0
-			const totalCount = files.length
+			const totalCount = selectedFiles.length
 
-			for (const filePath of files) {
+			for (const file of selectedFiles) {
 				try {
-					await this.uploadFile(filePath, params)
+					await this.uploadFile(file, params)
 					uploadCount++
 					if (uploadCount === totalCount) {
 						uni.hideLoading()
@@ -851,25 +870,35 @@ export default {
 					}
 				} catch (error) {
 					console.error('上传失败:', error)
+					uploadCount++
+					if (uploadCount === totalCount) {
+						uni.hideLoading()
+						this.getDetail()
+					}
 				}
 			}
 		},
 
 		/** 单个文件上传 */
-		uploadFile(filePath, params) {
+		uploadFile(file, params) {
 			console.log(params, '======')
 			return new Promise((resolve, reject) => {
-				uni.uploadFile({
-					url: config.domain + '/api/album/upload/folder',
-					filePath: filePath,
-					name: 'file',
-					header: {
-						'content-type': 'multipart/form-data',
-						'authorization-token': `Bearer ${uni.getStorageSync('token')}`
-					},
-					formData: params,
-					success: resolve,
-					fail: reject
+				prepareNamedUploadFile(file.path, file.name).then((uploadPath) => {
+					uni.uploadFile({
+						url: config.domain + '/api/album/upload/folder',
+						filePath: uploadPath,
+						name: 'file',
+						header: {
+							'content-type': 'multipart/form-data',
+							'authorization-token': `Bearer ${uni.getStorageSync('token')}`
+						},
+						formData: {
+							...params,
+							...buildUploadNameFormData(file.name)
+						},
+						success: resolve,
+						fail: reject
+					})
 				})
 			})
 		},
@@ -881,7 +910,10 @@ export default {
 				sizeType: ['compressed'],
 				sourceType: ['album', 'camera'],
 				success: (res) => {
-					this.uploadFiles(res.tempFilePaths, 1)
+					const files = res.tempFiles && res.tempFiles.length
+						? res.tempFiles
+						: (res.tempFilePaths || []).map(path => ({ path }))
+					this.uploadFiles(files, 1)
 				},
 				fail: (err) => {
 					console.error('选择图片失败:', err)
@@ -931,7 +963,7 @@ export default {
 						}
 
 						// 文件大小符合要求，继续上传
-						this.uploadFiles([res.tempFilePath], 2)
+						this.uploadFiles([{ ...res, path: res.tempFilePath }], 2)
 					}
 				})
 			}
@@ -961,8 +993,7 @@ export default {
 						})
 						return
 					}
-					const filePaths = res.tempFiles.map(file => file.path)
-					this.uploadFiles(filePaths, 1)
+					this.uploadFiles(res.tempFiles, 1)
 				}
 			})
 		}

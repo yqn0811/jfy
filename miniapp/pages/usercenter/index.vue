@@ -2,6 +2,11 @@
   <view class="page">
     <!-- 头部黄色背景区域 -->
     <view class="header">
+      <image
+        class="header-decor"
+        src="/static/image/start-image.png"
+        mode="aspectFit"
+      ></image>
       <!-- 用户信息卡片 -->
       <view class="user-card" :style="{ paddingTop: statusBarHeight + 'px' }">
         <!-- 左侧头像 -->
@@ -20,7 +25,7 @@
         <view class="user-info">
           <view class="user-name-row">
             <text class="user-name">{{ displayName }}</text>
-            <view class="upgrade-badge" @click.stop="tovip">
+            <view v-if="showMemberUpgrade" class="upgrade-badge" @click.stop="tovip">
               <text class="badge-text">升级会员</text>
             </view>
           </view>
@@ -179,7 +184,7 @@
             </view>
             <text class="function-label">访客记录</text>
           </view>
-          <view class="function-item" @click="tovip">
+          <view v-if="showMemberUpgrade" class="function-item" @click="tovip">
             <view class="function-icon yellow">
               <image class="icon-img"
                 src="/static/icon/Frame@2x(8).png"
@@ -266,19 +271,24 @@
       </view>
 
       <!-- 其他功能 -->
-      <view class="section">
+      <view class="section other-section">
         <view class="section-title">其他功能</view>
         <view class="functions-grid">
           <view class="function-item" @click="toWeb(baseInfo.news_link)">
             <view class="function-icon outline">
-              <image class="icon-img"
+              <image
+                class="icon-img"
                 src="/static/icon/slices/Frame@2x.png"
                 mode="aspectFit"
               ></image>
             </view>
             <text class="function-label">关注公众号</text>
           </view>
-          <view class="function-item" open-type="share">
+          <button
+            class="function-item function-button"
+            open-type="share"
+            @tap="prepareHomeShare"
+          >
             <view class="function-icon outline">
               <image class="icon-img"
                 src="/static/icon/slices/分享@2x.png"
@@ -286,7 +296,7 @@
               ></image>
             </view>
             <text class="function-label">推荐给好友</text>
-          </view>
+          </button>
           <view class="function-item" @click="toHelp">
             <view class="function-icon outline">
               <image class="icon-img"
@@ -305,6 +315,33 @@
             </view>
             <text class="function-label">建议反馈</text>
           </view>
+          <view class="function-item" @click="openAgreement('rules')">
+            <view class="function-icon outline">
+              <image class="icon-img"
+                src="/static/icon/slices/24＊24@2x(10).png"
+                mode="aspectFit"
+              ></image>
+            </view>
+            <text class="function-label">用户规则</text>
+          </view>
+          <view class="function-item" @click="openAgreement('user')">
+            <view class="function-icon outline">
+              <image class="icon-img"
+                src="/static/icon/slices/Frame@2x.png"
+                mode="aspectFit"
+              ></image>
+            </view>
+            <text class="function-label">用户协议</text>
+          </view>
+          <view class="function-item" @click="openAgreement('privacy')">
+            <view class="function-icon outline">
+              <image class="icon-img"
+                src="/static/icon/slices/Frame@2x.png"
+                mode="aspectFit"
+              ></image>
+            </view>
+            <text class="function-label">隐私政策</text>
+          </view>
         </view>
       </view>
     </view>
@@ -313,12 +350,13 @@
     </CreatePopup>
     <SharePopup
       :visible="shareVisible"
-      :title="userInfo.nickname || ''"
+      :title="getMerchantName()"
+      :custom-title="homeShareTitle"
       :url="shareUrl"
       typeText="主页"
       type="home"
       :hid="userInfo.id"
-      :uid="uid || ''"
+      :uid="shareOwnerId"
       :mini-qr="shareMiniQr"
       :mini-path="shareMiniPath"
       @update:visible="(val) => (shareVisible = val)"
@@ -366,6 +404,10 @@ export default {
         visitor_count: 0,
         view_badge: 0,
       },
+      shareOwnerId: "",
+      isUserInfoLoading: false,
+      didLoadUserInfoOnLoad: false,
+      showMemberUpgrade: false,
     };
   },
   onLoad() {
@@ -375,11 +417,20 @@ export default {
     this.updateTime();
     const cachedUserInfo = uni.getStorageSync("userInfo") || {};
     this.userInfo = this.normalizeUserInfo(cachedUserInfo);
+    this.shareOwnerId = this.getOwnerId();
+    this.shareUrl = this.buildHomeSharePath();
     this.baseInfo = uni.getStorageSync("baseInfo") || {};
+    this.didLoadUserInfoOnLoad = true;
+    this.getMemberUpgradeConfig();
     this.getUserInfo();
     this.getBaseInfo();
   },
   onShow() {
+    if (this.didLoadUserInfoOnLoad) {
+      this.didLoadUserInfoOnLoad = false;
+      return;
+    }
+    this.getMemberUpgradeConfig();
     this.getUserInfo();
   },
   computed: {
@@ -392,37 +443,55 @@ export default {
     displayAvatar() {
       return this.userInfo.display_avatar || "/static/image/headurl.jpg";
     },
+    homeShareTitle() {
+      return (
+        this.safeText(this.userInfo.home_share_title) ||
+        `分享${this.getMerchantName()}的主页`
+      );
+    },
+    shareCoverUrl() {
+      return (
+        this.safeText(this.userInfo.home_share_image) ||
+        this.safeText(this.userInfo.company_logo) ||
+        this.safeText(this.userInfo.display_avatar)
+      );
+    },
   },
-  async onShareAppMessage() {
-    const enterpriseInfo = uni.getStorageSync("enterpriseInfo");
-    const userInfo = uni.getStorageSync("userInfo");
-    // 使用接口获取分享配置
-    const shareConfig = await this.$getShareConfig({
-      type: "link", // 分享类型
-      userId: this.uid ? this.uid : userInfo.id,
-      title: `分享${enterpriseInfo.company_name}的主页`, // 默认标题
-      path: "/pages/index/index", // 默认路径
-    });
-    if (shareConfig) {
-      console.log(shareConfig);
-      if (shareConfig.code === 0) {
-        return {
-          title: `分享${enterpriseInfo.company_name}的主页`, // 默认标题
-          path: shareConfig.share_link, // 默认路径
-          imageUrl: enterpriseInfo.home_share_image,
-          content: enterpriseInfo.home_share_title,
-          desc: enterpriseInfo.home_share_desc,
-        };
-      } else {
-        uni.showToast({
-          title: "主页未公开",
-          icon: "error",
-          mask: true,
-        });
-      }
-    }
+  onShareAppMessage() {
+    return {
+      title: this.homeShareTitle,
+      path: this.buildHomeSharePath(),
+      imageUrl: this.shareCoverUrl,
+    };
   },
   methods: {
+    getOwnerId() {
+      return (
+        this.userInfo.id ||
+        this.userInfo.uid ||
+        (this.$getShareOwnerId ? this.$getShareOwnerId() : "")
+      );
+    },
+    safeText(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    getMerchantName() {
+      return (
+        this.safeText(this.userInfo.company_name) ||
+        this.safeText(this.userInfo.display_name) ||
+        this.safeText(this.userInfo.nickname) ||
+        "商户"
+      );
+    },
+    buildHomeSharePath() {
+      const ownerId = this.shareOwnerId || this.getOwnerId();
+      return this.$buildPublicSharePath
+        ? this.$buildPublicSharePath("home", "", ownerId)
+        : `/pages/index/index${ownerId ? `?uid=${ownerId}` : ""}`;
+    },
     openShare() {
       if (!this.$checkLoginStatus()) {
         uni.showModal({
@@ -437,7 +506,13 @@ export default {
         });
         return;
       }
+      this.shareOwnerId = this.getOwnerId();
+      this.shareUrl = this.buildHomeSharePath();
       this.shareVisible = true;
+    },
+    prepareHomeShare() {
+      this.shareOwnerId = this.getOwnerId();
+      this.shareUrl = this.buildHomeSharePath();
     },
     handleShareAction(event) {
       // event.type: 'share'|'copy'|'preview-mini'|'poster'|'open-settings'|'open-help'
@@ -564,6 +639,11 @@ export default {
         url: "/pagesOther/feedback/feedback",
       });
     },
+    openAgreement(type) {
+      uni.navigateTo({
+        url: `/pagesOther/agreement/agreement?type=${type}`,
+      });
+    },
     handleService() {
       if (this.baseInfo && this.baseInfo.kf_link) {
         this.toWeb(this.baseInfo.kf_link);
@@ -599,12 +679,26 @@ export default {
         })
         .catch(() => {});
     },
+    getMemberUpgradeConfig() {
+      this.$go("common/member_upgrade_config", {}, "get", {
+        loading: false,
+        show_err: false,
+      })
+        .then((res) => {
+          const data = (res && res.data) || {};
+          this.showMemberUpgrade = Number(data.show_upgrade) === 1;
+        })
+        .catch(() => {
+          this.showMemberUpgrade = false;
+        });
+    },
     toHelp() {
       uni.navigateTo({
         url: "/pagesOther/usageHelp/usageHelp",
       });
     },
     getUserInfo() {
+      if (this.isUserInfoLoading) return;
       const querys = {
         timestamp: new Date().getTime(),
       };
@@ -612,16 +706,22 @@ export default {
         ...querys,
         sign: this.$base ? this.$base.getASCII(querys) : "",
       };
+      this.isUserInfoLoading = true;
       this.$go("user/show_info", data, "get", {
-        show_err: true,
+        show_err: false,
       })
         .then((res) => {
           this.userInfo = this.normalizeUserInfo(res.data || {});
+          this.shareOwnerId = this.getOwnerId();
+          this.shareUrl = this.buildHomeSharePath();
           uni.setStorageSync("userInfo", this.userInfo);
         })
         .catch((err) => {
           console.error("获取用户信息失败:", err);
           this.userInfo = { ...this.defaultUserInfo };
+        })
+        .finally(() => {
+          this.isUserInfoLoading = false;
         });
     },
     toPage(page) {
@@ -643,6 +743,9 @@ export default {
       };
     },
     tovip() {
+      if (!this.showMemberUpgrade) {
+        return;
+      }
       uni.navigateTo({
         url: "/pagesOther/vipPage/vipPage",
       });
@@ -655,9 +758,13 @@ export default {
 .page {
   background:
     linear-gradient(180deg, rgba(255, 245, 189, 0.98) 0%, rgba(255, 250, 224, 0.92) 360rpx, #ffffff 520rpx);
+  width: 100%;
+  height: auto;
   min-height: 100vh;
   box-sizing: border-box;
   padding-bottom: 200rpx;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 /* 顶部状态栏 */
@@ -709,21 +816,16 @@ export default {
   padding-bottom: 32rpx;
   position: relative;
   box-sizing: border-box;
-  overflow: visible;
+  overflow: hidden;
   background: transparent;
 }
 
-.header::before {
-  content: "";
+.header-decor {
   position: absolute;
   top: 22rpx;
   right: -42rpx;
   width: 430rpx;
   height: 430rpx;
-  background-image: url("/static/image/start-image.png");
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
   opacity: 0.2;
   pointer-events: none;
   z-index: 0;
@@ -1069,6 +1171,25 @@ export default {
   }
 }
 
+.other-section {
+  .function-item {
+    gap: 14rpx;
+  }
+
+  .function-icon {
+    width: 72rpx;
+    height: 72rpx;
+    overflow: hidden;
+
+    .icon-img {
+      width: 48rpx;
+      height: 48rpx;
+      display: block;
+      object-fit: contain;
+    }
+  }
+}
+
 .function-label {
   font-size: 24rpx;
   color: #333;
@@ -1088,11 +1209,4 @@ export default {
   border: none;
 }
 
-/* 确保分享按钮样式正确 */
-.function-item[open-type="share"] {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-}
 </style>

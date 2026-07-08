@@ -3,6 +3,7 @@
     <view class="page-scoll">
       <!-- 头部：复用用户卡组件 -->
       <user-card
+        v-if="shouldShowOwnerCard"
         :avatar="user.avatar"
         :name="user.name"
         :subtitle="user.subtitle"
@@ -10,7 +11,7 @@
       />
 
       <!-- 分类标题与简介 -->
-      <view class="category-panel">
+      <view v-if="shouldShowCategoryPanel" class="category-panel">
         <view class="category-title-row">
           <image
             src="/static/icon/Frame 1171279070@2x.png"
@@ -18,9 +19,7 @@
             mode="widthFix"
           />
           <view class="title-wrap">
-            <text class="category-title">{{
-              category.title || "分类名称"
-            }}</text>
+            <text class="category-title">{{ displayCategoryTitle }}</text>
             <text class="category-desc" v-if="category.desc">{{
               category.desc
             }}</text>
@@ -47,42 +46,54 @@
         </view>
       </view>
 
-      <!-- 子分类网格 -->
-      <view class="content" v-if="hasChildren">
+      <view v-if="pageError && !loading" class="state-card">
+        <image
+          src="/static/icon/lock-2.png"
+          mode="scaleToFill"
+          class="state-icon"
+        />
+        <text class="state-title">暂时无法访问</text>
+        <text class="state-desc">{{ pageError }}</text>
+        <view class="state-btn" @tap="retryLoad">重新加载</view>
+      </view>
+
+      <!-- 子分类与产品网格 -->
+      <view class="content" v-if="!pageError && hasContent">
         <ImageGrid
-          :list="children"
+          :list="mixedContent"
           :columns="columns"
-          badge-suffix="个"
-          @click="handleCategoryClick"
+          @click="handleGridItemClick"
         >
         </ImageGrid>
 
         <!-- 当有图片但少于一行时也显示“没有更多了~” -->
         <view
-          v-if="children && children.length > 0 && children.length < minShowCount"
+          v-if="totalContentCount > 0 && totalContentCount < minShowCount"
           class="empty-sub"
         >
           <text class="empty-text">没有更多了~</text>
         </view>
       </view>
-      <!-- 无子分类时的占位与操作 -->
-      <view v-if="!hasChildren && canManageChildCategory" class="class-empty">
+      <!-- 无内容时的占位 -->
+      <view v-if="!pageError && !hasContent && !loading" class="class-empty">
         <image
+          v-if="canManageChildCategory"
           src="/pagesOther/static/icon/Frame@2x(25).png"
           mode="widthFix"
           class="empty-img"
         ></image>
+        <text v-else class="empty-text">{{ emptyMessage }}</text>
       </view>
 
       <!-- 底部固定操作栏 -->
-      <view class="bottom-bar">
+      <view v-if="!pageError" class="bottom-bar">
         <view class="action-btn" @tap="contactOwner">
           <image
             src="/static/icon/user.png"
             class="action-icon"
             mode="widthFix"
           />
-          <text class="action-text">简介</text>
+          <text class="action-text">{{ serviceActionLabel }}</text>
         </view>
 
         <view v-if="uid" class="action-btn" @tap="handleFavorite">
@@ -119,7 +130,7 @@
     <!-- 分享弹窗（复用组件） -->
     <share-popup
       :visible="shareVisible"
-      :title="shareTitle"
+      :title="getCategoryShareName()"
       :uid="getShareOwnerId() || ''"
       typeText="分类"
       type="category"
@@ -127,6 +138,7 @@
       :url="shareUrl"
       :mini-qr="shareMiniQr"
       :mini-path="shareMiniPath"
+      :cover-url="shareCoverUrl"
       @update:visible="(val) => (shareVisible = val)"
       @action="onShareAction"
     />
@@ -152,6 +164,7 @@ export default {
         avatar: "",
         name: "",
         subtitle: "",
+        serviceName: "",
       },
       categoryId: null,
       category: {
@@ -159,9 +172,12 @@ export default {
         desc: "",
         pid: 0,
         level: 1,
+        private_type: 1,
       },
       children: [],
+      products: [],
       loading: false,
+      pageError: "",
       isFavorited: false,
       shareVisible: false,
       shareTitle: "",
@@ -179,13 +195,83 @@ export default {
     hasChildren() {
       return !!this.children.length;
     },
+    hasProducts() {
+      return !!this.products.length;
+    },
+    hasContent() {
+      return this.hasChildren || this.hasProducts;
+    },
+    mixedContent() {
+      return [
+        ...this.children.map((item) => ({
+          ...item,
+          item_type: "category",
+          badgeSuffix: "个",
+        })),
+        ...this.products.map((item) => ({
+          ...item,
+          item_type: "product",
+          nameField: item.folder_name,
+          imageField: item.new_thumb,
+          countField: item.folder_count,
+          badgeSuffix: "张",
+        })),
+      ];
+    },
+    totalContentCount() {
+      return this.children.length + this.products.length;
+    },
     canManageChildCategory() {
       return !this.uid && this.isTopLevelCategory;
+    },
+    hasOwnerInfo() {
+      return !!(
+        this.normalizeText(this.user.name) ||
+        this.normalizeText(this.user.avatar) ||
+        this.normalizeText(this.user.subtitle)
+      );
+    },
+    hasCategoryInfo() {
+      return !!(
+        this.normalizeText(this.category.title) ||
+        this.normalizeText(this.category.desc)
+      );
+    },
+    shouldShowOwnerCard() {
+      return !this.uid || this.hasOwnerInfo;
+    },
+    shouldShowCategoryPanel() {
+      return !this.uid || this.hasCategoryInfo;
+    },
+    displayCategoryTitle() {
+      return this.normalizeText(this.category.title) || "分类名称";
+    },
+    emptyMessage() {
+      if (!this.uid) return "暂无内容";
+      if (Number(this.category.private_type) === 4) {
+        return "该分类仅分享可见，暂无公开内容";
+      }
+      return "该分类暂无公开内容";
     },
     isTopLevelCategory() {
       const pid = Number(this.category.pid || 0);
       const level = Number(this.category.level || 1);
       return pid === 0 && level <= 1;
+    },
+    serviceActionLabel() {
+      return this.normalizeText(this.user.serviceName) || "服务";
+    },
+    shareCoverUrl() {
+      const product = this.products.find((item) => this.normalizeText(item.new_thumb));
+      const child = this.children.find((item) => {
+        const cover = this.normalizeText(item.imageField || item.new_thumb);
+        return cover && cover.indexOf("/static/") !== 0;
+      });
+      return (
+        this.normalizeText(product && product.new_thumb) ||
+        this.normalizeText(child && (child.imageField || child.new_thumb)) ||
+        ""
+      );
     },
   },
   onLoad(options) {
@@ -209,22 +295,26 @@ export default {
         if (data && data.data) {
           const classDetailData = data.data;
           this.isFavorited = classDetailData.is_collect ? true : false;
+          this.applyOwnerFromCategory(classDetailData);
           // 使用完整数据预填充
-          this.category.title =
-            classDetailData.folder_name || classDetailData.title || "";
+          this.category.title = this.extractCategoryName(classDetailData);
           this.category.desc =
-            classDetailData.folder_desc || classDetailData.desc || "";
+            classDetailData.folder_desc ||
+            classDetailData.category_desc ||
+            classDetailData.class_desc ||
+            classDetailData.desc ||
+            "";
           this.applyCategoryLevel(classDetailData);
           this.columns = this.normalizeColumns(
             classDetailData.layout_type || classDetailData.pic_layout || 2
           );
+          this.updateShareMeta();
         }
       });
     }
 
     this.loadOwnerInfo();
-    this.loadPublicCategoryInfo();
-    this.loadChildren();
+    this.loadInitialData();
     const token = uni.getStorageSync("token");
     if (token) {
       this.$addVisit({ id: options.id, type: "category" });
@@ -239,13 +329,58 @@ export default {
     uni.$off("refreshClassDetailData", this.handleRefreshData);
   },
   onShareAppMessage() {
+    this.updateShareMeta();
     return {
-      title: this.category.title || "分类分享",
-      path: this.buildShareUrl(),
-      imageUrl: "",
+      title: this.shareTitle || this.buildCategoryShareTitle(),
+      path: this.shareUrl || this.buildShareUrl(),
+      imageUrl: this.shareCoverUrl,
     };
   },
   methods: {
+    normalizeText(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    getResponseErrorMessage(res, fallback = "该分类暂不可访问") {
+      return (
+        this.normalizeText(res && res.msg) ||
+        this.normalizeText(res && res.message) ||
+        fallback
+      );
+    },
+    getExceptionMessage(err, fallback = "该分类暂不可访问") {
+      return (
+        this.normalizeText(err && err.msg) ||
+        this.normalizeText(err && err.message) ||
+        fallback
+      );
+    },
+    setPageError(message) {
+      this.pageError = this.normalizeText(message) || "该分类暂不可访问";
+      this.children = [];
+      this.products = [];
+    },
+    clearPageError() {
+      this.pageError = "";
+    },
+    async loadInitialData() {
+      this.loading = true;
+      this.clearPageError();
+      try {
+        if (this.uid) {
+          const loaded = await this.loadPublicCategoryInfo();
+          if (!loaded) return;
+        }
+        await this.loadCategoryContent({ manageLoading: false });
+      } finally {
+        this.loading = false;
+      }
+    },
+    retryLoad() {
+      this.loadInitialData();
+    },
     initUserFromCache() {
       const enterpriseInfo = uni.getStorageSync("enterpriseInfo") || {};
       const userInfo = uni.getStorageSync("userInfo") || {};
@@ -274,7 +409,32 @@ export default {
         avatar: avatar || this.user.avatar,
         name: name || this.user.name,
         subtitle: subtitle || this.user.subtitle,
+        serviceName: this.normalizeText(info.home_service_name) || this.user.serviceName,
       };
+      this.updateShareMeta();
+    },
+    getCategoryShareName() {
+      return this.$getCategoryShareName
+        ? this.$getCategoryShareName(this.category)
+        : this.normalizeText(this.category.title) || "分类";
+    },
+    getMerchantShareName() {
+      return this.$getMerchantShareName
+        ? this.$getMerchantShareName(this.user)
+        : this.normalizeText(this.user.name) || "商户";
+    },
+    buildCategoryShareTitle() {
+      return this.$buildTypedShareTitle
+        ? this.$buildTypedShareTitle({
+            typeText: "分类",
+            targetName: this.getCategoryShareName(),
+            merchantName: this.getMerchantShareName(),
+          })
+        : `${this.getMerchantShareName()}的${this.getCategoryShareName()}`;
+    },
+    updateShareMeta() {
+      this.shareTitle = this.buildCategoryShareTitle();
+      this.shareUrl = this.buildShareUrl();
     },
     loadOwnerInfo() {
       if (this.uid) {
@@ -288,8 +448,30 @@ export default {
         this.loadUserInfo(ownerId);
       }
     },
+    applyOwnerFromCategory(info = {}) {
+      if (this.uid || this.shareOwnerId) return;
+      const ownerId =
+        this.normalizeShareParam(info.uid) ||
+        this.normalizeShareParam(info.user_id) ||
+        this.normalizeShareParam(info.owner_uid) ||
+        this.normalizeShareParam(info.target_user_id);
+      if (!ownerId) return;
+      this.shareOwnerId = ownerId;
+      this.shareUrl = this.buildShareUrl();
+      this.loadUserInfo(ownerId);
+    },
     normalizeColumns(value) {
       return Number(value) === 2 ? 1 : 2;
+    },
+    extractCategoryName(info = {}) {
+      return (
+        this.normalizeText(info.folder_name) ||
+        this.normalizeText(info.category_name) ||
+        this.normalizeText(info.class_name) ||
+        this.normalizeText(info.title) ||
+        this.normalizeText(info.name) ||
+        ""
+      );
     },
     buildShareUrl() {
       if (!this.categoryId) {
@@ -339,6 +521,7 @@ export default {
         if (res && res.data) {
           this.shareOwnerId = targetUserId;
           this.applyUserInfo(res.data);
+          this.updateShareMeta();
           if (!this.uid) {
             uni.setStorageSync("enterpriseInfo", res.data);
           }
@@ -348,7 +531,7 @@ export default {
       }
     },
     async loadPublicCategoryInfo() {
-      if (!this.uid || !this.categoryId || !this.$go) return;
+      if (!this.uid || !this.categoryId || !this.$go) return false;
       try {
         const res = await this.$go(
           "user/home/categories",
@@ -356,6 +539,10 @@ export default {
           "get",
           { show_err: false }
         );
+        if (!res || res.code !== 0) {
+          this.setPageError(this.getResponseErrorMessage(res));
+          return false;
+        }
         const data = res && res.data ? res.data : {};
         this.applyUserInfo(data.user_info || data.user || {});
         if (data.user_info && (data.user_info.id || data.user_info.uid)) {
@@ -366,14 +553,21 @@ export default {
           data.current ||
           this.findCategoryInTree(this.getChildrenFromResponse(data), this.categoryId) ||
           this.findCategoryInTree(Array.isArray(data.categories) ? data.categories : [], this.categoryId);
+        if (!current) {
+          this.setPageError("分类不存在或暂不可访问");
+          return false;
+        }
         this.applyCategoryInfo(current);
+        return true;
       } catch (e) {
         console.error(e);
+        this.setPageError(this.getExceptionMessage(e));
+        return false;
       }
     },
     handleRefreshData(marker) {
       this.markCategoryRefreshConsumed(marker);
-      this.loadChildren();
+      this.loadInitialData();
     },
     consumeCategoryRefreshMarker() {
       if (this.uid) return;
@@ -393,20 +587,30 @@ export default {
     },
     applyCategoryInfo(info) {
       if (!info) return;
-      this.category.title =
-        info.folder_name || info.title || this.category.title;
-      this.category.desc = info.folder_desc || info.desc || this.category.desc;
+      this.category.title = this.extractCategoryName(info) || this.category.title;
+      this.category.desc =
+        info.folder_desc ||
+        info.category_desc ||
+        info.class_desc ||
+        info.desc ||
+        this.category.desc;
+      if (info.private_type !== undefined && info.private_type !== null) {
+        this.category.private_type = this.normalizePrivateType(info.private_type);
+      }
       this.applyCategoryLevel(info);
-      if (
+      const layoutValue =
         info.layout_type !== undefined &&
         info.layout_type !== null &&
         info.layout_type !== ""
-      ) {
-        this.columns = this.normalizeColumns(info.layout_type);
+          ? info.layout_type
+          : info.pic_layout;
+      if (layoutValue !== undefined && layoutValue !== null && layoutValue !== "") {
+        this.columns = this.normalizeColumns(layoutValue);
       }
       if (info.is_collect !== undefined) {
         this.isFavorited = !!info.is_collect;
       }
+      this.updateShareMeta();
     },
     applyCategoryLevel(info = {}) {
       const pid = Number(info.pid || 0);
@@ -423,6 +627,10 @@ export default {
       this.category.pid = pid;
       this.category.level = level || 1;
     },
+    normalizePrivateType(value) {
+      const type = Number(value);
+      return type === 2 || type === 4 ? type : 1;
+    },
     findCategoryInTree(list, id) {
       if (!Array.isArray(list)) return null;
       for (const item of list) {
@@ -434,73 +642,145 @@ export default {
       }
       return null;
     },
-    async loadChildren() {
-      this.loading = true;
+    async loadCategoryContent({ manageLoading = true } = {}) {
+      if (manageLoading) {
+        this.loading = true;
+        this.clearPageError();
+      }
       try {
-        if (this.$go && this.categoryId) {
-          let params = {
-            fid: this.categoryId,
-            folder_type: 1,
-            timestamp: Date.now(),
-          };
-          if (this.uid) {
-            params = {
-              target_user_id: this.uid,
-              fid: this.categoryId,
-              include_current: 1,
-            };
-          }
-          const url = this.uid ? "user/home/categories" : "album/lists/folder";
-          const methods = this.uid ? "get" : "post";
-          const res = await this.$go(url, params, methods, { show_err: true });
-
-          // 尝试补全用户信息：uid 只表示访客态，不要把自己的用户 id 写进 uid。
-          if (!this.uid && res.data && (res.data.user_id || res.data.uid)) {
-            this.shareOwnerId = res.data.user_id || res.data.uid;
-            this.shareUrl = this.buildShareUrl();
-            this.loadUserInfo(this.shareOwnerId);
-          }
-
-          this.applyUserInfo(res.data.user_info || res.data.user || {});
-
-          if (res.data && res.data.user_info) {
-            this.applyUserInfo(res.data.user_info);
-          }
-
-          if (res.data && res.data.folder_info) {
-            this.applyCategoryInfo(res.data.folder_info);
-          }
-
-          const list = this.getChildrenFromResponse(res.data);
-          if (list.length) {
-            this.children = list.map((item) => {
-              const pid = Number(item.pid || this.categoryId || 0);
-              const level = Number(item.level || item.folder_level || 2);
-              const countField =
-                item.child_count ||
-                item.children_count ||
-                item.son_count ||
-                item.product_count ||
-                0;
-              return {
-                ...item,
-                pid,
-                level,
-                nameField: this.getDisplayCategoryName(item),
-                imageField:
-                  item.new_thumb || item.icon || "/static/icon/folder-open@2x.png",
-                countField,
-              };
-            });
-          } else {
-            this.children = [];
-          }
+        const results = await Promise.all([this.loadChildren(), this.loadProducts()]);
+        return results.every(Boolean);
+      } finally {
+        if (manageLoading) {
+          this.loading = false;
         }
+      }
+    },
+    async loadChildren() {
+      try {
+        if (!this.$go || !this.categoryId) {
+          this.children = [];
+          return false;
+        }
+        let params = {
+          fid: this.categoryId,
+          folder_type: 1,
+          timestamp: Date.now(),
+        };
+        if (this.uid) {
+          params = {
+            target_user_id: this.uid,
+            fid: this.categoryId,
+            include_current: 1,
+          };
+        }
+        const url = this.uid ? "user/home/categories" : "album/lists/folder";
+        const methods = this.uid ? "get" : "post";
+        const res = await this.$go(url, params, methods, {
+          show_err: !this.uid,
+        });
+        if (!res || res.code !== 0) {
+          this.children = [];
+          if (this.uid) {
+            this.setPageError(this.getResponseErrorMessage(res));
+          }
+          return false;
+        }
+
+        // 尝试补全用户信息：uid 只表示访客态，不要把自己的用户 id 写进 uid。
+        if (!this.uid && res.data && (res.data.user_id || res.data.uid)) {
+          this.shareOwnerId = res.data.user_id || res.data.uid;
+          this.shareUrl = this.buildShareUrl();
+          this.loadUserInfo(this.shareOwnerId);
+        }
+
+        this.applyUserInfo(res.data.user_info || res.data.user || {});
+
+        if (res.data && res.data.user_info) {
+          this.applyUserInfo(res.data.user_info);
+        }
+
+        if (res.data && res.data.folder_info) {
+          this.applyOwnerFromCategory(res.data.folder_info);
+          this.applyCategoryInfo(res.data.folder_info);
+        }
+
+        const list = this.getChildrenFromResponse(res.data);
+        if (list.length) {
+          this.children = list.map((item) => {
+            const pid = Number(item.pid || this.categoryId || 0);
+            const level = Number(item.level || item.folder_level || 2);
+            const countField =
+              item.child_count ||
+              item.children_count ||
+              item.son_count ||
+              item.product_count ||
+              0;
+            return {
+              ...item,
+              pid,
+              level,
+              nameField: this.getDisplayCategoryName(item),
+              imageField:
+                item.new_thumb || item.icon || "/static/icon/folder-open@2x.png",
+              countField,
+            };
+          });
+        } else {
+          this.children = [];
+        }
+        return true;
       } catch (e) {
         console.error(e);
-        uni.showToast({ title: "加载分类失败", icon: "none" });
-      } finally {
-        this.loading = false;
+        if (this.uid) {
+          this.setPageError(this.getExceptionMessage(e));
+        } else {
+          uni.showToast({ title: "加载分类失败", icon: "none" });
+        }
+        return false;
+      }
+    },
+    async loadProducts() {
+      try {
+        if (!this.$go || !this.categoryId) {
+          this.products = [];
+          return false;
+        }
+        let params = {
+          fid: this.categoryId,
+          folder_type: 2,
+          timestamp: Date.now(),
+        };
+        if (this.uid) {
+          params = {
+            target_user_id: this.uid,
+            cate_id: this.categoryId,
+            timestamp: Date.now(),
+          };
+        }
+        const url = this.uid ? "user/home/products" : "album/lists/folder";
+        const methods = this.uid ? "get" : "post";
+        const res = await this.$go(url, params, methods, {
+          show_err: !this.uid,
+        });
+        if (!res || res.code !== 0) {
+          this.products = [];
+          if (this.uid) {
+            this.setPageError(this.getResponseErrorMessage(res));
+          }
+          return false;
+        }
+        const list = this.getProductsFromResponse(res.data);
+        this.products = list.map((item) => this.normalizeProductItem(item));
+        return true;
+      } catch (e) {
+        console.error(e);
+        if (this.uid) {
+          this.setPageError(this.getExceptionMessage(e));
+        } else {
+          uni.showToast({ title: "加载产品失败", icon: "none" });
+        }
+        return false;
       }
     },
     getChildrenFromResponse(data) {
@@ -517,8 +797,39 @@ export default {
       if (Array.isArray(data.categories)) return data.categories;
       return [];
     },
+    getProductsFromResponse(data) {
+      if (!data) return [];
+      if (Array.isArray(data)) return data;
+      if (data.lists) {
+        return Array.isArray(data.lists)
+          ? data.lists
+          : Array.isArray(data.lists.data)
+            ? data.lists.data
+            : [];
+      }
+      if (Array.isArray(data.products)) return data.products;
+      return [];
+    },
+    normalizeArray(value) {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string" && value) {
+        return value.split(",").filter(Boolean);
+      }
+      return [];
+    },
+    normalizeProductItem(item = {}) {
+      const pictureCount =
+        Number(item.son_count || item.pic_count || item.picture_count || 0) ||
+        this.normalizeArray(item.detail_pic_ids_arr || item.detail_pic_ids).length +
+          this.normalizeArray(item.pic_ids_arr || item.pic_ids).length;
+      return {
+        ...item,
+        new_thumb: item.new_thumb || item.imageField || "/static/image/pic.png",
+        folder_count: pictureCount,
+      };
+    },
     getDisplayCategoryName(item) {
-      const name = item && (item.folder_name || item.title || item.name);
+      const name = item && this.extractCategoryName(item);
       const normalized = name ? String(name).trim() : "";
       if (!normalized || /^-?\d+-?$/.test(normalized)) {
         return "未命名子分类";
@@ -533,6 +844,28 @@ export default {
           res.eventChannel.emit("acceptDataFromOpenerPage", { data });
         },
       });
+    },
+    handleProductClick(data) {
+      if (!data || !data.id) return;
+      if (this.uid) {
+        uni.navigateTo({
+          url: this.$buildPublicSharePath
+            ? this.$buildPublicSharePath("product", data.id, this.uid)
+            : `/pagesOther/productDetail/productDetail?id=${data.id}&uid=${this.uid}`,
+        });
+        return;
+      }
+      uni.navigateTo({
+        url: `/pagesOther/productDetailsSelf/productDetailsSelf?id=${data.id}`,
+      });
+    },
+    handleGridItemClick(data) {
+      if (!data) return;
+      if (data.item_type === "product") {
+        this.handleProductClick(data);
+        return;
+      }
+      this.handleCategoryClick(data);
     },
     createChildCategory() {
       if (!this.canManageChildCategory) {
@@ -596,10 +929,7 @@ export default {
         return;
       }
       // 准备分享数据（可从后端获取小程序码或分享链接）
-      this.shareTitle = this.category.title;
-      this.shareUrl = this.buildShareUrl();
-      // 假定后端提供小程序码地址或本地静态
-      this.shareMiniQr = `/static/image/mini-qrcode.png`;
+      this.updateShareMeta();
       this.shareVisible = true;
     },
     onShareAction(event) {
@@ -706,6 +1036,47 @@ export default {
   text-align: center;
   color: #999;
   margin-top: 10rpx;
+}
+
+.state-card {
+  margin: 120rpx 36rpx 0;
+  padding: 56rpx 40rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 10rpx 32rpx rgba(25, 31, 39, 0.05);
+}
+
+.state-icon {
+  width: 72rpx;
+  height: 72rpx;
+  margin-bottom: 24rpx;
+}
+
+.state-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333333;
+}
+
+.state-desc {
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  line-height: 38rpx;
+  color: #777777;
+}
+
+.state-btn {
+  margin-top: 32rpx;
+  padding: 18rpx 42rpx;
+  border-radius: 999rpx;
+  background: #ffd800;
+  color: #333333;
+  font-size: 26rpx;
+  font-weight: 600;
 }
 
 .bottom-bar {

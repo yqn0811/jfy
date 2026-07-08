@@ -103,6 +103,26 @@
 
           <view class="divider"></view>
 
+          <!-- 分享页详情图隐藏 -->
+          <view class="setting-item">
+            <view class="item-left">
+              <image
+                src="/static/icon/Frame@2x(17).png"
+                class="item-icon"
+                mode="aspectFit"
+              ></image>
+              <text class="item-text">隐藏详情图</text>
+            </view>
+            <u-switch
+              v-model="hideDetailPictures"
+              activeColor="#333"
+              inactiveColor="#e4e4e4"
+              @change="handleHideDetailPicturesChange"
+            ></u-switch>
+          </view>
+
+          <view class="divider"></view>
+
           <!-- 产品分类设置 -->
           <view class="setting-item" @click="handleCategory">
             <view class="item-left">
@@ -230,6 +250,7 @@ export default {
       isTop: false,
       isHot: false,
       isPrivate: false,
+      hideDetailPictures: false,
       currentCover: "",
       picLayout: 2,
     };
@@ -271,6 +292,8 @@ export default {
             this.isTop = res.data.set_top === 1;
             this.isHot = res.data.is_hot === 1;
             this.isPrivate = res.data.private_type === 2;
+            this.hideDetailPictures =
+              Number(res.data.hide_detail_pictures || 0) === 1;
             this.currentCover = res.data.new_thumb || "";
             this.picLayout = Number(res.data.pic_layout || 2);
           }
@@ -340,6 +363,14 @@ export default {
       this.updateProductStatus("private_type", this.isPrivate ? 2 : 1);
     },
 
+    handleHideDetailPicturesChange(e) {
+      this.hideDetailPictures = this.normalizeSwitchValue(e);
+      this.updateProductStatus(
+        "hide_detail_pictures",
+        this.hideDetailPictures ? 1 : 0
+      );
+    },
+
     normalizeSwitchValue(e) {
       if (typeof e === "boolean") return e;
       if (e && typeof e.value === "boolean") return e.value;
@@ -392,6 +423,9 @@ export default {
       if (field === "is_top") this.isTop = !this.isTop;
       if (field === "is_hot") this.isHot = !this.isHot;
       if (field === "private_type") this.isPrivate = !this.isPrivate;
+      if (field === "hide_detail_pictures") {
+        this.hideDetailPictures = !this.hideDetailPictures;
+      }
     },
 
     emitProductRefresh() {

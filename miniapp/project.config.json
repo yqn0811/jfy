@@ -1,14 +1,15 @@
 {
     "appid": "wxd1e41ae76f0aa9a3",
     "compileType": "miniprogram",
+    "miniprogramRoot": "dist/build/mp-weixin/",
     "libVersion": "3.10.1",
     "packOptions": {
         "ignore": [],
         "include": []
     },
     "setting": {
-        "ignoreDevUnusedFiles": false,
-        "ignoreUploadUnusedFiles": false,
+        "ignoreDevUnusedFiles": true,
+        "ignoreUploadUnusedFiles": true,
         "coverView": true,
         "es6": true,
         "postcss": true,

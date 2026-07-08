@@ -67,7 +67,7 @@
             <image
               v-if="index === 6"
               class="reward-emoji"
-              src="/static/icon/001@2x.png"
+              src="/pagesOther/static/icon/001@2x.png"
               mode="scaleToFill"
             />
             <image
@@ -101,7 +101,7 @@
         <view class="earn-left">
           <image
             class="earn-icon invite-icon"
-            :src="task.icon"
+            :src="getTaskIcon(task)"
             mode="scaleToFill"
           />
           <view class="earn-info">
@@ -109,7 +109,11 @@
             <text class="earn-desc">{{ task.desc }}</text>
           </view>
         </view>
-        <view class="earn-action invite-btn" @click="inviteUser(task)">
+        <view
+          class="earn-action invite-btn"
+          :class="{ completed: Number(task.status) === 1 }"
+          @click="handleTaskAction(task)"
+        >
           <text class="action-text">{{ task.btn_text }}</text>
         </view>
       </view>
@@ -177,7 +181,7 @@ export default {
             this.consecutiveDays = res.data.continue_days || 0;
             this.isCheckedToday = res.data.is_signed || false;
             this.feedbackCompleted = res.data.feedback_completed || false;
-            this.tasks = res.data.tasks;
+            this.tasks = this.normalizeTasks(res.data.tasks);
           }
         })
         .catch((err) => {
@@ -236,14 +240,34 @@ export default {
       this.consecutiveDays = this.consecutiveDays || 0;
       this.isCheckedToday = false;
       this.tasks = this.tasks && this.tasks.length
-        ? this.tasks
+        ? this.normalizeTasks(this.tasks)
         : [
             {
               id: 1,
-              title: "邀请好友",
-              desc: "邀请好友注册可获得积分奖励",
+              title: "邀请新用户",
+              desc: "最高可得1000积分",
               btn_text: "去邀请",
               icon: "/static/icon/yqhy-icon.png",
+              task_key: "invite",
+              status: 0,
+            },
+            {
+              id: 2,
+              title: "完善主页资料",
+              desc: "完成后可得20积分",
+              btn_text: "去完善",
+              icon: "/static/icon/user.png",
+              task_key: "complete_profile",
+              status: 0,
+            },
+            {
+              id: 3,
+              title: "发布产品",
+              desc: "每日发布可得10积分",
+              btn_text: "去发布",
+              icon: "/static/icon/upload-top-icon.png",
+              task_key: "upload_product",
+              status: 0,
             },
           ];
       this.checkInDays = [
@@ -294,11 +318,73 @@ export default {
       });
     },
 
-    // 邀请用户
-    inviteUser(data) {
-      uni.navigateTo({
-        url: "/pagesOther/inviteFriends/inviteFriends",
-      });
+    normalizeTasks(tasks = []) {
+      if (!Array.isArray(tasks)) {
+        return [];
+      }
+      return tasks.map((task, index) => ({
+        ...task,
+        id: task.id || `${task.task_key || "task"}_${index}`,
+        icon: this.getTaskIcon(task),
+        btn_text:
+          Number(task.status) === 1
+            ? "已完成"
+            : task.btn_text || this.getTaskButtonText(task),
+      }));
+    },
+
+    getTaskIcon(task = {}) {
+      if (task.icon) {
+        return task.icon;
+      }
+      const key = task.task_key || "";
+      const title = task.title || "";
+      if (key === "invite" || title.indexOf("邀请") !== -1) {
+        return "/static/icon/yqhy-icon.png";
+      }
+      if (key === "complete_profile" || title.indexOf("资料") !== -1) {
+        return "/static/icon/user.png";
+      }
+      if (
+        key === "upload_product" ||
+        title.indexOf("上传") !== -1 ||
+        title.indexOf("发布") !== -1
+      ) {
+        return "/static/icon/upload-top-icon.png";
+      }
+      return "/static/icon/jifen-icon.png";
+    },
+
+    getTaskButtonText(task = {}) {
+      const key = task.task_key || "";
+      if (key === "complete_profile") return "去完善";
+      if (key === "upload_product") return "去发布";
+      return "去邀请";
+    },
+
+    handleTaskAction(task = {}) {
+      if (Number(task.status) === 1) {
+        uni.showToast({
+          title: "任务已完成",
+          icon: "none",
+        });
+        return;
+      }
+
+      const key = task.task_key || "";
+      const title = task.title || "";
+      let url = "/pagesOther/inviteFriends/inviteFriends";
+      if (key === "complete_profile" || title.indexOf("资料") !== -1) {
+        url = "/pagesOther/setInfo/setInfo?fromPage=points";
+      } else if (
+        key === "upload_product" ||
+        title.indexOf("上传") !== -1 ||
+        title.indexOf("发布") !== -1
+      ) {
+        url = "/pagesOther/addProduct/addProduct?fromPage=points";
+      }
+
+      uni.navigateTo({ url });
     },
   },
 };

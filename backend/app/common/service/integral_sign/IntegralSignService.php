@@ -227,8 +227,6 @@ class IntegralSignService extends BaseService
      */
     public function getTaskList($userId, $isSigned)
     {
-        $this->ensureDefaultTasks();
-
         // 1. 获取所有上架任务
         $tasks = WdXcxIntegralTask::where('is_show', 1)
             ->order('sort desc, id asc')
@@ -264,7 +262,7 @@ class IntegralSignService extends BaseService
                 'id' => $task->id,
                 'title' => $task->title,
                 'desc' => $task->desc,
-                'icon' => $this->resolveTaskIcon($task),
+                'icon' => $task->icon,
                 'score' => $task->score,
                 'btn_text' => $isCompleted ? '已完成' : $task->btn_text,
                 'status' => $isCompleted ? 1 : 0,
@@ -274,113 +272,6 @@ class IntegralSignService extends BaseService
         }
 
         return $result;
-    }
-
-    private function ensureDefaultTasks()
-    {
-        foreach ($this->getDefaultTasks() as $taskKey => $defaults) {
-            $task = WdXcxIntegralTask::withTrashed()
-                ->where('task_key', $taskKey)
-                ->find();
-
-            if (!$task) {
-                WdXcxIntegralTask::create($defaults);
-                continue;
-            }
-
-            $changed = false;
-            if (!empty($task->delete_time)) {
-                $task->restore();
-                $changed = true;
-            }
-
-            foreach (['title', 'desc', 'icon', 'btn_text'] as $field) {
-                if (trim((string)$task->{$field}) === '') {
-                    $task->{$field} = $defaults[$field];
-                    $changed = true;
-                }
-            }
-
-            foreach (['score', 'type', 'sort'] as $field) {
-                if ((int)$task->{$field} <= 0) {
-                    $task->{$field} = $defaults[$field];
-                    $changed = true;
-                }
-            }
-
-            if ($changed) {
-                $task->save();
-            }
-        }
-    }
-
-    private function getDefaultTasks()
-    {
-        return [
-            'invite' => [
-                'uniacid' => 1,
-                'title' => '邀请新用户',
-                'desc' => '最高可得1000积分',
-                'icon' => '/static/icon/yqhy-icon.png',
-                'score' => 10,
-                'btn_text' => '去邀请',
-                'task_key' => 'invite',
-                'type' => WdXcxIntegralTask::TYPE_ONCE,
-                'is_show' => WdXcxIntegralTask::STATUS_ON,
-                'sort' => 30
-            ],
-            'complete_profile' => [
-                'uniacid' => 1,
-                'title' => '完善主页资料',
-                'desc' => '完成后可得20积分',
-                'icon' => '/static/icon/user.png',
-                'score' => 20,
-                'btn_text' => '去完善',
-                'task_key' => 'complete_profile',
-                'type' => WdXcxIntegralTask::TYPE_ONCE,
-                'is_show' => WdXcxIntegralTask::STATUS_ON,
-                'sort' => 20
-            ],
-            'upload_product' => [
-                'uniacid' => 1,
-                'title' => '发布产品',
-                'desc' => '每日发布可得10积分',
-                'icon' => '/static/icon/upload-top-icon.png',
-                'score' => 10,
-                'btn_text' => '去发布',
-                'task_key' => 'upload_product',
-                'type' => WdXcxIntegralTask::TYPE_DAILY,
-                'is_show' => WdXcxIntegralTask::STATUS_ON,
-                'sort' => 10
-            ],
-        ];
-    }
-
-    private function resolveTaskIcon($task)
-    {
-        $icon = trim((string)($task->icon ?? ''));
-        if ($icon !== '') {
-            return $icon;
-        }
-
-        $defaultTasks = $this->getDefaultTasks();
-        $taskKey = (string)($task->task_key ?? '');
-        if (isset($defaultTasks[$taskKey])) {
-            return $defaultTasks[$taskKey]['icon'];
-        }
-
-        $title = (string)($task->title ?? '');
-        if (strpos($title, '邀请') !== false) {
-            return '/static/icon/yqhy-icon.png';
-        }
-        if (strpos($title, '上传') !== false || strpos($title, '发布') !== false) {
-            return '/static/icon/upload-top-icon.png';
-        }
-        if (strpos($title, '资料') !== false || strpos($title, '主页') !== false) {
-            return '/static/icon/user.png';
-        }
-
-        return '/static/icon/jifen-icon.png';
     }
 
     /**
@@ -395,8 +286,6 @@ class IntegralSignService extends BaseService
         if (!$user) {
             throw new BaseException(['msg' => '用户不存在']);
         }
-
-        $this->ensureDefaultTasks();
 
         $task = WdXcxIntegralTask::where('task_key', $taskKey)
             ->where('is_show', 1)

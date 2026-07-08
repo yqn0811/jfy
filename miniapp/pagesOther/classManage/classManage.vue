@@ -135,6 +135,10 @@
 <script>
 import ClassSettingPopup from "./components/ClassSettingPopup.vue"; // 调整路径为你项目实际位置
 import ClassPopup from "./components/ClassPopup.vue"; // 调整路径为你项目实际位置
+import {
+  consumeRefreshMarker,
+  markRefreshMarkerConsumed,
+} from "@/common/helper/refresh.js";
 
 export default {
   components: { ClassSettingPopup, ClassPopup },
@@ -150,6 +154,7 @@ export default {
       editingCategory: null,
       parentId: 0,
       parentInfo: null,
+      lastCategoryRefreshAt: "",
     };
   },
   onLoad(options = {}) {
@@ -167,9 +172,31 @@ export default {
     // 监听分类更新事件
     uni.$on("refreshClassManageData", this.handleRefreshData);
   },
+  onShow() {
+    this.consumeCategoryRefreshMarker();
+  },
+  onUnload() {
+    uni.$off("refreshClassManageData", this.handleRefreshData);
+  },
   methods: {
-    handleRefreshData() {
+    handleRefreshData(marker) {
+      this.markCategoryRefreshConsumed(marker);
       this.fetchCategories();
+    },
+    consumeCategoryRefreshMarker() {
+      const marker = consumeRefreshMarker(
+        "category",
+        "categoryListNeedsRefreshManageConsumed",
+        this.lastCategoryRefreshAt,
+      );
+      if (!marker) return;
+      this.markCategoryRefreshConsumed(marker);
+      this.handleRefreshData();
+    },
+    markCategoryRefreshConsumed(marker) {
+      if (!marker) return;
+      this.lastCategoryRefreshAt = marker;
+      markRefreshMarkerConsumed("categoryListNeedsRefreshManageConsumed", marker);
     },
     async fetchCategories() {
       this.loading = true;
@@ -258,6 +285,14 @@ export default {
       this.settingVisible = true;
     },
     openChildren(category) {
+      if (this.getChildCount(category) > 0) {
+        uni.navigateTo({
+          url:
+            `/pagesOther/classManage/classManage?fid=${category.id}` +
+            `&name=${encodeURIComponent(category.folder_name || "")}`,
+        });
+        return;
+      }
       uni.navigateTo({
         url:
           `/pagesOther/classDetail/classDetail?id=${category.id}` +
@@ -284,15 +319,16 @@ export default {
       // payload = { categoryId, single }
       try {
         if (this.$go) {
+          const nextLayout = payload.single ? 2 : 1;
           const params = {
             fid: payload.categoryId,
-            single_display: payload.single ? 1 : 0,
+            layout_type: nextLayout,
             timestamp: Date.now(),
           };
           const signed = this.$base
             ? { ...params, sign: this.$base.getASCII(params) }
             : params;
-          await this.$go("album/update/folder", signed, "post", {
+          await this.$go("album/edit/folder", signed, "post", {
             show_err: true,
           });
           uni.showToast({ title: "已保存", icon: "none" });
@@ -303,34 +339,48 @@ export default {
         uni.showToast({ title: "保存失败", icon: "none" });
       }
     },
-    async onToggleShare() {},
-    async onSetPrivate(payload) {
+    async saveCategoryPrivateType(categoryId, privateType) {
+      if (!categoryId) {
+        uni.showToast({ title: "分类信息缺失", icon: "none" });
+        return false;
+      }
       try {
         if (this.$go) {
           const params = {
-            fid: payload.categoryId,
-            is_private: payload.private ? 1 : 0,
+            fid: categoryId,
+            private_type: privateType,
             timestamp: Date.now(),
           };
           const signed = this.$base
             ? { ...params, sign: this.$base.getASCII(params) }
             : params;
-          await this.$go("album/update/folder", signed, "post", {
+          await this.$go("album/edit/folder", signed, "post", {
             show_err: true,
           });
           uni.showToast({ title: "已保存", icon: "none" });
           this.fetchCategories();
+          return true;
         }
       } catch (e) {
         console.error(e);
         uni.showToast({ title: "保存失败", icon: "none" });
       }
+      return false;
+    },
+    async onToggleShare(payload = {}) {
+      const privateType = payload.share ? 4 : 1;
+      return this.saveCategoryPrivateType(payload.categoryId, privateType);
+    },
+    async onSetPrivate(payload = {}) {
+      const privateType = payload.private ? 2 : 1;
+      return this.saveCategoryPrivateType(payload.categoryId, privateType);
     },
     onDeleteCategory() {
       this.fetchCategories();
     },
     onClassSort() {
-      uni.navigateTo({ url: "/pagesOther/classSort/classSort" });
+      const query = this.parentId ? `?fid=${this.parentId}` : "";
+      uni.navigateTo({ url: `/pagesOther/classSort/classSort${query}` });
     },
   },
 };

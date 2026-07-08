@@ -85,6 +85,20 @@ export default {
     imageUrl(item) {
       return item.thumbnail_url || item.preview_url || item.file_url || "";
     },
+    resourceKey(item) {
+      const url =
+        (item && (item.file_url || item.preview_url || item.thumbnail_url)) || "";
+      return url ? `url:${String(url).split("?")[0]}` : `id:${item && item.id}`;
+    },
+    dedupeResources(list) {
+      const seen = new Set();
+      return (Array.isArray(list) ? list : []).filter((item) => {
+        const key = this.resourceKey(item);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    },
     isSelected(id) {
       return !!this.selected[id];
     },
@@ -131,8 +145,10 @@ export default {
         const data = res.data || {};
         const next = data.resources || data.list || [];
         this.total = Number(data.total || 0);
-        this.list = reset ? next : this.list.concat(next);
-        this.finished = next.length < this.pageSize || this.list.length >= this.total;
+        this.list = this.dedupeResources(reset ? next : this.list.concat(next));
+        this.finished =
+          next.length < this.pageSize ||
+          (this.total > 0 && this.list.length >= this.total);
       } catch (e) {
         console.error("我的资源库加载失败", e);
         uni.showToast({ title: "资源库加载失败", icon: "none" });

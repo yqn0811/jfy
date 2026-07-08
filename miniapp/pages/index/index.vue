@@ -41,22 +41,22 @@
           <view class="header-avatar">
             <image
               class="avatar"
-              :src="userInfo.company_logo || '/static/image/headurl.jpg'"
+              :src="displayCompanyLogo"
               mode="aspectFill"
             >
             </image>
             <view class="meta-top">
-              <text class="merchant-name">{{
-                userInfo.company_name || "商户名称"
-              }}</text>
-              <view class="gender-wrap">
-                <text>{{ industryOptions[userInfo.industry_info] }}</text>
+              <text class="merchant-name">{{ displayMerchantName }}</text>
+              <view class="gender-wrap" v-if="displayIndustryLabel">
+                <text>{{ displayIndustryLabel }}</text>
               </view>
             </view>
           </view>
           <view class="stats-row">
             <view class="stats-row-inner">
-              <text class="desc">{{ userInfo.company_desc }}</text>
+              <text class="desc" v-if="displayCompanyDesc">{{
+                displayCompanyDesc
+              }}</text>
               <view class="stat">
                 <text class="stat-number">{{ total_num || 0 }}</text>
                 <text class="stat-label">产品</text>
@@ -69,7 +69,7 @@
                   class="stat-icon"
                   mode="aspectFill"
                 ></image>
-                <view class="btn-text">客服</view>
+                <view class="btn-text">{{ serviceActionLabel }}</view>
               </view>
               <view class="actions-inner btn-follow">
                 <image
@@ -88,7 +88,6 @@
       <view class="content-warp">
         <!-- 分类筛选 -->
         <view class="category-filter">
-          <view class="filter-label">分类</view>
           <scroll-view
             class="chips-scroll"
             scroll-x="true"
@@ -103,6 +102,11 @@
                 :class="{ active: curCategoryId === '' }"
                 @click="selectCategory({ id: '' })"
               >
+                <image
+                  class="chip-icon"
+                  src="/static/icon/elements.png"
+                  mode="aspectFit"
+                />
                 <text class="chip-text">全部</text>
               </view>
               <view
@@ -112,6 +116,11 @@
                 :key="idx"
                 @click="selectCategory(c)"
               >
+                <image
+                  class="chip-icon"
+                  src="/static/icon/folder-open@2x.png"
+                  mode="aspectFit"
+                />
                 <text class="chip-text">{{ formatCategoryName(c) }}</text>
               </view>
             </view>
@@ -155,7 +164,7 @@
           src="/static/icon/user.png"
           mode="scaleToFill"
         />
-        <view class="preview-item-text">简介</view>
+        <view class="preview-item-text">{{ serviceActionLabel }}</view>
       </view>
       <view class="preview-item" @click="openCategory">
         <image
@@ -183,6 +192,7 @@
     <SharePopup
       :visible="shareVisible"
       :title="userInfo.company_name || ''"
+      :custom-title="homeShareTitle"
       :url="shareUrl"
       typeText="主页"
       type="home"
@@ -190,6 +200,7 @@
       :uid="uid || ''"
       :mini-qr="shareMiniQr"
       :mini-path="shareMiniPath"
+      :cover-url="shareCoverUrl"
       @update:visible="(val) => (shareVisible = val)"
       @action="handleShareAction"
     />
@@ -217,8 +228,13 @@ import ImageGrid from "@/components/ImageGrid/index.vue";
 import PersonalDetails from "@/components/PersonalDetails/index.vue";
 import SharePopup from "@/components/SharePopup/index.vue";
 import settingPopup from "./components/settingPopup.vue";
+import {
+  consumeRefreshMarker,
+  getRefreshMarker,
+  markRefreshMarkerConsumed,
+} from "@/common/helper/refresh.js";
 
-import { getMiniCode } from "@/common/request/api.js";
+import { getMiniCode, setPendingInviteCode } from "@/common/request/api.js";
 
 export default {
   name: "IndexPage",
@@ -260,6 +276,11 @@ export default {
       curCategoryId: "",
       uid: "",
       homeId: "",
+      lastProductRefreshAt: "",
+      lastCategoryRefreshAt: "",
+      lastHomeRefreshAt: "",
+      isUserInfoLoading: false,
+      hasRedirectedForHomeInfo: false,
       industryOptions: {
         1: "微供",
         2: "网供",
@@ -268,59 +289,189 @@ export default {
     };
   },
   onLoad(options) {
+    const sceneOptions = this.parseSceneOptions(options);
+    options = {
+      ...(options || {}),
+      ...sceneOptions,
+    };
     const sys = this.$base.getSystemInfoCompat();
     // 在小程序中返回单位为 px，需要转换为 rpx 时通常用样式 rpx；这里只读取状态栏高度 px
     this.statusBarHeight = sys.statusBarHeight || 0;
     this.safeAreaBottom = 0;
-    const userInfo = uni.getStorageSync("userInfo");
-    this.homeId = userInfo.id;
+    const userInfo = uni.getStorageSync("userInfo") || {};
+    this.homeId = userInfo.id || userInfo.uid || "";
     console.log(options);
-    if (options.uid) {
-      this.uid = options.uid;
-      this.homeId = options.uid;
+    const optionUid = this.normalizeShareParam(options.uid);
+    const inviteCode = this.normalizeShareParam(options.invite_code);
+    if (inviteCode) {
+      setPendingInviteCode(inviteCode);
+    }
+    if (optionUid) {
+      this.uid = optionUid;
+      this.homeId = optionUid;
       this.previewMode = true;
+    }
+    this.shareUrl = this.buildHomeSharePath();
+    if (this.redirectSceneTarget(options)) {
+      return;
     }
     this.getUserInfo();
     // 监听分类更新事件
     uni.$on("refreshIndexData", this.handleRefreshData);
   },
-  async onShareAppMessage() {
-    const enterpriseInfo = this.uid
-      ? this.userInfo
-      : uni.getStorageSync("enterpriseInfo");
-    const userInfo = uni.getStorageSync("userInfo") || {};
-    // 使用接口获取分享配置
-    const shareConfig = await this.$getShareConfig({
-      type: "link", // 分享类型
-      userId: this.uid ? this.uid : userInfo.id,
-      title: `分享${enterpriseInfo.company_name || ""}的主页`, // 默认标题
-      path: "/pages/index/index", // 默认路径
-    });
-    if (shareConfig) {
-      console.log(shareConfig);
-      if (shareConfig.code === 0) {
-        return {
-          title: `分享${enterpriseInfo.company_name || ""}的主页`, // 默认标题
-          path: shareConfig.share_link, // 默认路径
-          imageUrl: enterpriseInfo.home_share_image,
-          content: enterpriseInfo.home_share_title,
-          desc: enterpriseInfo.home_share_desc,
-        };
-      } else {
-        uni.showToast({
-          title: "主页未公开",
-          icon: "error",
-          mask: true,
-        });
-      }
-    }
+  onShow() {
+    this.consumePendingRefreshMarkers();
+  },
+  onUnload() {
+    uni.$off("refreshIndexData", this.handleRefreshData);
+  },
+  onShareAppMessage() {
+    return {
+      title: this.homeShareTitle,
+      path: this.buildHomeSharePath(),
+      imageUrl: this.shareCoverUrl,
+    };
+  },
+  computed: {
+    displayCompanyLogo() {
+      return this.safeText(this.userInfo.company_logo) || "/static/image/headurl.jpg";
+    },
+    displayMerchantName() {
+      return (
+        this.safeText(this.userInfo.company_name) ||
+        this.safeText(this.userInfo.nickname) ||
+        "商户名称"
+      );
+    },
+    displayCompanyDesc() {
+      return this.safeText(this.userInfo.company_desc);
+    },
+    displayIndustryLabel() {
+      return this.industryOptions[Number(this.userInfo.industry_info)] || "";
+    },
+    homeShareTitle() {
+      return (
+        this.safeText(this.userInfo.home_share_title) ||
+        `分享${this.displayMerchantName || "商户"}的主页`
+      );
+    },
+    serviceActionLabel() {
+      return this.safeText(this.userInfo.home_service_name) || "服务";
+    },
+    shareCoverUrl() {
+      const firstAlbum = this.albumList.find((item) => this.safeText(item.new_thumb));
+      return this.safeText(firstAlbum && firstAlbum.new_thumb);
+    },
   },
   methods: {
+    parseSceneOptions(options = {}) {
+      if (!options.scene || !this.$parseShareScene) return {};
+      return this.$parseShareScene(options.scene);
+    },
+    normalizeShareParam(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    buildHomeSharePath() {
+      const ownerId =
+        this.uid ||
+        this.homeId ||
+        (this.$getCurrentUserId ? this.$getCurrentUserId() : "");
+      return this.$buildPublicSharePath
+        ? this.$buildPublicSharePath("home", "", ownerId)
+        : `/pages/index/index${ownerId ? `?uid=${ownerId}` : ""}`;
+    },
+    redirectSceneTarget(options) {
+      const type = options.type;
+      const id = this.normalizeShareParam(options.id);
+      const uid = this.normalizeShareParam(options.uid);
+      if (!id || !uid) return false;
+      if (type !== "product" && type !== "category" && type !== "selection") {
+        return false;
+      }
+      const path =
+        type === "selection"
+          ? `/pagesOther/styleResult/styleResult?id=${encodeURIComponent(id)}&uid=${encodeURIComponent(uid)}`
+          : this.$buildPublicSharePath
+            ? this.$buildPublicSharePath(type, id, uid)
+            : `/pages/index/index?uid=${encodeURIComponent(uid)}`;
+      uni.redirectTo({ url: path });
+      return true;
+    },
+    safeText(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    redirectToSelectionForMissingHome() {
+      if (this.hasRedirectedForHomeInfo) return;
+      this.hasRedirectedForHomeInfo = true;
+      uni.redirectTo({
+        url: "/pages/selection/selection?from=home_info_missing&disableAutoRedirect=1",
+      });
+    },
+    consumePendingRefreshMarkers() {
+      if (this.uid) return;
+      const productMarker = consumeRefreshMarker(
+        "product",
+        "productListNeedsRefreshIndexConsumed",
+        this.lastProductRefreshAt,
+      );
+      const categoryMarker = consumeRefreshMarker(
+        "category",
+        "categoryListNeedsRefreshIndexConsumed",
+        this.lastCategoryRefreshAt,
+      );
+      const homeMarker = consumeRefreshMarker(
+        "home",
+        "homeDataNeedsRefreshIndexConsumed",
+        this.lastHomeRefreshAt,
+      );
+      if (!productMarker && !categoryMarker && !homeMarker) return;
+      this.markProductRefreshConsumed(productMarker);
+      this.markCategoryRefreshConsumed(categoryMarker);
+      this.markHomeRefreshConsumed(homeMarker);
+      this.handleRefreshData();
+    },
+    consumeProductRefreshMarker() {
+      const marker = consumeRefreshMarker(
+        "product",
+        "productListNeedsRefreshIndexConsumed",
+        this.lastProductRefreshAt,
+      );
+      if (!marker) return;
+      this.markProductRefreshConsumed(marker);
+      this.handleRefreshData();
+    },
+    markProductRefreshConsumed(marker) {
+      if (!marker) return;
+      if (getRefreshMarker("product") !== marker) return;
+      this.lastProductRefreshAt = marker;
+      markRefreshMarkerConsumed("productListNeedsRefreshIndexConsumed", marker);
+    },
+    markCategoryRefreshConsumed(marker) {
+      if (!marker) return;
+      if (getRefreshMarker("category") !== marker) return;
+      this.lastCategoryRefreshAt = marker;
+      markRefreshMarkerConsumed("categoryListNeedsRefreshIndexConsumed", marker);
+    },
+    markHomeRefreshConsumed(marker) {
+      if (!marker) return;
+      if (getRefreshMarker("home") !== marker) return;
+      this.lastHomeRefreshAt = marker;
+      markRefreshMarkerConsumed("homeDataNeedsRefreshIndexConsumed", marker);
+    },
     toggleDisplayMode(data) {
       this.columns = this.normalizeDirectColumns(data);
     },
     // 处理刷新数据事件
-    handleRefreshData() {
+    handleRefreshData(marker) {
+      this.markProductRefreshConsumed(marker);
+      this.markCategoryRefreshConsumed(marker);
+      this.markHomeRefreshConsumed(marker);
       this.curCategoryId = "";
       this.getUserInfo();
     },
@@ -329,7 +480,9 @@ export default {
     },
     onCategorySelected(c) {
       uni.navigateTo({
-        url: `/pagesOther/classDetail/classDetail?id=${c.id}&uid=${this.uid}`,
+        url: this.$buildPublicSharePath
+          ? this.$buildPublicSharePath("category", c.id, this.uid)
+          : `/pagesOther/classDetail/classDetail?id=${c.id}&uid=${this.uid}`,
         success: (res) => {
           // 通过 eventChannel 向被打开页面传送数据
           res.eventChannel.emit("acceptDataFromOpenerPage", { data: c });
@@ -337,7 +490,7 @@ export default {
       });
     },
     openShare() {
-      if (!this.$checkLoginStatus()) {
+      if (!this.uid && !this.$checkLoginStatus()) {
         uni.showModal({
           title: "未登录，是否立即登录？",
           content: "",
@@ -350,6 +503,7 @@ export default {
         });
         return;
       }
+      this.shareUrl = this.buildHomeSharePath();
       this.shareVisible = true;
     },
     handleShareAction(event) {
@@ -362,11 +516,9 @@ export default {
       console.log(this.previewMode);
       if (this.previewMode) {
         uni.navigateTo({
-          url:
-            "/pagesOther/productDetail/productDetail?id=" +
-            item.id +
-            "&uid=" +
-            this.uid,
+          url: this.$buildPublicSharePath
+            ? this.$buildPublicSharePath("product", item.id, this.uid)
+            : "/pagesOther/productDetail/productDetail?id=" + item.id + "&uid=" + this.uid,
         });
       } else {
         uni.navigateTo({
@@ -452,23 +604,37 @@ export default {
       uni.navigateTo({ url: "/pagesOther/addSetInfo/addSetInfo?type=folder" });
     },
     getUserInfo() {
+      if (this.isUserInfoLoading) return;
       const user = uni.getStorageSync("userInfo") || {};
-      const targetUid = this.uid ? Number(this.uid) : Number(user.id || 0);
-      const uid = targetUid || user.id;
+      const uid = this.uid
+        ? this.normalizeShareParam(this.uid)
+        : this.normalizeShareParam(user.id || user.uid || "");
+      if (!uid) {
+        this.redirectToSelectionForMissingHome();
+        return;
+      }
       const data = {
         target_user_id: uid,
       };
+      this.isUserInfoLoading = true;
       this.$go("user/home/info", data, "get", {
-        show_err: true,
+        show_err: false,
       })
         .then((res) => {
+          this.isUserInfoLoading = false;
           if (res.code === 0) {
+            this.hasRedirectedForHomeInfo = false;
             // 合并默认数据和实际数据，确保所有字段都有值
             const userInfo = {
-              ...res.data,
+              ...(res.data || {}),
             };
             this.userInfo = userInfo;
-            this.total_num = userInfo.products.length;
+            const products = Array.isArray(userInfo.products)
+              ? userInfo.products
+              : [];
+            this.total_num =
+              products.length ||
+              Number(userInfo.product_count || userInfo.total_num || 0);
             this.isFollow = userInfo.is_collect;
             if (!this.uid) {
               uni.setStorageSync("enterpriseInfo", userInfo);
@@ -476,10 +642,18 @@ export default {
             this.getAlbumList();
             this.getAllClassList();
           } else {
-            uni.redirectTo({ url: "/pages/selection/selection" });
+            if (this.uid) {
+              uni.showToast({
+                title: "主页暂不可访问",
+                icon: "none",
+              });
+              return;
+            }
+            this.redirectToSelectionForMissingHome();
           }
         })
         .catch((err) => {
+          this.isUserInfoLoading = false;
           console.error("获取商户信息失败:", err);
         });
     },
@@ -500,11 +674,19 @@ export default {
       })
         .then((res) => {
           if (res.code === 0 && res.data) {
-            const dataList = this.uid ? res.data : res.data.lists.data;
+            const dataList = this.uid
+              ? Array.isArray(res.data)
+                ? res.data
+                : []
+              : res.data.lists && Array.isArray(res.data.lists.data)
+                ? res.data.lists.data
+                : [];
             this.albumList = dataList.map((item) => {
               const count = this.uid
                 ? item.son_count
-                : item.detail_pic_ids_arr.length + item.pic_ids_arr.length;
+                : this.normalizeArray(item.detail_pic_ids_arr || item.detail_pic_ids)
+                    .length +
+                  this.normalizeArray(item.pic_ids_arr || item.pic_ids).length;
               return {
                 ...item,
                 folder_count: count,
@@ -532,12 +714,25 @@ export default {
       })
         .then((res) => {
           if (res.code === 0 && res.data) {
-            this.categories = this.uid ? res.data : res.data.lists.data;
+            this.categories = this.uid
+              ? Array.isArray(res.data)
+                ? res.data
+                : []
+              : res.data.lists && Array.isArray(res.data.lists.data)
+                ? res.data.lists.data
+                : [];
           }
         })
         .catch((err) => {
           console.error("获取商户信息失败:", err);
         });
+    },
+    normalizeArray(value) {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string" && value) {
+        return value.split(",").filter(Boolean);
+      }
+      return [];
     },
   },
 };
@@ -625,6 +820,7 @@ export default {
   align-items: center;
   gap: 24rpx;
   margin-top: 32rpx;
+  min-width: 0;
 }
 
 .avatar {
@@ -632,19 +828,29 @@ export default {
   height: 120rpx;
   border-radius: 60rpx;
   object-fit: cover;
+  flex: 0 0 120rpx;
+  display: block;
+  overflow: hidden;
 }
 
 .meta-top {
   display: flex;
   flex-direction: column;
   gap: 12rpx;
+  flex: 1;
+  min-width: 0;
 }
 
 .merchant-name {
+  display: block;
   font-weight: 500;
   font-size: 40rpx;
   color: #ffffff;
   text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gender-wrap {
@@ -679,18 +885,26 @@ export default {
 }
 
 .desc {
+  display: -webkit-box;
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.9);
   margin-top: 10rpx;
-  display: block;
+  line-height: 1.45;
+  max-height: 104rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 /* 统计与按钮 */
 .stats-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   margin-top: 40rpx;
+  gap: 20rpx;
 
   .stats-row-inner {
     display: flex;
@@ -698,6 +912,8 @@ export default {
     align-items: flex-start;
     justify-content: space-between;
     gap: 16rpx;
+    flex: 1;
+    min-width: 0;
   }
 }
 
@@ -723,22 +939,28 @@ export default {
   display: flex;
   align-items: center;
   gap: 16rpx;
+  flex: 0 0 auto;
+  align-self: flex-end;
 
   .actions-inner {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 4rpx;
+    box-sizing: border-box;
+    flex: 0 0 auto;
 
     .stat-icon {
       width: 32rpx;
       height: 32rpx;
+      flex: 0 0 32rpx;
     }
 
-    .ben-text {
+    .btn-text {
       font-weight: 400;
       font-size: 28rpx;
-      color: #ffffff;
+      line-height: 1;
+      white-space: nowrap;
     }
   }
 }
@@ -751,6 +973,8 @@ export default {
   border-radius: 28rpx;
   font-size: 24rpx;
   border: 1rpx solid #ffffff;
+  min-width: 104rpx;
+  height: 64rpx;
 }
 
 .btn-follow {
@@ -760,6 +984,8 @@ export default {
   padding: 12rpx 28rpx;
   border-radius: 28rpx;
   font-size: 24rpx;
+  min-width: 104rpx;
+  height: 64rpx;
 }
 
 .content-warp {
@@ -775,17 +1001,7 @@ export default {
 .category-filter {
   display: flex;
   align-items: center;
-  gap: 16rpx;
   padding: 26rpx 0 4rpx;
-}
-
-.filter-label {
-  flex: 0 0 auto;
-  height: 56rpx;
-  line-height: 56rpx;
-  font-size: 24rpx;
-  font-weight: 600;
-  color: #8c7a35;
 }
 
 .chips-scroll {
@@ -806,12 +1022,13 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8rpx;
   height: 56rpx;
-  max-width: 168rpx;
-  padding: 0 24rpx;
+  max-width: 190rpx;
+  padding: 0 18rpx;
   background: rgba(255, 255, 255, 0.86);
   border: 1rpx solid rgba(217, 217, 217, 0.88);
-  border-radius: 999rpx;
+  border-radius: 18rpx;
   box-sizing: border-box;
   white-space: nowrap;
 
@@ -820,15 +1037,26 @@ export default {
     border-color: #ffd000;
     box-shadow: 0 6rpx 14rpx rgba(255, 208, 0, 0.16);
 
+    .chip-icon {
+      opacity: 1;
+    }
+
     .chip-text {
       color: #5f4a00;
       font-weight: 700;
     }
   }
 
+  .chip-icon {
+    width: 24rpx;
+    height: 24rpx;
+    flex: 0 0 auto;
+    opacity: 0.74;
+  }
+
   .chip-text {
     display: block;
-    max-width: 120rpx;
+    max-width: 126rpx;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

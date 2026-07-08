@@ -19,7 +19,7 @@
       <view class="gift-icon">
         <image
           class="gift-emoji"
-          src="/static/image/image1 1.png"
+          src="/pagesOther/static/image/image1 1.png"
           mode="scaleToFill"
         />
       </view>
@@ -128,6 +128,8 @@ export default {
       },
       rules: [],
       userId: "",
+      inviteCode: "",
+      invitePath: "",
       inviteLink: "",
       isLoading: false,
     };
@@ -141,6 +143,7 @@ export default {
     const userInfo = uni.getStorageSync("userInfo");
     if (userInfo && userInfo.id) {
       this.userId = userInfo.id;
+      this.inviteCode = this.normalizeText(userInfo.invite_code);
     }
 
     if (this.ensureLogin()) {
@@ -149,6 +152,27 @@ export default {
     }
   },
   methods: {
+    normalizeText(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    applyInviteData(data = {}) {
+      this.inviteCode = this.normalizeText(data.invite_code) || this.inviteCode;
+      this.invitePath =
+        this.normalizeText(data.invite_path) ||
+        (this.inviteCode ? `/pages/index/index?invite_code=${encodeURIComponent(this.inviteCode)}` : "");
+      this.inviteLink =
+        this.normalizeText(data.url_link) ||
+        this.normalizeText(data.invite_link) ||
+        this.inviteLink;
+    },
+    getInviteSharePath() {
+      return this.inviteCode
+        ? `/pages/index/index?invite_code=${encodeURIComponent(this.inviteCode)}`
+        : "/pages/index/index";
+    },
     ensureLogin() {
       if (this.$checkLoginStatus()) {
         return true;
@@ -160,7 +184,7 @@ export default {
         showCancel: true,
         success: ({ confirm }) => {
           if (confirm) {
-            this.$silentLogin(this.userId);
+            this.$silentLogin("");
           }
         },
       });
@@ -206,6 +230,7 @@ export default {
               inviteCount: res.data.invite_count || 0,
               earnedPoints: res.data.invite_score || 0,
             };
+            this.applyInviteData(res.data);
           }
         })
         .catch((err) => {
@@ -242,8 +267,10 @@ export default {
             this.handleAuthExpired();
             return;
           }
-          if (res && res.data && res.data.invite_link) {
-            this.inviteLink = res.data.invite_link;
+          if (res && res.data) {
+            this.applyInviteData(res.data);
+          }
+          if (this.inviteLink) {
             this.copyToClipboard(this.inviteLink);
           } else {
             uni.showToast({
@@ -312,7 +339,7 @@ export default {
   onShareAppMessage() {
     return {
       title: "邀请好友得积分奖励",
-      path: `/pages/index/index?inviter=${this.userId}`,
+      path: this.getInviteSharePath(),
       imageUrl: "/static/image/invite-share.png",
     };
   },
@@ -320,7 +347,7 @@ export default {
   onShareTimeline() {
     return {
       title: "邀请好友得积分奖励",
-      query: `inviter=${this.userId}`,
+      query: this.inviteCode ? `invite_code=${encodeURIComponent(this.inviteCode)}` : "",
       imageUrl: "/static/image/invite-share.png",
     };
   },

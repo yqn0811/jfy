@@ -60,6 +60,7 @@
         },
         "usingComponents": true,
         "libVersion": "latest",
+        "lazyCodeLoading": "requiredComponents",
         "permission": {
             "scope.userLocation": {
                 "desc": "获取位置信息，用于地图导航"

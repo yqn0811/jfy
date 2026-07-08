@@ -1,13 +1,103 @@
 import config from "../config";
 
 import { showLoading } from "../helper/base.js";
-import { getMiniCode } from "@/common/request/api.js";
-import Cache from "../helper/cache.js";
-const cache = new Cache();
 
 const HEADER = {
   "content-type": "application/json",
   "X-Requested-With": "XMLHttpRequest",
+};
+
+const AUTH_ERROR_CODES = [4001, 4100, 403];
+let isRedirectingToLogin = false;
+
+const normalizeAuthToken = (value) => {
+  if (value === null || value === undefined) return "";
+  const token = String(value).replace(/^Bearer\s+/i, "").trim();
+  if (!token || token === "null" || token === "undefined") return "";
+
+  const segments = token.split(".");
+  if (segments.length !== 3 || segments.some((item) => !item)) {
+    return "";
+  }
+
+  return token;
+};
+
+const getSafeErrorMessage = (message) => {
+  const text = message === null || message === undefined ? "" : String(message).trim();
+  const lowerText = text.toLowerCase();
+
+  if (
+    lowerText === "need login" ||
+    lowerText === "need token" ||
+    lowerText === "missing token" ||
+    lowerText.includes("wrong number of segments") ||
+    lowerText.includes("not enough segments") ||
+    (lowerText.includes("token") && lowerText.includes("segments"))
+  ) {
+    return "登录状态异常，请重新登录后再试";
+  }
+
+  return text || "请求失败，请稍后重试";
+};
+
+const isAuthError = (responseData = {}) => {
+  const code = Number(responseData.code);
+  const message = getSafeErrorMessage(responseData.msg || responseData.message);
+  return (
+    AUTH_ERROR_CODES.includes(code) ||
+    message === "登录状态异常，请重新登录后再试" ||
+    message.includes("请先授权登录") ||
+    message.includes("用户不存在")
+  );
+};
+
+const getCurrentLoginUid = () => {
+  const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+  const currentPage = pages && pages[pages.length - 1];
+  const options = (currentPage && currentPage.options) || {};
+  const uid = options.uid || options.target_user_id || "";
+  if (!uid || uid === "undefined" || uid === "null") return "";
+  return String(uid);
+};
+
+const getCurrentInviteCode = () => {
+  const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+  const currentPage = pages && pages[pages.length - 1];
+  const options = (currentPage && currentPage.options) || {};
+  const inviteCode = options.invite_code || uni.getStorageSync("pending_invite_code") || "";
+  if (!inviteCode || inviteCode === "undefined" || inviteCode === "null") return "";
+  return String(inviteCode);
+};
+
+const redirectToLogin = () => {
+  const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+  const currentPage = pages && pages[pages.length - 1];
+  const route = currentPage && currentPage.route;
+  if (route === "pages/login/login" || isRedirectingToLogin) return;
+
+  isRedirectingToLogin = true;
+  uni.removeStorageSync("token");
+  uni.removeStorageSync("user");
+  uni.removeStorageSync("userInfo");
+
+  const uid = getCurrentLoginUid();
+  const inviteCode = getCurrentInviteCode();
+  const params = [];
+  if (uid) params.push(`uid=${encodeURIComponent(uid)}`);
+  if (inviteCode) params.push(`invite_code=${encodeURIComponent(inviteCode)}`);
+  const loginUrl = `/pages/login/login${params.length ? `?${params.join("&")}` : ""}`;
+  uni.navigateTo({
+    url: loginUrl,
+    fail: () => {
+      uni.redirectTo({ url: loginUrl });
+    },
+    complete: () => {
+      setTimeout(() => {
+        isRedirectingToLogin = false;
+      }, 800);
+    },
+  });
 };
 
 const go = (
@@ -32,11 +122,14 @@ const go = (
     showLoading(loading_tip);
   }
   return new Promise((resolve, reject) => {
-    let token = uni.getStorageSync("token");
-    let header = HEADER;
-    Object.assign(header, {
-      "authorization-token": `Bearer ${token}`,
-    });
+    const rawToken = uni.getStorageSync("token");
+    const token = normalizeAuthToken(rawToken);
+    const header = { ...HEADER };
+    if (token) {
+      header["authorization-token"] = `Bearer ${token}`;
+    } else if (rawToken) {
+      uni.removeStorageSync("token");
+    }
     let url = full_url ? path : `${config.host}/${path}`;
     uni.request({
       url,
@@ -45,22 +138,22 @@ const go = (
       method: type ? type.toUpperCase() : "GET",
       success: (res) => {
         if (_loading) uni.hideLoading();
-        if (res.data.code === 403) {
-          //token过期
-          uni.clearStorage();
-          return reject(res);
+        const responseData = res.data || {};
+        if (isAuthError(responseData)) {
+          redirectToLogin();
+          return resolve(responseData);
         }
-        if (res.data.code == 0) {
-          return resolve(res.data);
+        if (responseData.code == 0) {
+          return resolve(responseData);
         } else {
           if (show_err) {
             uni.showModal({
               title: "提示",
-              content: res.data.msg,
+              content: getSafeErrorMessage(responseData.msg || responseData.message),
               showCancel: false,
             });
           }
-          return resolve(res.data);
+          return resolve(responseData);
         }
       },
       fail: (err) => {

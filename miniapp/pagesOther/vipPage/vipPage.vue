@@ -1,5 +1,5 @@
 <template>
-	<view class="vip-page">
+	<view v-if="canShowUpgrade" class="vip-page">
 		<!-- 头部导航栏 -->
 		<view class="header" :style="{ paddingTop: totalHeight + 'px' }">
 			<view class="custom-nav-bar" :style="{ height: totalHeight + 'px' }">
@@ -10,155 +10,89 @@
 							<image class="backIcon" src="../../static/icon/back2.png" mode=""></image>
 						</view>
 						<view class="info-box">
-							<view class="title">开通会员</view>
+							<view class="title">资源包</view>
 						</view>
 					</view>
 				</view>
 			</view>
 			<view class="vip-icon">
-				<image class="vipIcon" src="../../static/icon/slices/生成会员图标 1@2x.png" mode=""></image>
+				<image class="vipIcon" src="/pagesOther/static/icon/slices/生成会员图标 1@2x.png" mode=""></image>
 			</view>
 		</view>
 
 		<!-- 内容区域 -->
 		<view class="content" :style="{ paddingTop: totalHeight + 'px' }">
-			<!-- 会员等级切换 -->
-			<view class="vip-level-container">
-				<scroll-view scroll-x="true" class="vip-level-scroll">
-					<view class="vip-level-wrapper">
-						<view class="vip-level-item" v-for="(level, index) in vipList" :key="index"
-							@click="selectVipLevel(level,index)">
-							<view class="level-text" :class="{ 'active': currentLevel === index }">
-								{{ level.grade_name }}
-							</view>
-						</view>
-					</view>
-				</scroll-view>
-			</view>
-			
-			<view class="vip-content">
-				<!-- 价格区域 -->
-				<view class="price-container">
-					<view class="price-item highlight single">
-						<view class="discount-tag" v-if="levelInfo.show_annual_del_str">{{levelInfo.show_annual_del_str}}</view>
-						<view class="duration">资源包</view>
-						<view class="current-price">¥{{levelInfo.annual_fee}}</view>
-						<view class="original-price">¥{{levelInfo.market_annual_fee}}</view>
-					</view>
+			<view class="resource-summary">
+				<view>
+					<view class="summary-title">资源包</view>
+					<view class="summary-subtitle">单独扩容我的资源库</view>
 				</view>
-					<view class="benefits-section">
-						<view class="section-header">
-							<text class="section-title">资源包权益</text>
-						</view>
-						<view class="benefits-content">
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171278987.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">资源库{{levelInfo.cloud_size_str}}</view>
-									<view class="level-des">AI 生图资源库扩容</view>
-								</view>
-							</view>
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171278989.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">网页/小程序互通</view>
-									<view class="level-des">同账号素材自动同步</view>
-								</view>
-							</view>
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171278989.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">按文件大小计量</view>
-									<view class="level-des">适合商品素材沉淀</view>
-								</view>
-							</view>
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171278994.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">上传视频</view>
-									<view class="level-des">会员相册可上传视频</view>
-								</view>
-							</view>
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171278995.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">无广告</view>
-									<view class="level-des">你的相册无广告</view>
-								</view>
-							</view>
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171278996.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">原图</view>
-									<view class="level-des">支持查看和下载原图</view>
-								</view>
-							</view>
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171278997.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">文字备注</view>
-									<view class="level-des">可以给图片添加备注</view>
-								</view>
-							</view>
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171278998.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">搜索</view>
-									<view class="level-des">根据备注搜索图片</view>
-								</view>
-							</view>
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171278999.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">回收站图片到期时间</view>
-									<view class="level-des">30天</view>
-								</view>
-							</view>
-							<view class="vip-tab" >
-								<image src="/static/icon/slices/Frame 1171279000.png" class="vipIcon" mode=""></image>
-								<view class="level-info">
-									<view class="level-label">收集照片</view>
-									<view class="level-des">分享到群收集制定照片</view>
-								</view>
-							</view>
-						</view>
-						<!-- <view class="vip-tip">
-							更多会员权限，敬请期待
-						</view> -->
-					</view>
-				<view class="scorll">
-					<view class="review-section">
-						<view class="section-header">
-							<text class="section-title">会员口碑 ({{evaluateList.length}})</text>
-							<view class="view-all" @click="toBuzz">查看全部 <image src="/static/icon/right.png" class="rightIcon" mode=""></image> </view>
-						</view>
-					
-						<view class="category-tags">
-							<text class="category-tag" v-for="(item,index) in cateList" :key="index">{{item.name}}({{item.count}})</text>
-						</view>
-					
-						<view class="review-list">
-							<view class="review-item" v-for="(item,index) in evaluateList" :key="index">
-								<view class="reviewer-info">
-									<image :src="item.user_info_data.avatar" mode="aspectFill" class="avatar"></image>
-									<view class="info-text">
-										<text class="reviewer-name">{{item.user_info_data.nickname}}</text>
-										<text class="usage-time">已使用{{item.user_info_data.join_days}}天</text>
-										<text class="album-type">{{item.purpose}}</text>
-										<view class="review-content">{{item.evaluate_content}}</view>
-									</view>
-								</view>
-							</view>
-						</view>
-					</view>
-					
-				
+				<view class="current-space" v-if="currentSpaceText">
+					当前空间：<text>{{ currentSpaceText }}</text>
 				</view>
 			</view>
-			
+
+			<scroll-view scroll-x="true" class="package-scroll" :scroll-into-view="'package-' + currentLevel">
+				<view class="package-wrapper">
+						<view
+							class="resource-card"
+							v-for="(level, index) in vipList"
+							:key="index"
+							:id="'package-' + index"
+							:class="{ active: currentLevel === index }"
+							@click="selectVipLevel(level, index)"
+						>
+						<view class="card-title-row">
+							<view class="storage-icon"></view>
+							<text class="card-title">{{ level.grade_name }}</text>
+						</view>
+						<view class="plan-tag" :class="'tag-' + (index % 5)">{{ getPlanTag(level) }}</view>
+						<view class="price-line">
+							<text class="price-symbol">¥</text>
+							<text class="price-value">{{ level.annual_fee }}</text>
+							<text class="price-unit">/年</text>
+						</view>
+						<view class="market-price" v-if="level.market_annual_fee">原价 ¥{{ level.market_annual_fee }}</view>
+						<view class="feature-list">
+							<view class="feature-item" v-for="(feature, featureIndex) in getPlanFeatures(level)" :key="featureIndex">
+								<text class="feature-check">✓</text>
+								<text class="feature-text">{{ feature }}</text>
+							</view>
+						</view>
+					</view>
+				</view>
+			</scroll-view>
+
+			<view class="benefits-section">
+				<view class="section-header">
+					<text class="section-title">资源包权益</text>
+				</view>
+				<view class="benefits-content">
+					<view class="vip-tab" v-for="(benefit, index) in resourceBenefits" :key="index">
+						<view class="benefit-icon"></view>
+						<view class="level-info">
+							<view class="level-label">{{ benefit.title }}</view>
+							<view class="level-des">{{ benefit.desc }}</view>
+						</view>
+					</view>
+				</view>
+			</view>
 
 			<view class="bottom-upgrade" @click="toBuy">
-				<view class="upgrade-text">购买{{levelInfo.grade_name}} {{payFee}}元</view>
+				<view class="upgrade-text">前往电脑端购买{{ selectedPackageName }}</view>
+			</view>
+		</view>
+		
+		<!-- 电脑端升级引导 -->
+		<view class="ios-modal" v-if="showIOSModal" @click="closeIOSModal">
+			<view class="modal-content" @click.stop>
+				<view class="modal-text">
+					资源包购买请在电脑浏览器完成<br/>
+					完成后回到小程序，权益会自动同步
+				</view>
+				<view class="modal-tip">{{ upgradeGuideDescription }}</view>
+				<button class="modal-button" @click="copyUpgradeLink">复制电脑端地址</button>
+				<view class="modal-cancel" @click="closeIOSModal">取消</view>
 			</view>
 		</view>
 	</view>
@@ -176,18 +110,15 @@
 				navigationBarHeight: 44,
 				totalHeight: 0,
 				currentLevel: 0,
-				arrowPosition: 0,
-				itemWidth: 140 ,
 				vipList:[],
-				cateList:[],
-				activeName:'',
-				evaluateList:[],
-				page:1,
 				levelInfo:{},
-				activeVip:1,
 				payFee:0,
+				isIOS: false, // 是否是iOS系统
+				showIOSModal: false, // 是否显示电脑端升级引导
 				baseInfo:{},
-				userInfo:{}
+				userInfo:{},
+				canShowUpgrade: false,
+				upgradeUrl: 'https://pic.jfyuntu.com/assets/page/product-list.html'
 			};
 		},
 		onLoad() {
@@ -195,17 +126,54 @@
 			this.statusBarHeight = systemInfo.statusBarHeight;
 			this.totalHeight = this.statusBarHeight + this.navigationBarHeight;
 			
+			// 判断是否是iOS系统
+			this.isIOS = systemInfo.platform === 'ios';
+			
 			this.baseInfo = uni.getStorageSync('baseInfo')
 			this.userInfo = uni.getStorageSync('userInfo') || {}
 
-			this.$nextTick(() => {
-				this.getVipList()
-				this.getcateList()
-				this.getUserInfo()
-			});
+			this.getMemberUpgradeConfig()
 		},
 		methods: {
+			initPageData() {
+				this.$nextTick(() => {
+					this.getVipList()
+					this.getUserInfo()
+				});
+			},
+			getMemberUpgradeConfig() {
+				this.$go('common/member_upgrade_config', {}, 'get', {
+					loading: false,
+					show_err: false
+				}).then(res => {
+					const data = (res && res.data) || {}
+					this.canShowUpgrade = Number(data.show_upgrade) === 1
+					this.upgradeUrl = data.upgrade_url || this.upgradeUrl
+					if (this.canShowUpgrade) {
+						this.initPageData()
+					} else {
+						uni.navigateBack({
+							fail: () => {
+								uni.switchTab({
+									url: '/pages/usercenter/index'
+								})
+							}
+						})
+					}
+				}).catch(() => {
+					uni.navigateBack({
+						fail: () => {
+							uni.switchTab({
+								url: '/pages/usercenter/index'
+							})
+						}
+					})
+				})
+			},
 			toBuy(){
+				if (!this.canShowUpgrade) {
+					return;
+				}
 				if (!this.levelInfo || !this.levelInfo.grade_level) {
 					uni.showToast({
 						title: '请选择资源包',
@@ -213,86 +181,31 @@
 					});
 					return;
 				}
-				const querys = {
-					timestamp: new Date().getTime(),
-					grade:this.levelInfo.grade_level,
-					buy_time:1,
-					pay_price:this.payFee,
-				}
-				const data = {
-					...querys,
-					sign: this.$base.getASCII(querys)
-				}
-				
-				// 显示加载提示
-				uni.showLoading({
-					title: '正在创建订单...',
-					mask: true
-				});
-				
-				this.$go('grade/order/create', data, 'post', {
-					show_err: true
-				}).then(res => {
-					uni.hideLoading();
-					
-					const payData = res.data.data
-					if (!payData || !payData.pay_info) {
+				this.showIOSModal = true;
+			},
+			copyUpgradeLink() {
+				uni.setClipboardData({
+					data: this.vipH5Link,
+					success: () => {
 						uni.showToast({
-							title: '支付参数错误',
+							title: '地址已复制',
+							icon: 'success'
+						});
+						this.showIOSModal = false;
+					},
+					fail: () => {
+						uni.showToast({
+							title: '复制失败，请稍后重试',
 							icon: 'none'
 						});
-						return;
 					}
-					
-					// 拉起微信支付
-					uni.requestPayment({
-						provider: 'wxpay',
-						timeStamp: payData.pay_info.timeStamp,
-						nonceStr: payData.pay_info.nonceStr,
-						package: payData.pay_info.package,
-						signType: payData.pay_info.signType || 'MD5',
-						paySign: payData.pay_info.paySign,
-						success: (payRes) => {
-							uni.showToast({
-								title: '支付成功',
-								icon: 'success',
-								duration: 2000
-							});
-							
-							// 支付成功后的处理
-							setTimeout(() => {
-								uni.navigateBack();
-							}, 2000);
-						},
-						fail: (err) => {
-							console.log('支付失败', err);
-							
-							if (err.errMsg === 'requestPayment:fail cancel') {
-								// 用户取消支付
-								uni.showToast({
-									title: '已取消支付',
-									icon: 'none',
-									duration: 2000
-								});
-							} else {
-								// 支付失败
-								uni.showToast({
-									title: '支付失败，请重试',
-									icon: 'none',
-									duration: 2000
-								});
-							}
-						}
-					});
-				}).catch(err => {
-					uni.hideLoading();
-					console.error('创建订单失败', err);
-					uni.showToast({
-						title: '订单创建失败',
-						icon: 'none'
-					});
 				});
 			},
+			// 关闭电脑端升级引导
+			closeIOSModal() {
+				this.showIOSModal = false;
+			},
+			
 			getUserInfo() {
 				const querys = {
 					timestamp: new Date().getTime(),
@@ -309,44 +222,6 @@
 				}).catch(err => {
 					console.error('获取用户信息失败:', err);
 				});
-			},
-			
-			selectVip(e,fee){
-				this.activeVip = e
-				this.payFee = fee
-			},
-			
-			getList(){
-				const querys = {
-					timestamp: new Date().getTime(),
-					name:this.activeName,
-					page:this.page
-				}
-				const data = {
-					...querys,
-					sign: this.$base.getASCII(querys)
-				}
-				this.$go('submit/evaluate', data, 'get', {
-					show_err: true
-				}).then(res => {
-					this.evaluateList = this.evaluateList.concat(res.data.data)
-				})
-			},
-			
-			getcateList(){
-				const querys = {
-					timestamp: new Date().getTime(),
-				}
-				const data = {
-					...querys,
-					sign: this.$base.getASCII(querys)
-				}
-				this.$go('cate/evaluate', data, 'get', {
-					show_err: true
-				}).then(res => {
-					this.cateList = res.data
-					this.getList()
-				})
 			},
 			
 			toBuzz(){
@@ -366,9 +241,9 @@
 				this.$go('grade/lists', data, 'get', {
 					show_err: true
 				}).then(res => {
-					this.vipList = res.data
-					this.levelInfo = res.data[0]
-					this.payFee = res.data[0].annual_fee
+					this.vipList = Array.isArray(res.data) ? res.data : []
+					this.levelInfo = this.vipList[0] || {}
+					this.payFee = this.levelInfo.annual_fee || 0
 				})
 			},
 			
@@ -381,506 +256,469 @@
 				this.currentLevel = index;
 				this.payFee = level.annual_fee
 			},
+			getPlanTag(level) {
+				return level.show_annual_del_str || level.show_month_del_str || '资源扩容';
+			},
+			getPlanFeatures(level) {
+				const benefits = level && level.benefits_json;
+				const features = benefits && Array.isArray(benefits.features) ? benefits.features : [];
+				if (features.length) {
+					return features.slice(0, 3);
+				}
+				return [
+					`资源库存储空间 ${level.cloud_size_str || ''}`.trim(),
+					'适合商品素材沉淀',
+					'按实际上传文件大小计算容量'
+				];
+			},
 		}
-		};
+		,
+		computed: {
+			currentSpaceText() {
+				return this.userInfo && this.userInfo.all_space ? this.userInfo.all_space : '';
+			},
+			selectedPackageName() {
+				return this.levelInfo && this.levelInfo.grade_name ? this.levelInfo.grade_name : '资源包';
+			},
+			resourceBenefits() {
+				const storageText = this.levelInfo.cloud_size_str || '';
+				return [
+					{ title: `资源库空间${storageText}`, desc: '按实际上传文件大小计算容量' },
+					{ title: '在线编辑', desc: `支持${this.levelInfo.editor_number || 1}编辑` },
+					{ title: '最大上传文件', desc: `${this.levelInfo.upload_size || 20}M` },
+					{ title: '素材沉淀', desc: '适合商品图片长期管理' },
+					{ title: '原图查看', desc: '支持查看和下载原图' },
+					{ title: '文字备注', desc: '可以给图片添加备注' },
+					{ title: '搜索', desc: '根据备注搜索图片' },
+					{ title: '回收站', desc: '图片保留30天' }
+				];
+			},
+			upgradeGuideDescription() {
+				const gradeName = this.levelInfo?.grade_name || '资源包';
+				const price = this.levelInfo?.annual_fee || '';
+				return `${gradeName}${price ? ` ¥${price}/年` : ''}，请复制地址后在电脑浏览器打开`;
+			},
+			vipH5Link() {
+				const gradeLevel = this.levelInfo?.grade_level || 0;
+				const planId = this.levelInfo?.annual_plan_id || gradeLevel;
+				const separator = this.upgradeUrl.indexOf('?') === -1 ? '?' : '&';
+				return `${this.upgradeUrl}${separator}grade=${gradeLevel}&plan_id=${planId}`;
+			}
+		}
+	};
 </script>
 
 <style lang="scss" scoped>
-	/* 页面容器 */
 	.vip-page {
 		min-height: 100vh;
-		background-color: #333333;
-		overflow: hidden;
-		background-repeat: no-repeat;
-		background-position: center center;
+		background: #333333;
+		color: #ffffff;
+		overflow-x: hidden;
+		padding-bottom: 190rpx;
+		box-sizing: border-box;
 	}
 
-	/* 头部导航栏 */
 	.header {
-		width: 100%;
-		background-size: 100%;
-		box-sizing: border-box;
 		position: fixed;
 		top: 0;
 		left: 0;
-		background-color: #333333;
+		right: 0;
 		z-index: 99;
+		background: #333333;
 
 		.custom-nav-bar {
 			position: absolute;
 			top: 0;
 			left: 0;
 			width: 100%;
-			color: #fff;
+			color: #ffffff;
 			z-index: 1;
-			// background-color: #382E21;
-			position: absolute;
-				top: 0;
-				left: 0;
 
 			.nav-bar-content {
-				padding: 0 10px;
-				// width: 520rpx;
+				position: relative;
 				width: 100%;
 				display: flex;
 				align-items: center;
-				justify-content: space-between;
-				position: relative;
-
-				.edit-btn {
-					color: #57BE6B;
-					font-size: 24rpx;
-					border: 2rpx solid #29AD68;
-					padding: 4rpx 6rpx;
-					border-radius: 6rpx;
-				}
-
-				.left {
-					display: flex;
-					align-items: center;
-					width: 100%;
-				}
-
-				.back-button {
-					margin-right: 20rpx;
-
-					.backIcon {
-						width: 30rpx;
-						height: 30rpx;
-					}
-				}
-
-				.info-box {
-					position: absolute;
-					top: 50%;
-					left: 50%;
-					transform: translate(-50%, -50%);
-					.title {
-						font-weight: bold;
-						font-size: 28rpx;
-						color: #ffffff;
-					}
-				}
-
-
-			}
-		}
-
-	}
-
-
-	.content {
-		overflow: hidden;
-	}
-
-	.vip-level-container {
-		background-color: #333;
-		padding: 30rpx 0 10rpx;
-		position: relative;
-		margin-top: 50rpx;
-
-		.vip-level-scroll {
-			width: 100%;
-			white-space: nowrap;
-			padding: 0 30rpx;
-
-			.vip-level-wrapper {
-				display: inline-flex;
-
-				.vip-level-item {
-					margin-right: 40rpx;
-					padding: 0 10rpx;
-
-					.level-text {
-							font-size: 32rpx;
-							color: #666;
-							padding-bottom: 10rpx;
-							position: relative;
-							
-							&.active {
-								color: #ffffff;
-								font-weight: bold;
-								
-								&::after {
-									content: '';
-									position: absolute;
-									bottom: 0;
-									left: 50%;
-									transform: translateX(-50%);
-									width: 40rpx;
-									height: 4rpx;
-									background-color: #ffffff;
-									border-radius: 2rpx;
-								}
-							}
-						}
-				}
-			}
-		}
-
-
-		.level-arrow::before {
-			content: '';
-			position: absolute;
-			top: 2rpx;
-			left: -24rpx;
-			border-left: 24rpx solid transparent;
-			border-right: 24rpx solid transparent;
-			border-bottom: 24rpx solid #f5f5f5;
-			z-index: -1;
-		}
-
-		.vip-level-container {
-			background-color: #333;
-			padding: 30rpx 0 10rpx;
-			position: relative;
-			margin-bottom: 20rpx;
-			// border-bottom: 1rpx solid #ddd;
-			height: 120rpx;
-		}
-
-
-	}
-	
-	.vip-content{
-		background-color: #333;
-		border-top-right-radius: 20rpx;
-		border-top-left-radius: 20rpx;
-		overflow: hidden;
-	}
-
-	.price-container {
-		display: flex;
-		padding: 30rpx;
-		background-color: #333;
-		margin-top: 20rpx;
-
-		.price-item {
-			flex: 1;
-			text-align: center;
-			padding: 60rpx 20rpx;
-			padding-top: 60rpx;
-			background-color: #474747;
-			border-radius: 10rpx;
-			margin: 0 10rpx;
-			position: relative;
-			overflow: hidden;
-
-			&.highlight {
-				background-color: #5C5C5C;
-				position: relative;
-				overflow: visible !important;
-				border-radius: 14rpx;
-				border: 3rpx solid transparent;
-				border-image: linear-gradient(135deg, #FFE329, #FFA229, #FFE329) 1;
-				border-image-slice: 1;
+				padding: 0 24rpx;
+				box-sizing: border-box;
 			}
 
-			.discount-tag {
-				position: absolute;
-				top: 0;
-				left: 0;
-				background-color: #333333;
-				color: #FFE329;
-				font-size: 24rpx;
-				padding: 5rpx 15rpx;
-				border-radius: 0 0 15rpx 0;
-			}
-
-			.duration {
-				font-size: 26rpx;
-				color: #fff;
-			}
-
-			.current-price {
-				font-size: 48rpx;
-				font-weight: bold;
-				color: #FFE329;
-				margin-bottom: 5rpx;
-			}
-
-			.original-price {
-				font-size: 24rpx;
-				color: #999;
-				text-decoration: line-through;
-			}
-		}
-	}
-	
-	.scorll{
-		height: 1200rpx;
-		padding-bottom: 200rpx;
-		box-sizing: border-box;
-		overflow-y: scroll;
-		overscroll-behavior: contain;
-	}
-
-	.review-section {
-		background-color: #333;
-		margin-top: 20rpx;
-		padding: 30rpx;
-
-		.section-header {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			margin-bottom: 20rpx;
-
-			.section-title {
-				font-size: 24rpx;
-				color: #fff;
-			}
-
-			.view-all {
-				font-size: 24rpx;
-				color: #999;
+			.left {
 				display: flex;
 				align-items: center;
-				.rightIcon{
+				width: 100%;
+			}
+
+			.back-button {
+				width: 56rpx;
+				height: 56rpx;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+
+				.backIcon {
 					width: 30rpx;
 					height: 30rpx;
+					filter: invert(1);
 				}
 			}
-		}
 
-		.category-tags {
-			display: flex;
-			flex-wrap: wrap;
-			margin-bottom: 30rpx;
+			.info-box {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
 
-			.category-tag {
-				font-size: 22rpx;
-				color: #b7b7b7;
-				background-color: #3D3D3D;
-				padding: 10rpx 10rpx;
-				border-radius: 20rpx;
-				margin-right: 10rpx;
-				margin-bottom:10rpx;
-			}
-		}
-
-		.review-list {
-			.review-item {
-				padding-bottom: 30rpx;
-				margin-bottom: 30rpx;
-				border-bottom: 2rpx solid #f0f0f0;
-
-				&:last-child {
-					border-bottom: none;
-					margin-bottom: 0;
-					padding-bottom: 0;
-				}
-
-				.reviewer-info {
-					display: flex;
-					align-items: center;
-					margin-bottom: 20rpx;
-
-					.avatar {
-						width: 60rpx;
-						height: 60rpx;
-						border-radius: 50%;
-						margin-right: 20rpx;
-					}
-
-					.info-text {
-						flex: 1;
-						.reviewer-name {
-							font-size: 22rpx;
-							color: #fff;
-						}
-
-						.usage-time,
-						.album-type {
-							font-size: 22rpx;
-							color: #999;
-							margin-left: 10rpx;
-						}
-					}
-				}
-
-				.review-content {
-					font-size: 22rpx;
-					color: #fff;
-					line-height: 1.6;
-					margin-top: 10rpx;
-				}
-
-				.expand-text {
-					font-size: 28rpx;
-					color: #e64340;
-					margin-top: 10rpx;
-					display: block;
+				.title {
+					font-weight: 700;
+					font-size: 32rpx;
+					color: #ffffff;
 				}
 			}
 		}
 	}
 
-	/* 会员权益 */
-	.benefits-section {
-		background-color: #333;
+	.vip-icon {
+		display: none;
+	}
+
+	.content {
+		padding-bottom: 150rpx;
+		overflow: hidden;
+	}
+
+	.resource-summary {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		padding: 40rpx 32rpx 24rpx;
+		box-sizing: border-box;
+	}
+
+	.summary-title {
+		font-size: 44rpx;
+		font-weight: 800;
+		color: #ffffff;
+		line-height: 1.2;
+	}
+
+	.summary-subtitle {
+		margin-top: 12rpx;
+		font-size: 26rpx;
+		color: #b8b8b8;
+	}
+
+	.current-space {
+		font-size: 24rpx;
+		color: #b8b8b8;
+		white-space: nowrap;
+
+		text {
+			color: #ffe329;
+			font-weight: 800;
+		}
+	}
+
+	.package-scroll {
+		width: 100%;
+		white-space: nowrap;
+		padding-bottom: 10rpx;
+	}
+
+	.package-wrapper {
+		display: inline-flex;
+		padding: 0 28rpx 20rpx;
+		box-sizing: border-box;
+	}
+
+	.resource-card {
+		width: 430rpx;
+		min-height: 520rpx;
+		margin-right: 24rpx;
+		padding: 34rpx 32rpx;
+		background: #414141;
+		border: 2rpx solid #525252;
+		border-radius: 14rpx;
+		box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.16);
+		box-sizing: border-box;
+		white-space: normal;
+		transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+
+		&.active {
+			background: #4a4536;
+			border-color: #ffd800;
+			box-shadow: 0 16rpx 38rpx rgba(255, 216, 0, 0.2);
+			transform: translateY(-2rpx);
+		}
+	}
+
+	.card-title-row {
+		display: flex;
+		align-items: center;
+		min-height: 40rpx;
+	}
+
+	.storage-icon {
+		width: 30rpx;
+		height: 24rpx;
+		margin-right: 14rpx;
+		border: 4rpx solid #ffd800;
+		border-top-width: 8rpx;
+		border-radius: 6rpx;
+		box-sizing: border-box;
+		position: relative;
+		flex-shrink: 0;
+
+		&::after {
+			content: '';
+			position: absolute;
+			left: 5rpx;
+			right: 5rpx;
+			bottom: 4rpx;
+			height: 3rpx;
+			background: #ffd800;
+			border-radius: 4rpx;
+		}
+	}
+
+	.card-title {
+		font-size: 30rpx;
+		line-height: 1.3;
+		font-weight: 800;
+		color: #ffffff;
+	}
+
+	.plan-tag {
+		margin-top: 14rpx;
+		font-size: 22rpx;
+		line-height: 1.3;
+		font-weight: 700;
+		color: #ffe329;
+	}
+
+	.tag-2,
+	.tag-3 {
+		color: #ffe329;
+	}
+
+	.tag-4 {
+		color: #ffe329;
+	}
+
+	.price-line {
+		display: flex;
+		align-items: baseline;
+		margin-top: 38rpx;
+		color: #ffe329;
+	}
+
+	.price-symbol {
+		font-size: 48rpx;
+		font-weight: 900;
+	}
+
+	.price-value {
+		font-size: 58rpx;
+		font-weight: 900;
+		letter-spacing: 0;
+	}
+
+	.price-unit {
+		margin-left: 6rpx;
+		font-size: 26rpx;
+		font-weight: 700;
+		color: #f5d95a;
+	}
+
+	.market-price {
+		margin-top: 8rpx;
+		font-size: 24rpx;
+		color: #9a9a9a;
+		text-decoration: line-through;
+	}
+
+	.feature-list {
+		margin-top: 34rpx;
+	}
+
+	.feature-item {
+		display: flex;
+		align-items: flex-start;
 		margin-top: 20rpx;
-		padding: 30rpx;
+		font-size: 25rpx;
+		line-height: 1.5;
+		color: #d0d0d0;
+	}
+
+	.feature-check {
+		width: 34rpx;
+		color: #ffd800;
+		font-size: 26rpx;
+		font-weight: 800;
+		flex-shrink: 0;
+	}
+
+	.feature-text {
+		flex: 1;
+	}
+
+	.benefits-section {
+		padding: 28rpx 32rpx 40rpx;
 
 		.section-header {
-			margin-bottom: 20rpx;
+			margin-bottom: 22rpx;
+		}
 
-			.section-title {
-				font-size: 32rpx;
-				font-weight: bold;
-				color: #fff;
-			}
-		}
-		.benefits-content{
-			display: flex;
-			justify-content: space-between;
-			flex-wrap: wrap;
-			.vip-tab{
-				width: 340rpx;
-				height: 100rpx;
-				background-color: #3D3D3D;
-				border-radius: 20rpx;
-				margin-bottom: 40rpx;
-				display: flex;
-				align-items: center;
-				.vipIcon{
-					width: 50rpx;
-					height: 50rpx;
-					margin-right: 20rpx;
-					margin-left: 20rpx;
-				}
-				.level-info{
-					.level-label{
-						color: #FFE329;
-						font-size: 26rpx;
-					}
-					.level-des{
-						color: #999999;
-						font-size: 22rpx;
-					}
-				}
-			}
-			
-		}
-		.vip-tip{
-			text-align: center;
-			color: #B0B0AF;
-			font-size: 22rpx;
-			margin-top: 30rpx;
+		.section-title {
+			font-size: 34rpx;
+			font-weight: 800;
+			color: #ffffff;
 		}
 	}
 
-	/* 底部升级按钮 */
+	.benefits-content {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+	}
+
+	.vip-tab {
+		width: 330rpx;
+		min-height: 112rpx;
+		margin-bottom: 22rpx;
+		padding: 22rpx;
+		background: #414141;
+		border: 1rpx solid #4d4d4d;
+		border-radius: 14rpx;
+		display: flex;
+		align-items: center;
+		box-sizing: border-box;
+	}
+
+	.benefit-icon {
+		width: 44rpx;
+		height: 44rpx;
+		margin-right: 18rpx;
+		border-radius: 50%;
+		background: #4f4730;
+		position: relative;
+		flex-shrink: 0;
+
+		&::after {
+			content: '';
+			position: absolute;
+			left: 13rpx;
+			top: 12rpx;
+			width: 18rpx;
+			height: 10rpx;
+			border-left: 4rpx solid #ffd800;
+			border-bottom: 4rpx solid #ffd800;
+			transform: rotate(-45deg);
+		}
+	}
+
+	.level-info {
+		min-width: 0;
+	}
+
+	.level-label {
+		font-size: 26rpx;
+		font-weight: 800;
+		color: #ffe329;
+		line-height: 1.35;
+	}
+
+	.level-des {
+		margin-top: 4rpx;
+		font-size: 22rpx;
+		color: #b8b8b8;
+		line-height: 1.35;
+	}
+
 	.bottom-upgrade {
 		position: fixed;
 		bottom: 0;
 		left: 0;
 		right: 0;
-		background-color: #333333;
-		padding: 30rpx;
-		.upgrade-text{
+		z-index: 90;
+		background: rgba(51, 51, 51, 0.96);
+		padding: 24rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
+		box-sizing: border-box;
+		border-top: 1rpx solid #4d4d4d;
+
+		.upgrade-text {
+			height: 92rpx;
+			line-height: 92rpx;
+			border-radius: 46rpx;
+			background: #ffe329;
+			color: #333333;
 			text-align: center;
 			font-size: 30rpx;
-			font-weight: bold;
-			height: 100rpx;
-			border-radius: 50rpx;
-			background-color: #FFE329;
-			color: #000;
-			line-height: 100rpx;
+			font-weight: 800;
 		}
-		.upgrade-des{
-			text-align: center;
-			font-size: 22rpx;
-			color: #626160;
-			margin-top: 10rpx;
-		}
-		
 	}
-	
-	/* iOS提示弹窗 */
+
 	.ios-modal {
 		position: fixed;
 		top: 0;
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.6);
+		background-color: rgba(15, 23, 42, 0.58);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 9999;
-		
-		.modal-content {
-			width: 600rpx;
-			background-color: #fff;
-			border-radius: 20rpx;
-			padding: 40rpx;
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			
-			.modal-image {
-				width: 400rpx;
-				height: 400rpx;
-				border-radius: 10rpx;
-				margin-bottom: 30rpx;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				
-				image {
-					width: 100%;
-					height: 100%;
-				}
-			}
-			
-			.modal-text {
-				font-size: 28rpx;
-				color: #333;
-				text-align: center;
-				line-height: 1.6;
-				margin-bottom: 40rpx;
-			}
-			
-			.modal-button {
-				width: 100%;
-				height: 80rpx;
-				background-color: #FFE4A3;
-				color: #000;
-				font-size: 30rpx;
-				border-radius: 40rpx;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				border: none;
-				line-height: 80rpx;
-				padding: 0;
-			}
-
-			.contact-button::after {
-				border: none;
-			}
-
-			.modal-cancel {
-				margin-top: 24rpx;
-				font-size: 28rpx;
-				color: #999;
-			}
-		}
+		padding: 0 42rpx;
+		box-sizing: border-box;
 	}
-	.vip-icon{
+
+	.modal-content {
 		width: 100%;
-		height: 100%;
+		background-color: #fff;
+		border-radius: 18rpx;
+		padding: 42rpx;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		box-sizing: border-box;
+	}
+
+	.modal-text {
+		font-size: 30rpx;
+		color: #333333;
+		text-align: center;
+		line-height: 1.6;
+		margin-bottom: 18rpx;
+		font-weight: 700;
+	}
+
+	.modal-tip {
+		font-size: 24rpx;
+		color: #999999;
+		text-align: center;
+		line-height: 1.6;
+		margin-bottom: 34rpx;
+	}
+
+	.modal-button {
+		width: 100%;
+		height: 82rpx;
+		background-color: #ffd800;
+		color: #333333;
+		font-size: 30rpx;
+		border-radius: 12rpx;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		position: absolute;
-		top: 50rpx;
-		left: 0;
-		image{
-			width: 30%;
-			height: 120%;
-			opacity: 0.4;
-		}
+		border: none;
+		line-height: 82rpx;
+		padding: 0;
+	}
+
+	.modal-cancel {
+		margin-top: 24rpx;
+		font-size: 28rpx;
+		color: #98a2b3;
 	}
 </style>

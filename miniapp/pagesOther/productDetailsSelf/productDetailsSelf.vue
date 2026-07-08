@@ -23,7 +23,8 @@
         </view>
 
         <!-- 有产品时展示图片网格 -->
-        <view class="image-list-wrap" v-else>
+        <view class="image-list-wrap" v-if="product.images.length">
+          <view class="section-title">花色图</view>
           <ImageGrid
             :list="product.images"
             imageField="imgurl"
@@ -44,6 +45,22 @@
           />
           <text class="upload-text">上传图片</text>
         </view> -->
+        </view>
+
+        <view class="detail-list-wrap" v-if="product.detailImages.length">
+          <view class="section-title">详情图</view>
+          <view
+            v-for="item in product.detailImages"
+            :key="item.id"
+            class="detail-image"
+            @tap="handleImageClick(item)"
+          >
+            <image
+              class="detail-img"
+              :src="item.imgurl || '/static/image/pic.png'"
+              mode="widthFix"
+            ></image>
+          </view>
         </view>
       </view>
 
@@ -67,6 +84,7 @@
             />
             <text class="share-text">设置</text>
           </view>
+
         </view>
       </view>
     </view>
@@ -78,7 +96,7 @@
     />
     <!-- 分享弹窗（复用组件） -->
     <share-popup
-      :uid="uid || ''"
+      :uid="shareOwnerId || ''"
       :visible="shareVisible"
       :title="product.title"
       typeText="产品"
@@ -98,6 +116,10 @@ import UserCard from "@/components/UserCard"; // 根据放置路径调整
 import ImageGrid from "@/components/ImageGrid"; // 若放 components 下，路径可能为 '@/components/ImageGrid.vue'
 import PersonalDetails from "@/components/PersonalDetails";
 import SharePopup from "@/components/SharePopup";
+import {
+  consumeRefreshMarker,
+  markRefreshMarkerConsumed,
+} from "@/common/helper/refresh.js";
 
 export default {
   components: {
@@ -120,21 +142,24 @@ export default {
         title: "",
         desc: "",
         images: [],
+        detailImages: [],
       },
       uploadEndpoint: "https://your-upload-endpoint.example.com/upload",
       pid: "",
       uid: "",
+      shareOwnerId: "",
       fromPage: "",
       shareVisible: false,
       shareTitle: "",
       shareUrl: "/pagesOther/productDetail/productDetail",
       shareMiniQr: "",
       shareMiniPath: "",
+      lastProductRefreshAt: "",
     };
   },
   computed: {
     hasProduct() {
-      return !!this.product.images.length;
+      return !!(this.product.images.length || this.product.detailImages.length);
     },
   },
   onLoad(options) {
@@ -142,6 +167,7 @@ export default {
     const pid = options && options.id;
     this.fromPage = options.fromPage;
     this.pid = pid;
+    this.shareOwnerId = this.getCurrentUserId();
     this.shareUrl = this.buildShareUrl();
     if (pid) {
       this.loadProduct(pid);
@@ -150,6 +176,12 @@ export default {
     this.loadUserInfo();
     // 监听设置更新事件
     uni.$on("refreshProductDetailsSelfData", this.handleRefreshData);
+  },
+  onShow() {
+    this.consumeProductRefreshMarker();
+  },
+  onUnload() {
+    uni.$off("refreshProductDetailsSelfData", this.handleRefreshData);
   },
   onShareAppMessage() {
     return {
@@ -162,11 +194,47 @@ export default {
     normalizePicColumns(value) {
       return Number(value) === 1 ? 1 : 2;
     },
+    normalizeProductPicture(item = {}, fallbackPoster = "") {
+      const imageUrl =
+        item.imgurl ||
+        item.picture_url ||
+        item.src ||
+        item.url ||
+        item.imageField ||
+        item.file_url ||
+        item.original_url ||
+        "";
+      return {
+        id: item.id || item.pic_id || "",
+        imgurl: imageUrl,
+        imageField: imageUrl,
+        picture_url: imageUrl,
+        picture_url_original:
+          item.picture_url_original || item.original_url || imageUrl,
+        pic_name: item.pic_name || item.name || "",
+        file_type: item.file_type || 1,
+        poster: item.poster || fallbackPoster || imageUrl,
+      };
+    },
     buildShareUrl() {
       if (!this.pid) {
         return "/pagesOther/productDetail/productDetail";
       }
-      return `/pagesOther/productDetail/productDetail?id=${this.pid}`;
+      return this.$buildPublicSharePath
+        ? this.$buildPublicSharePath("product", this.pid, this.shareOwnerId)
+        : `/pagesOther/productDetail/productDetail?id=${this.pid}${this.shareOwnerId ? `&uid=${this.shareOwnerId}` : ""}`;
+    },
+    getCurrentUserId() {
+      const userInfo = uni.getStorageSync("userInfo") || {};
+      const user = uni.getStorageSync("user") || {};
+      const enterpriseInfo = uni.getStorageSync("enterpriseInfo") || {};
+      return (
+        userInfo.id ||
+        user.id ||
+        enterpriseInfo.user_id ||
+        enterpriseInfo.uid ||
+        ""
+      );
     },
     loadUserInfo() {
       const enterpriseInfo = uni.getStorageSync("enterpriseInfo");
@@ -179,11 +247,30 @@ export default {
         subtitle: info.company_desc || "",
       };
     },
-    handleRefreshData() {
+    handleRefreshData(marker) {
+      this.markProductRefreshConsumed(marker);
       if (this.fromPage === "manage") {
         uni.$emit("refreshProductManageData");
       }
       this.loadProduct(this.pid);
+    },
+    consumeProductRefreshMarker() {
+      const marker = consumeRefreshMarker(
+        "product",
+        "productListNeedsRefreshSelfDetailConsumed",
+        this.lastProductRefreshAt,
+      );
+      if (!marker) return;
+      this.markProductRefreshConsumed(marker);
+      this.handleRefreshData();
+    },
+    markProductRefreshConsumed(marker) {
+      if (!marker) return;
+      this.lastProductRefreshAt = marker;
+      markRefreshMarkerConsumed(
+        "productListNeedsRefreshSelfDetailConsumed",
+        marker,
+      );
     },
 
     // 加载产品详情（从后端）
@@ -206,20 +293,27 @@ export default {
             const detailPics = Array.isArray(res.data.detail_pic_list)
               ? res.data.detail_pic_list
               : [];
-            productPics.forEach((item) => {
+            const productItems = productPics.map((item) =>
+              this.normalizeProductPicture(item),
+            );
+            const fallbackPoster = productItems[0]?.imgurl || "";
+            const detailItems = detailPics.map((item) =>
+              this.normalizeProductPicture(item, fallbackPoster),
+            );
+            productItems.forEach((item) => {
               picList.push({
                 pic_id: item.id,
                 picture_url: item.imgurl,
-                picture_url_original: item.imgurl,
+                picture_url_original: item.picture_url_original,
                 pic_name: item.pic_name,
-                poster: productPics[0]?.imgurl || item.imgurl,
+                poster: fallbackPoster || item.imgurl,
               });
             });
-            detailPics.forEach((item) => {
+            detailItems.forEach((item) => {
               picList.push({
                 pic_id: item.id,
                 picture_url: item.imgurl,
-                picture_url_original: item.imgurl,
+                picture_url_original: item.picture_url_original,
                 pic_name: item.pic_name,
                 poster: "",
               });
@@ -230,8 +324,8 @@ export default {
               id: res.data.id,
               title: res.data.folder_name || "",
               desc: res.data.folder_desc || "",
-              // images: [...res.data.pic_list, ...res.data.detail_pic_list] || [],
-              images: productPics,
+              images: productItems,
+              detailImages: detailItems,
             };
             console.log(this.product);
           }
@@ -242,6 +336,7 @@ export default {
             title: "13707系列",
             desc: "新款全棉纽扣工艺款系列",
             images: [],
+            detailImages: [],
           };
         }
       } catch (e) {
@@ -331,8 +426,15 @@ export default {
       if (!data || !data.id) {
         return;
       }
+      const item = this.normalizeProductPicture(data);
+      uni.setStorageSync("picInfo", {
+        ...item,
+        pic_id: item.id,
+        picture_url: item.imgurl,
+        picture_url_original: item.picture_url_original || item.imgurl,
+      });
       uni.navigateTo({
-        url: "/pagesOther/picDetail/picDetail?pic_id=" + data.id,
+        url: "/pagesOther/picDetail/picDetail?pic_id=" + item.id,
       });
     },
 
@@ -417,6 +519,31 @@ export default {
 .image-list-wrap {
   padding-bottom: 200rpx;
 }
+
+.section-title {
+  font-weight: 700;
+  font-size: 32rpx;
+  color: #333333;
+  margin: 20rpx 0 16rpx;
+}
+
+.detail-list-wrap {
+  padding-bottom: 200rpx;
+}
+
+.detail-image {
+  width: 100%;
+  margin-bottom: 20rpx;
+  overflow: hidden;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.detail-img {
+  width: 100%;
+  display: block;
+}
+
 .upload-card {
   margin-top: 20rpx;
   height: 160rpx;
@@ -455,14 +582,16 @@ export default {
 .left-btn {
   display: flex;
   align-items: center;
-  padding: 16rpx 48rpx;
-  gap: 60rpx;
+  justify-content: space-between;
+  padding: 16rpx 32rpx;
+  gap: 24rpx;
   padding-bottom: calc(env(safe-area-inset-bottom) + 10rpx);
 }
 
 /* 黄色胶囊（包含图标框和文字） */
 .share-inner {
-  width: 438rpx;
+  flex: 1;
+  min-width: 0;
   background: #ffd800;
   height: 96rpx;
   border-radius: 96rpx;
@@ -493,6 +622,7 @@ export default {
 /* 右侧齿轮按钮 */
 .settings-btn {
   height: 88rpx;
+  min-width: 220rpx;
   background: #ffffff;
   display: flex;
   align-items: center;

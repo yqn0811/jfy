@@ -14,18 +14,25 @@
           v-for="(item, index) in categoryList"
           :key="item.id"
           class="category-item selected"
+          :class="{ 'is-child': item.level > 0 }"
           @click="toggleCategory(item)"
         >
-          <view class="item-left">
+          <view class="item-left" :style="{ paddingLeft: item.level * 42 + 'rpx' }">
+            <view v-if="item.level > 0" class="tree-branch">
+              <view class="tree-line"></view>
+              <view class="tree-elbow"></view>
+            </view>
             <image
               src="/static/icon/Frame 1171279070@2x.png"
               class="category-icon"
               mode="aspectFit"
             ></image>
             <view class="item-info">
-              <text class="category-name"
-                >{{ item.display_name || item.folder_name }}</text
-              >
+              <view class="name-row">
+                <text class="level-badge" v-if="item.level > 0">子级</text>
+                <text class="category-name">{{ item.folder_name }}</text>
+              </view>
+              <text v-if="item.path_text" class="category-path">{{ item.path_text }}</text>
               <text v-if="item.folder_desc" class="category-tag">{{ item.folder_desc }}</text>
             </view>
           </view>
@@ -200,16 +207,18 @@ export default {
       }
     },
 
-    flattenCategoryTree(list, level = 0) {
+    flattenCategoryTree(list, level = 0, parentNames = []) {
       if (!Array.isArray(list)) return [];
       return list.reduce((result, item) => {
+        const currentName = item.folder_name || "";
+        const pathNames = parentNames.concat(currentName).filter(Boolean);
         result.push({
           ...item,
           level,
-          display_name: `${level ? "　".repeat(level) : ""}${item.folder_name}`,
+          path_text: level ? parentNames.filter(Boolean).join(" / ") : "",
         });
         if (Array.isArray(item.children) && item.children.length) {
-          result.push(...this.flattenCategoryTree(item.children, level + 1));
+          result.push(...this.flattenCategoryTree(item.children, level + 1, pathNames));
         }
         return result;
       }, []);
@@ -364,25 +373,91 @@ export default {
     background: #ffffff;
   }
 
+  &.is-child {
+    background: #fbfbfb;
+  }
+
   .item-left {
     display: flex;
     align-items: center;
     flex: 1;
+    min-width: 0;
+    position: relative;
+
+    .tree-branch {
+      position: absolute;
+      left: 8rpx;
+      top: 50%;
+      width: 34rpx;
+      height: 64rpx;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .tree-line {
+      position: absolute;
+      left: 0;
+      top: -22rpx;
+      width: 2rpx;
+      height: 64rpx;
+      background: #d9d9d9;
+    }
+
+    .tree-elbow {
+      position: absolute;
+      left: 0;
+      top: 31rpx;
+      width: 28rpx;
+      height: 2rpx;
+      background: #d9d9d9;
+    }
 
     .category-icon {
       width: 48rpx;
       height: 48rpx;
       margin-right: 24rpx;
+      flex-shrink: 0;
     }
 
     .item-info {
       display: flex;
       flex-direction: column;
       gap: 8rpx;
+      min-width: 0;
+
+      .name-row {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+      }
+
+      .level-badge {
+        flex-shrink: 0;
+        padding: 4rpx 10rpx;
+        margin-right: 10rpx;
+        border-radius: 6rpx;
+        background: #fff4c4;
+        color: #7a5b00;
+        font-size: 22rpx;
+        line-height: 1.2;
+      }
 
       .category-name {
         font-size: 32rpx;
         color: #333333;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 430rpx;
+      }
+
+      .category-path {
+        font-size: 22rpx;
+        color: #999999;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 460rpx;
       }
 
       .category-tag {

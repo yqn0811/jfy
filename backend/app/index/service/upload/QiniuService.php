@@ -47,10 +47,10 @@ class QiniuService extends UploadFile
             $key = $this->config['folder_name'] . '/' . $key;
         }
         $arrs = [];
-        foreach ($files as $item){
+        foreach ($files as $index => $item){
             $item_info = $item->getInfo();
             $fileType = $parame['file_type'] ?? 1;
-            $originalName = $this->getUploadName($item, $fileType);
+            $originalName = $this->getUploadNameForIndex($item, $fileType, $index, $parame['original_names'] ?? []);
             $ext = $this->getExt($originalName, $item, $fileType);
             $save_key = $key . md5(uniqid(microtime(true), true)) . '.' . $ext;
             list($ret, $err) = $this->qiniuAuth['uploadMgr']->putFile($this->qiniuAuth['token'], $save_key, $item_info['tmp_name']);

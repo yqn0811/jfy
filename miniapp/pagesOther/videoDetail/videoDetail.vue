@@ -109,6 +109,7 @@
 </template>
 
 <script>
+	import { notifyFolderRefresh } from '@/common/helper/refresh.js';
 	export default {
 		data() {
 			return {
@@ -223,6 +224,7 @@
 						icon:'none'
 					})
 					this.inputShow = false
+					notifyFolderRefresh(this.folder_type)
 					this.getAlbumList()
 				})
 			},

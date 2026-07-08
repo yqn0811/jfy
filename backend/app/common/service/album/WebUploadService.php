@@ -7,11 +7,9 @@ use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserAlbumPic;
 use app\common\model\user\WdXcxUserAlbumUploadCode;
 use app\common\service\BaseService;
-use app\common\service\bridge\JiafangyunEntitlementSyncService;
 use app\common\service\JwtService;
 use app\common\service\WxService;
 use app\index\model\WdXcxBase;
-use app\index\model\WdXcxPic;
 use app\index\service\upload\UploadService;
 use think\App;
 use think\facade\Db;
@@ -30,12 +28,10 @@ class WebUploadService extends BaseService
      */
     public function getWebAlbumInfo($param)
     {
-        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $record = WdXcxUserAlbumUploadCode::where('upload_code', $param['code'])->find();
         if(!$record){
             throwError('指定的上传码不存在');
         }
-        $this->assertBatchUploadEnabled($record);
         $folder = WdXcxAlbumFolder::where('id', $record['fid'])->find();
         if(!$folder){
             throwError('指定的上传码对应的相册不存在');
@@ -43,16 +39,12 @@ class WebUploadService extends BaseService
         if($folder->folder_type != 2){
             throwError('当前文件夹不可以上传照片');
         }
+        (new WdXcxUser())->ensureUploadPasswordColumns();
         $user = WdXcxUser::where('id', $record->uid)->find();
         if(!$user){
             throwError('指定的上传码对应的用户不存在');
         }
-        (new WdXcxUser())->ensureUploadPasswordColumns();
-        $syncedVipGradeInfo = (new JiafangyunEntitlementSyncService($this->app))->syncUserQuietly($user->id);
         $uploadPwdExpired = $this->isUploadPasswordExpired($user);
-        if(!$user->upload_pwd){
-            throwError('上传密码未设置，请联系分享者开启后再上传');
-        }
         if(!$record->ewm_code){
             try {
                 $file_path = public_path().'image/ewm';
@@ -73,143 +65,13 @@ class WebUploadService extends BaseService
         $result = [
             'content' => '把该链接分享给好友，即可多人一起上传哦',
             'has_password' => $user->upload_pwd ? 1 : 0,
-            'upload_enabled' => 1,
-            'access_enabled' => 1,
             'password_expire_time' => (int)$user->upload_pwd_expire_time,
             'password_expired' => $uploadPwdExpired ? 1 : 0,
             'id' => $folder->id,
             'image_base64' => $record->ewm_code,
             'folder_name' => $folder->folder_name,
-            'owner_info' => $this->getOwnerInfo($user),
-            'product_info' => $this->getProductInfo($folder),
-            'owner_storage' => $this->getOwnerStorageInfo($user, $syncedVipGradeInfo),
-            'upload_policy' => $this->getUploadPolicyInfo($user, $syncedVipGradeInfo),
         ];
         return $result;
-    }
-
-    private function getOwnerInfo($user)
-    {
-        $companyName = trim((string)($user->company_name ?: $user->home_share_title ?: ''));
-        $nickname = trim((string)($user->nickname ?: ''));
-        $displayName = $companyName ?: ($nickname ?: '分享者');
-        $avatar = $user->avatar;
-        $desc = trim((string)($user->company_desc ?: $user->user_desc ?: $user->home_share_desc ?: ''));
-
-        return [
-            'id' => (int)$user->id,
-            'display_name' => $displayName,
-            'company_name' => $companyName,
-            'nickname' => $nickname,
-            'avatar' => $avatar,
-            'company_logo' => $user->company_logo,
-            'company_desc' => $desc,
-        ];
-    }
-
-    private function getProductInfo($folder)
-    {
-        $name = trim((string)$folder->folder_name);
-        if ($name === '') {
-            $name = '未命名产品 #' . $folder->id;
-        }
-
-        return [
-            'id' => (int)$folder->id,
-            'name' => $name,
-            'folder_name' => (string)$folder->folder_name,
-            'desc' => (string)($folder->folder_desc ?: ''),
-            'cover' => $folder->new_thumb,
-        ];
-    }
-
-    private function getUploadPolicyInfo($user, $syncedVipGradeInfo = null)
-    {
-        $vipGradeInfo = $user->VipGradeInfo;
-        if (is_array($syncedVipGradeInfo)) {
-            $vipGradeInfo = array_merge($vipGradeInfo, $syncedVipGradeInfo);
-        }
-        $concurrency = (int)($vipGradeInfo['upload_concurrency'] ?? ($vipGradeInfo['concurrency_limit'] ?? 0));
-        if ($concurrency <= 0) {
-            $concurrency = $this->defaultUploadConcurrency((int)($vipGradeInfo['grade_level'] ?? $user->vip_grade));
-        }
-
-        return [
-            'concurrency' => $this->normalizeUploadConcurrency($concurrency),
-            'max_files_per_batch' => 200,
-            'grade_level' => (int)($vipGradeInfo['grade_level'] ?? $user->vip_grade),
-            'grade_name' => (string)($vipGradeInfo['grade_name'] ?? ''),
-        ];
-    }
-
-    private function defaultUploadConcurrency($gradeLevel)
-    {
-        if ($gradeLevel >= 4) {
-            return 5;
-        }
-        if ($gradeLevel >= 3) {
-            return 3;
-        }
-        if ($gradeLevel >= 2) {
-            return 2;
-        }
-        return 1;
-    }
-
-    private function normalizeUploadConcurrency($value)
-    {
-        return max(1, min(8, (int)$value));
-    }
-
-    private function getOwnerStorageInfo($user, $syncedVipGradeInfo = null)
-    {
-        $vipGradeInfo = $user->VipGradeInfo;
-        if (is_array($syncedVipGradeInfo)) {
-            $vipGradeInfo = array_merge($vipGradeInfo, $syncedVipGradeInfo);
-        }
-        $capacityBytes = (int)($vipGradeInfo['resource_storage']['capacity_bytes'] ?? 0);
-        if ($capacityBytes <= 0 && !empty($vipGradeInfo['space_size'])) {
-            $capacityBytes = (int)$vipGradeInfo['space_size'] * 1024 * 1024;
-        }
-        $usedBytes = (int)($vipGradeInfo['resource_storage']['used_bytes'] ?? 0);
-        $localPicSize = (int)WdXcxPic::where('uid', $user->id)->sum('size');
-        if ($usedBytes <= 0) {
-            $usedBytes = $localPicSize;
-        }
-        $remainingBytes = $capacityBytes > 0 ? max(0, $capacityBytes - $usedBytes) : 0;
-        $usedPercent = $capacityBytes > 0 ? round(min(100, ($usedBytes / $capacityBytes) * 100), 2) : 0;
-
-        return [
-            'used_bytes' => $usedBytes,
-            'capacity_bytes' => $capacityBytes,
-            'remaining_bytes' => $remainingBytes,
-            'used_text' => $this->formatStorageBytes($usedBytes),
-            'capacity_text' => $this->formatStorageBytes($capacityBytes),
-            'remaining_text' => $this->formatStorageBytes($remainingBytes),
-            'used_percent' => $usedPercent,
-            'local_pic_used_bytes' => $localPicSize,
-        ];
-    }
-
-    private function formatStorageBytes($bytes)
-    {
-        $bytes = (int)$bytes;
-        if ($bytes <= 0) {
-            return '0M';
-        }
-        if ($bytes >= 1024 * 1024 * 1024 * 1024) {
-            return $this->formatStorageNumber($bytes / 1024 / 1024 / 1024 / 1024) . 'T';
-        }
-        if ($bytes >= 1024 * 1024 * 1024) {
-            return $this->formatStorageNumber($bytes / 1024 / 1024 / 1024) . 'G';
-        }
-        return $this->formatStorageNumber($bytes / 1024 / 1024) . 'M';
-    }
-
-    private function formatStorageNumber($value)
-    {
-        $text = number_format((float)$value, 2, '.', '');
-        return rtrim(rtrim($text, '0'), '.');
     }
 
     /**获取上传token
@@ -222,12 +84,10 @@ class WebUploadService extends BaseService
      */
     public function getWebAlbumUploadToken($param)
     {
-        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $record = WdXcxUserAlbumUploadCode::where('upload_code', $param['code'])->find();
         if(!$record){
             throwError('指定的上传码不存在');
         }
-        $this->assertBatchUploadEnabled($record);
         $folder = WdXcxAlbumFolder::where('id', $record['fid'])->find();
         if(!$folder){
             throwError('指定的上传码对应的相册不存在');
@@ -235,13 +95,10 @@ class WebUploadService extends BaseService
         if($folder->folder_type != 2){
             throwError('当前文件夹不可以上传照片');
         }
+        (new WdXcxUser())->ensureUploadPasswordColumns();
         $user = WdXcxUser::where('id', $record->uid)->find();
         if(!$user){
             throwError('指定的上传码对应的用户不存在');
-        }
-        (new WdXcxUser())->ensureUploadPasswordColumns();
-        if(!$user->upload_pwd){
-            throwError('上传密码未设置，请联系分享者开启后再上传');
         }
         if($user->upload_pwd){
             if($this->isUploadPasswordExpired($user)){
@@ -277,7 +134,6 @@ class WebUploadService extends BaseService
         if($tokenFid && (int)$param['fid'] !== (int)$tokenFid){
             throwError('上传凭证与相册不匹配');
         }
-        $this->assertBatchUploadEnabledByFolder($param['fid'], $uid);
         $folder = WdXcxAlbumFolder::where('id', $param['fid'])->find();
         if(!$folder){
             throwError('指定的上传码对应的相册不存在');
@@ -307,66 +163,41 @@ class WebUploadService extends BaseService
     public function uploadFileAlbum($params, $uid)
     {
         $need_check = WdXcxBase::where('uniacid', 1)->value('pic_check');
-        $uploadField = isset($params['upload_field']) && $params['upload_field'] === 'detail_pic_ids' ? 'detail_pic_ids' : 'pic_ids';
-        $shouldSyncProductPictures = false;
-        $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
-        if(!$folder_info){
-            throwError('指定的上传码对应的相册不存在');
-        }
-        $ownerUid = (int)($params['owner_uid'] ?? $folder_info->uid);
-        if($ownerUid <= 0 || $ownerUid !== (int)$folder_info->uid){
-            throwError('上传凭证与相册主不匹配');
-        }
-        $this->assertBatchUploadEnabledByFolder($params['pid'], $ownerUid);
         Db::startTrans();
         try{
             $data = (new UploadService($this->uniacid))->uploadImages([
                 'files' => $params['files'],
                 'flag' => 1,
                 'gid' => $params['pid'],
-                'uid' => $ownerUid,
+                'uid' => $uid,
                 'file_type' => $params['file_type'],
                 'original_names' => $params['original_names'] ?? [],
             ]);
             $createdRelations = [];
             if(count($data) > 0){ //存入相关相册
+                $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
                 $pic_album = [];
                 $last_url = '';
-                $originalNames = $params['original_names'] ?? [];
-                foreach ($data as $index => $item){
+                foreach ($data as $item){
                     $imageDetection = $this->weChatImageValidation($item['url']);
                     if($imageDetection["data"] != 0){ // 图片涉黄了
                         throwError("图片检测不通过，请重新上传");
                     }
                     $pic_album[] = [
                         'uniacid' => 1,
-                        'user_id' => $ownerUid,
+                        'user_id' => $uid,
                         'pic_id' => $item['pid'],
                         'folder_id' => $params['pid'],
                         'set_top_time' => time(),
                         'create_time' => time(),
                         'update_time' => time(),
                         'upload_date' => date('Y-m-d'),
-                        'upload_field' => $uploadField,
+                        'upload_field' => '',
                     ];
-                    $originalName = $item['pic_name'] ?? '';
-                    if (!$originalName && !empty($originalNames[$index])) {
-                        $originalName = $originalNames[$index];
-                    }
-                    if (!$originalName && !empty($originalNames['default'])) {
-                        $originalName = $originalNames['default'];
-                    }
-                    if ($originalName) {
-                        \app\index\model\WdXcxPic::where('id', $item['pid'])->update([
-                            'pic_name' => (string)$originalName
-                        ]);
-                    }
                     $last_url = $item['url'];
                 }
                 $syncStartTime = time() - 5;
                 WdXcxUserAlbumPic::insertAll($pic_album);
-                $shouldSyncProductPictures = $this->appendProductPictureIds($folder_info, array_column($pic_album, 'pic_id'), $uploadField);
-                $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
                 $createdRelations = WdXcxUserAlbumPic::where('folder_id', $params['pid'])
                     ->whereIn('pic_id', array_column($pic_album, 'pic_id'))
                     ->where('create_time', '>=', $syncStartTime)
@@ -387,9 +218,6 @@ class WebUploadService extends BaseService
             throwError($exception->getMessage());
         }
         Db::commit();
-        if ($shouldSyncProductPictures) {
-            (new AiResourceBridgeService($this->app))->safeSyncProductPictures($folder_info->uid, WdXcxAlbumFolder::where('id', $folder_info->id)->find());
-        }
         if (!empty($createdRelations)) {
             $bridge = new AiResourceBridgeService($this->app);
             foreach ($createdRelations as $relation) {
@@ -400,44 +228,6 @@ class WebUploadService extends BaseService
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',
             'data' => $data,
         ];
-    }
-
-    private function appendProductPictureIds($folder, $picIds, $field)
-    {
-        if(!$folder || !in_array($field, ['pic_ids', 'detail_pic_ids'])){
-            return false;
-        }
-        $oldIds = $this->normalizeIdList($folder->getData($field) ?? '');
-        $newIds = $this->normalizeIdList($picIds);
-        if(empty($newIds)){
-            return false;
-        }
-        $merged = array_values(array_unique(array_merge($oldIds, $newIds)));
-        $folder->save([
-            $field => implode(',', $merged)
-        ]);
-        return true;
-    }
-
-    private function normalizeIdList($value)
-    {
-        if(is_array($value)){
-            $items = $value;
-        }else{
-            $text = trim((string)$value);
-            if($text === ''){
-                return [];
-            }
-            $items = explode(',', $text);
-        }
-        $ids = [];
-        foreach($items as $item){
-            $id = (int)$item;
-            if($id > 0){
-                $ids[] = $id;
-            }
-        }
-        return array_values(array_unique($ids));
     }
 
     /**更新父级文件夹的缩略图
@@ -472,23 +262,6 @@ class WebUploadService extends BaseService
     {
         $expireTime = isset($user->upload_pwd_expire_time) ? (int)$user->upload_pwd_expire_time : 0;
         return $expireTime > 0 && $expireTime < time();
-    }
-
-    private function assertBatchUploadEnabled($record)
-    {
-        if(!$record || (int)$record->upload_enabled !== 1){
-            throwError('该产品上传入口已关闭，请联系分享者开启后再上传');
-        }
-    }
-
-    private function assertBatchUploadEnabledByFolder($fid, $uid)
-    {
-        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
-        $record = WdXcxUserAlbumUploadCode::where([
-            'fid' => $fid,
-            'uid' => $uid,
-        ])->find();
-        $this->assertBatchUploadEnabled($record);
     }
 
 

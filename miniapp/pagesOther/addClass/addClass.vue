@@ -40,6 +40,44 @@
           <text class="count">{{ introLength }}/150</text>
         </view>
       </view>
+
+      <view class="form-item">
+        <text class="label">可见范围</text>
+        <view class="option-list">
+          <view
+            v-for="item in visibilityOptions"
+            :key="item.value"
+            class="option-item"
+            :class="{ active: Number(form.private_type) === item.value }"
+            @tap="selectVisibility(item.value)"
+          >
+            <view class="option-main">
+              <text class="option-title">{{ item.label }}</text>
+              <text class="option-desc">{{ item.desc }}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="form-item">
+        <text class="label">展示方式</text>
+        <view class="segmented">
+          <view
+            class="segmented-item"
+            :class="{ active: Number(form.layout_type) === 1 }"
+            @tap="selectLayout(1)"
+          >
+            双列
+          </view>
+          <view
+            class="segmented-item"
+            :class="{ active: Number(form.layout_type) === 2 }"
+            @tap="selectLayout(2)"
+          >
+            单列
+          </view>
+        </view>
+      </view>
     </view>
 
     <!-- 底部保存按钮（固定，兼容安全区） -->
@@ -52,13 +90,34 @@
 </template>
 
 <script>
+import { notifyRefresh } from "@/common/helper/refresh.js";
+
 export default {
   data() {
     return {
       form: {
         folder_name: "",
         folder_desc: "",
+        private_type: 1,
+        layout_type: 1,
       },
+      visibilityOptions: [
+        {
+          label: "公开",
+          value: 1,
+          desc: "会在主页和分类列表中展示",
+        },
+        {
+          label: "私密",
+          value: 2,
+          desc: "仅自己可见，访客无法访问",
+        },
+        {
+          label: "仅分享可见",
+          value: 4,
+          desc: "主页不展示，通过分享链接访问",
+        },
+      ],
       name: "",
       intro: "",
       nameLength: 0,
@@ -96,6 +155,8 @@ export default {
           console.log(res.data);
           this.form.folder_name = data.folder_name;
           this.form.folder_desc = data.folder_desc;
+          this.form.private_type = Number(data.private_type || 1);
+          this.form.layout_type = Number(data.layout_type || 1) === 2 ? 2 : 1;
           this.nameLength = this.form.folder_name.length;
           this.introLength = this.form.folder_desc.length;
         }
@@ -108,6 +169,12 @@ export default {
     onIntroInput(e) {
       this.form.folder_desc = e.detail.value || "";
       this.introLength = this.form.folder_desc.length;
+    },
+    selectVisibility(value) {
+      this.form.private_type = value;
+    },
+    selectLayout(value) {
+      this.form.layout_type = value;
     },
 
     // 构建带签名的请求参数（使用项目已有签名方法）
@@ -145,6 +212,8 @@ export default {
           folder_type: 1,
           folder_name: this.form.folder_name || "",
           folder_desc: this.form.folder_desc || "",
+          private_type: this.form.private_type,
+          layout_type: this.form.layout_type,
         };
         if (this.parentCategoryId) {
           payload.fid = this.parentCategoryId;
@@ -162,16 +231,12 @@ export default {
             show_err: true,
           });
           uni.showToast({ title: "保存成功", icon: "none" });
+          this.notifyCategoryChanged();
           setTimeout(() => {
-            if (this.fromPage === "index") {
-              uni.$emit("refreshIndexData");
-            }
             if (this.editCategoryId) {
-              uni.$emit("refreshClassManageData");
               uni.navigateBack();
               return;
             }
-            uni.$emit("refreshClassManageData");
             uni.navigateBack();
           }, 800);
         } else {
@@ -188,6 +253,9 @@ export default {
       } finally {
         uni.hideLoading();
       }
+    },
+    notifyCategoryChanged() {
+      notifyRefresh(["category", "home"]);
     },
   },
 };
@@ -277,6 +345,68 @@ export default {
   color: #999;
   line-height: 30rpx;
   white-space: nowrap;
+}
+
+.option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.option-item {
+  padding: 22rpx 24rpx;
+  border-radius: 16rpx;
+  background: #f2f2f2;
+  border: 2rpx solid transparent;
+  box-sizing: border-box;
+}
+
+.option-item.active {
+  background: #fff9d8;
+  border-color: #ffd800;
+}
+
+.option-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.option-title {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 600;
+}
+
+.option-desc {
+  font-size: 24rpx;
+  color: #888;
+  line-height: 1.45;
+}
+
+.segmented {
+  display: flex;
+  height: 80rpx;
+  padding: 6rpx;
+  background: #f2f2f2;
+  border-radius: 16rpx;
+  box-sizing: border-box;
+}
+
+.segmented-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  color: #666;
+}
+
+.segmented-item.active {
+  background: #ffd800;
+  color: #333;
+  font-weight: 600;
 }
 
 /* 底部保存按钮，固定并兼容安全区 */

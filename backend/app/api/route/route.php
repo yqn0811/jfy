@@ -25,7 +25,6 @@ Route::get('/user/home/categories', 'UserApiController/getHomeCategories')->midd
 Route::get('/user/home/products', 'UserApiController/getHomeProducts')->middleware('auth', false); // 主页产品列表（公开，可选登录）
 Route::get('/user/home/products/detail', 'UserApiController/getHomeProductsDetails')->middleware('auth', false); // 主页产品详情（公开，可选登录）
 Route::get('/user/home/products/details', 'UserApiController/getHomeProductsDetails')->middleware('auth', false); // 主页产品详情别名（兼容）
-Route::get('/user/home/picture/detail', 'UserApiController/getHomePictureDetail')->middleware('auth', false); // 主页图片详情（公开，可选登录）
 Route::any('/wechat/serve', 'WechatController/serve'); // 微信公众号服务器回调
 Route::any('/wechat/push', 'WechatController/serve'); // 微信消息推送回调（配置用）
 
@@ -45,7 +44,6 @@ Route::group('common', function (){
     Route::get('index', 'CommonApiController/indexBaseInfo'); //首页基础信息
     Route::get('base', 'CommonApiController/commonBaseInfo'); //公共基础信息
     Route::get('workbench/menu', 'CommonApiController/getWorkbenchMenu');
-    Route::get('member_upgrade_config', 'CommonApiController/getMemberUpgradeConfig'); //会员升级入口展示开关
     Route::get('visit', 'CommonApiController/commonVisitRecord'); //访问记录
     Route::post('newgift', 'CommonApiController/getUserNewGiftLists'); //获取新礼包列表
     Route::get('newgift', 'CommonApiController/receiveUserNewGiftLists')->middleware('auth'); //领取新礼包
@@ -178,7 +176,6 @@ Route::group('album', function (){
     Route::post('ai/import_resource', 'AlbumApiController/importAiResource'); // 我的资源库图片导入产品
     Route::get('batch_link', 'AlbumApiController/getBatchUploadLink'); //获取大批量上传链接
     Route::post('reset_batch_link', 'AlbumApiController/resetBatchUploadLink'); //重置大批量上传链接
-    Route::post('batch_upload_password', 'AlbumApiController/saveBatchUploadPassword'); //设置大批量上传密码
     
     Route::post('delete/folder', 'AlbumApiController/deleteAlbumFolder'); //删除相册文件夹
     Route::post('delete/category', 'AlbumApiController/deleteCategory'); //删除分类

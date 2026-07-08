@@ -12,7 +12,7 @@
         <view class="title"
           >分享{{ typeText }} <text class="bold">【{{ title }}】</text></view
         >
-        <view v-if="!uid" class="perm" @tap="openSettings">设置访问权限 ›</view>
+        <view v-if="isOwnerShare" class="perm" @tap="openSettings">设置访问权限 ›</view>
       </view>
 
       <view class="icons">
@@ -118,17 +118,59 @@ export default {
     url: { type: String, default: "" },
     miniQr: { type: String, default: "" },
     miniPath: { type: String, default: "" },
+    coverUrl: { type: String, default: "" },
     uid: { type: [String, Number], default: "" },
     type: { type: String, default: "" },
     hid: { type: [String, Number], default: "" },
+    customTitle: { type: String, default: "" },
   },
   data() {
     return {
       helpModalVisible: false,
     };
   },
+  computed: {
+    ownerId() {
+      return this.uid || (this.$getShareOwnerId ? this.$getShareOwnerId() : "");
+    },
+    isOwnerShare() {
+      const currentUserId = this.$getCurrentUserId ? this.$getCurrentUserId() : "";
+      return this.ownerId && String(this.ownerId) === String(currentUserId);
+    },
+    sharePath() {
+      if (this.url) return this.url;
+      return this.$buildPublicSharePath
+        ? this.$buildPublicSharePath(this.type || "home", this.hid, this.ownerId)
+        : "/pages/index/index";
+    },
+    shareTitle() {
+      const customTitle = this.normalizeText(this.customTitle);
+      if (customTitle) return customTitle;
+      const targetName = this.normalizeText(this.title);
+      const merchantName =
+        this.type === "home"
+          ? targetName
+          : this.$getMerchantShareName
+            ? this.$getMerchantShareName()
+            : "";
+      return this.$buildTypedShareTitle
+        ? this.$buildTypedShareTitle({
+            typeText: this.typeText,
+            targetName: this.type === "home" ? "" : targetName,
+            merchantName,
+            prefix: "分享",
+          })
+        : `分享${targetName || this.typeText}`;
+    },
+  },
   emits: ["update:visible", "action"],
   methods: {
+    normalizeText(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
     close() {
       this.$emit("update:visible", false);
     },
@@ -157,103 +199,161 @@ export default {
       this.$emit("action", { type: "prepare-share", payload: {} });
       // this.close()
     },
-    async getUserShareLink() {
-      const user = uni.getStorageSync("userInfo");
-      const data = {
-        target_user_id: user.id,
-      };
-      const res = await this.$go("user/home/share_link", data, "get", {
-        show_err: true,
-      });
-      if (res.code === 0) {
-        console.log(res);
-      }
-    },
-
     // ---- 复制链接内部实现 ----
     async handleCopyLink() {
-      const enterpriseInfo = uni.getStorageSync("enterpriseInfo");
-      const userInfo = uni.getStorageSync("userInfo");
-      const shareConfig = await this.$getShareConfig({
-        type: "shortlink", // 分享类型
-        userId: this.uid ? this.uid : userInfo.id,
-        title: `分享${enterpriseInfo.company_name}的${this.typeText}`, // 默认标题
-        path: this.url, // 默认路径
-      });
-      console.log(shareConfig);
-      if (shareConfig.code === 0) {
+      if (!this.ownerId) {
+        uni.showToast({ title: "分享信息缺失", icon: "none" });
+        return;
+      }
+      uni.showLoading({ title: "生成链接中", mask: true });
+      try {
+        const shareConfig = await this.withTimeout(
+          this.$getShareConfig({
+            type: "link",
+            userId: this.ownerId,
+            title: this.shareTitle,
+            path: this.getMiniPagePath(),
+            atype: this.type,
+            hid: this.hid,
+          }),
+          20000,
+          "链接生成超时"
+        );
+        const data = shareConfig && shareConfig.data ? shareConfig.data : {};
+        const link =
+          shareConfig && Number(shareConfig.code) === 0
+            ? data.url_link || data.link || data.share_link || data.short_link || ""
+            : "";
+        if (!this.isOpenableShareLink(link)) {
+          uni.showToast({ title: "链接生成失败", icon: "none" });
+          return;
+        }
         uni.setClipboardData({
-          data: shareConfig.data,
+          data: link,
           success: () => {
             uni.showToast({ title: "已复制链接", icon: "none" });
-            this.$emit("action", { type: "copy", payload: { url: this.url } });
+            this.$emit("action", { type: "copy", payload: { url: link } });
             this.close();
           },
           fail: () => {
             uni.showToast({ title: "复制失败", icon: "none" });
           },
         });
-      } else {
-        uni.showToast({
-          title: shareConfig.msg,
-          icon: "error",
-          mask: true,
-        });
+      } catch (e) {
+        uni.showToast({ title: "链接生成失败", icon: "none" });
+      } finally {
+        uni.hideLoading();
       }
+    },
+    isOpenableShareLink(link) {
+      const text = this.normalizeText(link);
+      if (!text) return false;
+      if (text.charAt(0) === "/") return false;
+      return (
+        /^https?:\/\//i.test(text) ||
+        /^#小程序:\/\//.test(text) ||
+        /^weixin:\/\//i.test(text)
+      );
+    },
+    isPreviewableImageUrl(url) {
+      const text = this.normalizeText(url);
+      if (!text) return false;
+      if (text.indexOf("/image/img_default.png") !== -1) return false;
+      return /^https?:\/\//i.test(text) || text.charAt(0) === "/";
+    },
+    withTimeout(promise, ms, message) {
+      let timer = null;
+      const timeout = new Promise((resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(message || "请求超时")), ms);
+      });
+      return Promise.race([promise, timeout]).finally(() => {
+        if (timer) clearTimeout(timer);
+      });
     },
 
     // ---- 预览小程序码 ----
     async handlePreviewMiniCode() {
-      const enterpriseInfo = uni.getStorageSync("enterpriseInfo");
-      const userInfo = uni.getStorageSync("userInfo");
-      const shareConfig = await this.$getShareConfig({
-        type: "mini", // 分享类型
-        userId: this.uid ? this.uid : userInfo.id,
-        title: `分享${enterpriseInfo.company_name}的${this.typeText}`, // 默认标题
-        path: this.url, // 默认路径
-      });
-      console.log(shareConfig);
-      if (shareConfig.code === 0) {
-        uni.previewImage({
-          urls: [shareConfig.data.qrcode],
-          current: shareConfig.data.tips,
-        });
-      } else {
-        uni.showToast({
-          title: shareConfig.msg,
-          icon: "error",
-          mask: true,
-        });
+      if (!this.ownerId) {
+        uni.showToast({ title: "分享信息缺失", icon: "none" });
+        return;
       }
-      this.close();
+      uni.showLoading({ title: "生成小程序码中", mask: true });
+      try {
+        const shareConfig = await this.withTimeout(
+          this.$getShareConfig({
+            type: "mini",
+            userId: this.ownerId,
+            title: this.shareTitle,
+            path: this.getMiniPagePath(),
+            atype: this.type,
+            hid: this.hid,
+          }),
+          20000,
+          "小程序码生成超时"
+        );
+        const qrcode =
+          (shareConfig && shareConfig.data && shareConfig.data.qrcode) ||
+          "";
+        if (shareConfig && Number(shareConfig.code) === 0 && this.isPreviewableImageUrl(qrcode)) {
+          uni.previewImage({
+            urls: [qrcode],
+            current: qrcode,
+          });
+          this.$emit("action", { type: "preview-mini", payload: { url: qrcode } });
+          this.close();
+          return;
+        }
+        uni.showToast({
+          title: (shareConfig && shareConfig.msg) || "小程序码生成失败",
+          icon: "none",
+        });
+      } catch (e) {
+        uni.showToast({ title: "小程序码生成失败", icon: "none" });
+      } finally {
+        uni.hideLoading();
+      }
     },
 
     // ---- 生成海报：组件内部用 canvas 生成并预览，成功后通知父组件 ----
     async handleGeneratePoster() {
-      const enterpriseInfo = uni.getStorageSync("enterpriseInfo");
-      const userInfo = uni.getStorageSync("userInfo");
-      console.log(this.type);
-      console.log(this.hid);
-      const shareConfig = await this.$getShareConfig({
-        type: "poster", // 分享类型
-        userId: this.uid ? this.uid : userInfo.id,
-        title: `分享${enterpriseInfo.company_name}的${this.typeText}`, // 默认标题
-        path: this.url, // 默认路径
-        atype: this.type,
-        hid: this.hid,
-      });
-      console.log(shareConfig);
-      if (shareConfig.code === 0) {
-        uni.previewImage({
-          urls: [shareConfig.data.share_thumb],
-          current: shareConfig.data.show_name,
-        });
-      } else {
+      if (!this.ownerId) {
+        uni.showToast({ title: "分享信息缺失", icon: "none" });
+        return;
+      }
+      uni.showLoading({ title: "生成海报中", mask: true });
+      try {
+        const shareConfig = await this.withTimeout(
+          this.$getShareConfig({
+            type: "poster",
+            userId: this.ownerId,
+            title: this.shareTitle,
+            path: this.getMiniPagePath(),
+            atype: this.type,
+            hid: this.hid,
+            coverUrl: this.coverUrl,
+          }),
+          20000,
+          "海报生成超时"
+        );
+        const data = shareConfig && shareConfig.data ? shareConfig.data : {};
+        const poster = data.share_thumb || data.poster || data.imageUrl || "";
+        if (shareConfig && Number(shareConfig.code) === 0 && this.isPreviewableImageUrl(poster)) {
+          uni.previewImage({
+            urls: [poster],
+            current: poster,
+          });
+          this.$emit("action", { type: "poster", payload: { url: poster } });
+          this.close();
+          return;
+        }
         uni.showToast({
-          title: shareConfig.msg,
-          icon: "error",
-          mask: true,
+          title: (shareConfig && shareConfig.msg) || "海报生成失败",
+          icon: "none",
         });
+      } catch (e) {
+        uni.showToast({ title: "海报生成失败", icon: "none" });
+      } finally {
+        uni.hideLoading();
       }
     },
 
@@ -270,6 +370,18 @@ export default {
           fail: () => resolve(null),
         });
       });
+    },
+    getMiniPagePath() {
+      if (this.miniPath) {
+        return this.miniPath.charAt(0) === "/" ? this.miniPath.slice(1) : this.miniPath;
+      }
+      const path = this.sharePath || "";
+      if (path) {
+        return path.charAt(0) === "/" ? path.slice(1) : path;
+      }
+      if (this.type === "product") return "pagesOther/productDetail/productDetail";
+      if (this.type === "category") return "pagesOther/classDetail/classDetail";
+      return "pages/index/index";
     },
 
     // helper: getImageInfo
@@ -288,19 +400,26 @@ export default {
 
 <style scoped lang="scss">
 .root {
-  padding: 50rpx 24rpx;
+  padding: 50rpx 24rpx 34rpx;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 18rpx;
 }
 
 .title {
+  flex: 1;
+  min-width: 0;
   font-weight: 400;
   font-size: 28rpx;
   color: #666666;
+  line-height: 40rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bold {
@@ -308,15 +427,19 @@ export default {
 }
 
 .perm {
+  flex-shrink: 0;
   font-weight: 400;
   font-size: 28rpx;
   color: #333333;
   align-items: center;
+  white-space: nowrap;
 }
 
 .icons {
-  display: flex;
-  justify-content: space-around;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  justify-items: center;
+  column-gap: 8rpx;
   margin-top: 50rpx;
 }
 
@@ -325,6 +448,8 @@ export default {
   flex-direction: column;
   align-items: center;
   gap: 16rpx;
+  width: 100%;
+  min-width: 0;
 }
 
 .icon-bg {
@@ -347,7 +472,11 @@ export default {
   font-weight: 400;
   font-size: 28rpx;
   color: #666666;
-  line-height: 28rpx;
+  line-height: 34rpx;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .help {
@@ -390,7 +519,8 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: auto;
+  width: 100%;
+  min-width: 0;
   height: auto;
   line-height: 28rpx;
 

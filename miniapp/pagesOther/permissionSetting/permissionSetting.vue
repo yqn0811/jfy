@@ -23,6 +23,34 @@
 
     <!-- 内容区域 -->
     <view class="content" :style="{ paddingTop: totalHeight + 'px' }">
+      <view class="section">
+        <view class="section-header">
+          <image
+            class="section-icon"
+            src="/static/icon/home@2x(2).png"
+            mode="aspectFit"
+          ></image>
+          <text class="section-title">主页访问权限</text>
+        </view>
+
+        <view class="setting-item">
+          <view class="item-main">
+            <view class="item-title">公开主页</view>
+            <view class="item-desc">
+              关闭后，访客无法访问你的主页、分类和产品分享内容。
+            </view>
+          </view>
+          <view class="item-action">
+            <u-switch
+              v-model="settings.showHome"
+              @change="handleSwitchChange('showHome')"
+              active-color="#ffd700"
+              size="24"
+            ></u-switch>
+          </view>
+        </view>
+      </view>
+
       <!-- 访客浏览权限 -->
       <view class="section">
         <view class="section-header">
@@ -229,7 +257,7 @@
             @focus="focusField('shareTitle')"
             @blur="blurField('shareTitle')"
           />
-          <view class="char-count">{{ shareForm.title.length }}/30</view>
+          <view class="char-count">{{ shareForm.desc.length }}/30</view>
         </view>
         <view class="popup-form-item">
           <view class="form-label">分享副标题</view>
@@ -312,6 +340,7 @@ export default {
 
       // 权限设置
       settings: {
+        showHome: true, // 是否公开主页
         noNicknameRequired: false, // 访问无需填写昵称
         noPhoneRequired: false, // 访问无需授权手机号
         allowSaveImage: false, // 访客可以保存图片到相册
@@ -338,7 +367,6 @@ export default {
     canSaveShare() {
       return (
         this.shareForm.title.trim() &&
-        this.shareForm.image &&
         !this.uploadingShareImage
       );
     },
@@ -377,17 +405,22 @@ export default {
         .then((res) => {
           if (res && res.data) {
             this.settings = {
+              showHome:
+                res.data.is_show_home === undefined ||
+                res.data.is_show_home === null
+                  ? true
+                  : Number(res.data.is_show_home) === 1,
               noNicknameRequired: !!res.data.visit_no_need_nickname,
               noPhoneRequired: !!res.data.visit_no_need_mobile,
               allowSaveImage: !!res.data.visit_allow_save_pic,
-              home_service_name: res.data.home_service_name,
-              home_watermark_text: res.data.home_watermark_text,
+              home_service_name: res.data.home_service_name || "",
+              home_watermark_text: res.data.home_watermark_text || "",
             };
             this.shareForm = {
-              title: res.data.home_share_title,
-              imageUrl: res.data.home_share_image,
-              desc: res.data.home_share_desc,
-              image: res.data.home_share_image,
+              title: res.data.home_share_title || "",
+              imageUrl: res.data.home_share_image || "",
+              desc: res.data.home_share_desc || "",
+              image: res.data.home_share_image || "",
             };
             // 保存原始设置
             this.originalSettings = { ...this.settings };
@@ -410,12 +443,12 @@ export default {
     saveSettings(changedKey,isclose) {
       const querys = {
         openid: uni.getStorageSync("openid"),
+        is_show_home: this.settings.showHome ? 1 : 0,
         visit_no_need_nickname: this.settings.noNicknameRequired ? 1 : 0,
         visit_no_need_mobile: this.settings.noPhoneRequired ? 1 : 0,
         visit_allow_save_pic: this.settings.allowSaveImage ? 1 : 0,
         home_watermark_text: this.settings.home_watermark_text,
         home_service_name: this.settings.home_service_name,
-        home_watermark_text: this.settings.home_watermark_text,
         home_share_title: this.shareForm.title,
         home_share_image: this.shareForm.imageUrl,
         home_share_desc: this.shareForm.desc,

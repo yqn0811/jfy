@@ -69,11 +69,15 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 24rpx;
+  gap: 20rpx;
+  box-sizing: border-box;
 }
 
 .left {
   display: flex;
   align-items: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .avatar {
@@ -81,22 +85,40 @@ export default {
   height: 96rpx;
   border-radius: 50%;
   margin-right: 18rpx;
+  flex: 0 0 96rpx;
+  display: block;
+  overflow: hidden;
 }
 
 .name-wrap {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
 }
 
 .name {
+  display: block;
   font-size: 28rpx;
   color: #222;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .subtitle {
+  display: -webkit-box;
   font-size: 22rpx;
   color: #999;
   margin-top: 6rpx;
+  line-height: 1.35;
+  max-height: 60rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .contact-btn {
@@ -107,6 +129,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 132rpx;
 }
 
 .contact-text {

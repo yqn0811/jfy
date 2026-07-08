@@ -263,6 +263,14 @@ class WdXcxUser extends BaseModel
         return $value ? date('Y-m-d H:i:s', $value) : '';
     }
 
+    public function ensureUploadPasswordColumns()
+    {
+        $hasExpireTime = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'upload_pwd_expire_time'");
+        if (!$hasExpireTime) {
+            Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `upload_pwd_expire_time` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '批量上传密码过期时间 0永久有效' AFTER `upload_pwd`");
+        }
+    }
+
     public function ensureHomePreferenceColumns()
     {
         $this->ensureUploadPasswordColumns();
@@ -305,20 +313,6 @@ class WdXcxUser extends BaseModel
         $hasVisitReadTime = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'visit_read_time'");
         if (!$hasVisitReadTime) {
             Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `visit_read_time` int(11) NOT NULL DEFAULT 0 COMMENT '浏览记录已读时间' AFTER `industry_info`");
-        }
-    }
-
-    public function ensureUploadPasswordColumns()
-    {
-        $hasUploadPwd = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'upload_pwd'");
-        if (!$hasUploadPwd) {
-            Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `upload_pwd` varchar(8) DEFAULT NULL COMMENT '批量上传密码' AFTER `user_desc`");
-        } elseif (stripos($hasUploadPwd[0]['Type'] ?? '', 'varchar') !== 0 && stripos($hasUploadPwd[0]['Type'] ?? '', 'char') !== 0) {
-            Db::execute("ALTER TABLE `wd_xcx_user` MODIFY COLUMN `upload_pwd` varchar(8) DEFAULT NULL COMMENT '批量上传密码'");
-        }
-        $hasUploadPwdExpire = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'upload_pwd_expire_time'");
-        if (!$hasUploadPwdExpire) {
-            Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `upload_pwd_expire_time` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '批量上传密码过期时间 0永久有效' AFTER `upload_pwd`");
         }
     }
 

@@ -29,7 +29,7 @@ class CommonApiController extends ApiBaseController
     public function uploadImage()
     {
         $param = $this->request->file();
-        $res = $this->service->uploadImage($param, request()->userID());
+        $res = $this->service->uploadImage($param, request()->userID(), $this->request->post());
         $this->result([
             'url' => $res['url'],
             'id' => $res['pid'],
@@ -55,11 +55,6 @@ class CommonApiController extends ApiBaseController
     public function getWorkbenchMenu()
     {
         $this->result($this->service->getWorkbenchMenu());
-    }
-
-    public function getMemberUpgradeConfig()
-    {
-        $this->result($this->service->getMemberUpgradeConfig());
     }
 
     /**获取游戏排行榜

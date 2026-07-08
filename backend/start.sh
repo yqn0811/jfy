@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# 家方云项目启动脚本
+# 家纺云项目启动脚本
 
 echo "=========================================="
-echo "  家方云后端项目启动脚本"
+echo "  家纺云后端项目启动脚本"
 echo "=========================================="
 echo ""
 
@@ -71,9 +71,13 @@ CACHE_DRIVER = file
 FILESYSTEM_DRIVER = local
 
 # AI 资源库桥接
-# 默认 all 方便联调；需要限制正式用户时改为 whitelist 并填写 UID，off 表示完全关闭。
-AI_RESOURCE_API_BASE = https://ai.jfyuntu.com/api/v1
+# 当前联调固定使用 ai-test；AI 生图正式上线后切换为 https://ai.jfyuntu.com/api/v1。
+JIAFANGYUN_BRIDGE_API_BASE = https://ai-test.jfyuntu.com/api/v1
+JIAFANGYUN_BRIDGE_TOKEN = 
+# 兼容旧配置名；新部署优先使用 JIAFANGYUN_BRIDGE_*。
+AI_RESOURCE_API_BASE = https://ai-test.jfyuntu.com/api/v1
 AI_RESOURCE_BRIDGE_TOKEN = 
+# 默认 all 方便联调；需要限制正式用户时改为 whitelist 并填写 UID，off 表示完全关闭。
 AI_RESOURCE_BRIDGE_MODE = all
 AI_RESOURCE_BRIDGE_UIDS = 
 EOF

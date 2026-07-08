@@ -142,10 +142,16 @@ export default {
     },
     getBadgeText(item) {
       const count = item[this.countField];
-      return `${count || 0}${this.badgeSuffix}`;
+      const suffix =
+        item && item.badgeSuffix !== undefined ? item.badgeSuffix : this.badgeSuffix;
+      return `${count || 0}${suffix}`;
     },
     getSeriesText(item) {
-      return item[this.nameField] || "";
+      const value = item[this.nameField];
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return /^tmp[_-]/i.test(text) ? "" : text;
     },
     handleClick(e, item, index) {
       const data = item ? item : e.currentTarget.dataset.item;
@@ -222,18 +228,24 @@ export default {
 }
 
 .series {
+  box-sizing: border-box;
   width: 100%;
   position: absolute;
   left: 0;
+  right: 0;
   bottom: 0;
   color: #fff;
   font-size: 26rpx;
+  line-height: 1.3;
   background: linear-gradient(
     0deg,
     rgba(0, 0, 0, 0.8) 0%,
     rgba(0, 0, 0, 0) 100%
   );
-  padding: 26rpx;
+  padding: 28rpx 20rpx 18rpx;
   border-radius: 8rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

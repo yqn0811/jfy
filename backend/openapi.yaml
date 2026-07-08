@@ -138,8 +138,11 @@ paths:
                   type: string
                 upload_pwd:
                   type: string
-                  pattern: '^[0-9]{4}$'
-                  description: 上传密码，4位数字
+                  pattern: '^[A-Za-z0-9]{4}$'
+                  description: 上传密码，4位字母或数字
+                upload_pwd_expire_time:
+                  type: integer
+                  description: 批量上传密码过期时间，0表示永久有效
       responses:
         '200':
           description: 成功

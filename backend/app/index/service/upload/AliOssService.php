@@ -53,9 +53,9 @@ class AliOssService extends UploadFile
         }
         $arrs = [];
         try{
-            foreach ($files as $item){
+            foreach ($files as $index => $item){
                 $fileType = $parame['file_type'] ?? 1;
-                $originalName = $this->getUploadName($item, $fileType);
+                $originalName = $this->getUploadNameForIndex($item, $fileType, $index, $parame['original_names'] ?? []);
                 $ext = $this->getExt($originalName, $item, $fileType);
                 $ext_name = md5(uniqid(microtime(true), true)) . '.' . $ext;
                 $save_key = $key . $ext_name;

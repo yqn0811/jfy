@@ -48,9 +48,9 @@ class TenOssService extends UploadFile
         $files = $parame['files'];
         $arrs = [];
         try{
-            foreach ($files as $item){
+            foreach ($files as $index => $item){
                 $fileType = $parame['file_type'] ?? 1;
-                $originalName = $this->getUploadName($item, $fileType);
+                $originalName = $this->getUploadNameForIndex($item, $fileType, $index, $parame['original_names'] ?? []);
                 $ext = $this->getExt($originalName, $item, $fileType);
                 $key1 = $this->save_path . md5(uniqid(microtime(true), true)) . '.' . $ext;
                 $shortUrl = $key1;

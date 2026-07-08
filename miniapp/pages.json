@@ -420,6 +420,14 @@
           "style": {
             "navigationStyle": "custom"
           }
+        },
+        {
+          "path": "agreement/agreement",
+          "style": {
+            "navigationBarTitleText": "协议详情",
+            "navigationBarBackgroundColor": "#FFFFFF",
+            "navigationBarTextStyle": "black"
+          }
         }
       ]
     }
