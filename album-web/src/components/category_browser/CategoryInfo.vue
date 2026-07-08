@@ -19,6 +19,7 @@ interface Props {
   category: CategoryVO
   homeProfile: HomeProfileData | null
   targetUserId?: string
+  shareCode?: string
 }
 
 const props = defineProps<Props>()
@@ -50,7 +51,8 @@ const handleFavorite = async () => {
 
 const buildShareUrl = () => {
   const params = new URLSearchParams({ categoryId: props.category.id })
-  if (props.targetUserId) params.set('uid', props.targetUserId)
+  if (props.shareCode) params.set('code', props.shareCode)
+  else if (props.targetUserId) params.set('uid', props.targetUserId)
   const basePath = window.location.pathname.replace(/[^/]*$/, '')
   return `${window.location.origin}${basePath}category.html?${params.toString()}`
 }
@@ -60,10 +62,10 @@ const handleShare = async () => {
   showShareDialog.value = true
   miniCodeUrl.value = ''
   miniPath.value = ''
-  if (!props.targetUserId) return
+  if (!props.targetUserId && !props.shareCode) return
   isLoadingShare.value = true
   try {
-    const data = await pcApi.getHomeMiniCode(props.targetUserId, 'category', props.category.id).catch(() => null)
+    const data = await pcApi.getHomeMiniCode({ targetUserId: props.targetUserId || '', shareCode: props.shareCode || '' }, 'category', props.category.id).catch(() => null)
     miniCodeUrl.value = data?.qrcode || data?.qrcode_url || ''
     miniPath.value = data?.mini_path || ''
   } finally {

@@ -12,7 +12,7 @@ import LoginDialog from '@/components/common/LoginDialog.vue'
 import ShareDialog from '@/components/share_home/ShareDialog.vue'
 import ContactDialog from '@/components/share_home/ContactDialog.vue'
 import ProductDetailDrawer from '@/components/share_home/ProductDetailDrawer.vue'
-import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
+import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { mapCategory, mapProduct, normalizeHomePayload, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { HomeProfileData } from '@/data/HomeProfileData'
 import type { CategoryData } from '@/data/CategoryData'
@@ -30,6 +30,7 @@ const selectedCategoryId = ref<string | null>(null)
 const isLoggedIn = ref(false)
 const currentUserId = ref('')
 const targetUserId = ref('')
+const shareCode = ref('')
 
 const showLoginDialog = ref(false)
 const showShareDialog = ref(false)
@@ -38,6 +39,18 @@ const selectedProductId = ref<string | null>(null)
 const showProductDrawer = ref(false)
 
 const isHomeFavorited = ref(false)
+
+const getHomeTargetRef = () => ({
+  targetUserId: targetUserId.value,
+  shareCode: shareCode.value,
+})
+
+const buildHomeSearchParams = () => {
+  const params = new URLSearchParams()
+  if (shareCode.value) params.set('code', shareCode.value)
+  else if (targetUserId.value) params.set('uid', targetUserId.value)
+  return params
+}
 
 const flattenCategories = (raw: any[], homeId: string, parentId = ''): CategoryData[] => {
   return raw.flatMap(item => {
@@ -115,14 +128,15 @@ const getLocalCategoryProducts = (categoryId: string) => {
 }
 
 const loadCategoryProducts = async (categoryId: string) => {
-  if (!targetUserId.value || categoryId === 'all') {
+  const target = getHomeTargetRef()
+  if ((!target.targetUserId && !target.shareCode) || categoryId === 'all') {
     categoryProducts.value = []
     return
   }
 
   isLoading.value = true
   try {
-    const raw = await pcApi.getHomeProducts(targetUserId.value, categoryId)
+    const raw = await pcApi.getHomeProducts(target, categoryId)
     categoryProducts.value = unwrapList(raw).map(item => mapProduct(item, homeProfile.value?.id || targetUserId.value))
   } catch (error: any) {
     categoryProducts.value = getLocalCategoryProducts(categoryId)
@@ -157,26 +171,32 @@ const loadHomeData = async () => {
     toast.error(error?.message || '登录已失效，请重新扫码')
     return
   }
-  if (!targetUserId.value) {
+  if (!targetUserId.value && !shareCode.value) {
     targetUserId.value = getCurrentUserId(user)
   }
-  if (!targetUserId.value) {
+  if (!targetUserId.value && !shareCode.value) {
     toast.error('登录信息不完整，请重新扫码')
     showLoginDialog.value = true
     return
   }
   isLoading.value = true
   try {
+    const target = getHomeTargetRef()
     const [homeRaw, categoriesRaw, productsRaw] = await Promise.all([
-      pcApi.getHomeInfo(targetUserId.value),
-      pcApi.getHomeCategories(targetUserId.value),
-      pcApi.getHomeProducts(targetUserId.value),
+      pcApi.getHomeInfo(target),
+      pcApi.getHomeCategories(target),
+      pcApi.getHomeProducts(target),
     ])
     const normalized = normalizeHomePayload(homeRaw, categoriesRaw, productsRaw)
     homeProfile.value = normalized.home
+    if (homeProfile.value.shareCode) {
+      shareCode.value = homeProfile.value.shareCode
+    }
     if (!homeProfile.value.ownerUserId || homeProfile.value.ownerUserId === 'home') {
       homeProfile.value.ownerUserId = targetUserId.value
       homeProfile.value.id = targetUserId.value
+    } else {
+      targetUserId.value = homeProfile.value.ownerUserId
     }
     categories.value = flattenCategories(unwrapList(categoriesRaw), normalized.home.id)
     allProducts.value = normalized.products
@@ -201,7 +221,9 @@ onMounted(() => {
   requestAnimationFrame(() => {
     const params = new URLSearchParams(window.location.search)
     authStore.consumeCallbackToken()
-    targetUserId.value = params.get('uid') || params.get('target_user_id') || ''
+    const target = getUrlHomeTarget()
+    targetUserId.value = target.targetUserId
+    shareCode.value = target.shareCode
     const keyword = params.get('keyword')
     const categoryId = params.get('categoryId') || params.get('cate_id')
     if (keyword) searchKeyword.value = keyword
@@ -214,8 +236,7 @@ onMounted(() => {
 
 const handleSearch = () => {
   if (typeof window !== 'undefined' && searchKeyword.value.trim()) {
-    const params = new URLSearchParams()
-    if (targetUserId.value) params.set('uid', targetUserId.value)
+    const params = buildHomeSearchParams()
     params.set('keyword', searchKeyword.value.trim())
     const url = `./share-home.html?${params.toString()}`
     window.history.replaceState(null, '', url)
@@ -230,8 +251,7 @@ const handleCategoryChange = async (categoryId: string) => {
     await loadCategoryProducts(categoryId)
   }
   if (typeof window !== 'undefined') {
-    const params = new URLSearchParams()
-    if (targetUserId.value) params.set('uid', targetUserId.value)
+    const params = buildHomeSearchParams()
     if (categoryId !== 'all') params.set('categoryId', categoryId)
     window.history.replaceState(null, '', `./share-home.html${params.toString() ? `?${params.toString()}` : ''}`)
   }

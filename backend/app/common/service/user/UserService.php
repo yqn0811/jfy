@@ -43,6 +43,47 @@ class UserService extends BaseService
         $this->userModel = new WdXcxUser();
     }
 
+    private function getHomeWebBaseUrl()
+    {
+        return 'https://pic.jfyuntu.com/pic/';
+    }
+
+    private function buildHomeWebShareUrl($shareCode, $params = [])
+    {
+        $query = ['code' => (string)$shareCode];
+        foreach ($params as $key => $value) {
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $query[$key] = (string)$value;
+        }
+        return $this->getHomeWebBaseUrl() . 'share-home.html?' . http_build_query($query);
+    }
+
+    private function ensureHomeShareCode($user)
+    {
+        return (new WdXcxUser())->ensureInviteCodeForUser($user);
+    }
+
+    public function resolveHomeTargetUserId($targetUserId = 0, $shareCode = '')
+    {
+        $shareCode = trim((string)$shareCode);
+        if ($shareCode !== '') {
+            (new WdXcxUser())->ensureHomePreferenceColumns();
+            $user = WdXcxUser::where('invite_code', $shareCode)->find();
+            if (!$user) {
+                throwError('分享链接无效');
+            }
+            return (int)$user->id;
+        }
+
+        $targetUserId = (int)$targetUserId;
+        if ($targetUserId <= 0) {
+            throwError('参数错误');
+        }
+        return $targetUserId;
+    }
+
     public function getHomePageInfo($targetUserId, $visitorUid = 0)
     {
         $user = WdXcxUser::find($targetUserId);
@@ -172,6 +213,8 @@ class UserService extends BaseService
 
         return [
             'nickname' => $user->nickname,
+            'id' => (int)$user->id,
+            'uid' => (int)$user->id,
             'avatar' => $user->avatar,
             'gender' => (int)$user->gender,
             'company_name' => $user->company_name,
@@ -192,6 +235,8 @@ class UserService extends BaseService
             'home_share_title' => $user->home_share_title,
             'home_share_desc' => $user->home_share_desc,
             'home_share_image' => $user->home_share_image,
+            'share_code' => $this->ensureHomeShareCode($user),
+            'invite_code' => isset($user->invite_code) ? $user->invite_code : '',
             'latitude' => $user->latitude,
             'longitude' => $user->longitude,
             'industry_info' => (int)$user->industry_info,
@@ -199,6 +244,21 @@ class UserService extends BaseService
             'categories' => $categories,
             'products' => $products,
         ];
+    }
+
+    private function getUserShareCodeById($uid)
+    {
+        $uid = (int)$uid;
+        if ($uid <= 0) {
+            return '';
+        }
+        static $codes = [];
+        if (array_key_exists($uid, $codes)) {
+            return $codes[$uid];
+        }
+        $user = WdXcxUser::find($uid);
+        $codes[$uid] = $user ? $this->ensureHomeShareCode($user) : '';
+        return $codes[$uid];
     }
 
     public function getHomeCategories($targetUserId, $visitorUid = 0, $fid = 0, $includeCurrent = 0)
@@ -557,7 +617,7 @@ class UserService extends BaseService
         if (!$user || !$user->is_show_home) {
             throwError('该用户未公开主页');
         }
-        $inviteCode = isset($user->invite_code) ? $user->invite_code : '';
+        $inviteCode = $this->ensureHomeShareCode($user);
         $title = ($user->company_name ?: $user->nickname) . '的主页';
         $miniPath = $this->normalizeMiniProgramPath($path ?: 'pages/index/index');
         $pagePath = $miniPath['path'];
@@ -569,6 +629,7 @@ class UserService extends BaseService
 
         $query = http_build_query($params);
         $mini_path = $query ? ($pagePath . '?' . $query) : $pagePath;
+        $pcLink = $this->buildHomeWebShareUrl($inviteCode);
 
         try {
             $share_link = (new WxService())->generateUrlLink($pagePath, $query);
@@ -581,6 +642,11 @@ class UserService extends BaseService
             'share_link' => $share_link,
             'link' => $share_link,
             'url_link' => $share_link,
+            'pc_link' => $pcLink,
+            'web_link' => $pcLink,
+            'web_url' => $pcLink,
+            'share_code' => $inviteCode,
+            'code' => $inviteCode,
             'mini_path' => $mini_path,
             'scene' => $scene,
             'title' => $title,
@@ -644,6 +710,7 @@ class UserService extends BaseService
             'query' => $query,
             'scene' => http_build_query($sceneParams),
             'mini_path' => $query ? ($pagePath . '?' . $query) : $pagePath,
+            'share_code' => $inviteCode,
         ];
     }
 
@@ -693,7 +760,7 @@ class UserService extends BaseService
         if ($type !== 'selection' && !$user->is_show_home) {
             throwError('该用户未公开主页');
         }
-        $inviteCode = isset($user->invite_code) ? $user->invite_code : '';
+        $inviteCode = $this->ensureHomeShareCode($user);
         $sharePayload = $this->buildMiniProgramSharePayload($targetUserId, $path, $type, $id, $inviteCode);
         $file_path = public_path() . 'image/ewm';
         $file_name = 'home_share_' . $type . '_' . $targetUserId . '_' . (int)$id . '_' . md5($sharePayload['mini_path']) . '.jpg';
@@ -726,6 +793,7 @@ class UserService extends BaseService
             'qrcode_path' => $this->safeString($qrcode_path),
             'mini_path' => $this->safeString($sharePayload['mini_path']),
             'scene' => $this->safeString($sharePayload['scene']),
+            'share_code' => $this->safeString($sharePayload['share_code'] ?? ''),
         ];
     }
 
@@ -2047,6 +2115,7 @@ class UserService extends BaseService
                     $item->time = (int)$time;
                     $item->time_str = Utils::timeAgo($item->time);
                     $item->target_id = $item->target_uid;
+                    $item->target_share_code = $targetUser ? $this->getUserShareCodeById($targetUser->id) : '';
                 });
             if (!$records->isEmpty()) {
                 $lists = array_merge($lists, $records->toArray());
@@ -2091,6 +2160,7 @@ class UserService extends BaseService
                     if (!$item->time) $item->time = $item->getData('create_time');
                     $item->time_str = Utils::timeAgo($item->time);
                     $item->target_id = $item->fid;
+                    $item->target_share_code = $folder ? $this->getUserShareCodeById($folder->uid) : '';
                 });
             if (!$records->isEmpty()) {
                 $lists = array_merge($lists, $records->toArray());
@@ -2136,6 +2206,7 @@ class UserService extends BaseService
 
                     $item->time_str = Utils::timeAgo($item->time);
                     $item->target_id = $item->fid;
+                    $item->target_share_code = $folder ? $this->getUserShareCodeById($folder->uid) : '';
                 });
             if (!$records->isEmpty()) {
                 $lists = array_merge($lists, $records->toArray());
@@ -2221,6 +2292,7 @@ class UserService extends BaseService
                     if (!$item->time) $item->time = is_numeric($item->create_time) ? $item->create_time : strtotime($item->create_time);
                     $item->time_str = Utils::timeAgo($item->time);
                     $item->target_id = $item->target_uid;
+                    $item->target_share_code = $targetUser ? $this->getUserShareCodeById($targetUser->id) : '';
                 });
             if (!$records->isEmpty()) {
                 $lists = array_merge($lists, $records->toArray());
@@ -2259,6 +2331,7 @@ class UserService extends BaseService
                     
                     $item->time_str = Utils::timeAgo($item->time);
                     $item->target_id = $item->fid;
+                    $item->target_share_code = $folder ? $this->getUserShareCodeById($folder->uid) : '';
                 });
             if (!$records->isEmpty()) {
                 $lists = array_merge($lists, $records->toArray());
@@ -2297,6 +2370,7 @@ class UserService extends BaseService
                     
                     $item->time_str = Utils::timeAgo($item->time);
                     $item->target_id = $item->fid;
+                    $item->target_share_code = $folder ? $this->getUserShareCodeById($folder->uid) : '';
                 });
             if (!$records->isEmpty()) {
                 $lists = array_merge($lists, $records->toArray());

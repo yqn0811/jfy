@@ -14,6 +14,7 @@ export interface HomeProfileData {
   shareTitle?: string
   shareDescription?: string
   shareCoverUrl?: string
+  shareCode?: string
   ownerUserId: string
   createdAt: string
   updatedAt: string

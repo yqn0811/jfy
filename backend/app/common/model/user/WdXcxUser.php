@@ -274,6 +274,15 @@ class WdXcxUser extends BaseModel
     public function ensureHomePreferenceColumns()
     {
         $this->ensureUploadPasswordColumns();
+        $hasInviteCode = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'invite_code'");
+        if (!$hasInviteCode) {
+            Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `invite_code` varchar(32) NOT NULL DEFAULT '' AFTER `user_uuid`");
+        }
+        $this->backfillEmptyInviteCodes();
+        $hasInviteIndex = Db::query("SHOW INDEX FROM `wd_xcx_user` WHERE Key_name = 'idx_invite_code'");
+        if (!$hasInviteIndex) {
+            Db::execute("ALTER TABLE `wd_xcx_user` ADD UNIQUE INDEX `idx_invite_code`(`invite_code`)");
+        }
         $hasNickname = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'visit_no_need_nickname'");
         if (!$hasNickname) {
             Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `visit_no_need_nickname` tinyint(1) NOT NULL DEFAULT 0 COMMENT '主页访问无需填写昵称 0否 1是' AFTER `is_show_home`");
@@ -319,11 +328,6 @@ class WdXcxUser extends BaseModel
     private function ensureInviteColumns()
     {
         $this->ensureHomePreferenceColumns();
-        $hasInviteCode = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'invite_code'");
-        if (!$hasInviteCode) {
-            Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `invite_code` varchar(32) NOT NULL DEFAULT '' AFTER `user_uuid`");
-            Db::execute("ALTER TABLE `wd_xcx_user` ADD UNIQUE INDEX `idx_invite_code`(`invite_code`)");
-        }
         $hasInviteFrom = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'invite_from_code'");
         if (!$hasInviteFrom) {
             Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `invite_from_code` varchar(32) NOT NULL DEFAULT '' AFTER `invite_code`");
@@ -336,6 +340,28 @@ class WdXcxUser extends BaseModel
             $code = strtoupper(substr(md5(uniqid((string)mt_rand(), true)), 0, 8));
             $exists = $this->where('invite_code', $code)->find();
         } while ($exists);
+        return $code;
+    }
+
+    private function backfillEmptyInviteCodes()
+    {
+        $ids = $this->whereNull('invite_code')->whereOr('invite_code', '')->column('id');
+        foreach ($ids as $id) {
+            $code = $this->generateInviteCode();
+            $this->where('id', $id)->update(['invite_code' => $code]);
+        }
+    }
+
+    public function ensureInviteCodeForUser($user)
+    {
+        $this->ensureHomePreferenceColumns();
+        $code = trim((string)($user->invite_code ?? ''));
+        if ($code !== '') {
+            return $code;
+        }
+        $code = $this->generateInviteCode();
+        $user->invite_code = $code;
+        $user->save();
         return $code;
     }
 

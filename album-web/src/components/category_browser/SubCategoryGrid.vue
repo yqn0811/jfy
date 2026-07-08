@@ -7,13 +7,15 @@ import type { CategoryVO } from '@/data/CategoryService'
 interface Props {
   categories: CategoryVO[]
   targetUserId?: string
+  shareCode?: string
 }
 
 const props = defineProps<Props>()
 
 const handleNavigate = (categoryId: string) => {
   const params = new URLSearchParams({ categoryId })
-  if (props.targetUserId) params.set('uid', props.targetUserId)
+  if (props.shareCode) params.set('code', props.shareCode)
+  else if (props.targetUserId) params.set('uid', props.targetUserId)
   window.location.href = `./category.html?${params.toString()}`
 }
 </script>

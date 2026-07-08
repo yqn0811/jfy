@@ -127,7 +127,7 @@ const handleSearch = () => {
 }
 
 const handleView = (fav: any) => {
-  window.location.href = buildPcTargetUrl(fav.targetType, fav.targetId, fav.targetUserId)
+  window.location.href = buildPcTargetUrl(fav.targetType, fav.targetId, fav.targetUserId, fav.targetShareCode)
 }
 
 const handleDownload = (fav: any) => {

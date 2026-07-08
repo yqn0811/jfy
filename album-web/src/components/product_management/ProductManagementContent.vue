@@ -51,6 +51,7 @@ const productToDelete = ref<ProductData | null>(null)
 const shareDialogOpen = ref(false)
 const productToShare = ref<ProductData | null>(null)
 const currentUserId = ref('')
+const currentShareCode = ref('')
 const createDialogOpen = ref(false)
 const editDialogOpen = ref(false)
 const editingProductId = ref('')
@@ -61,6 +62,23 @@ const batchDeleteConfirmOpen = ref(false)
 const batchCategoryDialogOpen = ref(false)
 const batchCategoryIds = ref<string[]>([])
 const isBatchOperating = ref(false)
+
+const applyUserShareInfo = (user: any = {}) => {
+  currentUserId.value = String(user?.id || user?.uid || currentUserId.value || '')
+  currentShareCode.value = String(user?.share_code || user?.shareCode || user?.invite_code || currentShareCode.value || '')
+}
+
+const ensureUserShareInfo = async () => {
+  applyUserShareInfo(authStore.getUser<any>() || {})
+  if (currentUserId.value && currentShareCode.value) return
+  try {
+    const profile = await pcApi.getCurrentUser()
+    authStore.setUser(profile)
+    applyUserShareInfo(profile)
+  } catch {
+    // 分享码缺失时仍保留 uid 兼容入口
+  }
+}
 
 onMounted(() => {
   isClient.value = false
@@ -75,8 +93,7 @@ onMounted(() => {
     if (urlStatus) selectedStatus.value = urlStatus
 
     isClient.value = true
-    const user = authStore.getUser<any>() || {}
-    currentUserId.value = String(user?.id || user?.uid || '')
+    ensureUserShareInfo()
     loadData()
   })
 })
@@ -113,8 +130,7 @@ const loadData = async () => {
       pcApi.getManagementCategories({ page: 1, limit: 500 }),
     ])
     if (!currentUserId.value) {
-      const user = authStore.getUser<any>() || {}
-      currentUserId.value = String(user?.id || user?.uid || '')
+      await ensureUserShareInfo()
     }
     allProducts.value = unwrapList(productsRaw).map(item => mapProduct(item))
     allCategories.value = unwrapList(categoriesRaw).map(item => mapCategory(item))
@@ -196,11 +212,15 @@ const handleBatchUpload = (productId: string) => {
   batchUploadDialogOpen.value = true
 }
 
-const handleShareProduct = (product: ProductData) => {
+const handleShareProduct = async (product: ProductData) => {
   productToShare.value = product
   if (!currentUserId.value) {
     const user = authStore.getUser<any>() || {}
     currentUserId.value = String(user?.id || user?.uid || product.ownerUserId || '')
+    currentShareCode.value = String(user?.share_code || user?.shareCode || user?.invite_code || currentShareCode.value)
+  }
+  if (!currentShareCode.value) {
+    await ensureUserShareInfo()
   }
   shareDialogOpen.value = true
 }
@@ -384,8 +404,15 @@ const selectedCategoryName = computed(() => {
 
 const getCategoryCount = (categoryId: string) => categoryProductCountMap.value[categoryId] || 0
 
-const handleOpenShareHome = () => {
-  const params = currentUserId.value ? `?uid=${encodeURIComponent(currentUserId.value)}` : ''
+const handleOpenShareHome = async () => {
+  if (!currentShareCode.value) {
+    await ensureUserShareInfo()
+  }
+  const params = currentShareCode.value
+    ? `?code=${encodeURIComponent(currentShareCode.value)}`
+    : currentUserId.value
+      ? `?uid=${encodeURIComponent(currentUserId.value)}`
+      : ''
   window.open(`./share-home.html${params}`, '_blank')
 }
 
@@ -651,6 +678,7 @@ const statusOptions = [
       :open="shareDialogOpen"
       :product-id="productToShare?.id || ''"
       :target-user-id="currentUserId || productToShare?.ownerUserId || ''"
+      :share-code="currentShareCode"
       @update:open="(val) => (shareDialogOpen = val)"
     />
 

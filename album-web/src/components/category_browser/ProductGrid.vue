@@ -7,13 +7,15 @@ import type { ProductData } from '@/data/ProductData'
 interface Props {
   products: ProductData[]
   targetUserId?: string
+  shareCode?: string
 }
 
 const props = defineProps<Props>()
 
 const handleNavigate = (productId: string) => {
   const params = new URLSearchParams({ productId })
-  if (props.targetUserId) params.set('uid', props.targetUserId)
+  if (props.shareCode) params.set('code', props.shareCode)
+  else if (props.targetUserId) params.set('uid', props.targetUserId)
   window.location.href = `./product-detail.html?${params.toString()}`
 }
 </script>

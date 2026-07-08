@@ -9,7 +9,7 @@ import ProductImageGallery from './ProductImageGallery.vue'
 import ShareDialog from './ShareDialog.vue'
 import DownloadDialog from './DownloadDialog.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
-import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
+import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import type { ProductImageData } from '@/data/ProductImageData'
@@ -19,6 +19,7 @@ const productImages = ref<ProductImageData[]>([])
 const isClient = ref(true)
 const isLoading = ref(false)
 const targetUserId = ref('')
+const shareCode = ref('')
 const productId = ref('')
 
 // State management
@@ -62,8 +63,8 @@ const loadProduct = async () => {
 
   isLoading.value = true
   try {
-    const raw = targetUserId.value
-      ? await pcApi.getHomeProductDetail(targetUserId.value, productId.value)
+    const raw = targetUserId.value || shareCode.value
+      ? await pcApi.getHomeProductDetail({ targetUserId: targetUserId.value, shareCode: shareCode.value }, productId.value)
       : await pcApi.getProductEditDetail(productId.value)
     const detail = raw?.folder_info || raw?.product || raw
     product.value = mapProduct(detail, targetUserId.value)
@@ -90,8 +91,10 @@ onMounted(() => {
   requestAnimationFrame(() => {
     const params = new URLSearchParams(window.location.search)
     authStore.consumeCallbackToken()
+    const target = getUrlHomeTarget()
     productId.value = params.get('productId') || params.get('product_id') || ''
-    targetUserId.value = params.get('uid') || params.get('target_user_id') || ''
+    targetUserId.value = target.targetUserId
+    shareCode.value = target.shareCode
     isLoggedIn.value = authStore.isLoggedIn()
     isClient.value = true
     loadProduct()
@@ -152,7 +155,8 @@ const handleImageClick = (imageUrl: string, index: number, type: 'colorChart' | 
     currentIndex: index.toString(),
     productId: product.value?.id || ''
   })
-  if (targetUserId.value) params.set('uid', targetUserId.value)
+  if (shareCode.value) params.set('code', shareCode.value)
+  else if (targetUserId.value) params.set('uid', targetUserId.value)
   
   window.location.href = `./image-viewer.html?${params.toString()}`
 }
@@ -299,6 +303,7 @@ const handleLoginSuccess = () => {
       :open="showShareDialog"
       :product-id="product?.id || ''"
       :target-user-id="targetUserId"
+      :share-code="shareCode"
       @update:open="(v) => showShareDialog = v"
     />
     <DownloadDialog

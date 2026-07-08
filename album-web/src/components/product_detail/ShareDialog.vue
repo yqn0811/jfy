@@ -19,6 +19,7 @@ interface Props {
   open: boolean
   productId: string
   targetUserId?: string
+  shareCode?: string
 }
 
 const props = defineProps<Props>()
@@ -34,7 +35,8 @@ const isLoadingShare = ref(false)
 
 const buildShareUrl = () => {
   const params = new URLSearchParams({ productId: props.productId })
-  if (props.targetUserId) params.set('uid', props.targetUserId)
+  if (props.shareCode) params.set('code', props.shareCode)
+  else if (props.targetUserId) params.set('uid', props.targetUserId)
   const url = new URL('./product-detail.html', window.location.href)
   url.search = params.toString()
   return url.toString()
@@ -44,10 +46,10 @@ const loadShareData = async () => {
   shareUrl.value = buildShareUrl()
   miniCodeUrl.value = ''
   miniPath.value = ''
-  if (!props.targetUserId || !props.productId) return
+  if ((!props.targetUserId && !props.shareCode) || !props.productId) return
   isLoadingShare.value = true
   try {
-    const codeData = await pcApi.getHomeMiniCode(props.targetUserId, 'product', props.productId).catch(() => null)
+    const codeData = await pcApi.getHomeMiniCode({ targetUserId: props.targetUserId || '', shareCode: props.shareCode || '' }, 'product', props.productId).catch(() => null)
     miniCodeUrl.value = codeData?.qrcode || codeData?.qrcode_url || ''
     miniPath.value = codeData?.mini_path || ''
   } finally {

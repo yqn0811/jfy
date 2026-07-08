@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import ShareDialog from '@/components/product_detail/ShareDialog.vue'
-import { pcApi } from '@/lib/api'
+import { getUrlHomeTarget, pcApi } from '@/lib/api'
 import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import type { ProductImageData } from '@/data/ProductImageData'
@@ -41,20 +41,15 @@ const showShareDialog = ref(false)
 
 const colorImages = computed(() => productImages.value.filter(item => item.type === 'colorChart'))
 const detailImages = computed(() => productImages.value.filter(item => item.type === 'detailChart'))
-const shareTargetUserId = computed(() => {
-  if (typeof window === 'undefined') return ''
-  const params = new URLSearchParams(window.location.search)
-  return params.get('uid') || params.get('target_user_id') || ''
-})
+const shareTarget = computed(() => getUrlHomeTarget())
 
 const loadProduct = async () => {
   isLoading.value = true
   try {
-    const params = new URLSearchParams(window.location.search)
-    const targetUserId = params.get('uid') || params.get('target_user_id') || ''
-    const raw = await pcApi.getHomeProductDetail(targetUserId, props.productId)
+    const target = getUrlHomeTarget()
+    const raw = await pcApi.getHomeProductDetail(target, props.productId)
     const detail = raw?.folder_info || raw?.product || raw
-    product.value = mapProduct(detail, targetUserId)
+    product.value = mapProduct(detail, target.targetUserId)
     productImages.value = mapProductImagesFromDetail(detail, product.value.id)
     isProductFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
     if (props.isLoggedIn) {
@@ -109,8 +104,9 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
     currentIndex: String(imageIndex),
     productId: product.value.id,
   })
-  const targetUserId = new URLSearchParams(window.location.search).get('uid') || new URLSearchParams(window.location.search).get('target_user_id') || ''
-  if (targetUserId) params.set('uid', targetUserId)
+  const target = getUrlHomeTarget()
+  if (target.shareCode) params.set('code', target.shareCode)
+  else if (target.targetUserId) params.set('uid', target.targetUserId)
   window.location.href = `./image-viewer.html?${params.toString()}`
 }
 </script>
@@ -244,7 +240,8 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
     v-if="product"
     :open="showShareDialog"
     :product-id="product.id"
-    :target-user-id="shareTargetUserId"
+    :target-user-id="shareTarget.targetUserId"
+    :share-code="shareTarget.shareCode"
     @update:open="showShareDialog = $event"
   />
 </template>

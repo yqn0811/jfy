@@ -24,6 +24,12 @@ class UserApiController extends ApiBaseController
         $this->userService = new UserService($app);
     }
 
+    private function resolveHomeTargetUserId($params)
+    {
+        $shareCode = $params['code'] ?? ($params['share_code'] ?? ($params['invite_code'] ?? ''));
+        return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $shareCode);
+    }
+
     /**微信用户获取openid
      * @return void
      * @throws \cores\exception\BaseException
@@ -362,6 +368,8 @@ class UserApiController extends ApiBaseController
             'home_share_title' => $user->home_share_title,
             'home_share_desc' => $user->home_share_desc,
             'home_share_image' => $user->home_share_image,
+            'share_code' => (new WdXcxUser())->ensureInviteCodeForUser($user),
+            'invite_code' => isset($user->invite_code) ? $user->invite_code : '',
             'latitude' => $user->latitude,
             'longitude' => $user->longitude,
         ];
@@ -660,11 +668,11 @@ class UserApiController extends ApiBaseController
     {
         $targetUserId = $this->request->getMore([
             ['target_user_id', 0],
-        ])['target_user_id'];
-        
-        if (!$targetUserId) {
-            throwError('参数错误');
-        }
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
+        ]);
+        $targetUserId = $this->resolveHomeTargetUserId($targetUserId);
 
         $visitorUid = 0;
         try {
@@ -680,13 +688,13 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
             ['fid', 0],
             ['include_current', 0],
         ]);
-        $targetUserId = $params['target_user_id'];
-        if (!$targetUserId) {
-            throwError('参数错误');
-        }
+        $targetUserId = $this->resolveHomeTargetUserId($params);
         $visitorUid = 0;
         try {
             $visitorUid = request()->userID();
@@ -699,13 +707,13 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
             ['cate_id', 0],
             ['product_id', 0],
         ]);
-        $targetUserId = $params['target_user_id'];
-        if (!$targetUserId) {
-            throwError('参数错误');
-        }
+        $targetUserId = $this->resolveHomeTargetUserId($params);
         $visitorUid = 0;
         try {
             $visitorUid = request()->userID();
@@ -721,11 +729,14 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
             ['product_id', 0],
         ]);
-        $targetUserId = $params['target_user_id'];
+        $targetUserId = $this->resolveHomeTargetUserId($params);
         $productId = $params['product_id'];
-        if (!$targetUserId || !$productId) {
+        if (!$productId) {
             throwError('参数错误');
         }
         $visitorUid = 0;
@@ -740,14 +751,14 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
             ['path', ''],
             ['type', 'home'],
             ['id', 0],
         ]);
-        $targetUserId = $params['target_user_id'];
-        if (!$targetUserId) {
-            throwError('参数错误');
-        }
+        $targetUserId = $this->resolveHomeTargetUserId($params);
         $this->result($this->userService->getHomeMiniProgramCode($targetUserId, $params['path'], $params['type'], $params['id']));
     }
 
@@ -755,12 +766,12 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
             ['path', ''],
         ]);
-        $targetUserId = $params['target_user_id'];
-        if (!$targetUserId) {
-            throwError('参数错误');
-        }
+        $targetUserId = $this->resolveHomeTargetUserId($params);
         $this->result($this->userService->getHomeShareLink($targetUserId, $params['path']));
     }
 
@@ -768,15 +779,15 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
             ['type', 'home'], // home, category, product
             ['id', 0], // category_id or product_id
             ['path', ''],
             ['cover_url', ''],
         ]);
-        $targetUserId = $params['target_user_id'];
-        if (!$targetUserId) {
-            throwError('参数错误');
-        }
+        $targetUserId = $this->resolveHomeTargetUserId($params);
         $visitorUid = 0;
         try {
             $visitorUid = request()->userID();

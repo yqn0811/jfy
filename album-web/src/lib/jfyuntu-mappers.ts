@@ -93,6 +93,7 @@ export const mapHomeProfile = (raw: any): HomeProfileData => {
     shareTitle: info.home_share_title || `${companyName}的产品主页`,
     shareDescription: info.home_share_desc || info.company_desc || info.user_desc || '',
     shareCoverUrl: pickImage(info.home_share_image, info.company_logo, info.avatar),
+    shareCode: String(info.share_code || info.shareCode || info.invite_code || info.inviteCode || raw?.share_code || raw?.invite_code || ''),
     ownerUserId: userId,
     createdAt: info.create_time || '',
     updatedAt: info.update_time || '',
@@ -176,6 +177,7 @@ export interface PcRecordItem {
   targetType: PcTargetType
   targetId: string
   targetUserId: string
+  targetShareCode?: string
   title: string
   subtitle: string
   coverUrl: string
@@ -225,6 +227,7 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
       raw.uid ||
       (targetType === 'home' ? targetId : '')
   )
+  const targetShareCode = String(raw.target_share_code || raw.targetShareCode || raw.share_code || raw.invite_code || '')
   const time = normalizeTimestamp(raw.time || raw.update_time || raw.create_time || raw.createdAt || raw.viewedAt)
   const title =
     raw.title ||
@@ -246,6 +249,7 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
     targetType,
     targetId,
     targetUserId,
+    targetShareCode,
     title,
     subtitle,
     coverUrl: pickImage(raw.image, raw.new_thumb, raw.cover, raw.avatar, raw.company_logo, raw.logo, raw.picture_url) || fallbackImage,
@@ -256,9 +260,10 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
   }
 }
 
-export const buildPcTargetUrl = (type: PcTargetType, id: string, targetUserId = '') => {
+export const buildPcTargetUrl = (type: PcTargetType, id: string, targetUserId = '', targetShareCode = '') => {
   const params = new URLSearchParams()
-  if (targetUserId) params.set('uid', targetUserId)
+  if (targetShareCode) params.set('code', targetShareCode)
+  else if (targetUserId) params.set('uid', targetUserId)
   if (type === 'home') return `./share-home.html${params.toString() ? `?${params.toString()}` : ''}`
   if (type === 'category') {
     params.set('categoryId', id)

@@ -58,6 +58,30 @@ export const getCurrentUserId = (raw: any = {}) => {
   return String(user.id || user.uid || '')
 }
 
+export type HomeTargetRef = string | { targetUserId?: string; shareCode?: string; code?: string }
+
+export const getCurrentUserShareCode = (raw: any = {}) => {
+  const user = normalizeCurrentUser(raw)
+  return String(user.share_code || user.shareCode || user.invite_code || user.inviteCode || '')
+}
+
+export const getUrlHomeTarget = () => {
+  if (typeof window === 'undefined') return { targetUserId: '', shareCode: '' }
+  const params = new URLSearchParams(window.location.search)
+  return {
+    targetUserId: params.get('uid') || params.get('target_user_id') || '',
+    shareCode: params.get('code') || params.get('share_code') || params.get('invite_code') || '',
+  }
+}
+
+export const buildHomeTargetParams = (target: HomeTargetRef = {}) => {
+  const value =
+    typeof target === 'string'
+      ? { targetUserId: target, shareCode: '' }
+      : { targetUserId: target.targetUserId || '', shareCode: target.shareCode || target.code || '' }
+  return value.shareCode ? { code: value.shareCode } : { target_user_id: value.targetUserId }
+}
+
 export const isMockEnabled = () => {
   if (!SHOULD_BUNDLE_MOCK) return false
   const envValue = import.meta.env.PUBLIC_ENABLE_MOCK || import.meta.env.PUBLIC_JFYUNTU_MOCK
@@ -269,28 +293,28 @@ export const pcApi = {
   updatePcSettings: (body: Record<string, any>) =>
     apiRequest<any>('user/update_pc_settings', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
 
-  getHomeInfo: (targetUserId = '') =>
-    apiRequest<any>('user/home/info', { params: { target_user_id: targetUserId, timestamp: Date.now() } }),
-  getHomeCategories: (targetUserId = '', fid = '', includeCurrent = 0) =>
+  getHomeInfo: (target: HomeTargetRef = '') =>
+    apiRequest<any>('user/home/info', { params: { ...buildHomeTargetParams(target), timestamp: Date.now() } }),
+  getHomeCategories: (target: HomeTargetRef = '', fid = '', includeCurrent = 0) =>
     apiRequest<any>('user/home/categories', {
-      params: { target_user_id: targetUserId, fid, include_current: includeCurrent, timestamp: Date.now() },
+      params: { ...buildHomeTargetParams(target), fid, include_current: includeCurrent, timestamp: Date.now() },
     }),
-  getHomeProducts: (targetUserId = '', cateId = '') =>
+  getHomeProducts: (target: HomeTargetRef = '', cateId = '') =>
     apiRequest<any>('user/home/products', {
-      params: { target_user_id: targetUserId, cate_id: cateId, timestamp: Date.now() },
+      params: { ...buildHomeTargetParams(target), cate_id: cateId, timestamp: Date.now() },
     }),
-  getHomeProductDetail: (targetUserId = '', productId: string) =>
+  getHomeProductDetail: (target: HomeTargetRef = '', productId: string) =>
     apiRequest<any>('user/home/products/detail', {
-      params: { target_user_id: targetUserId, product_id: productId, timestamp: Date.now() },
+      params: { ...buildHomeTargetParams(target), product_id: productId, timestamp: Date.now() },
     }),
-  getHomeShareLink: (targetUserId: string, path = '') =>
+  getHomeShareLink: (target: HomeTargetRef, path = '') =>
     apiRequest<any>('user/home/share_link', {
-      params: { target_user_id: targetUserId, path, timestamp: Date.now() },
+      params: { ...buildHomeTargetParams(target), path, timestamp: Date.now() },
       auth: false,
     }),
-  getHomeMiniCode: (targetUserId: string, type: 'home' | 'category' | 'product' = 'home', id = '', path = '') =>
+  getHomeMiniCode: (target: HomeTargetRef, type: 'home' | 'category' | 'product' = 'home', id = '', path = '') =>
     apiRequest<any>('user/home/minicode', {
-      params: { target_user_id: targetUserId, type, id, path, timestamp: Date.now() },
+      params: { ...buildHomeTargetParams(target), type, id, path, timestamp: Date.now() },
       auth: false,
     }),
 

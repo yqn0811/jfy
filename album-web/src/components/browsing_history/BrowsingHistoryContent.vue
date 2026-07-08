@@ -92,7 +92,7 @@ const handleKeywordInput = (event: Event) => {
 }
 
 const handleView = (record: PcRecordItem) => {
-  window.location.href = buildPcTargetUrl(record.targetType, record.targetId, record.targetUserId)
+  window.location.href = buildPcTargetUrl(record.targetType, record.targetId, record.targetUserId, record.targetShareCode)
 }
 
 const handleCollect = async (record: PcRecordItem) => {

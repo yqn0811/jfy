@@ -10,7 +10,7 @@ import ProductGrid from '@/components/category_browser/ProductGrid.vue'
 import AccessDeniedPlaceholder from '@/components/category_browser/AccessDeniedPlaceholder.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
-import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
+import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { mapCategory, mapHomeProfile, mapProduct, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { CategoryVO } from '@/data/CategoryService'
 import type { ProductData } from '@/data/ProductData'
@@ -21,6 +21,7 @@ const isLoading = ref(false)
 const categoryId = ref<string>('')
 const parentId = ref<string>('')
 const targetUserId = ref<string>('')
+const shareCode = ref<string>('')
 
 const currentCategory = ref<CategoryVO | undefined>(undefined)
 const parentCategory = ref<CategoryVO | undefined>(undefined)
@@ -33,15 +34,25 @@ const isAccessDenied = ref(false)
 const showLoginDialog = ref(false)
 const isLoggedIn = ref(false)
 
+const buildTargetParams = (params: Record<string, string> = {}) => {
+  const search = new URLSearchParams()
+  if (shareCode.value) search.set('code', shareCode.value)
+  else if (targetUserId.value) search.set('uid', targetUserId.value)
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) search.set(key, value)
+  })
+  return search.toString()
+}
+
 const breadcrumbItems = computed(() => {
   const items: Array<{ label: string; href?: string }> = [
-    { label: '主页', href: `./share-home.html?uid=${encodeURIComponent(targetUserId.value)}` }
+    { label: '主页', href: `./share-home.html${buildTargetParams() ? `?${buildTargetParams()}` : ''}` }
   ]
   
   if (parentCategory.value) {
     items.push({
       label: parentCategory.value.name,
-      href: `./category.html?uid=${encodeURIComponent(targetUserId.value)}&categoryId=${parentCategory.value.id}`
+      href: `./category.html?${buildTargetParams({ categoryId: parentCategory.value.id })}`
     })
   }
   
@@ -80,7 +91,7 @@ const loadCategoryData = async () => {
     return
   }
   isLoggedIn.value = true
-  if (!targetUserId.value) {
+  if (!targetUserId.value && !shareCode.value) {
     let user = authStore.getUser<any>() || {}
     if (!getCurrentUserId(user)) {
       try {
@@ -100,7 +111,7 @@ const loadCategoryData = async () => {
     isAccessDenied.value = true
     return
   }
-  if (!targetUserId.value) {
+  if (!targetUserId.value && !shareCode.value) {
     isAccessDenied.value = true
     toast.error('缺少主页用户信息')
     return
@@ -108,13 +119,16 @@ const loadCategoryData = async () => {
 
   isLoading.value = true
   try {
+    const target = { targetUserId: targetUserId.value, shareCode: shareCode.value }
     const [homeRaw, categoriesRaw, productsRaw] = await Promise.all([
-      pcApi.getHomeInfo(targetUserId.value),
-      pcApi.getHomeCategories(targetUserId.value, categoryId.value, 1),
-      pcApi.getHomeProducts(targetUserId.value, categoryId.value),
+      pcApi.getHomeInfo(target),
+      pcApi.getHomeCategories(target, categoryId.value, 1),
+      pcApi.getHomeProducts(target, categoryId.value),
     ])
 
     homeProfile.value = mapHomeProfile(homeRaw)
+    if (homeProfile.value.ownerUserId) targetUserId.value = homeProfile.value.ownerUserId
+    if (homeProfile.value.shareCode) shareCode.value = homeProfile.value.shareCode
     const folderInfo = categoriesRaw?.folder_info || categoriesRaw?.current || categoriesRaw?.info
     if (!folderInfo) {
       isAccessDenied.value = true
@@ -127,7 +141,7 @@ const loadCategoryData = async () => {
 
     if (category.parentId || parentId.value) {
       try {
-        const parentRaw = await pcApi.getHomeCategories(targetUserId.value, category.parentId || parentId.value, 1)
+        const parentRaw = await pcApi.getHomeCategories({ targetUserId: targetUserId.value, shareCode: shareCode.value }, category.parentId || parentId.value, 1)
         const parentInfo = parentRaw?.folder_info || parentRaw?.current || parentRaw?.info
         if (parentInfo) parentCategory.value = mapCategory(parentInfo, homeProfile.value.id) as CategoryVO
       } catch {
@@ -163,7 +177,9 @@ onMounted(() => {
   
   const params = new URLSearchParams(window.location.search)
   authStore.consumeCallbackToken()
-  targetUserId.value = params.get('uid') || params.get('target_user_id') || ''
+  const target = getUrlHomeTarget()
+  targetUserId.value = target.targetUserId
+  shareCode.value = target.shareCode
   categoryId.value = params.get('categoryId') || params.get('cate_id') || ''
   parentId.value = params.get('parentId') || ''
 
@@ -200,6 +216,7 @@ onMounted(() => {
         :category="currentCategory"
         :home-profile="homeProfile"
         :target-user-id="targetUserId"
+        :share-code="shareCode"
       />
 
       <CategoryTabs 
@@ -221,12 +238,14 @@ onMounted(() => {
           v-if="activeTab === 'all' || activeTab === 'subcategory'"
           :categories="activeTab === 'all' ? subCategories : (activeTab === 'subcategory' ? subCategories : [])"
           :target-user-id="targetUserId"
+          :share-code="shareCode"
         />
 
         <ProductGrid 
           v-if="activeTab === 'all' || activeTab === 'product'"
           :products="activeTab === 'all' ? products : (activeTab === 'product' ? products : [])"
           :target-user-id="targetUserId"
+          :share-code="shareCode"
         />
       </template>
     </div>

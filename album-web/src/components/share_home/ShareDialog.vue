@@ -35,7 +35,9 @@ const shareTitle = ref(props.homeProfile.shareTitle || `${props.homeProfile.comp
 const shareDescription = ref(props.homeProfile.shareDescription || props.homeProfile.intro)
 
 const buildPcShareUrl = () => {
-  const params = new URLSearchParams({ uid: props.homeProfile.ownerUserId || props.homeProfile.id })
+  const params = new URLSearchParams()
+  if (props.homeProfile.shareCode) params.set('code', props.homeProfile.shareCode)
+  else params.set('uid', props.homeProfile.ownerUserId || props.homeProfile.id)
   const url = new URL('./share-home.html', window.location.href)
   url.search = params.toString()
   return url.toString()
@@ -53,8 +55,8 @@ const loadShareData = async () => {
   isLoadingShare.value = true
   try {
     const [linkData, codeData] = await Promise.all([
-      pcApi.getHomeShareLink(props.homeProfile.id).catch(() => null),
-      pcApi.getHomeMiniCode(props.homeProfile.id, 'home').catch(() => null),
+      pcApi.getHomeShareLink({ targetUserId: props.homeProfile.ownerUserId || props.homeProfile.id, shareCode: props.homeProfile.shareCode || '' }).catch(() => null),
+      pcApi.getHomeMiniCode({ targetUserId: props.homeProfile.ownerUserId || props.homeProfile.id, shareCode: props.homeProfile.shareCode || '' }, 'home').catch(() => null),
     ])
     mobileShareUrl.value = pickMobileShareLink(linkData)
     webShareUrl.value = pickWebShareLink(linkData) || webShareUrl.value
