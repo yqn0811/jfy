@@ -1,11 +1,11 @@
 import { defineComponent, ref, computed, useSSRContext, mergeProps, withCtx, createTextVNode, onMounted, createVNode, createBlock, createCommentVNode, openBlock, withKeys } from "vue";
 import { toast } from "vue-sonner";
-import { p as pcApi, u as uploadTokenStore, D as DialogTitle, a as DialogHeader, b as DialogContent, c as Dialog } from "./DialogTrigger.C25u8FxS.js";
-import { m as mapProduct, I as Input } from "./Input.PWU_Udaj.js";
-import { S as SafeIcon } from "./SafeIcon.Be6AL9H8.js";
-import { B as Button } from "./index.nyjX7RCv.js";
+import { p as pcApi, u as uploadTokenStore, D as DialogTitle, a as DialogHeader, b as DialogContent, c as Dialog } from "./DialogTrigger.CEjexOPD.js";
+import { m as mapProduct, I as Input } from "./Input.BXzCSOrK.js";
+import { S as SafeIcon } from "./SafeIcon.C8oSH_I5.js";
+import { B as Button } from "./index.C9lvc2cP.js";
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderClass, ssrIncludeBooleanAttr, ssrRenderComponent, ssrRenderList, ssrRenderAttr, ssrRenderStyle } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.DCL8LS3a.js";
+import { _ as _export_sfc } from "./BaseLayout.yWDmk07z.js";
 const _sfc_main$2 = defineComponent({ __name: "UploadZone", props: { title: {}, description: {}, type: {}, progress: { default: 0 }, disabled: { type: Boolean, default: false }, maxConcurrent: { default: 1 }, uploadHandler: {} }, emits: ["upload-complete", "uploading"], setup(__props, { expose: __expose, emit: __emit }) {
   __expose();
   const props = __props, emit = __emit, isDragging = ref(false), fileInput = ref(), uploadItems = ref([]), uploadedFiles = computed(() => uploadItems.value.map((item) => item.finalUrl || item.previewUrl)), safeMaxConcurrent = computed(() => {
