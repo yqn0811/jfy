@@ -62,15 +62,23 @@ class UserService extends BaseService
 
     private function ensureHomeShareCode($user)
     {
+        return (new WdXcxUser())->ensureHomeShareCodeForUser($user);
+    }
+
+    private function ensureInviteCode($user)
+    {
         return (new WdXcxUser())->ensureInviteCodeForUser($user);
     }
 
-    public function resolveHomeTargetUserId($targetUserId = 0, $shareCode = '')
+    public function resolveHomeTargetUserId($targetUserId = 0, $shareCode = '', $allowInviteCodeFallback = false)
     {
         $shareCode = trim((string)$shareCode);
         if ($shareCode !== '') {
             (new WdXcxUser())->ensureHomePreferenceColumns();
-            $user = WdXcxUser::where('invite_code', $shareCode)->find();
+            $user = WdXcxUser::where('home_share_code', $shareCode)->find();
+            if (!$user && $allowInviteCodeFallback) {
+                $user = WdXcxUser::where('invite_code', $shareCode)->find();
+            }
             if (!$user) {
                 throwError('分享链接无效');
             }
@@ -236,7 +244,7 @@ class UserService extends BaseService
             'home_share_desc' => $user->home_share_desc,
             'home_share_image' => $user->home_share_image,
             'share_code' => $this->ensureHomeShareCode($user),
-            'invite_code' => isset($user->invite_code) ? $user->invite_code : '',
+            'invite_code' => $this->ensureInviteCode($user),
             'latitude' => $user->latitude,
             'longitude' => $user->longitude,
             'industry_info' => (int)$user->industry_info,
@@ -617,7 +625,8 @@ class UserService extends BaseService
         if (!$user || !$user->is_show_home) {
             throwError('该用户未公开主页');
         }
-        $inviteCode = $this->ensureHomeShareCode($user);
+        $homeShareCode = $this->ensureHomeShareCode($user);
+        $inviteCode = $this->ensureInviteCode($user);
         $title = ($user->company_name ?: $user->nickname) . '的主页';
         $miniPath = $this->normalizeMiniProgramPath($path ?: 'pages/index/index');
         $pagePath = $miniPath['path'];
@@ -629,7 +638,7 @@ class UserService extends BaseService
 
         $query = http_build_query($params);
         $mini_path = $query ? ($pagePath . '?' . $query) : $pagePath;
-        $pcLink = $this->buildHomeWebShareUrl($inviteCode);
+        $pcLink = $this->buildHomeWebShareUrl($homeShareCode);
 
         try {
             $share_link = (new WxService())->generateUrlLink($pagePath, $query);
@@ -645,8 +654,9 @@ class UserService extends BaseService
             'pc_link' => $pcLink,
             'web_link' => $pcLink,
             'web_url' => $pcLink,
-            'share_code' => $inviteCode,
-            'code' => $inviteCode,
+            'share_code' => $homeShareCode,
+            'code' => $homeShareCode,
+            'invite_code' => $inviteCode,
             'mini_path' => $mini_path,
             'scene' => $scene,
             'title' => $title,
@@ -710,7 +720,7 @@ class UserService extends BaseService
             'query' => $query,
             'scene' => http_build_query($sceneParams),
             'mini_path' => $query ? ($pagePath . '?' . $query) : $pagePath,
-            'share_code' => $inviteCode,
+            'invite_code' => $inviteCode,
         ];
     }
 
@@ -760,7 +770,8 @@ class UserService extends BaseService
         if ($type !== 'selection' && !$user->is_show_home) {
             throwError('该用户未公开主页');
         }
-        $inviteCode = $this->ensureHomeShareCode($user);
+        $homeShareCode = $this->ensureHomeShareCode($user);
+        $inviteCode = $this->ensureInviteCode($user);
         $sharePayload = $this->buildMiniProgramSharePayload($targetUserId, $path, $type, $id, $inviteCode);
         $file_path = public_path() . 'image/ewm';
         $file_name = 'home_share_' . $type . '_' . $targetUserId . '_' . (int)$id . '_' . md5($sharePayload['mini_path']) . '.jpg';
@@ -793,7 +804,9 @@ class UserService extends BaseService
             'qrcode_path' => $this->safeString($qrcode_path),
             'mini_path' => $this->safeString($sharePayload['mini_path']),
             'scene' => $this->safeString($sharePayload['scene']),
-            'share_code' => $this->safeString($sharePayload['share_code'] ?? ''),
+            'share_code' => $this->safeString($homeShareCode),
+            'code' => $this->safeString($homeShareCode),
+            'invite_code' => $this->safeString($sharePayload['invite_code'] ?? ''),
         ];
     }
 

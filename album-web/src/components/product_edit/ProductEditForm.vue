@@ -18,7 +18,7 @@ import { toast } from 'vue-sonner'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { cn } from '@/lib/utils'
 import { pcApi } from '@/lib/api'
-import { mapCategory, mapProduct, mapProductImagesFromDetail, unwrapList } from '@/lib/jfyuntu-mappers'
+import { mapCategory, mapProduct, mapProductImagesFromDetail, pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { ProductData, ProductImageType } from '@/data/ProductData'
 import type { CategoryData } from '@/data/CategoryData'
 import type { ProductImageData } from '@/data/ProductImageData'
@@ -61,6 +61,7 @@ const resourceTargetType = ref<ProductImageType>('colorChart')
 const resourceKeyword = ref('')
 const resourceList = ref<any[]>([])
 const selectedResourceIds = ref<Set<string>>(new Set())
+const brokenResourceIds = ref<Set<string>>(new Set())
 const productId = ref<string | null>(null)
 const categories = ref<CategoryData[]>([])
 
@@ -116,8 +117,8 @@ const setVisibility = (value: FormState['visibility']) => {
 }
 
 const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: string): ProductImageData => {
-  const url = item.url || item.picture_url_original || item.picture_url || item.imgurl || item.thumbnailUrl || item.thumb || ''
-  const thumbnailUrl = item.thumbnailUrl || item.thumb || item.picture_url || item.imgurl || url
+  const url = pickImage(item.original_url, item.file_url, item.fileUrl, item.picture_url_original, item.url, item)
+  const thumbnailUrl = pickImage(item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
   return {
     id: String(item.pid || item.pic_id || item.resource_id || item.id || `resource_${Date.now()}`),
     productId: productIdValue,
@@ -134,23 +135,15 @@ const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: s
 }
 
 const normalizeResourceList = (raw: any) => {
-  const list = Array.isArray(raw?.data)
-    ? raw.data
-    : Array.isArray(raw?.lists)
-      ? raw.lists
-      : Array.isArray(raw?.list)
-        ? raw.list
-        : Array.isArray(raw)
-          ? raw
-          : []
-  return list.map((item: any) => {
-    const url = item.url || item.picture_url_original || item.picture_url || item.imgurl || ''
+  return unwrapList(raw).map((item: any) => {
+    const url = pickImage(item.file_url, item.fileUrl, item.preview_url, item.previewUrl, item.thumbnail_url, item.thumbnailUrl, item.picture_url_original, item.url, item)
+    const thumbnailUrl = pickImage(item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
     return {
       ...item,
       id: String(item.id || item.resource_id || item.pic_id || ''),
       name: item.name || item.pic_name || item.file_name || '未命名图片',
       url,
-      thumbnailUrl: item.thumbnailUrl || item.thumb || item.picture_url || item.imgurl || url,
+      thumbnailUrl,
       sizeLabel: item.sizeLabel || item.size_label || (item.size ? `${(Number(item.size) / 1024 / 1024).toFixed(1)} MB` : ''),
     }
   })
@@ -158,6 +151,7 @@ const normalizeResourceList = (raw: any) => {
 
 const loadResources = async () => {
   isResourceLoading.value = true
+  brokenResourceIds.value = new Set()
   try {
     const raw = await pcApi.getAiResources({
       page_size: 60,
@@ -174,8 +168,13 @@ const loadResources = async () => {
 const openResourcePicker = async (type: ProductImageType) => {
   resourceTargetType.value = type
   selectedResourceIds.value = new Set()
+  brokenResourceIds.value = new Set()
   resourceDialogOpen.value = true
   await loadResources()
+}
+
+const markResourceBroken = (id: string) => {
+  brokenResourceIds.value = new Set([...brokenResourceIds.value, id])
 }
 
 const toggleResource = (id: string) => {
@@ -204,8 +203,9 @@ const handleImportResources = async () => {
 
     for (const item of selected) {
       const data = await pcApi.importAiResource(item.id, role, fid)
-      const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
-      imported.push(mapResourceToImage(rows[0] || item, type, fid))
+      const rows = unwrapList(data)
+      const importedItem = rows[0] || (data && typeof data === 'object' ? data : null) || item
+      imported.push(mapResourceToImage(importedItem, type, fid))
     }
 
     handleAddImages(imported, type)
@@ -676,10 +676,19 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               >
                 <div class="relative aspect-square bg-muted">
                   <img
+                    v-if="(resource.thumbnailUrl || resource.url) && !brokenResourceIds.has(resource.id)"
                     :src="resource.thumbnailUrl || resource.url"
                     :alt="resource.name"
                     class="h-full w-full object-cover"
+                    @error="markResourceBroken(resource.id)"
                   />
+                  <div
+                    v-else
+                    class="flex h-full w-full flex-col items-center justify-center gap-2 bg-muted text-muted-foreground"
+                  >
+                    <SafeIcon name="ImageOff" :size="28" />
+                    <span class="max-w-[80%] truncate text-[11px]">图片暂不可预览</span>
+                  </div>
                   <div
                     :class="cn(
                       'absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded border bg-white shadow-sm',

@@ -112,6 +112,9 @@ const baseUser = {
   industry_name: '家纺面料',
   contact_mobile: '021-5678-9001',
   contact_wechat: 'yunzhi-home',
+  home_share_code: 'HF3K8P2Q6R1A',
+  share_code: 'HF3K8P2Q6R1A',
+  invite_code: 'YUNZHI88',
   address_province: '浙江省',
   address_city: '杭州市',
   address_district: '余杭区',
@@ -661,7 +664,7 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
 
     case 'user/home/share_link': {
       const uid = String(params.target_user_id || ownerUid)
-      const code = String(params.code || params.share_code || state.user.invite_code || `JFY${ownerUid}`)
+      const code = String(params.code || params.share_code || state.user.home_share_code || state.user.share_code || `HFY${ownerUid}`)
       const mobileLink = `https://wxmpurl.cn/${encodeURIComponent(uid).slice(0, 8)}`
       return ok({
         share_link: mobileLink,
@@ -671,6 +674,7 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
         web_link: `${currentOrigin()}/share-home.html?code=${encodeURIComponent(code)}`,
         share_code: code,
         code,
+        invite_code: state.user.invite_code,
         mini_path: `/pages/index/index?uid=${encodeURIComponent(uid)}`,
       }) as T
     }

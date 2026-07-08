@@ -14,6 +14,7 @@ export const toArray = (value: any): any[] => {
   if (Array.isArray(value.lists)) return value.lists
   if (Array.isArray(value?.lists?.data)) return value.lists.data
   if (Array.isArray(value.plans)) return value.plans
+  if (Array.isArray(value.resources)) return value.resources
   return []
 }
 
@@ -27,6 +28,7 @@ export const unwrapList = (value: any): any[] => {
   if (Array.isArray(value?.plans)) return value.plans
   if (Array.isArray(value?.categories)) return value.categories
   if (Array.isArray(value?.products)) return value.products
+  if (Array.isArray(value?.resources)) return value.resources
   return []
 }
 
@@ -34,6 +36,12 @@ export const pickImage = (...values: any[]) => {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value
     if (value?.url) return value.url
+    if (value?.file_url) return value.file_url
+    if (value?.fileUrl) return value.fileUrl
+    if (value?.preview_url) return value.preview_url
+    if (value?.previewUrl) return value.previewUrl
+    if (value?.thumbnail_url) return value.thumbnail_url
+    if (value?.thumbnailUrl) return value.thumbnailUrl
     if (value?.imgurl) return value.imgurl
     if (value?.picture_url) return value.picture_url
     if (value?.picture_url_original) return value.picture_url_original
@@ -93,7 +101,15 @@ export const mapHomeProfile = (raw: any): HomeProfileData => {
     shareTitle: info.home_share_title || `${companyName}的产品主页`,
     shareDescription: info.home_share_desc || info.company_desc || info.user_desc || '',
     shareCoverUrl: pickImage(info.home_share_image, info.company_logo, info.avatar),
-    shareCode: String(info.share_code || info.shareCode || info.invite_code || info.inviteCode || raw?.share_code || raw?.invite_code || ''),
+    shareCode: String(
+      info.share_code ||
+        info.shareCode ||
+        info.home_share_code ||
+        info.homeShareCode ||
+        raw?.share_code ||
+        raw?.home_share_code ||
+        ''
+    ),
     ownerUserId: userId,
     createdAt: info.create_time || '',
     updatedAt: info.update_time || '',
@@ -227,7 +243,9 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
       raw.uid ||
       (targetType === 'home' ? targetId : '')
   )
-  const targetShareCode = String(raw.target_share_code || raw.targetShareCode || raw.share_code || raw.invite_code || '')
+  const targetShareCode = String(
+    raw.target_share_code || raw.targetShareCode || raw.home_share_code || raw.homeShareCode || raw.share_code || ''
+  )
   const time = normalizeTimestamp(raw.time || raw.update_time || raw.create_time || raw.createdAt || raw.viewedAt)
   const title =
     raw.title ||

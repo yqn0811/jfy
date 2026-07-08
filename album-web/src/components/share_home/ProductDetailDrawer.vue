@@ -3,13 +3,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { toast } from 'vue-sonner'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogScrollContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import SafeIcon from '@/components/common/SafeIcon.vue'
@@ -112,23 +112,24 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
 </script>
 
 <template>
-  <Sheet :open="open" @update:open="(val) => emit('update:open', val)">
-    <SheetContent side="right" class="w-full sm:w-[500px] flex flex-col max-h-[80vh] overflow-hidden">
-      <SheetHeader class="flex-shrink-0">
-        <SheetTitle>产品详情</SheetTitle>
-        <SheetDescription v-if="product">
+  <Dialog :open="open" @update:open="(val) => emit('update:open', val)">
+    <DialogScrollContent class="max-h-[90vh] max-w-[720px] overflow-hidden p-0">
+      <div class="flex max-h-[90vh] flex-col">
+      <DialogHeader class="flex-shrink-0 border-b border-border px-6 py-5 text-left">
+        <DialogTitle class="text-2xl">产品详情</DialogTitle>
+        <DialogDescription v-if="product">
           {{ product.name || '未命名产品' }}
-        </SheetDescription>
-      </SheetHeader>
+        </DialogDescription>
+      </DialogHeader>
 
       <!-- 可滚动内容区 -->
-      <div class="flex-1 overflow-y-auto min-h-0 py-4 space-y-6">
+      <div class="min-h-0 flex-1 overflow-y-auto py-5">
         <div v-if="isLoading" class="py-12 text-center text-muted-foreground">
           <SafeIcon name="Loader2" :size="22" class="mx-auto mb-2 animate-spin" />
           加载中...
         </div>
 
-        <div v-else-if="product" class="space-y-6 px-6">
+        <div v-else-if="product" class="space-y-8 px-8">
           <!-- 产品信息 -->
           <div class="space-y-3">
             <div>
@@ -204,12 +205,13 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
       </div>
 
       <!-- 操作栏 -->
-      <SheetFooter class="flex-shrink-0 border-t pt-4 gap-2 flex-row">
+      <DialogFooter class="flex-shrink-0 border-t border-border px-6 py-4 sm:justify-stretch">
+        <div class="grid w-full grid-cols-3 gap-3">
         <Button
           :variant="isProductFavorited ? 'default' : 'outline'"
           size="sm"
           @click="handleFavoriteProduct"
-          class="flex-1"
+          class="h-11"
         >
           <SafeIcon :name="isProductFavorited ? 'Heart' : 'Heart'" :size="16" class="mr-2" :fill="isProductFavorited ? 'currentColor' : 'none'" />
           {{ isProductFavorited ? '已收藏' : '收藏' }}
@@ -218,7 +220,7 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
           variant="outline"
           size="sm"
           @click="handleShare"
-          class="flex-1"
+          class="h-11"
         >
           <SafeIcon name="Share2" :size="16" class="mr-2" />
           分享
@@ -227,14 +229,16 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
           variant="outline"
           size="sm"
           @click="handleDownload"
-          class="flex-1"
+          class="h-11"
         >
           <SafeIcon name="Download" :size="16" class="mr-2" />
           下载
         </Button>
-      </SheetFooter>
-    </SheetContent>
-  </Sheet>
+        </div>
+      </DialogFooter>
+      </div>
+    </DialogScrollContent>
+  </Dialog>
 
   <ShareDialog
     v-if="product"

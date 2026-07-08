@@ -59,7 +59,7 @@ onMounted(async () => {
 
 const handlePreview = () => {
   const uid = userInfo.value?.id || userInfo.value?.uid || '';
-  const code = userInfo.value?.share_code || userInfo.value?.shareCode || userInfo.value?.invite_code || '';
+  const code = userInfo.value?.share_code || userInfo.value?.shareCode || userInfo.value?.home_share_code || '';
   const query = code ? `?code=${encodeURIComponent(code)}` : uid ? `?uid=${encodeURIComponent(uid)}` : '';
   window.location.href = `./share-home.html${query}`;
 };

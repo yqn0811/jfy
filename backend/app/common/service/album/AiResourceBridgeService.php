@@ -453,7 +453,7 @@ class AiResourceBridgeService extends BaseService
             if ($key !== '') {
                 $seen[$key] = true;
             }
-            $items[] = $item;
+            $items[] = $this->normalizeResourceImageUrls($item);
         }
         $resp[$field] = array_values($items);
         if (isset($resp['resources']) && $field !== 'resources') {
@@ -479,6 +479,16 @@ class AiResourceBridgeService extends BaseService
             return 'id:' . (string)$item['id'];
         }
         return '';
+    }
+
+    private function normalizeResourceImageUrls($item)
+    {
+        foreach (['thumbnail_url', 'preview_url', 'file_url'] as $field) {
+            if (!empty($item[$field])) {
+                $item[$field] = proxyExternalImageUrl($item[$field]);
+            }
+        }
+        return $item;
     }
 
     private function isImportedResourcePicture($pic)

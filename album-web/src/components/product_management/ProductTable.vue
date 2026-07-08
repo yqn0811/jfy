@@ -43,16 +43,16 @@ const selectedSet = computed(() => new Set(props.selectedIds))
     />
   </div>
 
-  <div v-else class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+  <div v-else class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
     <article
       v-for="product in products"
       :key="product.id"
       :class="[
-        'product-card group flex min-w-0 flex-col',
-        selectedSet.has(product.id) && 'ring-2 ring-primary/70'
+        'group min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
+        selectedSet.has(product.id) ? 'border-primary ring-2 ring-primary/30' : 'border-border'
       ]"
     >
-      <div class="relative aspect-[4/3] overflow-hidden bg-muted">
+      <div class="relative aspect-[5/4] overflow-hidden bg-muted">
         <img
           v-if="product.coverUrl"
           :src="product.coverUrl"
@@ -67,69 +67,82 @@ const selectedSet = computed(() => new Set(props.selectedIds))
           type="button"
           :aria-label="`选择${product.name || '未命名产品'}`"
           :class="[
-            'absolute left-3 top-3 z-10 flex h-5 w-5 items-center justify-center rounded border shadow-sm transition-colors',
+            'absolute left-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-md border-2 shadow-sm transition-colors',
             selectedSet.has(product.id)
               ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-border bg-background/90 hover:border-primary'
+              : 'border-white bg-white/95 hover:border-primary'
           ]"
           @click.stop="emit('toggle-select', product.id)"
         >
-          <SafeIcon v-if="selectedSet.has(product.id)" name="Check" :size="13" />
+          <SafeIcon v-if="selectedSet.has(product.id)" name="Check" :size="18" />
         </button>
+
+        <div
+          :class="[
+            'absolute right-4 top-4 z-20 rounded-full px-3 py-1 text-sm font-semibold shadow-sm',
+            product.visibility === 'public'
+              ? 'bg-emerald-50 text-emerald-600'
+              : product.visibility === 'shared'
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-slate-50 text-slate-600'
+          ]"
+        >
+          {{ product.visibility === 'public' ? '公开' : product.visibility === 'shared' ? '分享可见' : '私密' }}
+        </div>
+
+        <div class="absolute bottom-5 right-5 z-20 flex items-center gap-3 opacity-100">
+          <Button
+            variant="secondary"
+            size="icon"
+            class="h-12 w-12 rounded-full bg-black/35 text-white shadow-sm backdrop-blur hover:bg-black/50 hover:text-white"
+            title="批量上传"
+            @click="emit('batch-upload', product.id)"
+          >
+            <SafeIcon name="Upload" :size="20" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="icon"
+            class="h-12 w-12 rounded-full bg-black/35 text-white shadow-sm backdrop-blur hover:bg-black/50 hover:text-white"
+            title="分享"
+            @click="emit('share', product)"
+          >
+            <SafeIcon name="Share2" :size="20" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="icon"
+            class="h-12 w-12 rounded-full bg-black/35 text-white shadow-sm backdrop-blur hover:bg-black/50 hover:text-white"
+            title="编辑"
+            @click="emit('edit', product.id)"
+          >
+            <SafeIcon name="Edit2" :size="20" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="icon"
+            class="h-12 w-12 rounded-full bg-black/35 text-white shadow-sm backdrop-blur hover:bg-destructive hover:text-white"
+            title="删除"
+            @click="emit('delete', product)"
+          >
+            <SafeIcon name="Trash2" :size="20" />
+          </Button>
+        </div>
       </div>
 
-      <div class="flex flex-1 flex-col gap-3 p-4">
-        <div class="min-w-0">
-          <h3 class="truncate text-base font-semibold text-foreground">
+      <div class="space-y-3 bg-card px-5 py-5">
+        <div class="min-w-0 space-y-2">
+          <h3 class="truncate text-xl font-semibold text-foreground">
             {{ product.name || '未命名产品' }}
           </h3>
-          <p class="mt-1 line-clamp-1 text-sm text-muted-foreground">
+          <p class="truncate text-base font-medium text-muted-foreground">
             {{ product.intro || '暂无描述' }}
           </p>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-          <span>花色图：{{ product.colorChartCount || 0 }} 张</span>
-          <span class="text-right">详情图：{{ product.detailChartCount || 0 }} 张</span>
-        </div>
-
-        <div class="mt-auto grid grid-cols-4 gap-2 border-t border-border pt-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-9 min-w-0 gap-2 px-2 text-xs"
-            @click="emit('edit', product.id)"
-          >
-            <SafeIcon name="Edit2" :size="14" />
-            <span>编辑</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-9 min-w-0 gap-2 px-2 text-xs"
-            @click="emit('batch-upload', product.id)"
-          >
-            <SafeIcon name="Upload" :size="14" />
-            <span>上传</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-9 min-w-0 gap-2 px-2 text-xs"
-            @click="emit('share', product)"
-          >
-            <SafeIcon name="Share2" :size="14" />
-            <span>分享</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-9 min-w-0 gap-2 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-            @click="emit('delete', product)"
-          >
-            <SafeIcon name="Trash2" :size="14" />
-            <span>删除</span>
-          </Button>
+        <div class="flex items-center justify-between text-base font-semibold text-muted-foreground">
+          <span>花色图: {{ product.colorChartCount || 0 }}张</span>
+          <span>详情图: {{ product.detailChartCount || 0 }}张</span>
         </div>
       </div>
     </article>

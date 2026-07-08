@@ -283,6 +283,15 @@ class WdXcxUser extends BaseModel
         if (!$hasInviteIndex) {
             Db::execute("ALTER TABLE `wd_xcx_user` ADD UNIQUE INDEX `idx_invite_code`(`invite_code`)");
         }
+        $hasHomeShareCode = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'home_share_code'");
+        if (!$hasHomeShareCode) {
+            Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `home_share_code` varchar(32) NOT NULL DEFAULT '' COMMENT 'PC主页分享码' AFTER `invite_code`");
+        }
+        $this->backfillEmptyHomeShareCodes();
+        $hasHomeShareIndex = Db::query("SHOW INDEX FROM `wd_xcx_user` WHERE Key_name = 'idx_home_share_code'");
+        if (!$hasHomeShareIndex) {
+            Db::execute("ALTER TABLE `wd_xcx_user` ADD UNIQUE INDEX `idx_home_share_code`(`home_share_code`)");
+        }
         $hasNickname = Db::query("SHOW COLUMNS FROM `wd_xcx_user` LIKE 'visit_no_need_nickname'");
         if (!$hasNickname) {
             Db::execute("ALTER TABLE `wd_xcx_user` ADD COLUMN `visit_no_need_nickname` tinyint(1) NOT NULL DEFAULT 0 COMMENT '主页访问无需填写昵称 0否 1是' AFTER `is_show_home`");
@@ -343,12 +352,30 @@ class WdXcxUser extends BaseModel
         return $code;
     }
 
+    private function generateHomeShareCode()
+    {
+        do {
+            $code = 'H' . strtoupper(substr(md5(uniqid((string)mt_rand(), true) . microtime(true)), 0, 11));
+            $exists = $this->where('home_share_code', $code)->find();
+        } while ($exists);
+        return $code;
+    }
+
     private function backfillEmptyInviteCodes()
     {
         $ids = $this->whereNull('invite_code')->whereOr('invite_code', '')->column('id');
         foreach ($ids as $id) {
             $code = $this->generateInviteCode();
             $this->where('id', $id)->update(['invite_code' => $code]);
+        }
+    }
+
+    private function backfillEmptyHomeShareCodes()
+    {
+        $ids = $this->whereNull('home_share_code')->whereOr('home_share_code', '')->column('id');
+        foreach ($ids as $id) {
+            $code = $this->generateHomeShareCode();
+            $this->where('id', $id)->update(['home_share_code' => $code]);
         }
     }
 
@@ -365,10 +392,24 @@ class WdXcxUser extends BaseModel
         return $code;
     }
 
+    public function ensureHomeShareCodeForUser($user)
+    {
+        $this->ensureHomePreferenceColumns();
+        $code = trim((string)($user->home_share_code ?? ''));
+        if ($code !== '') {
+            return $code;
+        }
+        $code = $this->generateHomeShareCode();
+        $user->home_share_code = $code;
+        $user->save();
+        return $code;
+    }
+
     private function createWechatUser($openid, $unionid = '', $inviteFromCode = '', $extra = [])
     {
         $base_size = WdXcxBase::where('uniacid', 1)->value('space_size');
         $inviteCode = $this->generateInviteCode();
+        $homeShareCode = $this->generateHomeShareCode();
         $data = array_merge([
             'uniacid' => $this->uniacid,
             'openid' => $openid,
@@ -379,6 +420,7 @@ class WdXcxUser extends BaseModel
             'user_uuid' => $this->getUuId(),
             'space_size' => $base_size ? $base_size : 300,
             'invite_code' => $inviteCode,
+            'home_share_code' => $homeShareCode,
             'invite_from_code' => $inviteFromCode,
         ], $extra);
         $this->create($data);

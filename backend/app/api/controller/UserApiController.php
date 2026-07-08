@@ -26,8 +26,12 @@ class UserApiController extends ApiBaseController
 
     private function resolveHomeTargetUserId($params)
     {
-        $shareCode = $params['code'] ?? ($params['share_code'] ?? ($params['invite_code'] ?? ''));
-        return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $shareCode);
+        $shareCode = $params['code'] ?? ($params['share_code'] ?? '');
+        $inviteCode = $params['invite_code'] ?? '';
+        if ($shareCode !== '') {
+            return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $shareCode);
+        }
+        return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $inviteCode, true);
     }
 
     /**微信用户获取openid
@@ -368,8 +372,9 @@ class UserApiController extends ApiBaseController
             'home_share_title' => $user->home_share_title,
             'home_share_desc' => $user->home_share_desc,
             'home_share_image' => $user->home_share_image,
-            'share_code' => (new WdXcxUser())->ensureInviteCodeForUser($user),
-            'invite_code' => isset($user->invite_code) ? $user->invite_code : '',
+            'share_code' => (new WdXcxUser())->ensureHomeShareCodeForUser($user),
+            'home_share_code' => isset($user->home_share_code) ? $user->home_share_code : '',
+            'invite_code' => (new WdXcxUser())->ensureInviteCodeForUser($user),
             'latitude' => $user->latitude,
             'longitude' => $user->longitude,
         ];

@@ -62,7 +62,7 @@ export type HomeTargetRef = string | { targetUserId?: string; shareCode?: string
 
 export const getCurrentUserShareCode = (raw: any = {}) => {
   const user = normalizeCurrentUser(raw)
-  return String(user.share_code || user.shareCode || user.invite_code || user.inviteCode || '')
+  return String(user.share_code || user.shareCode || user.home_share_code || user.homeShareCode || '')
 }
 
 export const getUrlHomeTarget = () => {
@@ -70,7 +70,7 @@ export const getUrlHomeTarget = () => {
   const params = new URLSearchParams(window.location.search)
   return {
     targetUserId: params.get('uid') || params.get('target_user_id') || '',
-    shareCode: params.get('code') || params.get('share_code') || params.get('invite_code') || '',
+    shareCode: params.get('code') || params.get('share_code') || '',
   }
 }
 

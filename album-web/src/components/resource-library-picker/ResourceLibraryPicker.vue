@@ -12,6 +12,7 @@ import ResourceLibraryGrid from './ResourceLibraryGrid.vue'
 import type { ResourceImageVO } from '@/data/ResourceLibraryService'
 import { cn } from '@/lib/utils'
 import { pcApi } from '@/lib/api'
+import { pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
 
 const isClient = ref(true)
 const isLoading = ref(false)
@@ -39,8 +40,8 @@ onMounted(() => {
 const mapResource = (item: any): ResourceImageVO => ({
   id: String(item.id || item.resource_id || item.pic_id || ''),
   name: item.name || item.pic_name || item.file_name || '未命名图片',
-  url: item.url || item.picture_url_original || item.picture_url || item.imgurl || '',
-  thumbnailUrl: item.thumbnailUrl || item.thumb || item.picture_url || item.imgurl || item.url || '',
+  url: pickImage(item.file_url, item.fileUrl, item.preview_url, item.previewUrl, item.picture_url_original, item.url, item),
+  thumbnailUrl: pickImage(item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, item.url, item),
   sizeLabel: item.sizeLabel || item.size_label || (item.size ? `${(Number(item.size) / 1024 / 1024).toFixed(1)} MB` : ''),
   sizeBytes: Number(item.sizeBytes || item.size || 0),
   uploadedAt: item.uploadedAt || item.create_time || item.created_at || '',
@@ -56,8 +57,7 @@ const loadResources = async () => {
       page_size: 100,
       keyword: searchKeyword.value.trim(),
     })
-    const list = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.lists) ? raw.lists : Array.isArray(raw) ? raw : []
-    allResources.value = list.map(mapResource)
+    allResources.value = unwrapList(raw).map(mapResource)
   } catch (error: any) {
     toast.error(error?.message || '资源库加载失败')
   } finally {

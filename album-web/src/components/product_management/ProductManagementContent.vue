@@ -65,7 +65,7 @@ const isBatchOperating = ref(false)
 
 const applyUserShareInfo = (user: any = {}) => {
   currentUserId.value = String(user?.id || user?.uid || currentUserId.value || '')
-  currentShareCode.value = String(user?.share_code || user?.shareCode || user?.invite_code || currentShareCode.value || '')
+  currentShareCode.value = String(user?.share_code || user?.shareCode || user?.home_share_code || currentShareCode.value || '')
 }
 
 const ensureUserShareInfo = async () => {
@@ -217,7 +217,7 @@ const handleShareProduct = async (product: ProductData) => {
   if (!currentUserId.value) {
     const user = authStore.getUser<any>() || {}
     currentUserId.value = String(user?.id || user?.uid || product.ownerUserId || '')
-    currentShareCode.value = String(user?.share_code || user?.shareCode || user?.invite_code || currentShareCode.value)
+    currentShareCode.value = String(user?.share_code || user?.shareCode || user?.home_share_code || currentShareCode.value)
   }
   if (!currentShareCode.value) {
     await ensureUserShareInfo()
@@ -583,23 +583,28 @@ const statusOptions = [
           <template v-else>
             <div
               v-if="paginatedProducts.length > 0"
-              class="mb-5 flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 shadow-sm"
+              :class="cn(
+                'mb-5 flex items-center justify-between rounded-lg border px-4 py-3 shadow-sm transition-colors',
+                selectedProductIds.length > 0 ? 'border-primary/30 bg-primary/5' : 'border-border bg-card'
+              )"
             >
               <button
                 type="button"
-                class="inline-flex items-center gap-2 text-sm font-medium text-foreground"
+                class="inline-flex items-center gap-3 text-sm font-medium text-foreground"
                 @click="toggleSelectPage"
               >
                 <span
                   :class="cn(
-                    'flex h-4 w-4 items-center justify-center rounded border transition-colors',
+                    'flex h-6 w-6 items-center justify-center rounded-md border-2 transition-colors',
                     isPageAllSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'
                   )"
                 >
-                  <SafeIcon v-if="isPageAllSelected" name="Check" :size="12" />
+                  <SafeIcon v-if="isPageAllSelected" name="Check" :size="16" />
                 </span>
-                全选（{{ paginatedProducts.length }}项）
-                <span v-if="selectedProductIds.length" class="text-muted-foreground">已选 {{ selectedProductIds.length }}</span>
+                <span>全选当前页（{{ paginatedProducts.length }}项）</span>
+                <span v-if="selectedProductIds.length" class="rounded-full bg-primary px-3 py-1 text-xs text-primary-foreground">
+                  已选 {{ selectedProductIds.length }}
+                </span>
               </button>
 
               <div class="flex items-center gap-2">

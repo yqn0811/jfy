@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Checkbox } from '@/components/ui/checkbox'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -22,6 +22,11 @@ const emit = defineEmits<{
 }>()
 
 const isSelected = (id: string) => props.selectedIds.has(id)
+const brokenIds = ref<Set<string>>(new Set())
+
+const markBroken = (id: string) => {
+  brokenIds.value = new Set([...brokenIds.value, id])
+}
 </script>
 
 <template>
@@ -54,10 +59,19 @@ const isSelected = (id: string) => props.selectedIds.has(id)
         >
           <!-- Image -->
           <img
-            :src="resource.thumbnailUrl"
+            v-if="(resource.thumbnailUrl || resource.url) && !brokenIds.has(resource.id)"
+            :src="resource.thumbnailUrl || resource.url"
             :alt="resource.name"
             class="w-full h-full object-cover"
+            @error="markBroken(resource.id)"
           />
+          <div
+            v-else
+            class="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground"
+          >
+            <SafeIcon name="ImageOff" :size="28" />
+            <span class="max-w-[80%] truncate text-[11px]">图片暂不可预览</span>
+          </div>
 
           <!-- Overlay -->
           <div

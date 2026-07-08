@@ -3,7 +3,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer'
+import {
+  Dialog,
+  DialogScrollContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import ProductImageGallery from './ProductImageGallery.vue'
 import ShareDialog from './ShareDialog.vue'
@@ -23,7 +29,7 @@ const shareCode = ref('')
 const productId = ref('')
 
 // State management
-const isDrawerOpen = ref(true)
+const isDialogOpen = ref(true)
 const isFavorited = ref(false)
 const isLoggedIn = ref(false)
 const isOwnerView = ref(false)
@@ -161,12 +167,12 @@ const handleImageClick = (imageUrl: string, index: number, type: 'colorChart' | 
   window.location.href = `./image-viewer.html?${params.toString()}`
 }
 
-const handleCloseDrawer = (open = false) => {
+const handleCloseDialog = (open = false) => {
   if (open) {
-    isDrawerOpen.value = true
+    isDialogOpen.value = true
     return
   }
-  isDrawerOpen.value = false
+  isDialogOpen.value = false
   if (typeof window !== 'undefined' && window.history.length > 1) {
     window.history.back()
   }
@@ -182,20 +188,20 @@ const handleLoginSuccess = () => {
 
 <template>
   <div>
-    <Drawer v-if="isLoggedIn" :open="isDrawerOpen" @update:open="handleCloseDrawer">
-      <DrawerContent class="max-w-2xl flex flex-col max-h-[80vh] right-0 left-auto rounded-l-lg rounded-r-none">
+    <Dialog v-if="isLoggedIn" :open="isDialogOpen" @update:open="handleCloseDialog">
+      <DialogScrollContent class="max-h-[90vh] max-w-[760px] overflow-hidden p-0">
+        <div class="flex max-h-[90vh] flex-col">
         <!-- Header with close button -->
-        <DrawerHeader class="flex-shrink-0 border-b border-border pb-4">
+        <DialogHeader class="flex-shrink-0 border-b border-border px-6 py-5 text-left">
           <div class="flex items-center justify-between">
             <div>
-              <DrawerTitle class="text-2xl font-bold">产品详情</DrawerTitle>
+              <DialogTitle class="text-2xl font-bold">产品详情</DialogTitle>
               <p class="text-lg font-semibold text-foreground mt-2">
                 {{ product?.name || '未命名产品' }}
               </p>
             </div>
-            <DrawerClose class="absolute right-4 top-4" />
           </div>
-        </DrawerHeader>
+        </DialogHeader>
 
         <!-- Scrollable content area -->
         <div class="flex-1 overflow-y-auto min-h-0 py-4">
@@ -223,31 +229,6 @@ const handleLoginSuccess = () => {
                   <span class="font-medium">{{ product?.updatedAt }}</span>
                 </div>
               </div>
-            </section>
-
-            <!-- Action Buttons -->
-            <section class="flex flex-wrap gap-2 pt-2">
-              <Button
-                :variant="isFavorited ? 'default' : 'outline'"
-                size="sm"
-                class="flex items-center gap-2"
-                @click="handleFavorite"
-              >
-                <SafeIcon :name="isFavorited ? 'Heart' : 'Heart'" :size="16" :fill="isFavorited ? 'currentColor' : 'none'" />
-                {{ isFavorited ? '已收藏' : '收藏' }}
-              </Button>
-              <Button variant="outline" size="sm" class="flex items-center gap-2" @click="handleShare">
-                <SafeIcon name="Share2" :size="16" />
-                分享
-              </Button>
-              <Button variant="outline" size="sm" class="flex items-center gap-2" @click="handleDownload">
-                <SafeIcon name="Download" :size="16" />
-                下载
-              </Button>
-              <Button variant="outline" size="sm" class="flex items-center gap-2" @click="handleContact">
-                <SafeIcon name="MessageCircle" :size="16" />
-                联系商户
-              </Button>
             </section>
 
             <!-- Color Chart Images Section -->
@@ -293,8 +274,33 @@ const handleLoginSuccess = () => {
             </section>
           </div>
         </div>
-      </DrawerContent>
-    </Drawer>
+        <DialogFooter class="border-t border-border px-6 py-4 sm:justify-stretch">
+          <div class="grid w-full grid-cols-4 gap-3">
+            <Button
+              :variant="isFavorited ? 'default' : 'outline'"
+              class="h-11 gap-2"
+              @click="handleFavorite"
+            >
+              <SafeIcon :name="isFavorited ? 'Heart' : 'Heart'" :size="16" :fill="isFavorited ? 'currentColor' : 'none'" />
+              {{ isFavorited ? '已收藏' : '收藏' }}
+            </Button>
+            <Button variant="outline" class="h-11 gap-2" @click="handleShare">
+              <SafeIcon name="Share2" :size="16" />
+              分享
+            </Button>
+            <Button variant="outline" class="h-11 gap-2" @click="handleDownload">
+              <SafeIcon name="Download" :size="16" />
+              下载
+            </Button>
+            <Button variant="outline" class="h-11 gap-2" @click="handleContact">
+              <SafeIcon name="MessageCircle" :size="16" />
+              联系商户
+            </Button>
+          </div>
+        </DialogFooter>
+        </div>
+      </DialogScrollContent>
+    </Dialog>
 
     <!-- Dialogs -->
     <LoginDialog :open="showLoginDialog" @update:open="(v) => showLoginDialog = v" @login-success="handleLoginSuccess" />
@@ -315,10 +321,3 @@ const handleLoginSuccess = () => {
     />
   </div>
 </template>
-
-<style scoped>
-/* Drawer-specific styles */
-:deep(.drawer-content) {
-  @apply rounded-l-lg rounded-r-none;
-}
-</style>
