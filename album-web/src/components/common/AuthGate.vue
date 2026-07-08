@@ -59,7 +59,7 @@ onMounted(verifyLogin)
       </div>
       <div>
         <h2 class="text-section-title">请先登录</h2>
-        <p class="text-caption mt-1">扫码后即可进入产品工作台</p>
+        <p class="text-caption mt-1">扫码后即可进入家纺云相册</p>
       </div>
     </div>
   </div>

@@ -6,38 +6,38 @@
 @layer base {
   :root {
     /* Background & Surface */
-    --background: 30 10% 98%;
-    --foreground: 216 20% 20%;
+    --background: 40 20% 98%;
+    --foreground: 30 8% 18%;
     --card: 0 0% 100%;
-    --card-foreground: 216 20% 20%;
+    --card-foreground: 30 8% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 216 20% 20%;
+    --popover-foreground: 30 8% 18%;
 
-    /* Brand - 钴蓝体系 */
-    --primary: 216 70% 50%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 216 15% 92%;
-    --secondary-foreground: 216 20% 20%;
-    --accent: 35 85% 58%;
+    /* Brand - 小程序黄橙体系 */
+    --primary: 49 100% 50%;
+    --primary-foreground: 30 8% 18%;
+    --secondary: 42 28% 92%;
+    --secondary-foreground: 30 8% 18%;
+    --accent: 32 100% 50%;
     --accent-foreground: 0 0% 100%;
 
-    /* Muted - 蓝灰中性色 */
-    --muted: 216 15% 92%;
-    --muted-foreground: 216 15% 45%;
+    /* Muted - 暖灰中性色 */
+    --muted: 42 20% 92%;
+    --muted-foreground: 30 8% 45%;
 
     /* State & UI */
     --destructive: 0 75% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 216 15% 88%;
-    --input: 216 15% 88%;
-    --ring: 216 70% 50%;
+    --border: 40 18% 88%;
+    --input: 40 18% 88%;
+    --ring: 49 100% 50%;
     --radius: 0.5rem;
 
     /* Hover States */
-    --primary-hover: 216 65% 58%;
-    --accent-hover: 35 80% 65%;
-    --muted-hover: 216 15% 85%;
-    --secondary-hover: 216 15% 88%;
+    --primary-hover: 45 100% 56%;
+    --accent-hover: 30 100% 56%;
+    --muted-hover: 42 20% 86%;
+    --secondary-hover: 42 28% 86%;
 
     /* State Colors - 不用于 @apply, 仅 var() */
     --success: 142 70% 45%;
@@ -235,4 +235,3 @@
     color: hsl(var(--warning));
   }
 }
-    

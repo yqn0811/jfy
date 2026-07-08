@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import SafeIcon from "@/components/common/SafeIcon.vue";
+import BrandMark from "@/components/common/BrandMark.vue";
 import LoginDialog from "@/components/common/LoginDialog.vue";
 import FavoritesList from "@/components/favorites/FavoritesList.vue";
 import BrowsingHistoryContent from "@/components/browsing_history/BrowsingHistoryContent.vue";
@@ -123,10 +124,8 @@ onMounted(() => {
         class="flex items-center gap-2 cursor-pointer shrink-0" 
         @click="handleNavigate('./share-home.html')"
       >
-        <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-          <SafeIcon name="Cloud" color="white" :size="20" />
-        </div>
-        <span class="text-xl font-bold tracking-tight text-primary">家纺云分享</span>
+        <BrandMark :size="32" />
+        <span class="text-xl font-bold tracking-tight text-foreground">家纺云相册</span>
       </div>
 
       <!-- Search Bar -->
@@ -181,7 +180,7 @@ onMounted(() => {
               <DropdownMenuLabel class="font-normal">
                 <div class="flex flex-col space-y-1">
                   <p class="text-sm font-medium leading-none">{{ displayName }}</p>
-                  <p class="text-xs leading-none text-muted-foreground">欢迎使用家纺云</p>
+                  <p class="text-xs leading-none text-muted-foreground">欢迎使用家纺云相册</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />

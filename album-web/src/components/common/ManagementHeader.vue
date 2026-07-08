@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import SafeIcon from '@/components/common/SafeIcon.vue';
+import BrandMark from '@/components/common/BrandMark.vue';
 import { authStore, isMockEnabled, pcApi } from '@/lib/api';
 
 interface Props {
@@ -83,25 +84,10 @@ const goToWorkbench = () => {
         class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
         @click="goToWorkbench"
       >
-        <div class="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
-          <SafeIcon name="LayoutDashboard" :size="20" class="text-primary-foreground" />
-        </div>
-        <h1 class="text-lg font-bold tracking-tight">产品工作台</h1>
+        <BrandMark :size="32" />
+        <h1 class="text-lg font-bold tracking-tight">家纺云相册</h1>
       </div>
 
-      <div class="hidden lg:flex items-center gap-4 border-l border-border pl-8">
-        <div class="flex flex-col gap-1 w-48">
-          <div class="flex justify-between text-[10px] text-muted-foreground uppercase font-bold">
-            <span>存储空间</span>
-            <span>{{ usedStorageText }} / {{ totalStorageText }}</span>
-          </div>
-          <Progress :model-value="storagePercent" class="h-1.5" />
-        </div>
-        <Button variant="outline" size="sm" class="h-8 text-xs" @click="handleUpgrade">
-          <SafeIcon name="TrendingUp" :size="14" class="mr-1" />
-          升级容量
-        </Button>
-      </div>
     </div>
 
     <div class="flex items-center gap-3">
@@ -119,11 +105,27 @@ const goToWorkbench = () => {
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent class="w-56" align="end">
+        <DropdownMenuContent class="w-72" align="end">
           <DropdownMenuLabel class="font-normal">
-            <div class="flex flex-col space-y-1">
+            <div class="flex flex-col space-y-3">
               <p class="text-sm font-medium leading-none">{{ displayName }}</p>
-              <p class="text-xs leading-none text-muted-foreground">家纺云产品工作台</p>
+              <p class="text-xs leading-none text-muted-foreground">家纺云相册</p>
+              <div class="rounded-lg border border-border bg-muted/30 p-3">
+                <div class="mb-2 flex items-center justify-between text-xs">
+                  <span class="font-medium text-foreground">存储空间</span>
+                  <span class="text-muted-foreground">{{ usedStorageText }} / {{ totalStorageText }}</span>
+                </div>
+                <Progress :model-value="storagePercent" class="h-1.5" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="mt-3 h-8 w-full text-xs"
+                  @click.stop="handleUpgrade"
+                >
+                  <SafeIcon name="TrendingUp" :size="14" class="mr-1" />
+                  升级容量
+                </Button>
+              </div>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />

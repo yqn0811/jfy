@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'

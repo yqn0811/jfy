@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,7 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'remove', id: string, type: ProductImageType): void
+  (e: 'reorder', images: ProductImageData[], type: ProductImageType): void
 }>()
 
 const draggedIndex = ref<number | null>(null)
@@ -44,6 +45,7 @@ const handleDrop = (targetIndex: number) => {
   const newImages = [...props.images]
   const [draggedItem] = newImages.splice(draggedIndex.value, 1)
   newImages.splice(targetIndex, 0, draggedItem)
+  emit('reorder', newImages.map((item, index) => ({ ...item, sortOrder: index })), props.type)
 
   draggedIndex.value = null
   dragOverIndex.value = null
