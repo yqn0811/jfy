@@ -1,0 +1,12 @@
+
+---
+import StandardLayout from '@/layouts/StandardLayout.astro'
+import ProductDetailDrawer from '@/components/product_detail/ProductDetailDrawer.vue'
+---
+
+<StandardLayout title="产品详情 - 家纺云分享">
+  <main class="page-body min-h-screen">
+    <!-- ProductDetailDrawer is a client component that manages drawer state and all interactions -->
+    <ProductDetailDrawer client:load />
+  </main>
+</StandardLayout>

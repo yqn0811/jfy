@@ -1,0 +1,11 @@
+
+---
+import StandardLayout from '@/layouts/StandardLayout.astro'
+import FavoritesList from '@/components/favorites/FavoritesList.vue'
+---
+
+<StandardLayout title="我的收藏 - 家纺云分享">
+  <main class="min-h-screen flex flex-col">
+    <FavoritesList client:load />
+  </main>
+</StandardLayout>

@@ -1,0 +1,238 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Background & Surface */
+    --background: 30 10% 98%;
+    --foreground: 216 20% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 216 20% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 216 20% 20%;
+
+    /* Brand - 钴蓝体系 */
+    --primary: 216 70% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 216 15% 92%;
+    --secondary-foreground: 216 20% 20%;
+    --accent: 35 85% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Muted - 蓝灰中性色 */
+    --muted: 216 15% 92%;
+    --muted-foreground: 216 15% 45%;
+
+    /* State & UI */
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 216 15% 88%;
+    --input: 216 15% 88%;
+    --ring: 216 70% 50%;
+    --radius: 0.5rem;
+
+    /* Hover States */
+    --primary-hover: 216 65% 58%;
+    --accent-hover: 35 80% 65%;
+    --muted-hover: 216 15% 85%;
+    --secondary-hover: 216 15% 88%;
+
+    /* State Colors - 不用于 @apply, 仅 var() */
+    --success: 142 70% 45%;
+    --warning: 35 85% 58%;
+
+    /* Layout - 管理端固定高度 */
+    --header-height: 60px;
+
+    /* Shadows */
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+    /* Font Stack - 苹方现代感 */
+    --font-sans: "PingFang SC", "Helvetica Neue", system-ui, sans-serif;
+  }
+
+  html {
+    overscroll-behavior: none;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    line-height: 1.6;
+  }
+}
+
+@layer components {
+  /* === REQUIRED 基础类 === */
+  .text-page-title {
+    @apply text-3xl font-semibold leading-tight tracking-tight;
+  }
+
+  .text-body {
+    @apply text-base leading-relaxed;
+  }
+
+  .page-body {
+    @apply px-8 py-6;
+  }
+
+  .card-padding {
+    @apply p-6;
+  }
+
+  .surface-base {
+    @apply bg-card border border-border rounded-[--radius];
+  }
+
+  .surface-raised {
+    @apply bg-card border border-border rounded-[--radius];
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* === RECOMMENDED 扩展类 === */
+  .text-section-title {
+    @apply text-xl font-medium leading-snug;
+  }
+
+  .text-item-title {
+    @apply text-base font-medium leading-normal;
+  }
+
+  .text-caption {
+    @apply text-sm text-muted-foreground leading-relaxed;
+  }
+
+  .text-label {
+    @apply text-sm font-medium leading-tight;
+  }
+
+  .page-container {
+    @apply mx-auto max-w-screen-2xl;
+  }
+
+  .section-spacing {
+    @apply space-y-6;
+  }
+
+  .interactive {
+    @apply transition-colors duration-150 cursor-pointer;
+  }
+
+  .page-section-header {
+    @apply flex items-center justify-between mb-4;
+  }
+
+  .filter-bar {
+    @apply flex flex-wrap items-center gap-3 p-4 surface-base;
+  }
+
+  .empty-state {
+    @apply flex flex-col items-center justify-center text-center text-muted-foreground py-16 space-y-4;
+  }
+
+  /* === APP-SPECIFIC 家纺云特定类 === */
+
+  /* 状态徽章变体 - 不能用 @apply (自定义变量),直接定义 */
+  .status-badge-public {
+    background-color: hsl(var(--success) / 0.1);
+    color: hsl(var(--success));
+    border: 1px solid hsl(var(--success) / 0.3);
+  }
+
+  .status-badge-private {
+    @apply bg-muted text-muted-foreground border-muted-foreground/30;
+  }
+
+  .status-badge-shared {
+    background-color: hsl(var(--warning) / 0.1);
+    color: hsl(var(--warning));
+    border: 1px solid hsl(var(--warning) / 0.3);
+  }
+
+  /* 导航激活态 */
+  .nav-item-active {
+    @apply bg-secondary text-secondary-foreground;
+    border-left: 3px solid hsl(var(--primary));
+  }
+
+  /* 产品卡片容器 */
+  .product-card {
+    @apply surface-base overflow-hidden interactive;
+    &:hover {
+      box-shadow: var(--shadow-card);
+    }
+  }
+
+  /* 统计卡片(概览页 KPI) */
+  .stat-card {
+    @apply surface-raised card-padding flex flex-col gap-2;
+  }
+
+  .stat-card-value {
+    @apply text-3xl font-bold text-primary;
+  }
+
+  .stat-card-label {
+    @apply text-caption;
+  }
+
+  /* 表单区块包裹 */
+  .form-section {
+    @apply space-y-4 p-6 surface-base;
+  }
+
+  .form-section-title {
+    @apply text-section-title mb-4 pb-3 border-b border-border;
+  }
+
+  /* 图片上传区域 */
+  .upload-zone {
+    @apply border-2 border-dashed border-border rounded-[--radius] p-8 text-center interactive;
+    background-color: hsl(var(--muted) / 0.3);
+    &:hover {
+      background-color: hsl(var(--muted) / 0.5);
+      border-color: hsl(var(--primary) / 0.5);
+    }
+  }
+
+  /* 表格行 hover */
+  .table-row-hover {
+    @apply interactive;
+    &:hover {
+      background-color: hsl(var(--muted) / 0.3);
+    }
+  }
+
+  /* 滚动容器(数据表/列表) */
+  .scrollable-content {
+    @apply flex-1 overflow-y-auto min-h-0;
+  }
+
+  /* 面包屑分隔符 */
+  .breadcrumb-separator {
+    @apply text-muted-foreground mx-2;
+  }
+
+  /* 浮动操作栏(产品详情抽屉底部固定按钮) */
+  .floating-action-bar {
+    @apply sticky bottom-0 bg-card border-t border-border p-4 flex items-center justify-end gap-3;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  /* 容量警告条 */
+  .capacity-warning {
+    @apply px-4 py-3 border rounded-[--radius] flex items-center gap-3 text-sm;
+    background-color: hsl(var(--warning) / 0.1);
+    border-color: hsl(var(--warning) / 0.3);
+    color: hsl(var(--warning));
+  }
+}
+    

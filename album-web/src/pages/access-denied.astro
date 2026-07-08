@@ -1,0 +1,9 @@
+
+---
+import CenteredLayout from '@/layouts/CenteredLayout.astro'
+import AccessDeniedContent from '@/components/access_denied/AccessDeniedContent.vue'
+---
+
+<CenteredLayout title="无权限访问 - 家纺云">
+  <AccessDeniedContent client:load />
+</CenteredLayout>

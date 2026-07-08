@@ -1,0 +1,11 @@
+
+---
+import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import CategoryList from '@/components/category_management/CategoryList.vue'
+---
+
+<ManagementLayout title="分类管理 - 家纺云">
+  <div class="page-body">
+    <CategoryList client:load />
+  </div>
+</ManagementLayout>
