@@ -661,7 +661,11 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
 
     case 'user/home/share_link': {
       const uid = String(params.target_user_id || ownerUid)
+      const mobileLink = `https://wxmpurl.cn/${encodeURIComponent(uid).slice(0, 8)}`
       return ok({
+        share_link: mobileLink,
+        link: mobileLink,
+        url_link: mobileLink,
         pc_link: `${currentOrigin()}/share-home.html?uid=${encodeURIComponent(uid)}`,
         web_link: `${currentOrigin()}/share-home.html?uid=${encodeURIComponent(uid)}`,
         mini_path: `/pages/index/index?uid=${encodeURIComponent(uid)}`,

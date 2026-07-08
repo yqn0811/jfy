@@ -26,7 +26,8 @@ const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
 }>()
 
-const shareUrl = ref('')
+const mobileShareUrl = ref('')
+const webShareUrl = ref('')
 const miniCodeUrl = ref('')
 const miniPath = ref('')
 const isLoadingShare = ref(false)
@@ -40,12 +41,12 @@ const buildPcShareUrl = () => {
   return url.toString()
 }
 
-const pickShareLink = (data: any) => {
-  return data?.pc_link || data?.web_link || data?.share_link || data?.link || data?.url_link || ''
-}
+const pickMobileShareLink = (data: any) => data?.share_link || data?.url_link || data?.link || data?.mobile_link || ''
+const pickWebShareLink = (data: any) => data?.pc_link || data?.web_link || data?.web_url || data?.pc_url || ''
 
 const loadShareData = async () => {
-  shareUrl.value = buildPcShareUrl()
+  webShareUrl.value = buildPcShareUrl()
+  mobileShareUrl.value = ''
   miniCodeUrl.value = ''
   miniPath.value = ''
   if (!props.homeProfile?.id) return
@@ -55,7 +56,8 @@ const loadShareData = async () => {
       pcApi.getHomeShareLink(props.homeProfile.id).catch(() => null),
       pcApi.getHomeMiniCode(props.homeProfile.id, 'home').catch(() => null),
     ])
-    shareUrl.value = pickShareLink(linkData) || shareUrl.value
+    mobileShareUrl.value = pickMobileShareLink(linkData)
+    webShareUrl.value = pickWebShareLink(linkData) || webShareUrl.value
     miniCodeUrl.value = codeData?.qrcode || codeData?.qrcode_url || ''
     miniPath.value = codeData?.mini_path || linkData?.mini_path || ''
   } finally {
@@ -68,25 +70,34 @@ watch(() => props.open, open => {
   if (open) loadShareData()
 })
 
-const handleCopyLink = () => {
-  navigator.clipboard.writeText(shareUrl.value)
-  toast.success('链接已复制')
+const handleCopyLink = (url: string, label: string) => {
+  if (!url) {
+    toast.error(`${label}链接还没有生成`)
+    return
+  }
+  navigator.clipboard.writeText(url)
+  toast.success(`${label}链接已复制`)
 }
 
 const handleCopyWithTitle = () => {
-  const text = `${shareTitle.value}\n${shareUrl.value}`
+  const rows = [
+    shareTitle.value,
+    mobileShareUrl.value ? `手机版：${mobileShareUrl.value}` : '',
+    webShareUrl.value ? `网页版：${webShareUrl.value}` : '',
+  ].filter(Boolean)
+  const text = rows.join('\n')
   navigator.clipboard.writeText(text)
   toast.success('已复制')
 }
 
 const handleShare = (platform: string) => {
-  const encodedUrl = encodeURIComponent(shareUrl.value)
+  const encodedUrl = encodeURIComponent(webShareUrl.value)
   const encodedTitle = encodeURIComponent(shareTitle.value)
   let shareLink = ''
 
   switch (platform) {
     case 'wechat':
-      toast.success('请使用微信扫一扫分享')
+      toast.success('可复制手机版链接或小程序码分享')
       break
     case 'qq':
       shareLink = `https://connect.qq.com/widget/shareqq/index.html?url=${encodedUrl}&title=${encodedTitle}`
@@ -111,19 +122,42 @@ const handleShare = (platform: string) => {
       </DialogHeader>
 
       <div class="space-y-6 py-4">
-        <!-- 分享链接 -->
+        <!-- 手机版链接 -->
         <div class="space-y-2">
-          <label class="text-sm font-medium">分享链接</label>
+          <label class="text-sm font-medium">手机版</label>
           <div class="flex gap-2">
             <Input
-              :model-value="shareUrl"
+              :model-value="mobileShareUrl || (isLoadingShare ? '生成中...' : '暂无手机版链接')"
               readonly
               class="flex-1 bg-muted/50 border-none text-xs"
             />
             <Button
               size="sm"
               variant="outline"
-              @click="handleCopyLink"
+              @click="handleCopyLink(mobileShareUrl, '手机版')"
+              :disabled="!mobileShareUrl"
+              class="shrink-0"
+            >
+              <SafeIcon name="Copy" :size="16" class="mr-1" />
+              复制
+            </Button>
+          </div>
+        </div>
+
+        <!-- 网页版链接 -->
+        <div class="space-y-2">
+          <label class="text-sm font-medium">网页版</label>
+          <div class="flex gap-2">
+            <Input
+              :model-value="webShareUrl"
+              readonly
+              class="flex-1 bg-muted/50 border-none text-xs"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              @click="handleCopyLink(webShareUrl, '网页版')"
+              :disabled="!webShareUrl"
               class="shrink-0"
             >
               <SafeIcon name="Copy" :size="16" class="mr-1" />
@@ -148,7 +182,7 @@ const handleShare = (platform: string) => {
             <div class="flex-1 min-w-0 space-y-2">
               <p class="text-sm font-medium">微信扫一扫打开小程序</p>
               <p class="text-xs text-muted-foreground break-all">
-                {{ miniPath || '小程序码生成中，网页链接可直接复制分享' }}
+                {{ miniPath || '小程序码生成中，手机版和网页版链接可直接复制分享' }}
               </p>
             </div>
           </div>
