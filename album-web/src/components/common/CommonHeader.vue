@@ -34,7 +34,8 @@ const props = withDefaults(defineProps<Props>(), {
 const searchQuery = ref("");
 const showLoginDialog = ref(false);
 const userInfo = ref<any>({});
-const loggedIn = computed(() => props.isAuthenticated || authStore.isLoggedIn());
+const isHydrated = ref(false);
+const loggedIn = computed(() => isHydrated.value && (props.isAuthenticated || authStore.isLoggedIn()));
 const displayName = computed(() => userInfo.value?.company_name || userInfo.value?.nickname || props.userName);
 const displayAvatar = computed(() => userInfo.value?.avatar || userInfo.value?.company_logo || props.userAvatar);
 
@@ -85,6 +86,7 @@ const isActive = (href: string) => {
 
 onMounted(() => {
   authStore.consumeCallbackToken();
+  isHydrated.value = true;
   userInfo.value = authStore.getUser<any>() || {};
   if (authStore.isLoggedIn()) {
     pcApi.getCurrentUser()

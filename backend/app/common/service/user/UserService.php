@@ -2230,11 +2230,15 @@ class UserService extends BaseService
         // 2. Product Collections (Products in AlbumFolder: folder_type = 2)
         if ($type == 'all' || $type == 'product' || $type == '产品') {
             $query = WdXcxUserCollectAlbums::where('uid', $uid);
+            $fidsQuery = WdXcxAlbumFolder::where('folder_type', 2);
             if ($key) {
-                $fids = WdXcxAlbumFolder::where('folder_type', 2)
-                    ->where('folder_name', 'like', "%{$key}%")
-                    ->column('id');
+                $fidsQuery->where('folder_name', 'like', "%{$key}%");
+            }
+            $fids = $fidsQuery->column('id');
+            if (!empty($fids)) {
                 $query->whereIn('fid', $fids);
+            } else {
+                $query->whereRaw('0');
             }
             $countQuery = clone $query;
             $total += $countQuery->count();
@@ -2264,9 +2268,15 @@ class UserService extends BaseService
         // 3. Category Collections (Albums)
         if ($type == 'all' || $type == 'category' || $type == '分类') {
             $query = WdXcxUserCollectAlbums::where('uid', $uid);
+            $fidsQuery = WdXcxAlbumFolder::where('folder_type', 1);
             if ($key) {
-                $fids = WdXcxAlbumFolder::where('folder_name', 'like', "%{$key}%")->column('id');
+                $fidsQuery->where('folder_name', 'like', "%{$key}%");
+            }
+            $fids = $fidsQuery->column('id');
+            if (!empty($fids)) {
                 $query->whereIn('fid', $fids);
+            } else {
+                $query->whereRaw('0');
             }
             $countQuery = clone $query;
             $total += $countQuery->count();

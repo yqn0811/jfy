@@ -99,30 +99,30 @@ const watermarkOverlayStyle = computed(() => ({
 </script>
 
 <template>
-  <div class="page-body space-y-6">
+  <div class="page-body flex h-full min-h-0 flex-col space-y-4 overflow-hidden">
     <!-- 页面标题 -->
-    <div class="mb-8">
+    <div class="shrink-0">
       <h1 class="text-page-title mb-2">水印设置</h1>
       <p class="text-caption">为您的产品图片添加版权保护水印，访客在预览和下载时都能看到水印效果</p>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
       <!-- 左侧：设置表单 -->
-      <div class="lg:col-span-1 space-y-6">
+      <div class="min-h-0 space-y-4 overflow-y-auto pr-1">
         <!-- 水印文案设置 -->
         <Card class="surface-base">
-          <CardHeader class="pb-4">
+          <CardHeader class="pb-3">
             <CardTitle class="text-section-title">水印文案</CardTitle>
             <CardDescription>输入要显示在图片上的文字</CardDescription>
           </CardHeader>
-          <CardContent class="space-y-4">
+          <CardContent class="space-y-3">
             <div class="space-y-2">
               <Label for="watermark-text" class="text-label">文案内容</Label>
               <Textarea
                 id="watermark-text"
                 v-model="watermarkText"
                 placeholder="输入水印文案，如：© 公司名 版权所有"
-                class="min-h-[80px] resize-none"
+                class="min-h-[72px] resize-none"
                 maxlength="100"
               />
               <p class="text-[11px] text-muted-foreground">
@@ -134,10 +134,10 @@ const watermarkOverlayStyle = computed(() => ({
 
         <!-- 水印样式设置 -->
         <Card class="surface-base">
-          <CardHeader class="pb-4">
+          <CardHeader class="pb-3">
             <CardTitle class="text-section-title">样式设置</CardTitle>
           </CardHeader>
-          <CardContent class="space-y-4">
+          <CardContent class="space-y-3">
             <!-- 字体大小 -->
             <div class="space-y-2">
               <Label for="font-size" class="text-label">字体大小</Label>
@@ -220,48 +220,48 @@ const watermarkOverlayStyle = computed(() => ({
       </div>
 
       <!-- 右侧：预览区 -->
-      <div class="lg:col-span-2">
-        <Card class="surface-base h-full">
-          <CardHeader class="pb-4">
+      <div class="min-h-0">
+        <Card class="surface-base flex h-full min-h-0 flex-col">
+          <CardHeader class="shrink-0 pb-3">
             <CardTitle class="text-section-title">预览效果</CardTitle>
             <CardDescription>实时预览水印在图片上的显示效果</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent class="min-h-0 flex-1">
             <div
               v-if="isClient"
               :style="previewStyle"
-              class="w-full bg-muted rounded-lg overflow-hidden border border-border"
+              class="flex h-[min(520px,calc(100vh-260px))] min-h-[280px] w-full items-center justify-center bg-muted rounded-lg overflow-hidden border border-border"
             >
               <!-- 预览图片 -->
               <img
                 :src="previewImageUrl"
                 alt="水印预览"
-                class="w-full h-auto block"
+                class="max-h-full max-w-full object-contain"
               />
               <!-- 水印覆盖层 -->
               <div :style="watermarkOverlayStyle">
                 {{ watermarkText || '水印预览' }}
               </div>
             </div>
-            <div v-else class="w-full h-64 bg-muted rounded-lg animate-pulse" />
+            <div v-else class="h-[min(520px,calc(100vh-260px))] min-h-[280px] w-full bg-muted rounded-lg animate-pulse" />
           </CardContent>
         </Card>
       </div>
     </div>
 
     <!-- 应用说明 -->
-    <Card class="surface-base bg-secondary/20 border-secondary/30">
-      <CardHeader class="pb-3">
-        <CardTitle class="text-base flex items-center gap-2">
+    <Card class="surface-base shrink-0 bg-secondary/20 border-secondary/30">
+      <CardHeader class="pb-2">
+        <CardTitle class="text-sm flex items-center gap-2">
           <SafeIcon name="HelpCircle" :size="18" class="text-primary" />
           应用说明
         </CardTitle>
       </CardHeader>
-      <CardContent class="text-sm text-muted-foreground space-y-2">
-        <p>✓ 水印将自动应用于所有产品的花色图和详情图</p>
-        <p>✓ 访客在图片查看器中可以看到水印效果</p>
-        <p>✓ 下载的图片也会包含水印，保护您的版权</p>
-        <p>✓ 修改水印设置后，新上传的图片将使用最新配置</p>
+      <CardContent class="grid gap-x-6 gap-y-1 text-xs text-muted-foreground md:grid-cols-2">
+        <p>水印将应用于产品花色图和详情图</p>
+        <p>访客预览和下载时可看到水印效果</p>
+        <p>下载图片会包含水印，保护版权</p>
+        <p>修改后，新上传图片使用最新配置</p>
       </CardContent>
     </Card>
   </div>

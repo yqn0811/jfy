@@ -247,21 +247,6 @@ const ensureProductDraft = async () => {
   return newId
 }
 
-const handleResourceLibrarySelect = async (type: ProductImageType) => {
-  const targetType = type === 'colorChart' ? 'colorChart' : 'detailChart'
-  try {
-    const currentProductId = await ensureProductDraft()
-    const params = new URLSearchParams({
-      targetType,
-      productId: currentProductId,
-      returnTo: `./product-edit.html?productId=${encodeURIComponent(currentProductId)}`,
-    })
-    window.location.href = `./resource-library-picker.html?${params.toString()}`
-  } catch (error: any) {
-    toast.error(error?.message || '请先保存产品后再选择资源库图片')
-  }
-}
-
 const handleUploadImage = async (file: File, type: ProductImageType): Promise<ProductImageData> => {
   const fid = await ensureProductDraft()
   const data = await pcApi.uploadProductImage(fid, file, type)
@@ -389,7 +374,6 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
             :upload-handler="handleUploadImage"
             @add-images="handleAddImages"
             @remove-image="handleRemoveImage"
-            @select-from-library="handleResourceLibrarySelect"
           />
 
           <ImageSortable
@@ -416,7 +400,6 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
             :upload-handler="handleUploadImage"
             @add-images="handleAddImages"
             @remove-image="handleRemoveImage"
-            @select-from-library="handleResourceLibrarySelect"
           />
 
           <ImageSortable

@@ -157,8 +157,8 @@ export interface PcRecordItem {
 
 export const normalizeTargetType = (value: any): PcTargetType => {
   const type = String(value || '').toLowerCase()
-  if (type === 'homepage' || type === 'home' || type === '主页') return 'home'
-  if (type === 'category' || type === '分类') return 'category'
+  if (type === 'homepage' || type === 'home' || type === 'user' || type === 'shop' || type === 'merchant' || type === '主页') return 'home'
+  if (type === 'category' || type === 'cate' || type === 'class' || type === 'folder' || type === '分类') return 'category'
   return 'product'
 }
 
@@ -183,7 +183,9 @@ export const formatTimeValue = (value: any) => {
 export const mapPcRecord = (raw: any): PcRecordItem => {
   const targetType = normalizeTargetType(raw.type || raw.targetType || raw.target_type)
   const targetId = String(
-    raw.target_id || raw.targetId || raw.fid || raw.product_id || raw.category_id || raw.target_uid || raw.id || ''
+    targetType === 'home'
+      ? raw.target_id || raw.targetId || raw.target_uid || raw.target_user_id || raw.uid || raw.user_id || raw.id || ''
+      : raw.target_id || raw.targetId || raw.fid || raw.product_id || raw.category_id || raw.id || ''
   )
   const targetUserId = String(
     raw.target_uid ||
@@ -194,7 +196,15 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
       (targetType === 'home' ? targetId : '')
   )
   const time = normalizeTimestamp(raw.time || raw.update_time || raw.create_time || raw.createdAt || raw.viewedAt)
-  const title = raw.title || raw.folder_name || raw.name || (targetType === 'home' ? '商户主页' : targetType === 'category' ? '分类' : '产品')
+  const title =
+    raw.title ||
+    raw.folder_name ||
+    raw.company_name ||
+    raw.shop_name ||
+    raw.nickname ||
+    raw.nick_name ||
+    raw.name ||
+    (targetType === 'home' ? '商户主页' : targetType === 'category' ? '分类' : '产品')
   const subtitle =
     raw.source ||
     raw.subtitle ||
@@ -208,7 +218,7 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
     targetUserId,
     title,
     subtitle,
-    coverUrl: pickImage(raw.image, raw.new_thumb, raw.cover, raw.avatar, raw.company_logo) || fallbackImage,
+    coverUrl: pickImage(raw.image, raw.new_thumb, raw.cover, raw.avatar, raw.company_logo, raw.logo, raw.picture_url) || fallbackImage,
     time,
     timeText: raw.time_str || formatTimeValue(time),
     createdAt: time ? new Date(time * 1000).toISOString() : '',

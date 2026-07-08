@@ -9,8 +9,9 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import LoginDialog from '@/components/common/LoginDialog.vue'
 import { toast } from 'vue-sonner'
-import { pcApi } from '@/lib/api'
+import { authStore, pcApi } from '@/lib/api'
 import { buildPcTargetUrl, mapPcRecord, unwrapList, type PcRecordItem } from '@/lib/jfyuntu-mappers'
 
 type FavoriteType = 'all' | 'homepage' | 'category' | 'product'
@@ -23,6 +24,8 @@ const currentPage = ref(1)
 const pageSize = 20
 const confirmDialogOpen = ref(false)
 const selectedFavorite = ref<PcRecordItem | null>(null)
+const showLoginDialog = ref(false)
+const isLoggedIn = ref(false)
 
 const favorites = ref<PcRecordItem[]>([])
 const serverTotal = ref(0)
@@ -37,23 +40,44 @@ const tabOptions = [
 onMounted(async () => {
   isClient.value = false
   requestAnimationFrame(() => {
+    authStore.consumeCallbackToken()
     const params = new URLSearchParams(window.location.search)
     const tabParam = params.get('tab') as FavoriteType | null
     if (tabParam && ['all', 'homepage', 'category', 'product'].includes(tabParam)) {
       activeTab.value = tabParam
     }
+    isLoggedIn.value = authStore.isLoggedIn()
     isClient.value = true
   })
+  authStore.consumeCallbackToken()
+  isLoggedIn.value = authStore.isLoggedIn()
+  if (!isLoggedIn.value) {
+    showLoginDialog.value = true
+    return
+  }
   await loadFavorites()
 })
 
 const loadFavorites = async () => {
+  if (!authStore.isLoggedIn()) {
+    favorites.value = []
+    serverTotal.value = 0
+    isLoggedIn.value = false
+    showLoginDialog.value = true
+    return
+  }
+  isLoggedIn.value = true
   isLoading.value = true
   try {
     const raw = await pcApi.getFavorites(activeTab.value, searchKeyword.value.trim(), currentPage.value)
     favorites.value = unwrapList(raw).map(item => mapPcRecord(item))
     serverTotal.value = Number(raw?.total || favorites.value.length)
   } catch (error: any) {
+    if (error?.code === 401 || error?.code === 410000 || /登录|token|授权/i.test(error?.message || '')) {
+      authStore.clearToken()
+      isLoggedIn.value = false
+      showLoginDialog.value = true
+    }
     toast.error(error?.message || '收藏加载失败')
   } finally {
     isLoading.value = false
@@ -131,6 +155,17 @@ const handleRemoveFavorite = async () => {
 const handleGoToBrowse = () => {
   window.location.href = './share-home.html'
 }
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page
+  loadFavorites()
+}
+
+const handleLoginSuccess = async () => {
+  showLoginDialog.value = false
+  isLoggedIn.value = true
+  await loadFavorites()
+}
 </script>
 
 <template>
@@ -145,7 +180,7 @@ const handleGoToBrowse = () => {
     <div class="surface-base card-padding mb-6">
       <div class="flex flex-col gap-4">
         <!-- Tabs -->
-        <Tabs :value="activeTab" @update:model-value="handleTabChange">
+        <Tabs :model-value="activeTab" @update:model-value="(value) => handleTabChange(value as FavoriteType)">
           <TabsList class="grid w-full grid-cols-4 bg-muted/50">
             <TabsTrigger v-for="tab in tabOptions" :key="tab.value" :value="tab.value">
               {{ tab.label }}
@@ -175,8 +210,21 @@ const handleGoToBrowse = () => {
     </div>
 
     <div v-if="isClient" class="flex-1 flex flex-col">
+      <div v-if="!isLoggedIn" class="flex-1 flex items-center justify-center">
+        <EmptyState
+          icon="ShieldCheck"
+          title="请先登录"
+          description="登录后可以查看你在小程序和网页收藏的主页、分类和产品"
+        >
+          <Button variant="default" @click="showLoginDialog = true">
+            <SafeIcon name="QrCode" :size="16" class="mr-2" />
+            微信扫码登录
+          </Button>
+        </EmptyState>
+      </div>
+
       <!-- Empty State -->
-      <div v-if="totalItems === 0" class="flex-1 flex items-center justify-center">
+      <div v-else-if="!isLoading && totalItems === 0" class="flex-1 flex items-center justify-center">
         <EmptyState
           icon="Heart"
           title="暂无收藏"
@@ -187,6 +235,11 @@ const handleGoToBrowse = () => {
             去浏览
           </Button>
         </EmptyState>
+      </div>
+
+      <div v-else-if="isLoading" class="flex-1 flex items-center justify-center text-muted-foreground">
+        <SafeIcon name="Loader2" :size="24" class="mr-2 animate-spin" />
+        加载中...
       </div>
 
       <!-- Favorites Table -->
@@ -290,7 +343,7 @@ const handleGoToBrowse = () => {
             :current="currentPage"
             :total="totalItems"
             :page-size="pageSize"
-            @update:current="(page) => (currentPage = page)"
+            @update:current="handlePageChange"
           />
         </div>
       </template>
@@ -306,6 +359,12 @@ const handleGoToBrowse = () => {
       variant="default"
       @update:open="(val) => (confirmDialogOpen = val)"
       @confirm="handleRemoveFavorite"
+    />
+
+    <LoginDialog
+      :open="showLoginDialog"
+      @update:open="showLoginDialog = $event"
+      @login-success="handleLoginSuccess"
     />
   </div>
 </template>

@@ -34,8 +34,9 @@ class AlbumApiController extends ApiBaseController
             ['pic_ids', []], // 花色图
             ['detail_pic_ids', []], // 详情图
             ['hide_detail_pictures', 0], // 1:分享页隐藏详情图 0:展示
+            ['allow_draft', 0], // 1:允许先创建产品草稿，后续再上传花色图
         ]);
-        if ($param['folder_type'] == 2 && empty($param['pic_ids'])) {
+        if ($param['folder_type'] == 2 && empty($param['pic_ids']) && empty($param['allow_draft'])) {
             throwError('请选择花色图');
         }
         $info = $this->album_service->createAlbumFolder($param, request()->userID());

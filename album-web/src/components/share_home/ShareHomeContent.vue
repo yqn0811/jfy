@@ -4,7 +4,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -158,15 +158,10 @@ const handleSearch = () => {
 const handleCategoryChange = (categoryId: string) => {
   selectedCategoryId.value = categoryId
   if (typeof window !== 'undefined') {
-    if (categoryId !== 'all') {
-      const params = new URLSearchParams({ categoryId })
-      if (targetUserId.value) params.set('uid', targetUserId.value)
-      window.location.href = `./category.html?${params.toString()}`
-    } else {
-      const params = new URLSearchParams()
-      if (targetUserId.value) params.set('uid', targetUserId.value)
-      window.history.replaceState(null, '', `./share-home.html${params.toString() ? `?${params.toString()}` : ''}`)
-    }
+    const params = new URLSearchParams()
+    if (targetUserId.value) params.set('uid', targetUserId.value)
+    if (categoryId !== 'all') params.set('categoryId', categoryId)
+    window.history.replaceState(null, '', `./share-home.html${params.toString() ? `?${params.toString()}` : ''}`)
   }
 }
 
@@ -286,15 +281,15 @@ const handleLoginSuccess = () => {
     </section>
 
     <!-- 分类导航区 -->
-    <section v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0" class="page-body border-b border-border sticky top-[var(--header-height)] bg-background/95 backdrop-blur z-40">
+    <section v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0" class="border-b border-border bg-background">
       <div class="page-container">
-        <Tabs :value="selectedCategoryId || 'all'" @update:value="handleCategoryChange" class="w-full">
-          <TabsList class="w-full justify-start bg-transparent border-b border-border rounded-none h-auto p-0 gap-0">
+        <Tabs :model-value="selectedCategoryId || 'all'" @update:model-value="(value) => handleCategoryChange(String(value))" class="w-full">
+          <TabsList class="w-full justify-start overflow-x-auto bg-transparent rounded-none h-auto p-0 gap-1">
             <TabsTrigger
               v-for="cat in categoryOptions"
               :key="cat.id"
               :value="cat.id"
-              class="px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors"
+              class="shrink-0 px-4 py-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors"
             >
               {{ cat.name }}
             </TabsTrigger>

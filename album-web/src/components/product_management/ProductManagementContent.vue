@@ -14,6 +14,7 @@ import {
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ProductTable from '@/components/product_management/ProductTable.vue'
+import ProductCreateDialog from '@/components/product_management/ProductCreateDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ProductShareDialog from '@/components/product_detail/ShareDialog.vue'
 import type { ProductData } from '@/data/ProductData'
@@ -41,6 +42,8 @@ const productToDelete = ref<ProductData | null>(null)
 const shareDialogOpen = ref(false)
 const productToShare = ref<ProductData | null>(null)
 const currentUserId = ref('')
+const createDialogOpen = ref(false)
+const isCreatingProduct = ref(false)
 
 onMounted(() => {
   isClient.value = false
@@ -153,7 +156,41 @@ const handleSort = (key: string) => {
 }
 
 const handleNewProduct = () => {
-  window.location.href = './product-edit.html'
+  createDialogOpen.value = true
+}
+
+const handleCreateProduct = async (data: {
+  name: string
+  intro: string
+  categoryId: string
+  visibility: ProductData['visibility']
+  hideDetailImage: boolean
+}) => {
+  isCreatingProduct.value = true
+  try {
+    const categoryIds = data.categoryId === 'none' ? [] : [data.categoryId]
+    await pcApi.createProductOrCategory({
+      fid: categoryIds,
+      folder_type: 2,
+      folder_name: data.name,
+      folder_desc: data.intro,
+      category_ids: categoryIds,
+      private_type: data.visibility === 'private' ? 2 : data.visibility === 'shared' ? 4 : 1,
+      hide_detail_pictures: data.hideDetailImage ? 1 : 0,
+      pic_ids: [],
+      detail_pic_ids: [],
+      new_thumb: '',
+      allow_draft: 1,
+    })
+    toast.success('产品已创建')
+    createDialogOpen.value = false
+    currentPage.value = 1
+    await loadData()
+  } catch (error: any) {
+    toast.error(error?.message || '创建失败')
+  } finally {
+    isCreatingProduct.value = false
+  }
 }
 
 const handleEditProduct = (productId: string) => {
@@ -373,6 +410,14 @@ const statusOptions = [
       :product-id="productToShare?.id || ''"
       :target-user-id="currentUserId || productToShare?.ownerUserId || ''"
       @update:open="(val) => (shareDialogOpen = val)"
+    />
+
+    <ProductCreateDialog
+      :open="createDialogOpen"
+      :categories="allCategories"
+      :saving="isCreatingProduct"
+      @update:open="(val) => (createDialogOpen = val)"
+      @create="handleCreateProduct"
     />
   </div>
 </template>

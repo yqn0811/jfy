@@ -37,7 +37,6 @@ const menuGroups: MenuGroup[] = [
       { title: '工作台概览', icon: 'BarChart4', url: './management-workbench.html' },
       { title: '产品管理', icon: 'Package', url: './product-management.html' },
       { title: '分类管理', icon: 'FolderTree', url: './category-management.html' },
-      { title: '资源库', icon: 'Image', url: './resource-library-picker.html?targetType=colorChart' },
     ],
   },
   {

@@ -404,7 +404,7 @@ class AlbumService extends BaseService
             throwError('请选择创建类型');
         }
         if($param['folder_type'] == 2){
-            if (empty($param['pic_ids'])) {
+            if (empty($param['pic_ids']) && empty($param['allow_draft'])) {
                 throwError('请选择花色图');
             }
         }

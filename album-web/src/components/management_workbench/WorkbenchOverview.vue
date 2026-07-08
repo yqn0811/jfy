@@ -1,20 +1,28 @@
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'
 import { pcApi } from '@/lib/api'
+import { mapCategory, unwrapList } from '@/lib/jfyuntu-mappers'
 import StatCard from '@/components/management_workbench/StatCard.vue'
 import QuickActionCard from '@/components/management_workbench/QuickActionCard.vue'
 import StorageWarning from '@/components/management_workbench/StorageWarning.vue'
-import CategoryEditDialog from '@/components/management_workbench/CategoryEditDialog.vue'
+import CategoryEditDialog from '@/components/category_management/CategoryEditDialog.vue'
+import ProductCreateDialog from '@/components/product_management/ProductCreateDialog.vue'
+import type { CategoryData } from '@/data/CategoryData'
+import type { ProductData } from '@/data/ProductData'
 
 const isClient = ref(true)
 const isLoading = ref(false)
 const showCategoryDialog = ref(false)
+const showProductDialog = ref(false)
+const isSavingCategory = ref(false)
+const isCreatingProduct = ref(false)
 const profile = ref<any>({})
+const categories = ref<CategoryData[]>([])
 
 onMounted(() => {
   isClient.value = false
@@ -22,6 +30,7 @@ onMounted(() => {
     isClient.value = true
   })
   loadWorkbench()
+  loadCategories()
 })
 
 const loadWorkbench = async () => {
@@ -32,6 +41,15 @@ const loadWorkbench = async () => {
     toast.error(error?.message || '工作台数据加载失败')
   } finally {
     isLoading.value = false
+  }
+}
+
+const loadCategories = async () => {
+  try {
+    const raw = await pcApi.getManagementCategories({ page: 1, limit: 500 })
+    categories.value = unwrapList(raw).map(item => mapCategory(item))
+  } catch {
+    // 工作台分类加载失败不影响概览展示
   }
 }
 
@@ -89,7 +107,7 @@ const quickActions = [
 ]
 
 const handleNewProduct = () => {
-  window.location.href = './product-edit.html'
+  showProductDialog.value = true
 }
 
 const handleNewCategory = () => {
@@ -104,10 +122,61 @@ const handleBatchUpload = () => {
   window.location.href = './product-management.html'
 }
 
-const handleCategoryCreated = () => {
-  showCategoryDialog.value = false
-  toast.success('分类创建成功')
-  loadWorkbench()
+const buildCategoryPayload = (data: CategoryData) => ({
+  fid: 0,
+  folder_type: 1,
+  folder_name: data.name,
+  folder_desc: data.intro,
+  private_type: data.visibility === 'private' ? 2 : data.visibility === 'shared' ? 4 : 1,
+  layout_type: data.layout === 'list' ? 2 : 1,
+  pic_layout: data.layout === 'list' ? 2 : 1,
+})
+
+const handleSaveCategory = async (data: CategoryData) => {
+  isSavingCategory.value = true
+  try {
+    await pcApi.createProductOrCategory(buildCategoryPayload(data))
+    toast.success('分类已创建')
+    showCategoryDialog.value = false
+    await Promise.all([loadWorkbench(), loadCategories()])
+  } catch (error: any) {
+    toast.error(error?.message || '创建失败')
+  } finally {
+    isSavingCategory.value = false
+  }
+}
+
+const handleCreateProduct = async (data: {
+  name: string
+  intro: string
+  categoryId: string
+  visibility: ProductData['visibility']
+  hideDetailImage: boolean
+}) => {
+  isCreatingProduct.value = true
+  try {
+    const categoryIds = data.categoryId === 'none' ? [] : [data.categoryId]
+    await pcApi.createProductOrCategory({
+      fid: categoryIds,
+      folder_type: 2,
+      folder_name: data.name,
+      folder_desc: data.intro,
+      category_ids: categoryIds,
+      private_type: data.visibility === 'private' ? 2 : data.visibility === 'shared' ? 4 : 1,
+      hide_detail_pictures: data.hideDetailImage ? 1 : 0,
+      pic_ids: [],
+      detail_pic_ids: [],
+      new_thumb: '',
+      allow_draft: 1,
+    })
+    toast.success('产品已创建')
+    showProductDialog.value = false
+    await loadWorkbench()
+  } catch (error: any) {
+    toast.error(error?.message || '创建失败')
+  } finally {
+    isCreatingProduct.value = false
+  }
 }
 
 const handleStorageClick = () => {
@@ -204,7 +273,15 @@ const handleStorageClick = () => {
     <CategoryEditDialog
       :open="showCategoryDialog"
       @update:open="showCategoryDialog = $event"
-      @created="handleCategoryCreated"
+      @save="handleSaveCategory"
+    />
+
+    <ProductCreateDialog
+      :open="showProductDialog"
+      :categories="categories"
+      :saving="isCreatingProduct"
+      @update:open="showProductDialog = $event"
+      @create="handleCreateProduct"
     />
   </div>
 </template>

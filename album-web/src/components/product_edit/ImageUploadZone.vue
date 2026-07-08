@@ -16,7 +16,6 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'add-images', images: ProductImageData[], type: ProductImageType): void
-  (e: 'select-from-library', type: ProductImageType): void
 }>()
 
 const isDragging = ref(false)
@@ -90,10 +89,6 @@ const handleClickUpload = () => {
   fileInput.value?.click()
 }
 
-const handleSelectFromLibrary = () => {
-  emit('select-from-library', props.type)
-}
-
 const typeLabel = computed(() => {
   return props.type === 'colorChart' ? '花色图' : '详情图'
 })
@@ -143,15 +138,6 @@ const typeLabel = computed(() => {
         >
           <SafeIcon name="Plus" :size="16" class="mr-1" />
           本地上传
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          @click="handleSelectFromLibrary"
-          class="h-9"
-        >
-          <SafeIcon name="Library" :size="16" class="mr-1" />
-          从资源库选择
         </Button>
       </div>
     </div>
