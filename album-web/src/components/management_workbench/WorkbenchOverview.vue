@@ -228,7 +228,7 @@ const handleStorageClick = () => {
     <!-- Quick Actions -->
     <div class="space-y-4">
       <h2 class="text-section-title">快速操作</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <QuickActionCard
           v-for="action in quickActions"
           :key="action.title"
@@ -254,19 +254,6 @@ const handleStorageClick = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
-
-    <!-- Recent Activity (Optional) -->
-    <div class="space-y-4">
-      <h2 class="text-section-title">最近更新</h2>
-      <Card class="surface-base">
-        <CardContent class="pt-6">
-          <div class="flex flex-col items-center justify-center py-12 text-center">
-            <SafeIcon name="Clock" :size="40" class="text-muted-foreground/30 mb-3" />
-            <p class="text-muted-foreground text-sm">暂无最近更新记录</p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
 
     <!-- Category Edit Dialog -->

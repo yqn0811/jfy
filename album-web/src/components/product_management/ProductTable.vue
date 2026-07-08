@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import StatusBadge from '@/components/common/StatusBadge.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import type { ProductData } from '@/data/ProductData'
 
@@ -29,14 +28,6 @@ const emit = defineEmits<{
 
 const isEmpty = computed(() => props.products.length === 0)
 
-const getCategoryText = (product: ProductData) => {
-  if (product.categoryNames?.length) return product.categoryNames.join('、')
-  if (product.categoryName) return product.categoryName
-  if (product.categoryIds?.length) {
-    return product.categoryIds.map(id => props.categoryNameMap[id] || `分类 ${id}`).join('、')
-  }
-  return product.categoryId ? (props.categoryNameMap[product.categoryId] || `分类 ${product.categoryId}`) : '未分类'
-}
 </script>
 
 <template>
@@ -68,9 +59,6 @@ const getCategoryText = (product: ProductData) => {
         <div class="absolute left-3 top-3 flex h-5 w-5 items-center justify-center rounded border border-border bg-background/90 shadow-sm">
           <SafeIcon name="Check" :size="13" class="opacity-0" />
         </div>
-        <div class="absolute right-3 top-3">
-          <StatusBadge :status="product.visibility" />
-        </div>
       </div>
 
       <div class="flex flex-1 flex-col gap-3 p-4">
@@ -84,8 +72,6 @@ const getCategoryText = (product: ProductData) => {
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-          <span class="truncate">分类：{{ getCategoryText(product) }}</span>
-          <span class="text-right">更新：{{ product.updatedAt || '-' }}</span>
           <span>花色图：{{ product.colorChartCount || 0 }} 张</span>
           <span class="text-right">详情图：{{ product.detailChartCount || 0 }} 张</span>
         </div>
@@ -94,38 +80,38 @@ const getCategoryText = (product: ProductData) => {
           <Button
             variant="ghost"
             size="sm"
-            class="h-8 px-2 text-xs"
+            class="h-9 min-w-0 gap-2 px-2 text-xs"
             @click="emit('edit', product.id)"
           >
             <SafeIcon name="Edit2" :size="14" />
-            <span class="ml-1 hidden 2xl:inline">编辑</span>
+            <span>编辑</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            class="h-8 px-2 text-xs"
+            class="h-9 min-w-0 gap-2 px-2 text-xs"
             @click="emit('batch-upload', product.id)"
           >
             <SafeIcon name="Upload" :size="14" />
-            <span class="ml-1 hidden 2xl:inline">上传</span>
+            <span>上传</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            class="h-8 px-2 text-xs"
+            class="h-9 min-w-0 gap-2 px-2 text-xs"
             @click="emit('share', product)"
           >
             <SafeIcon name="Share2" :size="14" />
-            <span class="ml-1 hidden 2xl:inline">分享</span>
+            <span>分享</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            class="h-8 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+            class="h-9 min-w-0 gap-2 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
             @click="emit('delete', product)"
           >
             <SafeIcon name="Trash2" :size="14" />
-            <span class="ml-1 hidden 2xl:inline">删除</span>
+            <span>删除</span>
           </Button>
         </div>
       </div>

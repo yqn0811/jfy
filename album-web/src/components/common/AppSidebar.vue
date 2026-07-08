@@ -1,5 +1,6 @@
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -10,7 +11,16 @@ import {
   SidebarMenuItem, 
   SidebarMenuButton 
 } from '@/components/ui/sidebar';
+import {
+  Dialog,
+  DialogScrollContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import SafeIcon from '@/components/common/SafeIcon.vue';
+import FavoritesList from '@/components/favorites/FavoritesList.vue';
+import BrowsingHistoryContent from '@/components/browsing_history/BrowsingHistoryContent.vue';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -23,6 +33,7 @@ interface MenuItem {
   title: string;
   icon: string;
   url: string;
+  panel?: 'favorites' | 'history';
 }
 
 interface MenuGroup {
@@ -42,8 +53,8 @@ const menuGroups: MenuGroup[] = [
   {
     label: '个人中心',
     items: [
-      { title: '我的收藏', icon: 'Heart', url: './favorites.html' },
-      { title: '浏览足迹', icon: 'History', url: './browsing-history.html' },
+      { title: '我的收藏', icon: 'Heart', url: './favorites.html', panel: 'favorites' },
+      { title: '浏览足迹', icon: 'History', url: './browsing-history.html', panel: 'history' },
     ],
   },
   {
@@ -56,6 +67,8 @@ const menuGroups: MenuGroup[] = [
   },
 ];
 
+const quickPanel = ref<'favorites' | 'history' | ''>('');
+
 const isActive = (url: string) => {
   if (!props.currentPath) return false;
   const normalizedNav = url.replace(/^\.\//, '').replace(/\.html$/, '');
@@ -63,14 +76,18 @@ const isActive = (url: string) => {
   return normalizedPath === normalizedNav || (normalizedNav !== '' && normalizedPath.startsWith(normalizedNav));
 };
 
-const handleNavigate = (url: string) => {
-  window.location.href = url;
+const handleNavigate = (item: MenuItem) => {
+  if (item.panel) {
+    quickPanel.value = item.panel;
+    return;
+  }
+  window.location.href = item.url;
 };
 </script>
 
 <template>
-  <Sidebar variant="inset" class="h-full border-r border-border bg-card">
-    <SidebarContent class="py-4">
+  <Sidebar collapsible="none" variant="sidebar" class="h-full w-72 border-r border-border bg-card">
+    <SidebarContent class="h-full overflow-y-auto px-4 py-6">
       <SidebarGroup v-for="group in menuGroups" :key="group.label">
         <SidebarGroupLabel class="px-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-2">
           {{ group.label }}
@@ -80,17 +97,17 @@ const handleNavigate = (url: string) => {
             <SidebarMenuItem v-for="item in group.items" :key="item.title">
               <SidebarMenuButton 
                 :class="cn(
-                  'w-full flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors rounded-none border-l-4 border-transparent',
-                  isActive(item.url) 
-                    ? 'bg-secondary text-primary border-primary' 
+                  'w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors rounded-md',
+                  (isActive(item.url) || quickPanel === item.panel)
+                    ? 'bg-secondary text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )"
-                @click="handleNavigate(item.url)"
+                @click="handleNavigate(item)"
               >
                 <SafeIcon 
                   :name="item.icon" 
                   :size="18" 
-                  :class="isActive(item.url) ? 'text-primary' : 'text-muted-foreground'" 
+                  :class="(isActive(item.url) || quickPanel === item.panel) ? 'text-primary' : 'text-muted-foreground'"
                 />
                 <span>{{ item.title }}</span>
               </SidebarMenuButton>
@@ -100,4 +117,32 @@ const handleNavigate = (url: string) => {
       </SidebarGroup>
     </SidebarContent>
   </Sidebar>
+
+  <Dialog :open="quickPanel === 'favorites'" @update:open="(val) => quickPanel = val ? 'favorites' : ''">
+    <DialogScrollContent class="max-h-[88vh] max-w-[1120px] overflow-hidden p-0">
+      <div class="flex max-h-[88vh] min-h-[620px] flex-col">
+        <DialogHeader class="border-b border-border px-6 py-5">
+          <DialogTitle>我的收藏</DialogTitle>
+          <DialogDescription>查看你收藏的主页、分类和产品</DialogDescription>
+        </DialogHeader>
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <FavoritesList v-if="quickPanel === 'favorites'" embedded />
+        </div>
+      </div>
+    </DialogScrollContent>
+  </Dialog>
+
+  <Dialog :open="quickPanel === 'history'" @update:open="(val) => quickPanel = val ? 'history' : ''">
+    <DialogScrollContent class="max-h-[88vh] max-w-[1120px] overflow-hidden p-0">
+      <div class="flex max-h-[88vh] min-h-[620px] flex-col">
+        <DialogHeader class="border-b border-border px-6 py-5">
+          <DialogTitle>浏览足迹</DialogTitle>
+          <DialogDescription>查看你浏览过的主页、分类和产品</DialogDescription>
+        </DialogHeader>
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <BrowsingHistoryContent v-if="quickPanel === 'history'" embedded />
+        </div>
+      </div>
+    </DialogScrollContent>
+  </Dialog>
 </template>

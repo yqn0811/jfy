@@ -542,13 +542,13 @@ const statusOptions = [
     </Dialog>
 
     <Dialog :open="batchUploadDialogOpen" @update:open="(val) => (batchUploadDialogOpen = val)">
-      <DialogScrollContent class="max-h-[92vh] max-w-[920px] overflow-hidden p-0">
-        <div class="flex max-h-[92vh] min-h-[680px] flex-col">
-          <DialogHeader class="border-b border-border px-6 py-5">
+      <DialogScrollContent class="max-h-[92vh] max-w-[1160px] overflow-hidden p-0">
+        <div class="flex max-h-[92vh] min-h-[620px] flex-col">
+          <DialogHeader class="border-b border-border px-6 py-4">
             <DialogTitle>批量上传设置</DialogTitle>
             <DialogDescription>生成协作上传链接、二维码和访问密码</DialogDescription>
           </DialogHeader>
-          <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div class="min-h-0 flex-1 px-6 py-4">
             <BatchUploadSettingsContent
               v-if="batchUploadDialogOpen"
               :product-id="batchUploadProductId"

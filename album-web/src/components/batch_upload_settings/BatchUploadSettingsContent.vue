@@ -92,9 +92,20 @@ const getExpireTimestamp = () => {
 
 const applyBatchData = (data: any) => {
   uploadUrl.value = data?.upload_url || data?.url || uploadUrl.value
-  qrCodeUrl.value = normalizeQrImage(data?.qrcode || data?.qrcode_url || data?.qr_image || data?.image_base64 || '')
-  password.value = data?.password || data?.pwd || ''
-  passwordEnabled.value = Number(data?.upload_enabled ?? data?.access_enabled ?? (password.value ? 1 : 0)) === 1
+  qrCodeUrl.value = normalizeQrImage(data?.qrcode || data?.qrcode_url || data?.qr_image || data?.image_base64 || '') || qrCodeUrl.value
+
+  const incomingPassword = data?.password ?? data?.pwd
+  if (incomingPassword !== undefined) {
+    password.value = incomingPassword || ''
+  }
+
+  const incomingEnabled = data?.upload_enabled ?? data?.access_enabled
+  if (incomingEnabled !== undefined) {
+    passwordEnabled.value = Number(incomingEnabled) === 1
+  } else if (incomingPassword) {
+    passwordEnabled.value = true
+  }
+
   isClosed.value = !passwordEnabled.value
   syncExpire(Number(data?.password_expire_time || data?.upload_pwd_expire_time || 0))
 }
@@ -181,13 +192,13 @@ const handleTogglePassword = (checked: boolean) => {
   isClosed.value = !checked
   if (checked && !password.value) {
     password.value = generatePassword()
-  } else if (!checked) {
-    isClosed.value = true
   }
 }
 
 // 刷新密码
 const handleRefreshPassword = () => {
+  passwordEnabled.value = true
+  isClosed.value = false
   password.value = generatePassword()
   toast.success('密码已刷新')
 }
@@ -208,11 +219,12 @@ const handleConfirmClose = () => {
 const handleSave = async () => {
   isSaving.value = true
   try {
+    const isEnabled = passwordEnabled.value
     const updatedData = {
       fid: currentProductId.value,
-      upload_enabled: passwordEnabled.value && !isClosed.value ? 1 : 0,
-      upload_pwd: passwordEnabled.value && !isClosed.value ? password.value : '',
-      upload_pwd_expire_time: passwordEnabled.value && !isClosed.value ? getExpireTimestamp() : 0,
+      upload_enabled: isEnabled ? 1 : 0,
+      upload_pwd: isEnabled ? password.value : '',
+      upload_pwd_expire_time: isEnabled ? getExpireTimestamp() : 0,
     }
     const data = await pcApi.saveBatchUploadPassword(updatedData)
     applyBatchData(data)
@@ -267,7 +279,7 @@ const expireLabel = computed(() => {
 </script>
 
 <template>
-  <div :class="props.embedded ? 'space-y-5' : 'page-body space-y-6'">
+  <div :class="props.embedded ? 'flex h-full min-h-0 flex-col' : 'page-body space-y-6'">
     <!-- 页面标题 -->
     <div v-if="!props.embedded" class="flex items-center justify-between">
       <div>
@@ -280,66 +292,141 @@ const expireLabel = computed(() => {
       </Button>
     </div>
 
-    <!-- 产品信息卡片 -->
-    <Card class="surface-raised">
-      <CardHeader class="pb-3">
-        <CardTitle class="text-base">关联产品</CardTitle>
-      </CardHeader>
-      <CardContent class="flex items-center gap-4">
-        <img
-          v-if="productData?.coverUrl"
-          :src="productData.coverUrl"
-          :alt="productData?.name || '产品封面'"
-          class="w-20 h-20 rounded-lg object-cover bg-muted"
-        />
-        <div
-          v-else
-          class="w-20 h-20 rounded-lg bg-muted flex items-center justify-center shrink-0"
-        >
-          <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
-        </div>
-        <div class="flex-1 min-w-0">
-          <h3 class="text-item-title font-medium truncate">{{ productData?.name || '未命名产品' }}</h3>
-          <p class="text-caption mt-1 line-clamp-2">{{ productData?.intro || '暂无产品简介' }}</p>
-        </div>
-      </CardContent>
-    </Card>
+    <div :class="props.embedded ? 'min-h-0 flex-1 overflow-y-auto pr-1' : ''">
+      <div class="grid gap-4 lg:grid-cols-[1fr_340px]">
+        <div class="space-y-4">
+          <Card class="surface-raised">
+            <CardContent class="flex items-center gap-4 p-4">
+              <img
+                v-if="productData?.coverUrl"
+                :src="productData.coverUrl"
+                :alt="productData?.name || '产品封面'"
+                class="h-16 w-16 rounded-lg object-cover bg-muted"
+              />
+              <div
+                v-else
+                class="h-16 w-16 rounded-lg bg-muted flex items-center justify-center shrink-0"
+              >
+                <SafeIcon name="Image" :size="22" class="text-muted-foreground" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h3 class="text-item-title font-medium truncate">{{ productData?.name || '未命名产品' }}</h3>
+                <p class="text-caption mt-1 line-clamp-1">{{ productData?.intro || '暂无产品简介' }}</p>
+              </div>
+            </CardContent>
+          </Card>
 
-    <!-- 上传链接配置 -->
-    <Card class="surface-raised">
-      <CardHeader>
-        <CardTitle class="text-base">上传链接</CardTitle>
-        <CardDescription>分享此链接给团队成员，他们可以直接上传图片</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <!-- 链接显示区 -->
-        <div class="space-y-2">
-          <Label class="text-label">上传链接</Label>
-          <div class="flex items-center gap-2">
-            <Input
-              :value="uploadUrl"
-              readonly
-              class="flex-1 bg-muted/50 text-muted-foreground cursor-not-allowed"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              @click="handleCopyLink"
-              :disabled="!uploadUrl"
-              class="shrink-0"
-            >
-              <SafeIcon name="Copy" :size="16" class="mr-1" />
-              复制
-            </Button>
-          </div>
+          <Card class="surface-raised">
+            <CardHeader class="pb-3">
+              <CardTitle class="text-base">上传链接</CardTitle>
+              <CardDescription>分享给团队成员上传花色图和详情图</CardDescription>
+            </CardHeader>
+            <CardContent class="space-y-3">
+              <div class="flex items-center gap-2">
+                <Input
+                  :model-value="uploadUrl"
+                  readonly
+                  class="flex-1 bg-muted/50 text-muted-foreground cursor-not-allowed"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  @click="handleCopyLink"
+                  :disabled="!uploadUrl"
+                  class="shrink-0"
+                >
+                  <SafeIcon name="Copy" :size="16" class="mr-1" />
+                  复制
+                </Button>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <Button
+                  variant="secondary"
+                  @click="handleCopyCombined"
+                  :disabled="!uploadUrl"
+                >
+                  <SafeIcon name="Copy" :size="16" class="mr-2" />
+                  复制信息
+                </Button>
+                <Button
+                  variant="outline"
+                  @click="handleGenerateLink"
+                  :disabled="isSaving"
+                >
+                  <SafeIcon name="RefreshCw" :size="16" class="mr-2" />
+                  生成新链接
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card class="surface-raised">
+            <CardHeader class="pb-3">
+              <CardTitle class="text-base">访问控制</CardTitle>
+              <CardDescription>关闭后，此产品上传入口无法访问</CardDescription>
+            </CardHeader>
+            <CardContent class="space-y-4">
+              <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-2">
+                  <Label class="text-label">启用访问密码</Label>
+                  <SafeIcon name="Lock" :size="14" class="text-muted-foreground" />
+                </div>
+                <Switch
+                  :checked="passwordEnabled"
+                  @update:checked="handleTogglePassword"
+                />
+              </div>
+
+              <div v-if="passwordEnabled" class="grid gap-3 md:grid-cols-[1fr_180px]">
+                <div class="flex items-center gap-2">
+                  <Input
+                    v-model="password"
+                    readonly
+                    class="flex-1 bg-muted/50 text-muted-foreground cursor-not-allowed font-mono text-center tracking-widest"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    @click="handleRefreshPassword"
+                    class="shrink-0"
+                  >
+                    <SafeIcon name="RefreshCw" :size="16" />
+                  </Button>
+                </div>
+                <Select v-model="expire">
+                  <SelectTrigger class="w-full">
+                    <SelectValue :placeholder="expireLabel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="permanent">永久有效</SelectItem>
+                    <SelectItem value="1d">1 天</SelectItem>
+                    <SelectItem value="7d">7 天</SelectItem>
+                    <SelectItem value="30d">30 天</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div
+                :class="[
+                  'flex items-center gap-3 rounded-lg border p-3 text-sm',
+                  isClosed ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                ]"
+              >
+                <SafeIcon :name="isClosed ? 'AlertTriangle' : 'ShieldCheck'" :size="18" class="shrink-0" />
+                <span>{{ isClosed ? '链接已关闭，外部用户无法访问上传页面' : '链接已开启，访客进入时需要输入访问密码' }}</span>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <!-- 二维码区 -->
-        <div class="space-y-2">
-          <Label class="text-label">二维码</Label>
-          <div class="flex items-center gap-4">
+        <Card class="surface-raised">
+          <CardHeader class="pb-3">
+            <CardTitle class="text-base">二维码</CardTitle>
+            <CardDescription>可扫码打开上传页面</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-3">
             <div
-              class="w-32 h-32 border border-border rounded-lg p-2 bg-white flex items-center justify-center cursor-pointer hover:shadow-card transition-shadow"
+              class="mx-auto flex h-56 w-56 cursor-pointer items-center justify-center rounded-lg border border-border bg-white p-3 transition-shadow hover:shadow-card"
               @click="openQrPreview"
               :class="!uploadUrl && 'opacity-50 cursor-not-allowed'"
             >
@@ -347,11 +434,11 @@ const expireLabel = computed(() => {
                 v-if="qrCodeUrl"
                 :src="qrCodeUrl"
                 alt="QR Code"
-                class="w-full h-full object-contain"
+                class="h-full w-full object-contain"
               />
-              <SafeIcon v-else name="QrCode" :size="32" class="text-muted-foreground" />
+              <SafeIcon v-else name="QrCode" :size="40" class="text-muted-foreground" />
             </div>
-            <div class="flex flex-col gap-2">
+            <div class="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -368,109 +455,16 @@ const expireLabel = computed(() => {
                 :disabled="!qrCodeUrl"
               >
                 <SafeIcon name="Maximize2" :size="16" class="mr-1" />
-                放大预览
+                预览
               </Button>
             </div>
-          </div>
-        </div>
-
-        <!-- 组合复制 -->
-        <Button
-          variant="secondary"
-          class="w-full"
-          @click="handleCopyCombined"
-          :disabled="!uploadUrl"
-        >
-          <SafeIcon name="Copy" :size="16" class="mr-2" />
-          复制组合信息（链接+密码+二维码）
-        </Button>
-
-        <!-- 生成新链接 -->
-        <Button
-          variant="outline"
-          class="w-full"
-          @click="handleGenerateLink"
-          :disabled="isSaving"
-        >
-          <SafeIcon name="RefreshCw" :size="16" class="mr-2" />
-          生成新链接
-        </Button>
-      </CardContent>
-    </Card>
-
-    <!-- 访问控制 -->
-    <Card class="surface-raised">
-      <CardHeader>
-        <CardTitle class="text-base">访问控制</CardTitle>
-        <CardDescription>设置链接的访问权限和有效期</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-6">
-        <!-- 密码保护 -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <Label class="text-label">启用访问密码</Label>
-              <SafeIcon name="Lock" :size="14" class="text-muted-foreground" />
-            </div>
-            <Switch
-              :checked="passwordEnabled"
-              @update:checked="handleTogglePassword"
-            />
-          </div>
-
-          <!-- 密码输入框 -->
-          <div v-if="passwordEnabled" class="flex items-center gap-2 pl-4 border-l-2 border-primary/30">
-            <Input
-              v-model="password"
-              readonly
-              class="flex-1 bg-muted/50 text-muted-foreground cursor-not-allowed font-mono text-center tracking-widest"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              @click="handleRefreshPassword"
-              class="shrink-0"
-            >
-              <SafeIcon name="RefreshCw" :size="16" />
-            </Button>
-          </div>
-        </div>
-
-        <!-- 有效期 -->
-        <div class="space-y-2">
-          <Label for="expire" class="text-label">链接有效期</Label>
-          <Select v-model="expire" :disabled="!passwordEnabled">
-            <SelectTrigger id="expire" class="w-full">
-              <SelectValue :placeholder="expireLabel" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="permanent">永久有效</SelectItem>
-              <SelectItem value="1d">1 天</SelectItem>
-              <SelectItem value="7d">7 天</SelectItem>
-              <SelectItem value="30d">30 天</SelectItem>
-            </SelectContent>
-          </Select>
-          <p class="text-[10px] text-muted-foreground">
-            <SafeIcon name="AlertCircle" :size="12" class="inline mr-1" />
-            关闭访问密码后，此产品上传入口无法访问；开启后访客需输入密码
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- 链接状态 -->
-    <Card v-if="isClosed" class="surface-raised border-destructive/30 bg-destructive/5">
-      <CardContent class="pt-6 flex items-center gap-3">
-        <SafeIcon name="AlertTriangle" :size="20" class="text-destructive shrink-0" />
-        <div class="flex-1">
-          <p class="text-sm font-medium text-destructive">链接已关闭</p>
-          <p class="text-xs text-destructive/70 mt-0.5">此链接已被关闭，外部用户无法再访问上传页面</p>
-        </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
 
     <!-- 操作按钮 -->
-    <div class="flex items-center justify-between gap-3 pt-4 border-t border-border">
+    <div :class="props.embedded ? 'mt-4 flex items-center justify-between gap-3 border-t border-border pt-4' : 'flex items-center justify-between gap-3 pt-4 border-t border-border'">
       <Button
         variant="outline"
         @click="handleCancel"

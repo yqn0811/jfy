@@ -35,7 +35,9 @@ const isLoadingShare = ref(false)
 const buildShareUrl = () => {
   const params = new URLSearchParams({ productId: props.productId })
   if (props.targetUserId) params.set('uid', props.targetUserId)
-  return `${window.location.origin}/product-detail.html?${params.toString()}`
+  const url = new URL('./product-detail.html', window.location.href)
+  url.search = params.toString()
+  return url.toString()
 }
 
 const loadShareData = async () => {
@@ -88,7 +90,7 @@ const handleShareQQ = () => {
           <label class="text-sm font-medium">分享链接</label>
           <div class="flex gap-2">
             <Input
-              :value="shareUrl"
+              :model-value="shareUrl"
               readonly
               class="flex-1 bg-muted/50 text-sm"
             />
@@ -147,9 +149,6 @@ const handleShareQQ = () => {
             <SafeIcon v-else-if="isLoadingShare" name="Loader2" :size="28" class="animate-spin text-muted-foreground" />
             <SafeIcon v-else name="QrCode" :size="36" class="text-muted-foreground" />
           </div>
-          <p class="text-xs text-muted-foreground text-center">
-            {{ miniPath || '扫描小程序码快速分享；网页链接可直接复制' }}
-          </p>
         </div>
       </div>
 
