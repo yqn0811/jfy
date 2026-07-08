@@ -465,10 +465,7 @@ export default {
 
     // 获取公司信息
     getCompanyInfo() {
-      const user = uni.getStorageSync("userInfo") || {};
-
       const querys = {
-        target_user_id: user.id,
         timestamp: new Date().getTime(),
       };
       const data = {

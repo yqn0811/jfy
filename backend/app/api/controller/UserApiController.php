@@ -31,7 +31,11 @@ class UserApiController extends ApiBaseController
         if ($shareCode !== '') {
             return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $shareCode);
         }
-        if ($requireShareCode && !$this->getOptionalVisitorUid()) {
+        $visitorUid = $this->getOptionalVisitorUid();
+        if (empty($params['target_user_id']) && $visitorUid) {
+            $params['target_user_id'] = $visitorUid;
+        }
+        if ($requireShareCode && !$visitorUid) {
             throwError('分享链接无效');
         }
         return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $inviteCode, true);

@@ -388,9 +388,7 @@ export default {
 
     // 加载权限设置
     loadSettings() {
-      const user = uni.getStorageSync("userInfo");
       const querys = {
-        target_user_id: user.id,
         timestamp: new Date().getTime(),
       };
       const data = {

@@ -605,17 +605,11 @@ export default {
     },
     getUserInfo() {
       if (this.isUserInfoLoading) return;
-      const user = uni.getStorageSync("userInfo") || {};
-      const uid = this.uid
-        ? this.normalizeShareParam(this.uid)
-        : this.normalizeShareParam(user.id || user.uid || "");
-      if (!uid) {
-        this.redirectToSelectionForMissingHome();
-        return;
+      const data = {};
+      const uid = this.normalizeShareParam(this.uid);
+      if (uid) {
+        data.target_user_id = uid;
       }
-      const data = {
-        target_user_id: uid,
-      };
       this.isUserInfoLoading = true;
       this.$go("user/home/info", data, "get", {
         show_err: false,
@@ -629,6 +623,9 @@ export default {
               ...(res.data || {}),
             };
             this.userInfo = userInfo;
+            this.homeId =
+              this.normalizeShareParam(userInfo.id || userInfo.uid || userInfo.user_id) ||
+              this.homeId;
             const products = Array.isArray(userInfo.products)
               ? userInfo.products
               : [];
