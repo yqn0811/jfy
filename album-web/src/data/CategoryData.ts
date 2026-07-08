@@ -13,6 +13,7 @@ export interface CategoryData {
   visibility: CategoryVisibility
   layout: CategoryLayout
   isTop: boolean
+  children?: CategoryData[]
   updatedAt: string
   createdAt: string
 }

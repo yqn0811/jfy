@@ -1,5 +1,5 @@
 import { c as createComponent, b as createAstro, r as renderComponent, a as renderTemplate, m as maybeRenderHead, d as renderSlot } from "./astro/server.DafmnnCm.js";
-import { $ as $$BaseLayout } from "./BaseLayout.d5ww63VJ.js";
+import { $ as $$BaseLayout } from "./BaseLayout.DCL8LS3a.js";
 /* empty css                                */
 const $$Astro = createAstro();
 const $$CenteredLayout = createComponent(($$result, $$props, $$slots) => {

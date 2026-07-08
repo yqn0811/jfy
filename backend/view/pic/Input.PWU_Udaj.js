@@ -1,8 +1,8 @@
 import { defineComponent, useSSRContext, mergeProps } from "vue";
 import { useVModel } from "@vueuse/core";
-import { c as cn } from "./index.CH7kJXp0.js";
+import { c as cn } from "./index.nyjX7RCv.js";
 import { ssrRenderAttrs, ssrGetDynamicModelProps } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.d5ww63VJ.js";
+import { _ as _export_sfc } from "./BaseLayout.DCL8LS3a.js";
 const fallbackImage = "https://api.jfyuntu.com/image/static/footer/jfyuntu.png";
 const toArray = (value) => {
   if (!value) return [];
@@ -101,21 +101,25 @@ const mapHomeProfile = (raw) => {
     updatedAt: info.update_time || ""
   };
 };
-const mapCategory = (raw, homeId = "") => ({
-  id: String(raw.id || raw.fid || ""),
-  homeId: String(homeId || raw.uid || raw.home_id || ""),
-  parentId: raw.pid ? String(raw.pid) : void 0,
-  name: raw.folder_name || raw.name || "未命名分类",
-  intro: raw.folder_desc || raw.desc || "",
-  coverUrl: pickImage(raw.new_thumb, raw.cover, raw.picture_url) || fallbackImage,
-  productCount: Number(raw.product_count || raw.products_count || raw.total_album || raw.son_product_count || 0),
-  childCount: Number(raw.child_count || raw.son_count || 0),
-  visibility: Number(raw.private_type) === 2 ? "private" : Number(raw.private_type) === 4 ? "shared" : "public",
-  layout: Number(raw.layout_type || raw.pic_layout) === 2 ? "list" : "grid",
-  isTop: Number(raw.set_top || 0) === 1,
-  updatedAt: formatDateText(raw.update_time || raw.updated_at || ""),
-  createdAt: formatDateText(raw.create_time || raw.created_at || "")
-});
+const mapCategory = (raw, homeId = "") => {
+  const children = toArray(raw.children || raw.child || raw.son || raw.sub_categories);
+  return {
+    id: String(raw.id || raw.fid || ""),
+    homeId: String(homeId || raw.uid || raw.home_id || ""),
+    parentId: raw.pid ? String(raw.pid) : void 0,
+    name: raw.folder_name || raw.name || "未命名分类",
+    intro: raw.folder_desc || raw.desc || "",
+    coverUrl: pickImage(raw.new_thumb, raw.cover, raw.picture_url) || fallbackImage,
+    productCount: Number(raw.product_count || raw.products_count || raw.total_album || raw.son_product_count || 0),
+    childCount: Number(raw.child_count || raw.son_count || children.length || 0),
+    visibility: Number(raw.private_type) === 2 ? "private" : Number(raw.private_type) === 4 ? "shared" : "public",
+    layout: Number(raw.layout_type || raw.pic_layout) === 2 ? "list" : "grid",
+    isTop: Number(raw.set_top || 0) === 1,
+    children: children.map((item) => mapCategory(item, homeId || raw.uid || raw.home_id || "")),
+    updatedAt: formatDateText(raw.update_time || raw.updated_at || ""),
+    createdAt: formatDateText(raw.create_time || raw.created_at || "")
+  };
+};
 const mapProduct = (raw, homeId = "") => {
   const colorImages = raw.pic_ids_arr || raw.pic_list || raw.color_images || raw.pictures || [];
   const detailImages = raw.detail_pic_ids_arr || raw.detail_pic_list || raw.detail_pictures || [];

@@ -79,6 +79,7 @@ const handleSave = async () => {
       ...(props.category || {}),
       id: props.category?.id || '',
       homeId: props.category?.homeId || '',
+      parentId: props.category?.parentId,
       name: form.value.name.trim(),
       intro: form.value.intro.trim(),
       coverUrl: props.category?.coverUrl || '',
@@ -87,6 +88,7 @@ const handleSave = async () => {
       visibility: form.value.visibility,
       layout: form.value.layout,
       isTop: props.category?.isTop || false,
+      children: props.category?.children || [],
       updatedAt: new Date().toLocaleString('zh-CN'),
       createdAt: props.category?.createdAt || new Date().toLocaleString('zh-CN'),
     } as CategoryData)
