@@ -299,12 +299,16 @@ const handleBackToWorkbench = () => {
     <Tabs default-value="plans" class="w-full">
       <TabsList class="grid w-full max-w-xs grid-cols-2 bg-muted/50 p-1 rounded-lg">
         <TabsTrigger value="plans" class="rounded-md">
-          <SafeIcon name="Package" :size="16" class="mr-2" />
-          可用套餐
+          <span class="inline-flex items-center gap-2 whitespace-nowrap">
+            <SafeIcon name="Package" :size="16" class="shrink-0" />
+            <span>可用套餐</span>
+          </span>
         </TabsTrigger>
         <TabsTrigger value="orders" class="rounded-md">
-          <SafeIcon name="History" :size="16" class="mr-2" />
-          订单历史
+          <span class="inline-flex items-center gap-2 whitespace-nowrap">
+            <SafeIcon name="History" :size="16" class="shrink-0" />
+            <span>订单历史</span>
+          </span>
         </TabsTrigger>
       </TabsList>
 
