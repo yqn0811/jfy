@@ -310,7 +310,7 @@ const handleBackToWorkbench = () => {
 
       <!-- 套餐列表 Tab -->
       <TabsContent value="plans" class="mt-6 space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <PlanCard 
             v-for="plan in plans"
             :key="plan.id"

@@ -28,7 +28,7 @@ const formatCapacity = (mb: number): string => {
 </script>
 
 <template>
-  <Card :class="['surface-raised relative overflow-hidden', props.isCurrent && 'ring-2 ring-primary']">
+  <Card :class="['surface-raised relative overflow-hidden min-w-0', props.isCurrent && 'ring-2 ring-primary']">
     <!-- 推荐标签 -->
     <div v-if="plan.isRecommended" class="absolute top-0 right-0">
       <Badge class="rounded-none rounded-bl-lg bg-accent text-accent-foreground border-0">
@@ -37,10 +37,10 @@ const formatCapacity = (mb: number): string => {
       </Badge>
     </div>
 
-    <CardHeader class="pb-3">
+    <CardHeader class="pb-2 px-4 pt-4">
       <div class="flex items-start justify-between">
-        <div>
-          <CardTitle class="text-lg">{{ plan.name }}</CardTitle>
+        <div class="min-w-0">
+          <CardTitle class="truncate text-base">{{ plan.name }}</CardTitle>
           <CardDescription class="text-xs mt-1">{{ plan.durationLabel }}</CardDescription>
         </div>
         <div v-if="isCurrent" class="px-2 py-1 bg-primary/10 rounded text-xs font-semibold text-primary">
@@ -49,10 +49,10 @@ const formatCapacity = (mb: number): string => {
       </div>
     </CardHeader>
 
-    <CardContent class="space-y-4">
+    <CardContent class="space-y-3 px-4 pb-4">
       <!-- 价格 -->
       <div class="space-y-1">
-        <p class="text-3xl font-bold text-primary">{{ plan.price }}</p>
+        <p class="text-2xl font-bold text-primary">{{ plan.price }}</p>
         <p v-if="plan.originalPrice && plan.originalPrice !== plan.price" class="text-xs text-muted-foreground line-through">
           {{ plan.originalPrice }}
         </p>
@@ -60,23 +60,23 @@ const formatCapacity = (mb: number): string => {
       </div>
 
       <!-- 权益列表 -->
-      <div class="space-y-2 py-3 border-y border-border">
+      <div class="space-y-2 py-2.5 border-y border-border">
         <div v-if="plan.features?.length" class="space-y-2">
-          <div v-for="feature in plan.features" :key="feature" class="flex items-center gap-2 text-sm">
-            <SafeIcon name="Check" :size="16" class="text-success shrink-0" />
+          <div v-for="feature in plan.features" :key="feature" class="flex items-center gap-2 text-xs leading-5">
+            <SafeIcon name="Check" :size="14" class="text-success shrink-0" />
             <span>{{ feature }}</span>
           </div>
         </div>
-        <div v-else class="flex items-center gap-2 text-sm">
-          <SafeIcon name="Check" :size="16" class="text-success shrink-0" />
+        <div v-else class="flex items-center gap-2 text-xs leading-5">
+          <SafeIcon name="Check" :size="14" class="text-success shrink-0" />
           <span>存储空间：{{ formatCapacity(plan.capacityMb) }}</span>
         </div>
-        <div v-if="plan.trafficGb > 0" class="flex items-center gap-2 text-sm">
-          <SafeIcon name="Check" :size="16" class="text-success shrink-0" />
+        <div v-if="plan.trafficGb > 0" class="flex items-center gap-2 text-xs leading-5">
+          <SafeIcon name="Check" :size="14" class="text-success shrink-0" />
           <span>月度流量：{{ plan.trafficGb }} GB</span>
         </div>
-        <div v-if="plan.concurrentRights > 0" class="flex items-center gap-2 text-sm">
-          <SafeIcon name="Check" :size="16" class="text-success shrink-0" />
+        <div v-if="plan.concurrentRights > 0" class="flex items-center gap-2 text-xs leading-5">
+          <SafeIcon name="Check" :size="14" class="text-success shrink-0" />
           <span>并发权益：{{ plan.concurrentRights }} 人</span>
         </div>
       </div>
