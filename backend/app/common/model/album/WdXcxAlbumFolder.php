@@ -63,7 +63,10 @@ class WdXcxAlbumFolder extends Model
     public function getSonCountAttr()
     {
         if($this->folder_type == 1){
-            return $this->where('pid', $this->id)->count();
+            return $this->where('pid', $this->id)
+                ->where('uid', $this->uid)
+                ->where('folder_type', 1)
+                ->count();
         }else{
             return WdXcxUserAlbumPic::where('folder_id', $this->id)->count();
         }
