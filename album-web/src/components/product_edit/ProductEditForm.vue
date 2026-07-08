@@ -308,12 +308,17 @@ const handleSave = async () => {
     if (isEditMode.value) {
       await pcApi.editProductOrCategory(buildSavePayload())
     } else {
-      await pcApi.createProductOrCategory({
+      const created = await pcApi.createProductOrCategory({
         ...buildSavePayload(),
         fid: formState.value.categoryIds[0] || 0,
         folder_type: 2,
         allow_draft: 1,
       })
+      const newId = String(created?.id || created?.fid || created?.folder_id || created?.data?.id || '')
+      if (newId) {
+        productId.value = newId
+        formState.value.id = newId
+      }
     }
 
     toast.success('设置已保存')
@@ -321,41 +326,6 @@ const handleSave = async () => {
       emit('saved', formState.value.id || productId.value || '')
     } else {
       window.location.href = './product-management.html'
-    }
-  } catch (error) {
-    console.error('Failed to save product:', error)
-    toast.error('保存失败，请稍后重试')
-  } finally {
-    isSaving.value = false
-  }
-}
-
-const handleSaveAndPreview = async () => {
-  if (!isFormValid.value) {
-    toast.error('请填写产品名称')
-    return
-  }
-
-  isSaving.value = true
-  try {
-    if (isEditMode.value) {
-      await pcApi.editProductOrCategory(buildSavePayload())
-    } else {
-      const created = await pcApi.createProductOrCategory({
-        ...buildSavePayload(),
-        fid: formState.value.categoryIds[0] || 0,
-        folder_type: 2,
-        allow_draft: 1,
-      })
-      if (created?.id) formState.value.id = String(created.id)
-    }
-
-    toast.success('设置已保存')
-    if (props.embedded) {
-      emit('preview', formState.value.id)
-      emit('saved', formState.value.id)
-    } else {
-      window.location.href = `./product-detail.html?productId=${formState.value.id}`
     }
   } catch (error) {
     console.error('Failed to save product:', error)
@@ -646,21 +616,12 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
         取消
       </Button>
       <Button
-        variant="outline"
-        @click="handleSaveAndPreview"
-        :disabled="!isFormValid || isSaving"
-        class="px-6"
-      >
-        <SafeIcon v-if="isSaving" name="Loader2" :size="16" class="mr-2 animate-spin" />
-        <span v-else>保存并预览</span>
-      </Button>
-      <Button
         @click="handleSave"
         :disabled="!isFormValid || isSaving"
         class="px-6"
       >
         <SafeIcon v-if="isSaving" name="Loader2" :size="16" class="mr-2 animate-spin" />
-        <span v-else>保存</span>
+        <span v-else>保存产品</span>
       </Button>
     </div>
 

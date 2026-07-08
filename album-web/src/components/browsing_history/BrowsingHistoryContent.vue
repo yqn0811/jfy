@@ -45,11 +45,14 @@ const filteredRecords = computed(() => {
   return browsingRecords.value
 })
 
-const totalItems = computed(() => serverTotal.value || filteredRecords.value.length)
+const totalItems = computed(() => isLoading.value ? Math.max(serverTotal.value, filteredRecords.value.length) : (serverTotal.value || filteredRecords.value.length))
 
 const paginatedRecords = computed(() => {
   return filteredRecords.value
 })
+
+const showInitialLoading = computed(() => isLoading.value && browsingRecords.value.length === 0)
+const showEmptyState = computed(() => !isLoading.value && totalItems.value === 0)
 
 const loadRecords = async () => {
   isLoading.value = true
@@ -66,11 +69,18 @@ const loadRecords = async () => {
 
 const handleTabChange = async (tab: TabType) => {
   activeTab.value = tab
-  currentPage.value = 1
+  if (currentPage.value !== 1) {
+    currentPage.value = 1
+    return
+  }
   await loadRecords()
 }
 
 const handleSearch = () => {
+  if (currentPage.value !== 1) {
+    currentPage.value = 1
+    return
+  }
   currentPage.value = 1
   loadRecords()
 }
@@ -160,7 +170,9 @@ onMounted(async () => {
 })
 
 watch(currentPage, () => {
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  if (!props.embedded) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
   loadRecords()
 })
 </script>
@@ -214,12 +226,12 @@ watch(currentPage, () => {
     </div>
 
     <!-- Empty State -->
-    <div v-if="isLoading" class="py-12 text-center text-muted-foreground">
+    <div v-if="showInitialLoading" class="py-12 text-center text-muted-foreground">
       <SafeIcon name="Loader2" :size="24" class="mx-auto mb-2 animate-spin" />
       加载中...
     </div>
 
-    <div v-else-if="totalItems === 0" class="py-12">
+    <div v-else-if="showEmptyState" class="py-12">
       <EmptyState
         icon="History"
         title="暂无足迹"
@@ -233,7 +245,16 @@ watch(currentPage, () => {
     </div>
 
     <!-- Records Table -->
-    <div v-else class="surface-base overflow-hidden flex flex-col">
+    <div v-else class="surface-base relative overflow-hidden flex flex-col">
+      <div
+        v-if="isLoading"
+        class="absolute inset-0 z-10 flex items-center justify-center bg-background/65 backdrop-blur-[1px]"
+      >
+        <div class="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-muted-foreground shadow-sm">
+          <SafeIcon name="Loader2" :size="16" class="animate-spin" />
+          加载中...
+        </div>
+      </div>
       <div class="overflow-x-auto">
         <Table class="w-full">
           <TableHeader class="bg-muted/50 sticky top-0">

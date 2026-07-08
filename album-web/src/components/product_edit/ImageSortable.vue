@@ -109,12 +109,6 @@ const typeLabel = computed(() => {
           {{ index + 1 }}
         </div>
 
-        <!-- Size Label -->
-        <div
-          class="absolute bottom-2 left-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded truncate"
-        >
-          {{ image.sizeLabel }}
-        </div>
       </div>
     </div>
   </div>

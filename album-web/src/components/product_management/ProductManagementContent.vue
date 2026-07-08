@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -21,7 +22,6 @@ import {
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ProductTable from '@/components/product_management/ProductTable.vue'
-import ProductCreateDialog from '@/components/product_management/ProductCreateDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ProductShareDialog from '@/components/product_detail/ShareDialog.vue'
 import ProductEditForm from '@/components/product_edit/ProductEditForm.vue'
@@ -52,11 +52,15 @@ const shareDialogOpen = ref(false)
 const productToShare = ref<ProductData | null>(null)
 const currentUserId = ref('')
 const createDialogOpen = ref(false)
-const isCreatingProduct = ref(false)
 const editDialogOpen = ref(false)
 const editingProductId = ref('')
 const batchUploadDialogOpen = ref(false)
 const batchUploadProductId = ref('')
+const selectedProductIds = ref<string[]>([])
+const batchDeleteConfirmOpen = ref(false)
+const batchCategoryDialogOpen = ref(false)
+const batchCategoryIds = ref<string[]>([])
+const isBatchOperating = ref(false)
 
 onMounted(() => {
   isClient.value = false
@@ -151,6 +155,11 @@ const handleReset = () => {
   window.history.replaceState({}, '', './product-management.html')
 }
 
+watch([filteredProducts, currentPage], () => {
+  const visibleIds = new Set(filteredProducts.value.map(item => item.id))
+  selectedProductIds.value = selectedProductIds.value.filter(id => visibleIds.has(id))
+})
+
 const handleCategoryChange = (value: string) => {
   selectedCategoryId.value = value
   currentPage.value = 1
@@ -175,40 +184,6 @@ const handleSort = (key: string) => {
 
 const handleNewProduct = () => {
   createDialogOpen.value = true
-}
-
-const handleCreateProduct = async (data: {
-  name: string
-  intro: string
-  categoryId: string
-  visibility: ProductData['visibility']
-  hideDetailImage: boolean
-}) => {
-  isCreatingProduct.value = true
-  try {
-    const categoryIds = data.categoryId === 'none' ? [] : [data.categoryId]
-    await pcApi.createProductOrCategory({
-      fid: categoryIds,
-      folder_type: 2,
-      folder_name: data.name,
-      folder_desc: data.intro,
-      category_ids: categoryIds,
-      private_type: data.visibility === 'private' ? 2 : data.visibility === 'shared' ? 4 : 1,
-      hide_detail_pictures: data.hideDetailImage ? 1 : 0,
-      pic_ids: [],
-      detail_pic_ids: [],
-      new_thumb: '',
-      allow_draft: 1,
-    })
-    toast.success('产品已创建')
-    createDialogOpen.value = false
-    currentPage.value = 1
-    await loadData()
-  } catch (error: any) {
-    toast.error(error?.message || '创建失败')
-  } finally {
-    isCreatingProduct.value = false
-  }
 }
 
 const handleEditProduct = (productId: string) => {
@@ -249,6 +224,103 @@ const confirmDelete = async () => {
 
   deleteConfirmOpen.value = false
   productToDelete.value = null
+}
+
+const selectedProducts = computed(() => {
+  const selected = new Set(selectedProductIds.value)
+  return allProducts.value.filter(item => selected.has(item.id))
+})
+
+const paginatedProductIds = computed(() => paginatedProducts.value.map(item => item.id))
+const isPageAllSelected = computed(() => {
+  return paginatedProductIds.value.length > 0 && paginatedProductIds.value.every(id => selectedProductIds.value.includes(id))
+})
+
+const toggleSelectProduct = (productId: string) => {
+  if (selectedProductIds.value.includes(productId)) {
+    selectedProductIds.value = selectedProductIds.value.filter(id => id !== productId)
+    return
+  }
+  selectedProductIds.value = [...selectedProductIds.value, productId]
+}
+
+const toggleSelectPage = () => {
+  if (isPageAllSelected.value) {
+    const pageIds = new Set(paginatedProductIds.value)
+    selectedProductIds.value = selectedProductIds.value.filter(id => !pageIds.has(id))
+    return
+  }
+  selectedProductIds.value = Array.from(new Set([...selectedProductIds.value, ...paginatedProductIds.value]))
+}
+
+const openBatchDelete = () => {
+  if (selectedProductIds.value.length === 0) {
+    toast.error('请先选择产品')
+    return
+  }
+  batchDeleteConfirmOpen.value = true
+}
+
+const confirmBatchDelete = async () => {
+  if (selectedProductIds.value.length === 0) return
+  isBatchOperating.value = true
+  try {
+    await Promise.all(selectedProductIds.value.map(id => pcApi.deleteProductOrFolder(id)))
+    toast.success(`已删除 ${selectedProductIds.value.length} 个产品`)
+    selectedProductIds.value = []
+    batchDeleteConfirmOpen.value = false
+    currentPage.value = 1
+    await loadData()
+  } catch (error: any) {
+    toast.error(error?.message || '批量删除失败')
+  } finally {
+    isBatchOperating.value = false
+  }
+}
+
+const toggleBatchCategory = (categoryId: string) => {
+  if (batchCategoryIds.value.includes(categoryId)) {
+    batchCategoryIds.value = batchCategoryIds.value.filter(id => id !== categoryId)
+    return
+  }
+  batchCategoryIds.value = [...batchCategoryIds.value, categoryId]
+}
+
+const openBatchCategory = () => {
+  if (selectedProductIds.value.length === 0) {
+    toast.error('请先选择产品')
+    return
+  }
+  batchCategoryIds.value = []
+  batchCategoryDialogOpen.value = true
+}
+
+const confirmBatchCategory = async () => {
+  if (selectedProductIds.value.length === 0) return
+  if (batchCategoryIds.value.length === 0) {
+    toast.error('请选择要添加的分类')
+    return
+  }
+
+  isBatchOperating.value = true
+  try {
+    await Promise.all(selectedProducts.value.map(product => {
+      const currentCategoryIds = product.categoryIds?.length ? product.categoryIds : product.categoryId ? [product.categoryId] : []
+      const nextCategoryIds = Array.from(new Set([...currentCategoryIds, ...batchCategoryIds.value]))
+      return pcApi.editProductOrCategory({
+        fid: product.id,
+        category_ids: nextCategoryIds,
+      })
+    }))
+    toast.success(`已添加到分类（${selectedProductIds.value.length} 个产品）`)
+    selectedProductIds.value = []
+    batchCategoryDialogOpen.value = false
+    await loadData()
+  } catch (error: any) {
+    toast.error(error?.message || '添加分类失败')
+  } finally {
+    isBatchOperating.value = false
+  }
 }
 
 const handlePageChange = (page: number) => {
@@ -329,6 +401,12 @@ const handleOpenProductPreview = (productId: string) => {
 const handleProductSaved = async () => {
   editDialogOpen.value = false
   editingProductId.value = ''
+  await loadData()
+}
+
+const handleProductCreated = async () => {
+  createDialogOpen.value = false
+  currentPage.value = 1
   await loadData()
 }
 
@@ -475,18 +553,63 @@ const statusOptions = [
             <SafeIcon name="Loader2" :size="24" class="mx-auto mb-2 animate-spin" />
             加载中...
           </div>
-          <ProductTable
-            v-else
-            :products="paginatedProducts"
-            :category-name-map="categoryNameMap"
-            :sort-key="sortKey"
-            :sort-direction="sortDirection"
-            @sort="handleSort"
-            @edit="handleEditProduct"
-            @delete="handleDeleteProduct"
-            @batch-upload="handleBatchUpload"
-            @share="handleShareProduct"
-          />
+          <template v-else>
+            <div
+              v-if="paginatedProducts.length > 0"
+              class="mb-5 flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 shadow-sm"
+            >
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 text-sm font-medium text-foreground"
+                @click="toggleSelectPage"
+              >
+                <span
+                  :class="cn(
+                    'flex h-4 w-4 items-center justify-center rounded border transition-colors',
+                    isPageAllSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'
+                  )"
+                >
+                  <SafeIcon v-if="isPageAllSelected" name="Check" :size="12" />
+                </span>
+                全选（{{ paginatedProducts.length }}项）
+                <span v-if="selectedProductIds.length" class="text-muted-foreground">已选 {{ selectedProductIds.length }}</span>
+              </button>
+
+              <div class="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  class="gap-2"
+                  :disabled="selectedProductIds.length === 0 || isBatchOperating"
+                  @click="openBatchDelete"
+                >
+                  <SafeIcon name="Trash2" :size="16" />
+                  批量删除
+                </Button>
+                <Button
+                  variant="outline"
+                  class="gap-2"
+                  :disabled="selectedProductIds.length === 0 || isBatchOperating"
+                  @click="openBatchCategory"
+                >
+                  <SafeIcon name="FolderPlus" :size="16" />
+                  添加到分类
+                </Button>
+              </div>
+            </div>
+            <ProductTable
+              :products="paginatedProducts"
+              :category-name-map="categoryNameMap"
+              :sort-key="sortKey"
+              :sort-direction="sortDirection"
+              :selected-ids="selectedProductIds"
+              @sort="handleSort"
+              @edit="handleEditProduct"
+              @delete="handleDeleteProduct"
+              @batch-upload="handleBatchUpload"
+              @share="handleShareProduct"
+              @toggle-select="toggleSelectProduct"
+            />
+          </template>
         </div>
 
         <!-- 分页栏 -->
@@ -511,6 +634,17 @@ const statusOptions = [
       variant="destructive"
       @confirm="confirmDelete"
       @update:open="(val) => (deleteConfirmOpen = val)"
+    />
+
+    <ConfirmDialog
+      :open="batchDeleteConfirmOpen"
+      title="批量删除产品"
+      :description="`确定要删除选中的 ${selectedProductIds.length} 个产品吗？删除后可在回收站恢复。`"
+      confirm-text="批量删除"
+      cancel-text="取消"
+      variant="destructive"
+      @confirm="confirmBatchDelete"
+      @update:open="(val) => (batchDeleteConfirmOpen = val)"
     />
 
     <ProductShareDialog
@@ -541,6 +675,69 @@ const statusOptions = [
       </DialogScrollContent>
     </Dialog>
 
+    <Dialog :open="createDialogOpen" @update:open="(val) => (createDialogOpen = val)">
+      <DialogScrollContent class="max-h-[92vh] max-w-[1180px] overflow-hidden p-0">
+        <div class="flex max-h-[92vh] min-h-[720px] flex-col">
+          <DialogHeader class="border-b border-border px-6 py-5">
+            <DialogTitle>新建产品</DialogTitle>
+            <DialogDescription>填写产品基础信息，并上传花色图和详情图</DialogDescription>
+          </DialogHeader>
+          <div class="min-h-0 flex-1 px-6 py-5">
+            <ProductEditForm
+              v-if="createDialogOpen"
+              embedded
+              @cancel="createDialogOpen = false"
+              @saved="handleProductCreated"
+              @preview="handleOpenProductPreview"
+            />
+          </div>
+        </div>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="batchCategoryDialogOpen" @update:open="(val) => (batchCategoryDialogOpen = val)">
+      <DialogScrollContent class="max-h-[82vh] max-w-[640px] overflow-hidden p-0">
+        <div class="flex max-h-[82vh] min-h-[420px] flex-col">
+          <DialogHeader class="border-b border-border px-6 py-5">
+            <DialogTitle>添加到分类</DialogTitle>
+            <DialogDescription>为已选的 {{ selectedProductIds.length }} 个产品追加分类，不会移除原有分类</DialogDescription>
+          </DialogHeader>
+          <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div v-if="allCategories.length" class="flex flex-wrap gap-2">
+              <button
+                v-for="cat in allCategories"
+                :key="cat.id"
+                type="button"
+                :class="cn(
+                  'inline-flex h-10 items-center rounded-full border px-4 text-sm font-medium transition-colors',
+                  batchCategoryIds.includes(cat.id)
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-card text-foreground hover:border-primary/40 hover:text-primary'
+                )"
+                @click="toggleBatchCategory(cat.id)"
+              >
+                {{ cat.name }}
+                <SafeIcon
+                  v-if="batchCategoryIds.includes(cat.id)"
+                  name="Check"
+                  :size="14"
+                  class="ml-1.5"
+                />
+              </button>
+            </div>
+            <p v-else class="py-12 text-center text-sm text-muted-foreground">暂无分类</p>
+          </div>
+          <DialogFooter class="border-t border-border px-6 py-4">
+            <Button variant="outline" :disabled="isBatchOperating" @click="batchCategoryDialogOpen = false">取消</Button>
+            <Button :disabled="isBatchOperating || batchCategoryIds.length === 0" @click="confirmBatchCategory">
+              <SafeIcon v-if="isBatchOperating" name="Loader2" :size="16" class="mr-2 animate-spin" />
+              添加到分类
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogScrollContent>
+    </Dialog>
+
     <Dialog :open="batchUploadDialogOpen" @update:open="(val) => (batchUploadDialogOpen = val)">
       <DialogScrollContent class="max-h-[92vh] max-w-[1160px] overflow-hidden p-0">
         <div class="flex max-h-[92vh] min-h-[620px] flex-col">
@@ -562,12 +759,5 @@ const statusOptions = [
       </DialogScrollContent>
     </Dialog>
 
-    <ProductCreateDialog
-      :open="createDialogOpen"
-      :categories="allCategories"
-      :saving="isCreatingProduct"
-      @update:open="(val) => (createDialogOpen = val)"
-      @create="handleCreateProduct"
-    />
   </div>
 </template>

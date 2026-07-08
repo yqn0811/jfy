@@ -13,7 +13,7 @@ import ShareDialog from '@/components/share_home/ShareDialog.vue'
 import ContactDialog from '@/components/share_home/ContactDialog.vue'
 import ProductDetailDrawer from '@/components/share_home/ProductDetailDrawer.vue'
 import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
-import { normalizeHomePayload } from '@/lib/jfyuntu-mappers'
+import { mapCategory, mapProduct, normalizeHomePayload, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { HomeProfileData } from '@/data/HomeProfileData'
 import type { CategoryData } from '@/data/CategoryData'
 import type { ProductData } from '@/data/ProductData'
@@ -23,6 +23,7 @@ const isLoading = ref(false)
 const homeProfile = ref<HomeProfileData | null>(null)
 const categories = ref<CategoryData[]>([])
 const allProducts = ref<ProductData[]>([])
+const categoryProducts = ref<ProductData[]>([])
 
 const searchKeyword = ref('')
 const selectedCategoryId = ref<string | null>(null)
@@ -37,6 +38,14 @@ const selectedProductId = ref<string | null>(null)
 const showProductDrawer = ref(false)
 
 const isHomeFavorited = ref(false)
+
+const flattenCategories = (raw: any[], homeId: string, parentId = ''): CategoryData[] => {
+  return raw.flatMap(item => {
+    const mapped = mapCategory(parentId ? { ...item, pid: item.pid || parentId } : item, homeId)
+    const children = unwrapList(item.children || item.child || item.son || item.sub_categories)
+    return [mapped, ...flattenCategories(children, homeId, mapped.id)]
+  })
+}
 
 const loadCurrentUser = async () => {
   let user = authStore.getUser<any>() || {}
@@ -59,8 +68,16 @@ const filteredProducts = computed(() => {
   let result = allProducts.value
 
   if (selectedCategoryId.value && selectedCategoryId.value !== 'all') {
-    result = result.filter(p => p.categoryId === selectedCategoryId.value)
+    const merged = new Map<string, ProductData>()
+    getLocalCategoryProducts(selectedCategoryId.value).forEach(product => {
+      merged.set(product.id, product)
+    })
+    categoryProducts.value.forEach(product => {
+      merged.set(product.id, product)
+    })
+    result = Array.from(merged.values())
   }
+
 
   if (searchKeyword.value.trim()) {
     const keyword = searchKeyword.value.toLowerCase()
@@ -69,6 +86,51 @@ const filteredProducts = computed(() => {
 
   return result
 })
+
+const getCategoryDescendantIds = (categoryId: string) => {
+  const result = new Set<string>([categoryId])
+  let changed = true
+  while (changed) {
+    changed = false
+    categories.value.forEach(category => {
+      if (category.parentId && result.has(category.parentId) && !result.has(category.id)) {
+        result.add(category.id)
+        changed = true
+      }
+    })
+  }
+  return result
+}
+
+const getLocalCategoryProducts = (categoryId: string) => {
+  const categoryIds = getCategoryDescendantIds(categoryId)
+  return allProducts.value.filter(product => {
+    const productCategoryIds = product.categoryIds?.length
+      ? product.categoryIds
+      : product.categoryId
+        ? [product.categoryId]
+        : []
+    return productCategoryIds.some(id => categoryIds.has(id))
+  })
+}
+
+const loadCategoryProducts = async (categoryId: string) => {
+  if (!targetUserId.value || categoryId === 'all') {
+    categoryProducts.value = []
+    return
+  }
+
+  isLoading.value = true
+  try {
+    const raw = await pcApi.getHomeProducts(targetUserId.value, categoryId)
+    categoryProducts.value = unwrapList(raw).map(item => mapProduct(item, homeProfile.value?.id || targetUserId.value))
+  } catch (error: any) {
+    categoryProducts.value = getLocalCategoryProducts(categoryId)
+    toast.error(error?.message || '分类产品加载失败')
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const categoryOptions = computed(() => {
   return [
@@ -116,8 +178,13 @@ const loadHomeData = async () => {
       homeProfile.value.ownerUserId = targetUserId.value
       homeProfile.value.id = targetUserId.value
     }
-    categories.value = normalized.categories
+    categories.value = flattenCategories(unwrapList(categoriesRaw), normalized.home.id)
     allProducts.value = normalized.products
+    if (selectedCategoryId.value && selectedCategoryId.value !== 'all') {
+      await loadCategoryProducts(selectedCategoryId.value)
+    } else {
+      categoryProducts.value = []
+    }
     isHomeFavorited.value = Number(homeRaw?.is_collect || homeRaw?.isCollect || 0) === 1
     if (isLoggedIn.value && homeProfile.value) {
       pcApi.addVisit('homepage', homeProfile.value.id).catch(() => {})
@@ -155,8 +222,13 @@ const handleSearch = () => {
   }
 }
 
-const handleCategoryChange = (categoryId: string) => {
+const handleCategoryChange = async (categoryId: string) => {
   selectedCategoryId.value = categoryId
+  if (categoryId === 'all') {
+    categoryProducts.value = []
+  } else {
+    await loadCategoryProducts(categoryId)
+  }
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams()
     if (targetUserId.value) params.set('uid', targetUserId.value)

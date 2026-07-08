@@ -1,10 +1,10 @@
 import { defineComponent, ref, watch, onBeforeUnmount, useSSRContext, nextTick, mergeProps, withCtx, createTextVNode, createVNode, createBlock, createCommentVNode, openBlock, toDisplayString } from "vue";
-import { i as isMockEnabled, p as pcApi, f as DialogDescription, D as DialogTitle, a as DialogHeader, b as DialogContent, c as Dialog } from "./DialogTrigger.CgPkBWh_.js";
-import { B as Button } from "./index.Cs0Ii5Yg.js";
-import { S as SafeIcon } from "./SafeIcon.o_sL55ux.js";
+import { i as isMockEnabled, p as pcApi, f as DialogDescription, D as DialogTitle, a as DialogHeader, b as DialogContent, c as Dialog } from "./DialogTrigger.B9WzQknc.js";
+import { B as Button } from "./index.5HBzDVFF.js";
+import { S as SafeIcon } from "./SafeIcon.DM23jfDC.js";
 import { toast } from "vue-sonner";
 import { ssrRenderComponent, ssrRenderAttr, ssrInterpolate } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.BPwPxA76.js";
+import { _ as _export_sfc } from "./BaseLayout.DZZiv6Jt.js";
 const _sfc_main = defineComponent({ __name: "LoginDialog", props: { open: { type: Boolean } }, emits: ["update:open", "login-success"], setup(__props, { expose: __expose, emit: __emit }) {
   __expose();
   const props = __props, emit = __emit, status = ref("loading"), loginError = ref(""), authUrl = ref(""), containerId = `wx-login-${Math.random().toString(36).slice(2)}`;

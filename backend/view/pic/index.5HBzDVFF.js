@@ -4,7 +4,7 @@ import { Primitive } from "reka-ui";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { ssrRenderComponent, ssrRenderSlot } from "vue/server-renderer";
-import { _ as _export_sfc } from "./BaseLayout.BPwPxA76.js";
+import { _ as _export_sfc } from "./BaseLayout.DZZiv6Jt.js";
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }

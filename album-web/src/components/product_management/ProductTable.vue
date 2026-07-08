@@ -10,12 +10,14 @@ interface Props {
   categoryNameMap?: Record<string, string>
   sortKey?: string
   sortDirection?: 'asc' | 'desc'
+  selectedIds?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   categoryNameMap: () => ({}),
   sortKey: '',
   sortDirection: 'asc',
+  selectedIds: () => [],
 })
 
 const emit = defineEmits<{
@@ -24,9 +26,11 @@ const emit = defineEmits<{
   (e: 'delete', product: ProductData): void
   (e: 'batch-upload', productId: string): void
   (e: 'share', product: ProductData): void
+  (e: 'toggle-select', productId: string): void
 }>()
 
 const isEmpty = computed(() => props.products.length === 0)
+const selectedSet = computed(() => new Set(props.selectedIds))
 
 </script>
 
@@ -43,7 +47,10 @@ const isEmpty = computed(() => props.products.length === 0)
     <article
       v-for="product in products"
       :key="product.id"
-      class="product-card group flex min-w-0 flex-col"
+      :class="[
+        'product-card group flex min-w-0 flex-col',
+        selectedSet.has(product.id) && 'ring-2 ring-primary/70'
+      ]"
     >
       <div class="relative aspect-[4/3] overflow-hidden bg-muted">
         <img
@@ -56,9 +63,19 @@ const isEmpty = computed(() => props.products.length === 0)
           <SafeIcon name="Image" :size="36" class="text-muted-foreground/60" />
         </div>
 
-        <div class="absolute left-3 top-3 flex h-5 w-5 items-center justify-center rounded border border-border bg-background/90 shadow-sm">
-          <SafeIcon name="Check" :size="13" class="opacity-0" />
-        </div>
+        <button
+          type="button"
+          :aria-label="`选择${product.name || '未命名产品'}`"
+          :class="[
+            'absolute left-3 top-3 z-10 flex h-5 w-5 items-center justify-center rounded border shadow-sm transition-colors',
+            selectedSet.has(product.id)
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border bg-background/90 hover:border-primary'
+          ]"
+          @click.stop="emit('toggle-select', product.id)"
+        >
+          <SafeIcon v-if="selectedSet.has(product.id)" name="Check" :size="13" />
+        </button>
       </div>
 
       <div class="flex flex-1 flex-col gap-3 p-4">
