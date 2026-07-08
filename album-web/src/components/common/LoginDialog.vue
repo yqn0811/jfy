@@ -10,8 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'
-import { pcApi } from '@/lib/api'
-import { isLocalMockEnabled } from '@/lib/mock-api'
+import { isMockEnabled, pcApi } from '@/lib/api'
 
 interface Props {
   open: boolean
@@ -95,7 +94,7 @@ const loadOauthLogin = async () => {
   authUrl.value = ''
   status.value = 'loading'
 
-  if (isLocalMockEnabled()) {
+  if (isMockEnabled()) {
     status.value = 'local'
     return
   }

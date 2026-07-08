@@ -6,6 +6,6 @@ import CategoryList from '@/components/category_management/CategoryList.vue'
 
 <ManagementLayout title="分类管理 - 家纺云">
   <div class="page-body">
-    <CategoryList client:load />
+    <CategoryList client:only="vue" />
   </div>
 </ManagementLayout>

@@ -8,6 +8,6 @@ const title = '产品编辑'
 
 <ManagementLayout title={title}>
   <div class="page-body">
-    <ProductEditForm client:load />
+    <ProductEditForm client:only="vue" />
   </div>
 </ManagementLayout>

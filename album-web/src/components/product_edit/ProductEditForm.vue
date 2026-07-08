@@ -315,7 +315,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               <Input
                 id="product-name"
                 v-model="formState.name"
-                placeholder="输入产品名称，如：云感纯棉四件套"
+                placeholder="输入产品名称"
                 class="h-10"
               />
             </div>

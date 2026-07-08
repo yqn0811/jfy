@@ -33,7 +33,7 @@ const isClient = ref(true)
 const isSaving = ref(false)
 const isLoading = ref(false)
 
-const previewImageUrl = 'https://spark-builder.s3.cn-north-1.amazonaws.com.cn/image/2026/7/8/6cd493f4-1863-4dda-9aef-dafb56ef25e5.jpeg'
+const previewImageUrl = 'https://api.jfyuntu.com/image/img_default.png'
 
 onMounted(() => {
   isClient.value = false

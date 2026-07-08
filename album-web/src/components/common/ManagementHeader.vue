@@ -13,8 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import SafeIcon from '@/components/common/SafeIcon.vue';
-import { authStore, pcApi } from '@/lib/api';
-import { isLocalMockEnabled } from '@/lib/mock-api';
+import { authStore, isMockEnabled, pcApi } from '@/lib/api';
 
 interface Props {
   usedStorage?: string;
@@ -23,9 +22,9 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  usedStorage: '1.2 GB',
-  totalStorage: '5.0 GB',
-  remainingStorage: '3.8 GB',
+  usedStorage: '-',
+  totalStorage: '-',
+  remainingStorage: '-',
 });
 
 const userInfo = ref<any>({});
@@ -47,7 +46,7 @@ const usedStorageText = computed(() => {
 });
 
 onMounted(async () => {
-  if (!authStore.isLoggedIn() && !isLocalMockEnabled()) return;
+  if (!authStore.isLoggedIn() && !isMockEnabled()) return;
   try {
     const profile = await pcApi.getCurrentUser();
     userInfo.value = profile || {};

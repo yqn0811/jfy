@@ -20,7 +20,6 @@ import { pcApi } from '@/lib/api'
 import { mapProduct } from '@/lib/jfyuntu-mappers'
 import type { ProductVO } from '@/data/ProductService'
 import { toast } from 'vue-sonner'
-import { cn } from '@/lib/utils'
 
 interface Props {
   productId?: string
@@ -29,23 +28,7 @@ interface Props {
 const props = defineProps<Props>()
 const currentProductId = ref(props.productId || '')
 
-const productData = ref<ProductVO | null>({
-  id: props.productId || '',
-  homeId: 'home_001',
-  categoryId: 'cat_001',
-  ownerUserId: 'user_001',
-  name: '未命名产品',
-  intro: '',
-  coverUrl: '',
-  visibility: 'public',
-  hideDetailImage: false,
-  isHot: false,
-  sortOrder: 0,
-  colorChartCount: 0,
-  detailChartCount: 0,
-  updatedAt: '',
-  createdAt: '',
-})
+const productData = ref<Partial<ProductVO> | null>(null)
 
 // 本地编辑状态
 const isClient = ref(true)
@@ -72,10 +55,12 @@ const generatePassword = () => {
   return result
 }
 
-const updateQrCode = () => {
-  qrCodeUrl.value = uploadUrl.value
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(uploadUrl.value)}`
-    : ''
+const normalizeQrImage = (value = '') => {
+  if (!value) return ''
+  if (value.startsWith('data:image/')) return value
+  if (/^https?:\/\//i.test(value)) return value
+  if (value.startsWith('/')) return value
+  return `data:image/png;base64,${value}`
 }
 
 const syncExpire = (timestamp: number) => {
@@ -98,11 +83,11 @@ const getExpireTimestamp = () => {
 
 const applyBatchData = (data: any) => {
   uploadUrl.value = data?.upload_url || data?.url || uploadUrl.value
+  qrCodeUrl.value = normalizeQrImage(data?.qrcode || data?.qrcode_url || data?.qr_image || data?.image_base64 || '')
   password.value = data?.password || data?.pwd || ''
   passwordEnabled.value = Number(data?.upload_enabled ?? data?.access_enabled ?? (password.value ? 1 : 0)) === 1
   isClosed.value = !passwordEnabled.value
   syncExpire(Number(data?.password_expire_time || data?.upload_pwd_expire_time || 0))
-  updateQrCode()
 }
 
 const loadData = async () => {
@@ -151,6 +136,10 @@ const handleCopyLink = async () => {
 
 // 复制二维码
 const handleCopyQrCode = async () => {
+  if (!qrCodeUrl.value) {
+    toast.error('暂无二维码')
+    return
+  }
   try {
     await navigator.clipboard.writeText(qrCodeUrl.value)
     toast.success('已复制')
@@ -167,7 +156,7 @@ const openQrPreview = () => {
 // 复制组合信息
 const handleCopyCombined = async () => {
   const combined = passwordEnabled.value
-    ? `上传链接: ${uploadUrl.value}\n密码: ${password.value}\n有效期: ${expireLabel.value}\n二维码: ${qrCodeUrl.value}`
+    ? `上传链接: ${uploadUrl.value}\n密码: ${password.value}\n有效期: ${expireLabel.value}${qrCodeUrl.value ? `\n二维码: ${qrCodeUrl.value}` : ''}`
     : `上传链接: ${uploadUrl.value}\n状态: 已关闭，此产品无法访问`
   try {
     await navigator.clipboard.writeText(combined)
@@ -241,10 +230,7 @@ onMounted(() => {
   requestAnimationFrame(() => {
     const params = new URLSearchParams(window.location.search)
     currentProductId.value = params.get('productId') || params.get('fid') || props.productId || ''
-    productData.value = {
-      ...(productData.value as ProductVO),
-      id: currentProductId.value,
-    }
+    productData.value = { id: currentProductId.value }
     isClient.value = true
     loadData()
   })
@@ -283,10 +269,17 @@ const expireLabel = computed(() => {
       </CardHeader>
       <CardContent class="flex items-center gap-4">
         <img
-          :src="productData?.coverUrl || 'https://spark-builder.s3.cn-north-1.amazonaws.com.cn/image/2026/7/8/c6dbdae1-bc53-4e99-b099-b9f589fd9d02.png'"
-          :alt="productData?.name"
+          v-if="productData?.coverUrl"
+          :src="productData.coverUrl"
+          :alt="productData?.name || '产品封面'"
           class="w-20 h-20 rounded-lg object-cover bg-muted"
         />
+        <div
+          v-else
+          class="w-20 h-20 rounded-lg bg-muted flex items-center justify-center shrink-0"
+        >
+          <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
+        </div>
         <div class="flex-1 min-w-0">
           <h3 class="text-item-title font-medium truncate">{{ productData?.name || '未命名产品' }}</h3>
           <p class="text-caption mt-1 line-clamp-2">{{ productData?.intro || '暂无产品简介' }}</p>
@@ -345,7 +338,7 @@ const expireLabel = computed(() => {
                 variant="outline"
                 size="sm"
                 @click="handleCopyQrCode"
-                :disabled="!uploadUrl"
+                :disabled="!qrCodeUrl"
               >
                 <SafeIcon name="Copy" :size="16" class="mr-1" />
                 复制二维码
@@ -354,7 +347,7 @@ const expireLabel = computed(() => {
                 variant="outline"
                 size="sm"
                 @click="openQrPreview"
-                :disabled="!uploadUrl"
+                :disabled="!qrCodeUrl"
               >
                 <SafeIcon name="Maximize2" :size="16" class="mr-1" />
                 放大预览

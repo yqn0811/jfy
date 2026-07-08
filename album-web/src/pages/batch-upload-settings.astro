@@ -9,7 +9,7 @@ const productId = new URL(Astro.request.url).searchParams.get('productId') || ''
 
 <ManagementLayout title="批量上传设置 - 家纺云">
   <BatchUploadSettingsContent 
-    client:load 
+    client:only="vue"
     productId={productId}
   />
 </ManagementLayout>

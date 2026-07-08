@@ -1,5 +1,3 @@
-import { isLocalMockEnabled, mockApiRequest, mockApiUpload } from './mock-api'
-
 const DEFAULT_API_BASE = 'https://api.jfyuntu.com/api'
 
 export interface ApiResponse<T = any> {
@@ -25,6 +23,12 @@ const TOKEN_KEY = 'jfyuntu_pc_token'
 const USER_KEY = 'jfyuntu_pc_user'
 const UPLOAD_TOKEN_KEY = 'jfyuntu_web_upload_token'
 const UPLOAD_TOKEN_CODE_KEY = 'jfyuntu_web_upload_code'
+const SHOULD_BUNDLE_MOCK =
+  import.meta.env.DEV ||
+  import.meta.env.PUBLIC_ENABLE_MOCK === '1' ||
+  import.meta.env.PUBLIC_ENABLE_MOCK === 'true' ||
+  import.meta.env.PUBLIC_JFYUNTU_MOCK === '1' ||
+  import.meta.env.PUBLIC_JFYUNTU_MOCK === 'true'
 
 const getRuntimeApiBase = () => {
   if (typeof window === 'undefined') return DEFAULT_API_BASE
@@ -38,6 +42,39 @@ const joinUrl = (base: string, path: string) => {
 }
 
 const normalizeToken = (token = '') => token.replace(/^Bearer\s+/i, '').trim()
+
+export const isMockEnabled = () => {
+  if (!SHOULD_BUNDLE_MOCK) return false
+  const envValue = import.meta.env.PUBLIC_ENABLE_MOCK || import.meta.env.PUBLIC_JFYUNTU_MOCK
+  if (envValue === '1' || envValue === 'true') return true
+  if (typeof localStorage === 'undefined') return false
+  return localStorage.getItem('jfyuntu_enable_mock') === '1'
+}
+
+const requestMockApi = async <T = any>(
+  path: string,
+  options: {
+    method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+    params?: Record<string, any>
+    body?: Record<string, any>
+    token?: string
+    auth?: boolean
+  } = {}
+) => {
+  if (!SHOULD_BUNDLE_MOCK) {
+    throw new ApiError('Mock 未启用')
+  }
+  const { mockApiRequest } = await import('./mock-api')
+  return mockApiRequest<T>(path, options)
+}
+
+const uploadWithMockApi = async <T = any>(path: string, formData: FormData) => {
+  if (!SHOULD_BUNDLE_MOCK) {
+    throw new ApiError('Mock 未启用')
+  }
+  const { mockApiUpload } = await import('./mock-api')
+  return mockApiUpload<T>(path, formData)
+}
 
 const removeAuthCallbackParams = () => {
   if (typeof window === 'undefined') return
@@ -148,8 +185,8 @@ export async function apiRequest<T = any>(
     auth?: boolean
   } = {}
 ): Promise<T> {
-  if (isLocalMockEnabled()) {
-    return mockApiRequest<T>(path, options)
+  if (isMockEnabled()) {
+    return requestMockApi<T>(path, options)
   }
 
   const method = options.method || 'GET'
@@ -183,8 +220,8 @@ export async function apiUpload<T = any>(
   formData: FormData,
   token = authStore.getToken()
 ): Promise<T> {
-  if (isLocalMockEnabled()) {
-    return mockApiUpload<T>(path, formData)
+  if (isMockEnabled()) {
+    return uploadWithMockApi<T>(path, formData)
   }
 
   const headers: Record<string, string> = {

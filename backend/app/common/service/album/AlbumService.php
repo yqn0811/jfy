@@ -20,6 +20,7 @@ use app\common\service\BaseService;
 use app\index\model\WdXcxBase;
 use app\index\model\WdXcxPic;
 use app\index\service\upload\UploadService;
+use cores\utils\Utils;
 use think\App;
 use think\cache\driver\Redis;
 use think\Collection;
@@ -2047,10 +2048,19 @@ class AlbumService extends BaseService
         (new WdXcxUser())->ensureUploadPasswordColumns();
         $user = WdXcxUser::where('id', $folder->uid)->field('upload_pwd,upload_pwd_expire_time')->find();
         $expireTime = $user ? (int)$user->upload_pwd_expire_time : 0;
+        $qrcode = '';
+        try {
+            $qrcode = Utils::createQrcode($url, '', true);
+        } catch (\Throwable $e) {
+            Log::error('getBatchUploadLink qrcode error: ' . $e->getMessage());
+        }
         return [
             'upload_url' => $url,
             'url' => $url,
             'code' => $code,
+            'qrcode' => $qrcode,
+            'qrcode_url' => $qrcode,
+            'qr_image' => $qrcode,
             'password' => $user && $user->upload_pwd ? $user->upload_pwd : '',
             'password_expire_time' => $expireTime,
             'upload_pwd_expire_time' => $expireTime,
