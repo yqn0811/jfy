@@ -69,7 +69,7 @@ export const getUrlHomeTarget = () => {
   if (typeof window === 'undefined') return { targetUserId: '', shareCode: '' }
   const params = new URLSearchParams(window.location.search)
   return {
-    targetUserId: params.get('uid') || params.get('target_user_id') || '',
+    targetUserId: '',
     shareCode: params.get('code') || params.get('share_code') || '',
   }
 }

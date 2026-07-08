@@ -408,12 +408,11 @@ const handleOpenShareHome = async () => {
   if (!currentShareCode.value) {
     await ensureUserShareInfo()
   }
-  const params = currentShareCode.value
-    ? `?code=${encodeURIComponent(currentShareCode.value)}`
-    : currentUserId.value
-      ? `?uid=${encodeURIComponent(currentUserId.value)}`
-      : ''
-  window.open(`./share-home.html${params}`, '_blank')
+  if (!currentShareCode.value) {
+    toast.error('分享码获取失败，请刷新后重试')
+    return
+  }
+  window.open(`./share-home.html?code=${encodeURIComponent(currentShareCode.value)}`, '_blank')
 }
 
 const handleOpenRecycle = () => {

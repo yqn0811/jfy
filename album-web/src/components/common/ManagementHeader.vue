@@ -58,10 +58,9 @@ onMounted(async () => {
 });
 
 const handlePreview = () => {
-  const uid = userInfo.value?.id || userInfo.value?.uid || '';
   const code = userInfo.value?.share_code || userInfo.value?.shareCode || userInfo.value?.home_share_code || '';
-  const query = code ? `?code=${encodeURIComponent(code)}` : uid ? `?uid=${encodeURIComponent(uid)}` : '';
-  window.location.href = `./share-home.html${query}`;
+  if (!code) return;
+  window.location.href = `./share-home.html?code=${encodeURIComponent(code)}`;
 };
 
 const handleUpgrade = () => {

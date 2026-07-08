@@ -24,12 +24,15 @@ class UserApiController extends ApiBaseController
         $this->userService = new UserService($app);
     }
 
-    private function resolveHomeTargetUserId($params)
+    private function resolveHomeTargetUserId($params, $requireShareCode = false)
     {
         $shareCode = $params['code'] ?? ($params['share_code'] ?? '');
         $inviteCode = $params['invite_code'] ?? '';
         if ($shareCode !== '') {
             return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $shareCode);
+        }
+        if ($requireShareCode) {
+            throwError('分享链接无效');
         }
         return $this->userService->resolveHomeTargetUserId($params['target_user_id'] ?? 0, $inviteCode, true);
     }
@@ -677,7 +680,7 @@ class UserApiController extends ApiBaseController
             ['share_code', ''],
             ['invite_code', ''],
         ]);
-        $targetUserId = $this->resolveHomeTargetUserId($targetUserId);
+        $targetUserId = $this->resolveHomeTargetUserId($targetUserId, true);
 
         $visitorUid = 0;
         try {
@@ -699,7 +702,7 @@ class UserApiController extends ApiBaseController
             ['fid', 0],
             ['include_current', 0],
         ]);
-        $targetUserId = $this->resolveHomeTargetUserId($params);
+        $targetUserId = $this->resolveHomeTargetUserId($params, true);
         $visitorUid = 0;
         try {
             $visitorUid = request()->userID();
@@ -718,7 +721,7 @@ class UserApiController extends ApiBaseController
             ['cate_id', 0],
             ['product_id', 0],
         ]);
-        $targetUserId = $this->resolveHomeTargetUserId($params);
+        $targetUserId = $this->resolveHomeTargetUserId($params, true);
         $visitorUid = 0;
         try {
             $visitorUid = request()->userID();
@@ -739,7 +742,7 @@ class UserApiController extends ApiBaseController
             ['invite_code', ''],
             ['product_id', 0],
         ]);
-        $targetUserId = $this->resolveHomeTargetUserId($params);
+        $targetUserId = $this->resolveHomeTargetUserId($params, true);
         $productId = $params['product_id'];
         if (!$productId) {
             throwError('参数错误');
