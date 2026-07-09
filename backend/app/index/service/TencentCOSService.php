@@ -88,6 +88,22 @@ class TencentCOSService
     }
 
     /**
+     * 获取短时访问地址，用于私有读对象的受控原图下载。
+     * @param string $expires 例如 +10 minutes
+     * @return string
+     */
+    public function getSignedObjectUrl($expires = '+10 minutes')
+    {
+        try {
+            return (string)self::$cosClient->getObjectUrl($this->bucket, $this->savePath, $expires);
+        } catch (\Throwable $e) {
+            $this->errorCode = 12;
+            $this->errorMessage = $e->getMessage();
+            return '';
+        }
+    }
+
+    /**
      * 下载
      * @param $pathTo 本地保存路径
      * @return bool

@@ -30,6 +30,7 @@ use app\common\service\album\AlbumService;
 use app\common\service\bridge\JiafangyunBridgeClient;
 use app\index\model\WdXcxBase;
 use app\index\model\WdXcxPic;
+use app\index\service\TencentCOSService;
 use cores\utils\Utils;
 use think\App;
 use think\cache\driver\Redis;
@@ -47,7 +48,7 @@ class UserService extends BaseService
 
     private function getHomeWebBaseUrl()
     {
-        return 'https://pic.jfyuntu.com/pic/';
+        return getJiafangyunPcBaseUrl();
     }
 
     private function buildHomeWebShareUrl($shareCode, $params = [])
@@ -59,7 +60,7 @@ class UserService extends BaseService
             }
             $query[$key] = (string)$value;
         }
-        return $this->getHomeWebBaseUrl() . 'share-home.html?' . http_build_query($query);
+        return $this->getHomeWebBaseUrl() . 'share-home?' . http_build_query($query);
     }
 
     private function ensureHomeShareCode($user)
@@ -754,7 +755,8 @@ class UserService extends BaseService
 
     private function mapHomePictureDetail($pic, $product = null, $relation = null, $user = null)
     {
-        $url = $pic->TruePic;
+        $imageUrls = buildPictureImageUrls($pic);
+        $url = $imageUrls['preview'];
         if (!$url) {
             throwError('图片暂不可预览');
         }
@@ -772,7 +774,12 @@ class UserService extends BaseService
             'imgurl' => $url,
             'src' => $url,
             'picture_url' => $url,
-            'picture_url_original' => removePicStyle($url),
+            'picture_url_original' => $imageUrls['origin'] ?: removePicStyle($url),
+            'thumbnail_url' => $imageUrls['thumb'],
+            'preview_url' => $imageUrls['preview'],
+            'file_url' => $imageUrls['origin'],
+            'image_urls' => $imageUrls,
+            'imageUrls' => $imageUrls,
             'pic_name' => $picName ?: '图片名称未命名',
             'pic_beizhu' => $picName,
             'file_type' => (int)$pic->file_type,
@@ -783,6 +790,191 @@ class UserService extends BaseService
             'avatar' => $userInfo['avatar'] ?? '',
             'upload_time' => $createTime ? date('Y年m月d日 H:i', $createTime) : '',
             'create_time' => $createTime,
+        ];
+    }
+
+    private function isActiveMember($user)
+    {
+        if (!$user) {
+            return false;
+        }
+        try {
+            $gradeInfo = $user->VipGradeInfo;
+            $gradeLevel = (int)($gradeInfo['grade_level'] ?? ($user->vip_grade ?? 0));
+            $endTime = $gradeInfo['end_time'] ?? 0;
+            if (is_string($endTime) && $endTime !== '' && preg_match('/^\d{4}-\d{2}-\d{2}/', $endTime)) {
+                $endTime = strtotime($endTime . ' 23:59:59');
+            }
+            $endTime = (int)$endTime;
+            return $gradeLevel > 0 && ($endTime === 0 || $endTime > time());
+        } catch (\Throwable $e) {
+            return (int)($user->vip_grade ?? 0) > 0;
+        }
+    }
+
+    private function isPictureInProductField($product, $picId, $field)
+    {
+        if (!$product || !$field) {
+            return false;
+        }
+        return in_array((int)$picId, $this->normalizeProductPicIds($product->$field ?? ''), true);
+    }
+
+    private function isPictureInProduct($product, $picId)
+    {
+        if (!$product) {
+            return false;
+        }
+        return $this->isPictureInProductField($product, $picId, 'pic_ids')
+            || $this->isPictureInProductField($product, $picId, 'detail_pic_ids');
+    }
+
+    private function assertPictureDownloadVisible($pic, $viewerUid, $targetUserId = 0, $productId = 0)
+    {
+        $viewerUid = (int)$viewerUid;
+        $targetUserId = (int)$targetUserId;
+        $productId = (int)$productId;
+        if (!$pic || !$viewerUid) {
+            throwError('图片不存在');
+        }
+
+        $ownerUid = $targetUserId > 0 ? $targetUserId : (int)$pic->uid;
+        $isOwner = $viewerUid === $ownerUid;
+        if ($ownerUid <= 0) {
+            $ownerUid = (int)$pic->uid;
+            $isOwner = $viewerUid === $ownerUid;
+        }
+
+        if ($productId > 0) {
+            $product = WdXcxAlbumFolder::where('id', $productId)
+                ->where('uid', $ownerUid)
+                ->where('folder_type', 2)
+                ->find();
+            if (!$product) {
+                throwError('产品不存在');
+            }
+            if (!$this->isPictureInProduct($product, (int)$pic->id)) {
+                throwError('无权下载该图片');
+            }
+            if (!$isOwner && (int)$product->private_type === 2) {
+                throwError('此内容为私有，请勿访问');
+            }
+            if (!$isOwner) {
+                $owner = WdXcxUser::find($ownerUid);
+                if (!$owner || (int)$owner->visit_allow_save_pic !== 1) {
+                    throwError('商户未开放保存权限');
+                }
+            }
+            if (!$isOwner && (int)$product->hide_detail_pictures === 1 && $this->isPictureInProductField($product, (int)$pic->id, 'detail_pic_ids')) {
+                throwError('详情图已被隐藏');
+            }
+            return;
+        }
+
+        if ((int)$pic->uid === $viewerUid) {
+            return;
+        }
+
+        if ($ownerUid > 0) {
+            $owner = WdXcxUser::find($ownerUid);
+            if (!$owner || !$owner->is_show_home) {
+                throwError('该用户未公开主页');
+            }
+            $this->assertHomeVisitRequirement($owner, $viewerUid, $isOwner, false);
+            if (!$isOwner && (int)$owner->visit_allow_save_pic !== 1) {
+                throwError('商户未开放保存权限');
+            }
+            $product = $this->findVisibleHomeProductByPicture($ownerUid, (int)$pic->id, $viewerUid, $isOwner);
+            if (!$product) {
+                throwError('分享链接无效');
+            }
+            if (!$isOwner && (int)$product->hide_detail_pictures === 1 && $this->isPictureInProductField($product, (int)$pic->id, 'detail_pic_ids')) {
+                throwError('详情图已被隐藏');
+            }
+            return;
+        }
+
+        $ownedRelation = WdXcxUserAlbumPic::where('pic_id', (int)$pic->id)
+            ->where('user_id', $viewerUid)
+            ->find();
+        if ($ownedRelation) {
+            return;
+        }
+
+        throwError('无权下载该图片');
+    }
+
+    private function originalDownloadUrlForPicture($pic)
+    {
+        if (!$pic) {
+            return '';
+        }
+        if (method_exists($pic, 'isImportedResourcePicture') && $pic->isImportedResourcePicture()) {
+            return (new \app\common\service\album\AiResourceBridgeService($this->app))->getPictureResourceImageUrl($pic, 'original');
+        }
+        $type = (int)$pic->getData('type');
+        if ($type === 5) {
+            $config = cacheRemoteSet((int)($pic->uniacid ?: $this->uniacid));
+            $cos = $config['cos'] ?? null;
+            if ($cos && !empty($cos['bucket']) && !empty($cos['region']) && !empty($cos['ak']) && !empty($cos['sk'])) {
+                $key = trim((string)$pic->getData('imgurl'), '/');
+                if (!empty($cos['folder_name']) && strpos($key, trim((string)$cos['folder_name'], '/') . '/') !== 0) {
+                    $key = trim((string)$cos['folder_name'], '/') . '/' . $key;
+                }
+                $signedUrl = (new TencentCOSService($cos, $key))->getSignedObjectUrl('+10 minutes');
+                if ($signedUrl !== '') {
+                    return $signedUrl;
+                }
+            }
+        }
+        return removePicStyle($pic->TruePic);
+    }
+
+    public function getOriginalDownloadUrl($param, $userId)
+    {
+        $picId = (int)($param['pic_id'] ?? ($param['id'] ?? 0));
+        if ($picId <= 0) {
+            throwError('图片不存在');
+        }
+        $pic = WdXcxPic::where('id', $picId)->find();
+        if (!$pic) {
+            throwError('图片不存在');
+        }
+        $viewer = WdXcxUser::where('id', (int)$userId)->find();
+        if (!$viewer) {
+            throwError('请先授权登录');
+        }
+        if (!$this->isActiveMember($viewer)) {
+            throwError('请先升级成为会员');
+        }
+
+        $targetUserId = (int)($param['target_user_id'] ?? ($param['uid'] ?? 0));
+        $productId = (int)($param['product_id'] ?? ($param['folder_id'] ?? 0));
+        $this->assertPictureDownloadVisible($pic, (int)$userId, $targetUserId, $productId);
+
+        $url = $this->originalDownloadUrlForPicture($pic);
+        if ($url === '') {
+            throwError('原图暂不可下载');
+        }
+
+        $fileSize = (int)$pic->getData('size');
+        try {
+            $this->recordDownloadTraffic([
+                'pic_id' => $picId,
+                'file_url' => $url,
+                'file_size' => $fileSize,
+            ], $userId);
+        } catch (\Throwable $e) {
+            Log::error('[OriginalDownload] record traffic failed: ' . $e->getMessage());
+        }
+
+        return [
+            'pic_id' => $picId,
+            'url' => $url,
+            'download_url' => $url,
+            'downloadUrl' => $url,
+            'file_size' => $fileSize,
+            'expires_in' => 600,
         ];
     }
 
@@ -2063,19 +2255,25 @@ class UserService extends BaseService
                         $query->where('pic_beizhu', 'like', '%'.$param['key'].'%')
                             ->whereOr('pic_name', 'like', '%'.$param['key'].'%');
                     }
-                })
-                ->where("DATE_FORMAT(FROM_UNIXTIME(create_time), '%Y-%m')", $month)
-                ->order('id desc')
-                ->field('id, imgurl, uniacid, file_type, pic_beizhu, create_time, pic_name')
-                ->select()
-                ->each(function ($item){
-                    $item->isChecked = false;
-                    $item->upload_time = date('Y年m月d日 H:i', $item->getData('create_time'));
-                    $item->nickname = $item->UserInfo['nickname'];
-                    $item->pic_id = $item->id;
-                    $item->picture_url = $item->TruePic;
-                    $item->picture_url_original = removePicStyle($item->TruePic);
-                });
+	                })
+	                ->where("DATE_FORMAT(FROM_UNIXTIME(create_time), '%Y-%m')", $month)
+	                ->order('id desc')
+	                ->field('id, imgurl, uniacid, file_type, pic_beizhu, create_time, pic_name')
+	                ->select()
+	                ->each(function ($item){
+	                    $imageUrls = buildPictureImageUrls($item);
+	                    $item->isChecked = false;
+	                    $item->upload_time = date('Y年m月d日 H:i', $item->getData('create_time'));
+	                    $item->nickname = $item->UserInfo['nickname'];
+	                    $item->pic_id = $item->id;
+	                    $item->picture_url = $imageUrls['preview'];
+	                    $item->picture_url_original = $imageUrls['origin'] ?: removePicStyle($imageUrls['preview']);
+	                    $item->thumbnail_url = $imageUrls['thumb'];
+	                    $item->preview_url = $imageUrls['preview'];
+	                    $item->file_url = $imageUrls['origin'];
+	                    $item->image_urls = $imageUrls;
+	                    $item->imageUrls = $imageUrls;
+	                });
 
             $result[] = [
                 'collect_date' => $month, // 保持字段名一致以便前端兼容

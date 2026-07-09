@@ -340,6 +340,8 @@ export const pcApi = {
     form.append('file_name', file.name)
     form.append('original_name', file.name)
     form.append('name', file.name)
+    form.append('file_size', String(file.size || 0))
+    form.append('size', String(file.size || 0))
     form.append('file_type', type === 'detailChart' ? '2' : '1')
     return apiUpload<any>('album/upload/folder', form)
   },
@@ -363,6 +365,8 @@ export const pcApi = {
     form.append('file_name', file.name)
     form.append('original_name', file.name)
     form.append('name', file.name)
+    form.append('file_size', String(file.size || 0))
+    form.append('size', String(file.size || 0))
     form.append('file_type', type === 'detailChart' ? '2' : '1')
     return apiUpload<any>('web/folder/pic/upload', form, token)
   },
@@ -378,6 +382,11 @@ export const pcApi = {
     apiRequest<any>('user/download/traffic', {
       method: 'POST',
       body: { pic_id: picId, file_url: fileUrl, file_size: fileSize, timestamp: Date.now() },
+    }),
+  getOriginalDownloadUrl: (picId: string, params: Record<string, any> = {}) =>
+    apiRequest<any>('user/download/original', {
+      method: 'POST',
+      body: { pic_id: picId, timestamp: Date.now(), ...params },
     }),
   getFavorites: (type = 'all', key = '', page = 1) =>
     apiRequest<any>('user/collect/records', { params: { type, key, page, timestamp: Date.now() } }),

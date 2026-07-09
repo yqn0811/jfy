@@ -227,6 +227,16 @@ class UserApiController extends ApiBaseController
         $this->result($this->userService->recordDownloadTraffic($param, request()->userID()), 0, '记录成功');
     }
 
+    /**申请原图下载地址，统一校验会员、可见性并记录下载流量
+     * @return void
+     * @throws \cores\exception\BaseException
+     */
+    public function getOriginalDownloadUrl()
+    {
+        $param = array_merge($this->request->get(), $this->request->post());
+        $this->result($this->userService->getOriginalDownloadUrl($param, request()->userID()), 0, '获取成功');
+    }
+
     /**获取指定用户的卡券列表
      * @return void
      * @throws \think\db\exception\DbException
@@ -454,6 +464,13 @@ class UserApiController extends ApiBaseController
             'invite_code' => (new WdXcxUser())->ensureInviteCodeForUser($user),
             'latitude' => $user->latitude,
             'longitude' => $user->longitude,
+            'resource_storage_capacity_bytes' => (int)($syncedVipGradeInfo['resource_storage_capacity_bytes'] ?? 0),
+            'resource_storage_used_bytes' => (int)($syncedVipGradeInfo['resource_storage_used_bytes'] ?? 0),
+            'resource_storage_remaining_bytes' => (int)($syncedVipGradeInfo['resource_storage_remaining_bytes'] ?? 0),
+            'used_traffic_bytes' => (int)($syncedVipGradeInfo['used_traffic_bytes'] ?? 0),
+            'used_traffic_gb' => (float)($syncedVipGradeInfo['used_traffic_gb'] ?? 0),
+            'traffic_used_gb' => (float)($syncedVipGradeInfo['traffic_used_gb'] ?? ($syncedVipGradeInfo['used_traffic_gb'] ?? 0)),
+            'concurrency_limit' => (int)($syncedVipGradeInfo['concurrency_limit'] ?? 0),
         ];
         if($vipGradeInfo['space_size'] > 1024 * 1024){
             $result['all_space'] = bcdiv($vipGradeInfo['space_size'], 1024 * 1024) . 'T';
@@ -990,7 +1007,7 @@ class UserApiController extends ApiBaseController
             $redirect = ROOT_HOST . '/';
         }
         if (!$this->isAllowedPcLoginRedirect($redirect)) {
-            $redirect = 'https://pic.jfyuntu.com/pic/';
+            $redirect = getJiafangyunPcBaseUrl();
         }
 
         $callback = trim((string)env('JIAFANGYUN_PC_LOGIN_CALLBACK', ''));

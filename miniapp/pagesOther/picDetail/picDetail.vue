@@ -291,6 +291,8 @@
 <script>
 import { notifyFolderRefresh } from "@/common/helper/refresh.js";
 import { notifyRefresh } from "@/common/helper/refresh.js";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
+import { imageUrlFor, resolveImageDownloadUrl } from "@/common/helper/imageUrls.js";
 
 export default {
   data() {
@@ -427,6 +429,9 @@ export default {
         },
       ];
     }
+    if (this.isVisitorMode() && !ensureSharedPageLogin("pagesOther/picDetail/picDetail", options, this.uid)) {
+      return;
+    }
     this.option_flag = options.option_flag;
     this.source = options.source || "";
     console.log(this.option_flag, "this.option_flag");
@@ -479,27 +484,20 @@ export default {
     },
     normalizePictureItem(item = {}) {
       const id = item.pic_id || item.id || this.picId || "";
-      const pictureUrl =
-        item.picture_url ||
-        item.imgurl ||
-        item.imageField ||
-        item.src ||
-        item.url ||
-        this.currentImageUrl ||
-        "";
-      const originalUrl =
-        item.picture_url_original ||
-        item.original_url ||
-        item.originalUrl ||
-        pictureUrl;
+      const pictureUrl = imageUrlFor(item, "preview") || this.currentImageUrl || "";
+      const originalUrl = imageUrlFor(item, "origin") || pictureUrl;
       return {
         ...item,
         id,
         pic_id: id,
         picture_url: pictureUrl,
         picture_url_original: originalUrl,
+        image_urls: item.image_urls || item.imageUrls || item.urls || {},
+        imageUrls: item.imageUrls || item.image_urls || item.urls || {},
         pic_beizhu: item.pic_beizhu || item.pic_name || item.name || "",
         pic_name: item.pic_name || item.pic_beizhu || item.name || "",
+        file_size: Number(item.file_size || item.size_bytes || item.size || 0),
+        size: Number(item.size || item.file_size || item.size_bytes || 0),
       };
     },
     getCurrentPictureId() {
@@ -626,7 +624,25 @@ export default {
     },
     // 返回上一页
     goBack() {
-      uni.navigateBack();
+      const pages = getCurrentPages();
+      if (pages && pages.length > 1) {
+        uni.navigateBack();
+        return;
+      }
+      const current = this.currentItem || this.imageInfo || {};
+      const productId = current.product_id || current.folder_id || "";
+      if (this.uid && productId) {
+        uni.redirectTo({
+          url: `/pagesOther/productDetail/productDetail?id=${productId}&uid=${this.uid}`,
+          fail: () => uni.reLaunch({ url: `/pages/index/index?uid=${this.uid}` }),
+        });
+        return;
+      }
+      if (this.uid) {
+        uni.reLaunch({ url: `/pages/index/index?uid=${this.uid}` });
+        return;
+      }
+      uni.reLaunch({ url: "/pages/index/index" });
     },
 
     // 显示更多操作
@@ -955,17 +971,7 @@ export default {
     // 保存媒体到相册
     async handleDownload() {
       const currentItem = this.currentItem || this.imageInfo;
-      const fileUrl =
-        currentItem.picture_url_original || currentItem.picture_url;
       const isVideo = currentItem.is_video;
-
-      if (!fileUrl) {
-        uni.showToast({
-          title: "媒体地址无效",
-          icon: "none",
-        });
-        return;
-      }
 
       if (this.isVisitorMode()) {
         if (!this.ownerHomeInfo && this.uid) {
@@ -980,10 +986,21 @@ export default {
         }
       }
 
-      let userInfo = uni.getStorageSync("userInfo") || {};
-      if (userInfo.grade_level == 0) {
+      if (!this.canUseOriginalImage()) {
         uni.showToast({
           title: "请先升级成为会员",
+          icon: "none",
+        });
+        return;
+      }
+
+      const fileUrl = await resolveImageDownloadUrl(this.$go, currentItem, {
+        target_user_id: this.uid,
+        product_id: currentItem.product_id || currentItem.folder_id,
+      });
+      if (!fileUrl) {
+        uni.showToast({
+          title: "媒体地址无效",
           icon: "none",
         });
         return;
@@ -1079,24 +1096,74 @@ export default {
     },
 
     // 查看原图
-    handleViewOriginal() {
+    async handleViewOriginal() {
       // 只有图片才可以查看原图
       if (this.currentItem && this.currentItem.is_video) {
         return;
       }
 
-      let userInfo = uni.getStorageSync("userInfo") || {};
-      if (userInfo.grade_level == 0) {
+      if (!this.canUseOriginalImage()) {
         uni.showToast({
           title: "请先升级成为会员",
           icon: "none",
         });
-      } else {
-        if (this.imageInfo.picture_url_original) {
-          this.currentImageUrl = this.imageInfo.picture_url_original;
-          this.handleDownload();
-        }
+        return;
       }
+      const currentItem = this.currentItem || this.imageInfo || {};
+      const originalUrl = await resolveImageDownloadUrl(this.$go, currentItem, {
+        target_user_id: this.uid,
+        product_id: currentItem.product_id || currentItem.folder_id,
+      });
+      if (originalUrl) {
+        this.currentImageUrl = originalUrl;
+        if (this.currentItem) {
+          this.currentItem.picture_url = originalUrl;
+        }
+        this.imageInfo.picture_url = originalUrl;
+      }
+    },
+    canUseOriginalImage() {
+      const userInfo = uni.getStorageSync("userInfo") || {};
+      const gradeLevel = Number(
+        userInfo.grade_level ||
+          userInfo.gradeLevel ||
+          userInfo.vip_grade ||
+          userInfo.vipGrade ||
+          0,
+      );
+      const rawEndTime =
+        userInfo.end_time ||
+        userInfo.endTime ||
+        userInfo.vip_end_time ||
+        userInfo.vipEndTime ||
+        userInfo.expire_time ||
+        userInfo.expireTime ||
+        0;
+      let endTime = Number(rawEndTime || 0);
+      if (!endTime && typeof rawEndTime === "string" && rawEndTime) {
+        const parsed = new Date(rawEndTime).getTime();
+        endTime = Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+      }
+      return gradeLevel > 0 && (!endTime || endTime > Math.floor(Date.now() / 1000));
+    },
+    recordDownloadTraffic(item = {}, fileUrl = "") {
+      const picId = item.pic_id || item.id || this.picId;
+      if (!picId || !this.$go) return;
+      const params = {
+        pic_id: picId,
+        file_url: fileUrl,
+        file_size: Number(item.file_size || item.size || 0),
+        timestamp: new Date().getTime(),
+      };
+      this.$go(
+        "user/download/traffic",
+        {
+          ...params,
+          sign: this.$base ? this.$base.getASCII(params) : "",
+        },
+        "post",
+        { show_err: false, loading: false },
+      ).catch(() => {});
     },
 
     // 添加到相册

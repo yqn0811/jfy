@@ -4,8 +4,8 @@ import { toast } from 'vue-sonner'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import type { ProductImageData } from '@/data/ProductImageData'
-import { pcApi } from '@/lib/api'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
+import { resolveProductImageDownloadUrl } from '@/lib/download'
 
 interface Props {
   open: boolean
@@ -27,6 +27,7 @@ const emit = defineEmits<{
 }>()
 
 const currentImage = computed(() => props.images[props.currentIndex] || null)
+const currentPreviewUrl = computed(() => productImageUrl(currentImage.value, 'preview'))
 const canPrevious = computed(() => props.currentIndex > 0)
 const canNext = computed(() => props.currentIndex < props.images.length - 1)
 
@@ -40,7 +41,7 @@ const goNext = () => {
   if (canNext.value) emit('update:currentIndex', props.currentIndex + 1)
 }
 
-const handleDownload = () => {
+const handleDownload = async () => {
   if (!props.isLoggedIn) {
     emit('login-required')
     return
@@ -49,22 +50,41 @@ const handleDownload = () => {
     toast.error('商户未开放保存权限')
     return
   }
-  if (!currentImage.value?.url) {
+  if (!currentImage.value) {
+    toast.error('图片地址无效')
+    return
+  }
+  const downloadUrl = await resolveProductImageDownloadUrl(currentImage.value)
+  if (!downloadUrl) {
     toast.error('图片地址无效')
     return
   }
   const link = document.createElement('a')
-  link.href = currentImage.value.url
+  link.href = downloadUrl
   link.download = currentImage.value.name || 'image.jpg'
   link.target = '_blank'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  pcApi.recordDownloadTraffic(currentImage.value.id, currentImage.value.url, currentImage.value.sizeBytes).catch(() => {})
 }
 
 const handleViewOriginal = () => {
-  if (currentImage.value?.url) window.open(currentImage.value.url, '_blank')
+  if (!props.isLoggedIn) {
+    emit('login-required')
+    return
+  }
+  if (!props.canDownload) {
+    toast.warning('开通会员后可查看原图')
+    return
+  }
+  if (!currentImage.value) return
+  resolveProductImageDownloadUrl(currentImage.value)
+    .then((url) => {
+      if (url) window.open(url, '_blank')
+    })
+    .catch((error: any) => {
+      toast.error(error?.message || '原图暂不可查看')
+    })
 }
 </script>
 
@@ -102,7 +122,7 @@ const handleViewOriginal = () => {
         <div class="relative flex min-h-0 flex-1 items-center justify-center bg-black">
           <img
             v-if="currentImage"
-            :src="currentImage.url || currentImage.thumbnailUrl"
+            :src="currentPreviewUrl"
             :alt="currentImage.name"
             class="max-h-full max-w-full object-contain"
           />

@@ -33,6 +33,8 @@ class CommonApiController extends ApiBaseController
         $this->result([
             'url' => $res['url'],
             'id' => $res['pid'],
+            'size' => (int)($res['size'] ?? 0),
+            'file_size' => (int)($res['file_size'] ?? ($res['size'] ?? 0)),
         ]);
     }
 
@@ -167,11 +169,18 @@ class CommonApiController extends ApiBaseController
             ->field('id, pic_id')
             ->paginate(30)->each(function ($item){
                 $picture_url = '';
+                $imageUrls = null;
                 if($item->picture){
-                    $picture_url = $item->picture->TruePic;
+                    $imageUrls = buildPictureImageUrls($item->picture);
+                    $picture_url = $imageUrls['preview'];
+                    $item->thumbnail_url = $imageUrls['thumb'];
+                    $item->preview_url = $imageUrls['preview'];
+                    $item->file_url = $imageUrls['origin'];
+                    $item->image_urls = $imageUrls;
+                    $item->imageUrls = $imageUrls;
                 }
                 $item->picture_url = $picture_url;
-                $item->picture_url_original = removePicStyle($picture_url);
+                $item->picture_url_original = $imageUrls ? ($imageUrls['origin'] ?: removePicStyle($picture_url)) : removePicStyle($picture_url);
                 unset($item->picture);
             });
         $this->result([

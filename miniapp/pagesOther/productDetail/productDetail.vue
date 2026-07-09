@@ -47,7 +47,7 @@
       </view>
     </view>
     <!-- 详情图 -->
-    <view class="content-detail">
+    <view class="content-detail" v-if="shouldShowDetailSection">
       <view class="content-title">详情图</view>
       <block v-for="(item, idx) in imagesDetails" :key="item.id">
         <view class="detail-image" @tap="handleImageClick(item)">
@@ -129,6 +129,8 @@ import {
   consumeRefreshMarker,
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
+import { imageUrlFor } from "@/common/helper/imageUrls.js";
 
 export default {
   components: { UserCard, ImageGrid, SharePopup, PersonalDetails },
@@ -159,6 +161,7 @@ export default {
       uid: "",
       shareOwnerId: "",
       lastProductRefreshAt: "",
+      hideDetailPictures: false,
     };
   },
   onLoad(options) {
@@ -170,6 +173,9 @@ export default {
     this.uid = this.normalizeShareParam(options.uid);
     this.shareOwnerId = this.uid;
     console.log(options);
+    if (this.uid && !ensureSharedPageLogin("pagesOther/productDetail/productDetail", options, this.uid)) {
+      return;
+    }
     // 支持通过 options 传入分类 id
     if (options && options.id) {
       this.productId = options.id;
@@ -205,6 +211,9 @@ export default {
     shareCoverUrl() {
       return this.images[0]?.imageField || this.imagesDetails[0]?.imageField || "";
     },
+    shouldShowDetailSection() {
+      return !this.hideDetailPictures && this.imagesDetails.length > 0;
+    },
   },
   methods: {
     parseSceneOptions(options = {}) {
@@ -219,26 +228,24 @@ export default {
       return Number(value) === 1 ? 1 : 2;
     },
     normalizeProductPicture(item = {}, fallbackPoster = "") {
-      const imageUrl =
-        item.imgurl ||
-        item.picture_url ||
-        item.src ||
-        item.url ||
-        item.imageField ||
-        item.file_url ||
-        item.original_url ||
-        "";
+      const thumbUrl = imageUrlFor(item, "thumb");
+      const previewUrl = imageUrlFor(item, "preview");
+      const originUrl = imageUrlFor(item, "origin");
+      const imageUrl = thumbUrl || previewUrl || originUrl;
       return {
         id: item.id || item.pic_id || "",
         imageField: imageUrl,
         imgurl: imageUrl,
-        picture_url: imageUrl,
-        picture_url_original:
-          item.picture_url_original || item.original_url || imageUrl,
+        picture_url: previewUrl || imageUrl,
+        picture_url_original: originUrl || previewUrl || imageUrl,
+        image_urls: item.image_urls || item.imageUrls || item.urls || {},
+        imageUrls: item.imageUrls || item.image_urls || item.urls || {},
         nameField: item.pic_name || item.name || "",
         pic_name: item.pic_name || item.name || "",
         file_type: item.file_type || 1,
         poster: item.poster || fallbackPoster || imageUrl,
+        file_size: Number(item.file_size || item.size_bytes || item.size || 0),
+        size: Number(item.size || item.file_size || item.size_bytes || 0),
       };
     },
     buildShareUrl() {
@@ -327,6 +334,7 @@ export default {
           const res = await this.$go(url, data, methods, { show_err: true });
           const d = res && res.data ? res.data : {};
           this.isFavorited = d.is_collect ? true : false;
+          this.hideDetailPictures = Number(d.hide_detail_pictures || d.hideDetailImage || 0) === 1;
           const coverPics = Array.isArray(d.pic_list) ? d.pic_list : [];
           const detailPics = Array.isArray(d.detail_pic_list)
             ? d.detail_pic_list
@@ -343,22 +351,34 @@ export default {
             picList.push({
               pic_id: item.id,
               id: item.id,
-              picture_url: item.imageField,
+              picture_url: item.picture_url || item.imageField,
               picture_url_original: item.picture_url_original,
-              pic_name: item.pic_name,
-              poster: fallbackPoster,
-            });
+            image_urls: item.image_urls,
+            imageUrls: item.imageUrls,
+            pic_name: item.pic_name,
+            poster: fallbackPoster,
+            product_id: this.productId,
+            folder_id: this.productId,
+            file_size: item.file_size || item.size || 0,
+            size: item.size || item.file_size || 0,
+          });
             return item;
           });
           this.imagesDetails = detailItems.map((item) => {
             picList.push({
               pic_id: item.id,
               id: item.id,
-              picture_url: item.imageField,
-              picture_url_original: item.picture_url_original,
-              pic_name: item.pic_name,
-              poster: "",
-            });
+              picture_url: item.picture_url || item.imageField,
+            picture_url_original: item.picture_url_original,
+            image_urls: item.image_urls,
+            imageUrls: item.imageUrls,
+            pic_name: item.pic_name,
+            poster: "",
+            product_id: this.productId,
+            folder_id: this.productId,
+            file_size: item.file_size || item.size || 0,
+            size: item.size || item.file_size || 0,
+          });
             return item;
           });
           uni.setStorageSync("picList", picList);
@@ -391,13 +411,19 @@ export default {
       }
     },
     handleImageClick(data) {
-      const uidQuery = this.uid ? "&uid=" + this.uid : "";
+      const uidQuery = this.uid ? "&uid=" + this.uid + "&source=share" : "";
       const item = this.normalizeProductPicture(data);
       uni.setStorageSync("picInfo", {
         ...item,
         pic_id: item.id,
-        picture_url: item.imageField,
+        picture_url: item.picture_url || item.imageField,
         picture_url_original: item.picture_url_original || item.imageField,
+        image_urls: item.image_urls,
+        imageUrls: item.imageUrls,
+        product_id: this.productId,
+        folder_id: this.productId,
+        file_size: item.file_size || item.size || 0,
+        size: item.size || item.file_size || 0,
       });
       uni.navigateTo({
         url:

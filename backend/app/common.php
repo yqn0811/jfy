@@ -425,6 +425,74 @@ function buildResourceImageProxyUrl($picId, $type = 'thumb')
         . '&token=' . getResourceImageProxyToken($picId, $type);
 }
 
+function getApiRootUrl()
+{
+    $root = defined('ROOT_HOST') ? ROOT_HOST : '';
+    if (!$root && !empty($_SERVER['HTTP_HOST'])) {
+        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')
+            || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        $root = ($https ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'];
+    }
+    return rtrim($root, '/');
+}
+
+function getJiafangyunPcBaseUrl()
+{
+    $base = trim((string)env('JIAFANGYUN_PC_BASE_URL', getenv('JIAFANGYUN_PC_BASE_URL') ?: ''));
+    if ($base === '') {
+        $base = 'https://pic.jfyuntu.com/';
+    }
+    return rtrim($base, '/') . '/';
+}
+
+function buildPictureDownloadRequestUrl($picId)
+{
+    $picId = (int)$picId;
+    if ($picId <= 0) {
+        return '';
+    }
+    $root = getApiRootUrl();
+    $path = '/api/user/download/original?pic_id=' . $picId;
+    return $root ? ($root . $path) : $path;
+}
+
+function buildPictureImageUrls($pictureOrUrl, $previewUrl = '')
+{
+    $pic = is_object($pictureOrUrl) ? $pictureOrUrl : null;
+    $displayUrl = '';
+    $originalUrl = '';
+
+    if ($pic) {
+        $picId = (int)($pic->id ?? 0);
+        $isImported = method_exists($pic, 'isImportedResourcePicture') && $pic->isImportedResourcePicture();
+        if ($isImported && $picId > 0) {
+            return [
+                'thumb' => buildResourceImageProxyUrl($picId, 'thumb'),
+                'preview' => buildResourceImageProxyUrl($picId, 'preview'),
+                'edit' => buildResourceImageProxyUrl($picId, 'preview'),
+                'origin' => '',
+                'download' => buildPictureDownloadRequestUrl($picId),
+            ];
+        }
+        $displayUrl = (string)($pic->TruePic ?? '');
+    } else {
+        $displayUrl = trim((string)$pictureOrUrl);
+    }
+
+    if ($previewUrl !== '') {
+        $displayUrl = trim((string)$previewUrl);
+    }
+    $originalUrl = removePicStyle($displayUrl);
+
+    return [
+        'thumb' => $displayUrl,
+        'preview' => $displayUrl,
+        'edit' => $displayUrl,
+        'origin' => $originalUrl,
+        'download' => $pic ? buildPictureDownloadRequestUrl((int)($pic->id ?? 0)) : $originalUrl,
+    ];
+}
+
 /**获取本地图片全路径
  * @param $image_url
  * @return mixed|string

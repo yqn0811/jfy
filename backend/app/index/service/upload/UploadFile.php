@@ -220,7 +220,14 @@ abstract class UploadFile
                 'uid' => $data['uid'] ?? 0,
                 'file_type' => $data['file_type'] ?? 0,
             ]);
-            return ["url" => $data['url'], "pid" => $picture->id];
+            $size = (int)($data['size'] ?? 0);
+            return [
+                "url" => $data['url'],
+                "pid" => $picture->id,
+                "id" => $picture->id,
+                "size" => $size,
+                "file_size" => $size,
+            ];
         }else{
             return ["url" => $data['url']];
         }

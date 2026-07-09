@@ -913,9 +913,15 @@ class AlbumService extends BaseService
             ->orderRaw('FIELD(id, ' . $order . ')')
             ->select()
             ->each(function($pic){
-                $pic->imgurl = $pic->TruePic;
-                $pic->picture_url = $pic->TruePic;
-                $pic->picture_url_original = removePicStyle($pic->TruePic);
+                $imageUrls = buildPictureImageUrls($pic);
+                $pic->image_urls = $imageUrls;
+                $pic->imageUrls = $imageUrls;
+                $pic->thumbnail_url = $imageUrls['thumb'];
+                $pic->preview_url = $imageUrls['preview'];
+                $pic->file_url = $imageUrls['origin'];
+                $pic->imgurl = $imageUrls['preview'];
+                $pic->picture_url = $imageUrls['preview'];
+                $pic->picture_url_original = $imageUrls['origin'] ?: removePicStyle($imageUrls['preview']);
             });
     }
 
@@ -924,13 +930,19 @@ class AlbumService extends BaseService
         if (!$pic) {
             return [];
         }
-        $url = $pic->TruePic;
+        $imageUrls = buildPictureImageUrls($pic);
+        $url = $imageUrls['preview'];
         return [
             'id' => (int)$pic->id,
             'pic_id' => (int)$pic->id,
             'imgurl' => $url,
             'picture_url' => $url,
-            'picture_url_original' => removePicStyle($url),
+            'picture_url_original' => $imageUrls['origin'] ?: removePicStyle($url),
+            'thumbnail_url' => $imageUrls['thumb'],
+            'preview_url' => $imageUrls['preview'],
+            'file_url' => $imageUrls['origin'],
+            'image_urls' => $imageUrls,
+            'imageUrls' => $imageUrls,
             'pic_name' => $pic->pic_name ?: ('图片' . ($index + 1)),
             'file_type' => (int)$pic->file_type,
             'size' => $pic->getData('size'),
@@ -2147,7 +2159,7 @@ class AlbumService extends BaseService
             'fid' => $fid,
             'uid' => $folder->uid,
         ])->find();
-        $url = 'https://pic.jfyuntu.com/assets/page/product-list.html?uploadd_code=' . urlencode($code);
+        $url = getJiafangyunPcBaseUrl() . 'batch-upload?uploadd_code=' . urlencode($code);
         (new WdXcxUser())->ensureUploadPasswordColumns();
         $user = WdXcxUser::where('id', $folder->uid)->field('upload_pwd,upload_pwd_expire_time')->find();
         $expireTime = $user ? (int)$user->upload_pwd_expire_time : 0;
@@ -2390,6 +2402,26 @@ class AlbumService extends BaseService
             foreach ($createdRelations as $relation) {
                 $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, 'album');
             }
+        }
+        foreach ($data as $index => $item) {
+            $picId = (int)($item['pid'] ?? $item['id'] ?? 0);
+            if ($picId <= 0) {
+                continue;
+            }
+            $pic = WdXcxPic::where('id', $picId)->find();
+            if (!$pic) {
+                continue;
+            }
+            $imageUrls = buildPictureImageUrls($pic);
+            $data[$index]['url'] = $imageUrls['preview'];
+            $data[$index]['imgurl'] = $imageUrls['preview'];
+            $data[$index]['picture_url'] = $imageUrls['preview'];
+            $data[$index]['picture_url_original'] = $imageUrls['origin'] ?: removePicStyle($imageUrls['preview']);
+            $data[$index]['thumbnail_url'] = $imageUrls['thumb'];
+            $data[$index]['preview_url'] = $imageUrls['preview'];
+            $data[$index]['file_url'] = $imageUrls['origin'];
+            $data[$index]['image_urls'] = $imageUrls;
+            $data[$index]['imageUrls'] = $imageUrls;
         }
         return [
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',

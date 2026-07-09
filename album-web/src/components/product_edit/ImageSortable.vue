@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { cn } from '@/lib/utils'
 import type { ProductImageType } from '@/data/ProductData'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
 
 interface Props {
   images: ProductImageData[]
@@ -134,7 +134,7 @@ const typeLabel = computed(() => {
       >
         <!-- Image Preview -->
         <img
-          :src="image.thumbnailUrl"
+          :src="productImageUrl(image, 'thumb')"
           :alt="image.name"
           draggable="false"
           class="w-full h-full object-cover"

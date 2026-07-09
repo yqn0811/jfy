@@ -1,7 +1,7 @@
 
 <script setup lang="ts">
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -25,7 +25,7 @@ const emit = defineEmits<{
     >
       <!-- Image -->
       <img
-        :src="image.thumbnailUrl"
+        :src="productImageUrl(image, 'thumb')"
         :alt="image.name"
         loading="lazy"
         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"

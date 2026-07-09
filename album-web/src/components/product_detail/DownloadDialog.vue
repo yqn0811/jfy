@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
 import { downloadImagesAsZip } from '@/lib/download'
 
 interface Props {
@@ -188,7 +188,7 @@ const handleDownload = async () => {
               @keydown.space.prevent="toggleImage(image)"
             >
               <img
-                :src="image.thumbnailUrl || image.url"
+                :src="productImageUrl(image, 'thumb')"
                 :alt="image.name || '图片'"
                 loading="lazy"
                 class="h-full w-full object-cover"
@@ -219,7 +219,7 @@ const handleDownload = async () => {
               @keydown.space.prevent="toggleImage(image)"
             >
               <img
-                :src="image.thumbnailUrl || image.url"
+                :src="productImageUrl(image, 'thumb')"
                 :alt="image.name || '图片'"
                 loading="lazy"
                 class="h-full w-full object-cover"

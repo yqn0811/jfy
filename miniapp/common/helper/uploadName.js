@@ -88,6 +88,7 @@ export function normalizeSelectedUploadFile(file, fileType = 1) {
 	return {
 		path: filePath,
 		name: getSelectedUploadFileName(source, filePath, fileType),
+		size: Number(source.size || source.fileSize || source.file_size || 0),
 	};
 }
 

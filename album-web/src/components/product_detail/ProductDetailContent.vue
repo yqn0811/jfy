@@ -44,7 +44,9 @@ const detailChartImages = computed(() =>
   productImages.value.filter(img => img.type === 'detailChart')
 )
 
-const canUseOriginalImage = computed(() => isOwnerView.value || isVipMember(currentUser.value))
+const canUseOriginalImage = computed(() => isVipMember(currentUser.value))
+const shouldShowDetailImages = computed(() => !!product.value && (!product.value.hideDetailImage || isOwnerView.value))
+const visibleDetailChartImages = computed(() => shouldShowDetailImages.value ? detailChartImages.value : [])
 
 const canDownload = computed(() => {
   if (!product.value) return false
@@ -81,7 +83,17 @@ const loadProduct = async () => {
     isFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
     const currentUid = String(currentUser.value?.id || currentUser.value?.uid || '')
     isOwnerView.value = !!currentUid && currentUid === String(detail?.uid || product.value.ownerUserId)
-    if (isLoggedIn.value) pcApi.addVisit('product', product.value.id).catch(() => {})
+    if (isLoggedIn.value) {
+      pcApi.addVisit('product', product.value.id).catch(() => {})
+      if (!isVipMember(currentUser.value)) {
+        pcApi.getCurrentUser()
+          .then((user) => {
+            currentUser.value = user || {}
+            authStore.setUser(user)
+          })
+          .catch(() => {})
+      }
+    }
   } catch (error: any) {
     toast.error(error?.message || '产品加载失败')
   } finally {
@@ -149,7 +161,7 @@ const handleDownload = () => {
   showDownloadDialog.value = true
 }
 
-const handleImageClick = (imageUrl: string, index: number, type: 'colorChart' | 'detailChart') => {
+const handleImageClick = (index: number, type: 'colorChart' | 'detailChart') => {
   previewImages.value = type === 'colorChart' ? colorChartImages.value : detailChartImages.value
   previewIndex.value = index
   showImagePreview.value = true
@@ -198,7 +210,7 @@ const handleLoginSuccess = () => {
           </div>
           <div v-if="product" class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="secondary">花色图 {{ colorChartImages.length }} 张</Badge>
-            <Badge variant="secondary">详情图 {{ detailChartImages.length }} 张</Badge>
+            <Badge variant="secondary">详情图 {{ visibleDetailChartImages.length }} 张</Badge>
             <span v-if="product.updatedAt">更新时间 {{ product.updatedAt }}</span>
           </div>
         </div>
@@ -231,7 +243,7 @@ const handleLoginSuccess = () => {
         <ProductImageGallery
           v-if="colorChartImages.length > 0"
           :images="colorChartImages"
-          @image-click="(index) => handleImageClick(colorChartImages[index].url, index, 'colorChart')"
+          @image-click="(index) => handleImageClick(index, 'colorChart')"
         />
         <div v-else class="rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">
           <SafeIcon name="Image" :size="30" class="mx-auto mb-2 opacity-50" />
@@ -239,19 +251,15 @@ const handleLoginSuccess = () => {
         </div>
       </section>
 
-      <section class="space-y-3">
+      <section v-if="shouldShowDetailImages" class="space-y-3">
         <div class="flex items-center justify-between">
           <h2 class="text-section-title font-semibold">详情图</h2>
-          <Badge variant="secondary" class="text-xs">{{ detailChartImages.length }} 张</Badge>
-        </div>
-        <div v-if="product?.hideDetailImage && !isOwnerView" class="rounded-lg border border-border bg-muted/40 p-4">
-          <p class="text-sm font-medium">分享者已隐藏详情图</p>
-          <p class="mt-1 text-xs text-muted-foreground">当前产品的详情图仅分享者本人可见</p>
+          <Badge variant="secondary" class="text-xs">{{ visibleDetailChartImages.length }} 张</Badge>
         </div>
         <ProductImageGallery
-          v-else-if="detailChartImages.length > 0"
-          :images="detailChartImages"
-          @image-click="(index) => handleImageClick(detailChartImages[index].url, index, 'detailChart')"
+          v-if="visibleDetailChartImages.length > 0"
+          :images="visibleDetailChartImages"
+          @image-click="(index) => handleImageClick(index, 'detailChart')"
         />
         <div v-else class="rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">
           <SafeIcon name="Image" :size="30" class="mx-auto mb-2 opacity-50" />

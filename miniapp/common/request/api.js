@@ -28,6 +28,44 @@ export const getPendingInviteCode = () => {
   return normalizeInviteCode(uni.getStorageSync("pending_invite_code"));
 };
 
+export const SHARE_LOGIN_REDIRECT_KEY = "share_login_redirect";
+
+const buildCurrentPagePath = () => {
+  const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+  const currentPage = pages && pages[pages.length - 1];
+  if (!currentPage || !currentPage.route) return "";
+  const options = currentPage.options || {};
+  const query = Object.keys(options)
+    .filter((key) => options[key] !== undefined && options[key] !== null && options[key] !== "")
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(options[key])}`)
+    .join("&");
+  return `/${currentPage.route}${query ? `?${query}` : ""}`;
+};
+
+export const saveShareLoginRedirect = (url = "") => {
+  const redirectUrl = String(url || buildCurrentPagePath() || "").trim();
+  if (redirectUrl) {
+    uni.setStorageSync(SHARE_LOGIN_REDIRECT_KEY, redirectUrl);
+  }
+  return redirectUrl;
+};
+
+export const consumeShareLoginRedirect = () => {
+  const redirectUrl = String(uni.getStorageSync(SHARE_LOGIN_REDIRECT_KEY) || "").trim();
+  if (redirectUrl) {
+    uni.removeStorageSync(SHARE_LOGIN_REDIRECT_KEY);
+  }
+  return redirectUrl;
+};
+
+export const requireShareLogin = (uid = "", redirectUrl = "") => {
+  if (checkLoginStatus()) {
+    return true;
+  }
+  saveShareLoginRedirect(redirectUrl);
+  return silentLogin(uid);
+};
+
 /**
  * 无感登录 - 完整流程
  * 1. 获取 openid
@@ -35,7 +73,7 @@ export const getPendingInviteCode = () => {
  * 3. 获取用户信息
  * @returns {Promise<Boolean>} 登录是否成功
  */
-export const silentLogin = (uid) => {
+export const silentLogin = (uid, redirectUrl = "") => {
   // 如果正在登录中，返回同一个 Promise
   if (isLoggingIn && loginPromise) {
     return loginPromise;
@@ -49,6 +87,9 @@ export const silentLogin = (uid) => {
   }
 
   isLoggingIn = true;
+  if (redirectUrl) {
+    saveShareLoginRedirect(redirectUrl);
+  }
 
   loginPromise = new Promise(async (resolve) => {
     try {
@@ -77,8 +118,11 @@ export const silentLogin = (uid) => {
       loginPromise = null;
 
       // 跳转到登录页
+      const loginParams = [];
+      if (uid) loginParams.push(`uid=${encodeURIComponent(uid)}`);
+      const loginUrl = `/pages/login/login${loginParams.length ? `?${loginParams.join("&")}` : ""}`;
       uni.navigateTo({
-        url: "/pages/login/login?uid=" + uid,
+        url: loginUrl,
       });
 
       return resolve(false);

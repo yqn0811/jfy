@@ -18,10 +18,10 @@ import { toast } from 'vue-sonner'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { cn } from '@/lib/utils'
 import { pcApi } from '@/lib/api'
-import { mapCategory, mapProduct, mapProductImagesFromDetail, pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
+import { mapCategory, mapProduct, mapProductImagesFromDetail, normalizeProductImageUrls, pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { ProductData, ProductImageType } from '@/data/ProductData'
 import type { CategoryData } from '@/data/CategoryData'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { buildProductImageUrls, type ProductImageData } from '@/data/ProductImageData'
 import ImageUploadZone from './ImageUploadZone.vue'
 import ImageSortable from './ImageSortable.vue'
 
@@ -117,13 +117,15 @@ const setVisibility = (value: FormState['visibility']) => {
 }
 
 const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: string): ProductImageData => {
-  const url = pickImage(item.original_url, item.file_url, item.fileUrl, item.picture_url_original, item.url, item)
-  const thumbnailUrl = pickImage(item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
+  const imageUrls = normalizeProductImageUrls(item)
+  const url = pickImage(imageUrls.origin, imageUrls.download, imageUrls.edit, imageUrls.preview, item.original_url, item.file_url, item.fileUrl, item.picture_url_original, item.url, item)
+  const thumbnailUrl = pickImage(imageUrls.thumb, item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
   return {
     id: String(item.pid || item.pic_id || item.resource_id || item.id || `resource_${Date.now()}`),
     productId: productIdValue,
     type,
     name: item.name || item.pic_name || item.file_name || `${type === 'colorChart' ? '花色图' : '详情图'}`,
+    imageUrls: buildProductImageUrls(imageUrls, { url, thumbnailUrl }),
     url,
     thumbnailUrl,
     sizeLabel: item.sizeLabel || item.size_label || (item.size ? `${(Number(item.size) / 1024 / 1024).toFixed(1)} MB` : ''),
@@ -391,14 +393,18 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
   const data = await pcApi.uploadProductImage(fid, file, type)
   const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
   const item = rows[0] || {}
-  const url = item.url || URL.createObjectURL(file)
+  const imageUrls = normalizeProductImageUrls(item)
+  const fallbackUrl = URL.createObjectURL(file)
+  const url = pickImage(imageUrls.origin, imageUrls.download, imageUrls.edit, imageUrls.preview, item.url, fallbackUrl)
+  const thumbnailUrl = pickImage(imageUrls.thumb, imageUrls.preview, url)
   return {
     id: String(item.pid || item.id || `img_${Date.now()}`),
     productId: fid,
     type,
     name: file.name,
+    imageUrls: buildProductImageUrls(imageUrls, { url, thumbnailUrl }),
     url,
-    thumbnailUrl: url,
+    thumbnailUrl,
     sizeLabel: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
     sizeBytes: file.size,
     sortOrder: type === 'colorChart' ? formState.value.colorChartImages.length : formState.value.detailChartImages.length,

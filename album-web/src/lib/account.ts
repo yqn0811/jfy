@@ -1,6 +1,12 @@
 export const isVipMember = (user: any = {}) => {
   const gradeLevel = Number(user?.grade_level ?? user?.gradeLevel ?? user?.vip_grade ?? user?.vipGrade ?? 0)
-  return Number.isFinite(gradeLevel) && gradeLevel > 0
+  const rawEndTime = user?.end_time ?? user?.endTime ?? user?.vip_end_time ?? user?.vipEndTime ?? user?.expire_time ?? user?.expireTime ?? 0
+  let endTime = Number(rawEndTime || 0)
+  if (!endTime && typeof rawEndTime === 'string' && rawEndTime.trim()) {
+    const parsed = Date.parse(rawEndTime)
+    endTime = Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000)
+  }
+  return Number.isFinite(gradeLevel) && gradeLevel > 0 && (!endTime || endTime > Math.floor(Date.now() / 1000))
 }
 
 export const formatBytes = (bytes: number, fractionDigits = 2) => {

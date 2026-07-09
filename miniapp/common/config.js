@@ -28,7 +28,7 @@ const config = {
 	environment, //环境
 	openLoading: true, //是否开启loading
 	features: {
-		selectionList: false,
+		selectionList: true,
 	},
 };
 

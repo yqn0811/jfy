@@ -1,4 +1,5 @@
-import type { ProductImageData } from '@/data/ProductImageData'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
+import { pcApi } from '@/lib/api'
 
 const sanitizeFilename = (value: string) => {
   const cleaned = value
@@ -29,10 +30,21 @@ export const downloadUrl = (url: string, filename: string) => {
   document.body.removeChild(link)
 }
 
+const isControlledDownloadUrl = (url: string) => /\/api\/user\/download\/original(?:\?|$)/.test(url)
+
+export const resolveProductImageDownloadUrl = async (image: ProductImageData) => {
+  const downloadEntry = productImageUrl(image, 'download')
+  if (!downloadEntry) return ''
+  if (!isControlledDownloadUrl(downloadEntry)) return downloadEntry
+  const data = await pcApi.getOriginalDownloadUrl(image.id)
+  return String(data?.download_url || data?.downloadUrl || data?.url || '')
+}
+
 export const downloadImagesAsZip = async (
   images: ProductImageData[],
   filename = 'product-images.zip',
-  onProgress?: (completed: number, total: number) => void
+  onProgress?: (completed: number, total: number) => void,
+  onImageFetched?: (image: ProductImageData, blob: Blob) => void | Promise<void>
 ) => {
   if (!images.length) return
 
@@ -42,13 +54,18 @@ export const downloadImagesAsZip = async (
 
   for (let index = 0; index < images.length; index += 1) {
     const image = images[index]
-    const response = await fetch(image.url, { mode: 'cors' })
+    const imageUrl = await resolveProductImageDownloadUrl(image)
+    if (!imageUrl) {
+      throw new Error(`图片下载失败: ${image.name || index + 1}`)
+    }
+    const response = await fetch(imageUrl, { mode: 'cors' })
     if (!response.ok) {
       throw new Error(`图片下载失败: ${image.name || index + 1}`)
     }
 
     const blob = await response.blob()
-    const extension = extensionFromUrl(image.url)
+    await onImageFetched?.(image, blob)
+    const extension = extensionFromUrl(imageUrl)
     const baseName = sanitizeFilename(image.name || `图片-${index + 1}`)
     const usedCount = usedNames.get(baseName) || 0
     usedNames.set(baseName, usedCount + 1)
@@ -65,4 +82,3 @@ export const downloadImagesAsZip = async (
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
   }
 }
-

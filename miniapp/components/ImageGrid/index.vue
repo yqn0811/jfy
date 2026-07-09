@@ -33,6 +33,8 @@
 </template>
 
 <script>
+import { imageUrlFor } from "@/common/helper/imageUrls.js";
+
 export default {
   name: "ImageGrid",
   props: {
@@ -134,7 +136,7 @@ export default {
       return `${(height / width) * 100}%`;
     },
     getImageSrc(item) {
-      const src = item[this.imageField];
+      const src = item[this.imageField] || imageUrlFor(item, "thumb");
       if (src) {
         return src;
       }

@@ -500,6 +500,14 @@ class AiResourceBridgeService extends BaseService
         if (empty($item['file_url'])) {
             $item['file_url'] = $this->firstResourceImageUrl($item, $this->resourceOriginalUrlFields());
         }
+        $item['image_urls'] = [
+            'thumb' => (string)($item['thumbnail_url'] ?? ''),
+            'preview' => (string)($item['preview_url'] ?? ''),
+            'edit' => (string)($item['preview_url'] ?? ''),
+            'origin' => (string)($item['file_url'] ?? ''),
+            'download' => (string)($item['download_url'] ?? ($item['file_url'] ?? '')),
+        ];
+        $item['imageUrls'] = $item['image_urls'];
         return $item;
     }
 

@@ -18,7 +18,7 @@ import { unwrapList, pickImage } from '@/lib/jfyuntu-mappers'
 const isClient = ref(true)
 const isLoading = ref(false)
 const allTrashItems = ref<TrashData[]>([])
-const activeTab = ref<'all' | 'product' | 'category' | 'image'>('all')
+const activeTab = ref<'all' | 'product' | 'category'>('all')
 const searchKeyword = ref('')
 const confirmDialogOpen = ref(false)
 const confirmAction = ref<'restore' | 'delete'>('delete')
@@ -31,8 +31,8 @@ onMounted(() => {
   requestAnimationFrame(() => {
     const params = new URLSearchParams(window.location.search)
     const typeParam = params.get('type')
-    if (typeParam && ['product', 'category', 'image'].includes(typeParam)) {
-      activeTab.value = typeParam as 'product' | 'category' | 'image'
+    if (typeParam && ['product', 'category'].includes(typeParam)) {
+      activeTab.value = typeParam as 'product' | 'category'
     }
     isClient.value = true
     Promise.all([loadTrash(), loadProfile()])
@@ -189,7 +189,7 @@ const confirmDialogDescription = computed(() => {
 })
 
 const handleTabChange = (value: string) => {
-  activeTab.value = value as 'all' | 'product' | 'category' | 'image'
+  activeTab.value = value as 'all' | 'product' | 'category'
 }
 
 const handleSearch = (event: Event) => {
@@ -253,11 +253,10 @@ const handleBillingUsage = () => {
     <div class="page-body border-b border-border">
       <div class="flex items-center justify-between gap-4">
       <Tabs :value="activeTab" @update:model-value="handleTabChange" class="shrink-0">
-        <TabsList class="grid w-[420px] grid-cols-4 bg-muted/50">
+        <TabsList class="grid w-[320px] grid-cols-3 bg-muted/50">
           <TabsTrigger value="all">全部</TabsTrigger>
           <TabsTrigger value="product">产品</TabsTrigger>
           <TabsTrigger value="category">分类</TabsTrigger>
-          <TabsTrigger value="image">图片</TabsTrigger>
         </TabsList>
       </Tabs>
 

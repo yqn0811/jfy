@@ -154,6 +154,8 @@ import {
   consumeRefreshMarker,
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
+import { imageUrlFor } from "@/common/helper/imageUrls.js";
 
 export default {
   components: { UserCard, ImageGrid, SharePopup, PersonalDetails },
@@ -285,6 +287,9 @@ export default {
     this.uid = this.resolveOwnerUid(options);
     this.shareOwnerId = this.uid;
     this.shareUrl = this.buildShareUrl();
+    if (this.uid && !ensureSharedPageLogin("pagesOther/classDetail/classDetail", options, this.uid)) {
+      return;
+    }
     this.initUserFromCache();
 
     // 通过 eventChannel 接收上一页面传递的数据
@@ -722,7 +727,7 @@ export default {
               level,
               nameField: this.getDisplayCategoryName(item),
               imageField:
-                item.new_thumb || item.icon || "/static/icon/folder-open@2x.png",
+                imageUrlFor(item, "thumb") || item.new_thumb || item.icon || "/static/icon/folder-open@2x.png",
               countField,
             };
           });
@@ -824,7 +829,7 @@ export default {
           this.normalizeArray(item.pic_ids_arr || item.pic_ids).length;
       return {
         ...item,
-        new_thumb: item.new_thumb || item.imageField || "/static/image/pic.png",
+        new_thumb: imageUrlFor(item, "thumb") || item.new_thumb || item.imageField || "/static/image/pic.png",
         folder_count: pictureCount,
       };
     },

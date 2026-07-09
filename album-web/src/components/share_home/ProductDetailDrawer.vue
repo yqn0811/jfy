@@ -14,10 +14,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import ShareDialog from '@/components/product_detail/ShareDialog.vue'
-import { getUrlHomeTarget, pcApi } from '@/lib/api'
+import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
+import { authStore, getUrlHomeTarget, pcApi } from '@/lib/api'
+import { isVipMember } from '@/lib/account'
 import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
 
 interface Props {
   open: boolean
@@ -38,13 +40,26 @@ const productImages = ref<ProductImageData[]>([])
 const isLoading = ref(false)
 const isProductFavorited = ref(false)
 const showShareDialog = ref(false)
+const showDownloadDialog = ref(false)
+const currentUser = ref<any>({})
 
 const colorImages = computed(() => productImages.value.filter(item => item.type === 'colorChart'))
 const detailImages = computed(() => productImages.value.filter(item => item.type === 'detailChart'))
+const isOwnerView = computed(() => !!props.currentUserId && props.currentUserId === product.value?.ownerUserId)
+const canUseOriginalImage = computed(() => isVipMember(currentUser.value))
+const canDownload = computed(() => !!product.value && (product.value.allowDownload === true || isOwnerView.value) && canUseOriginalImage.value)
+const shouldShowDetailImages = computed(() => !!product.value && (!product.value.hideDetailImage || isOwnerView.value))
+const visibleDetailImages = computed(() => shouldShowDetailImages.value ? detailImages.value : [])
+const downloadableImages = computed(() => {
+  if (!product.value) return []
+  if (product.value.hideDetailImage && !isOwnerView.value) return colorImages.value
+  return productImages.value
+})
 const shareTarget = computed(() => getUrlHomeTarget())
 
 const loadProduct = async () => {
   isLoading.value = true
+  currentUser.value = authStore.getUser<any>() || {}
   try {
     const target = getUrlHomeTarget()
     const raw = await pcApi.getHomeProductDetail(target, props.productId)
@@ -54,6 +69,14 @@ const loadProduct = async () => {
     isProductFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
     if (props.isLoggedIn) {
       pcApi.addVisit('product', product.value.id).catch(() => {})
+      if (!isVipMember(currentUser.value)) {
+        pcApi.getCurrentUser()
+          .then((user) => {
+            currentUser.value = user || {}
+            authStore.setUser(user)
+          })
+          .catch(() => {})
+      }
     }
   } catch (error: any) {
     toast.error(error?.message || '产品加载失败')
@@ -91,16 +114,33 @@ const handleDownload = () => {
     emit('login-required')
     return
   }
-  toast.success('下载已开始')
+  if (downloadableImages.value.length === 0) {
+    toast.error('暂无可下载图片')
+    return
+  }
+  if (!canDownload.value) {
+    if (!canUseOriginalImage.value) {
+      toast.warning('开通会员后可下载原图')
+    } else {
+      toast.error('商户未开放保存权限')
+    }
+    return
+  }
+  showDownloadDialog.value = true
 }
 
 const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
   if (!product.value) return
-  const urls = type === 'color' 
-    ? colorImages.value.map(item => item.url)
-    : detailImages.value.map(item => item.url)
+  const images = type === 'color' ? colorImages.value : visibleDetailImages.value
+  const urls = images.map(item => productImageUrl(item, 'preview')).filter(Boolean)
   const params = new URLSearchParams({
     imageUrls: JSON.stringify(urls),
+    imageIds: JSON.stringify(images.map(img => img.id)),
+    imageNames: JSON.stringify(images.map(img => img.name || 'image')),
+    imageSizes: JSON.stringify(images.map(img => img.sizeBytes || 0)),
+    imageOriginalUrls: JSON.stringify(images.map(img => productImageUrl(img, 'origin'))),
+    imageDownloadUrls: JSON.stringify(images.map(img => productImageUrl(img, 'download'))),
+    imageTypes: JSON.stringify(images.map(img => img.type || 'colorChart')),
     currentIndex: String(imageIndex),
     productId: product.value.id,
   })
@@ -162,7 +202,7 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
                 @click="handleViewImage(index, 'color')"
               >
                 <img
-                  :src="image.thumbnailUrl || image.url"
+                  :src="productImageUrl(image, 'thumb')"
                   :alt="image.name"
                   class="w-full h-full object-cover"
                 />
@@ -174,24 +214,20 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
           </div>
 
           <!-- 详情图区 -->
-          <div class="space-y-2">
+          <div v-if="shouldShowDetailImages" class="space-y-2">
             <div class="flex items-center justify-between">
               <h4 class="text-item-title font-medium">详情图</h4>
-              <Badge variant="secondary" class="text-xs">{{ detailImages.length }} 张</Badge>
+              <Badge variant="secondary" class="text-xs">{{ visibleDetailImages.length }} 张</Badge>
             </div>
-            <div v-if="product.hideDetailImage" class="p-3 bg-warning/10 border border-warning/30 rounded-lg">
-              <p class="text-xs text-warning font-medium">分享者已隐藏详情图</p>
-              <p class="text-xs text-warning/70 mt-1">当前产品的详情图仅分享者本人可见</p>
-            </div>
-            <div v-else-if="detailImages.length > 0" class="grid grid-cols-3 gap-2">
+            <div v-if="visibleDetailImages.length > 0" class="grid grid-cols-3 gap-2">
               <div
-                v-for="(image, index) in detailImages.slice(0, 6)"
+                v-for="(image, index) in visibleDetailImages.slice(0, 6)"
                 :key="image.id"
                 class="aspect-square bg-muted rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
                 @click="handleViewImage(index, 'detail')"
               >
                 <img
-                  :src="image.thumbnailUrl || image.url"
+                  :src="productImageUrl(image, 'thumb')"
                   :alt="image.name"
                   class="w-full h-full object-cover"
                 />
@@ -247,5 +283,13 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
     :target-user-id="shareTarget.targetUserId"
     :share-code="shareTarget.shareCode"
     @update:open="showShareDialog = $event"
+  />
+  <DownloadDialog
+    v-if="product"
+    :open="showDownloadDialog"
+    :product-id="product.id"
+    :images="downloadableImages"
+    :can-download="canDownload"
+    @update:open="showDownloadDialog = $event"
   />
 </template>

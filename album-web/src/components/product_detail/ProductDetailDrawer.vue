@@ -19,7 +19,7 @@ import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { isVipMember } from '@/lib/account'
 import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
 
 const product = ref<ProductData | null>(null)
 const productImages = ref<ProductImageData[]>([])
@@ -48,13 +48,18 @@ const detailChartImages = computed(() =>
   productImages.value.filter(img => img.type === 'detailChart')
 )
 
-const hasDetailImages = computed(() => detailChartImages.value.length > 0)
+const shouldShowDetailImages = computed(() => !!product.value && (!product.value.hideDetailImage || isOwnerView.value))
+const visibleDetailChartImages = computed(() => shouldShowDetailImages.value ? detailChartImages.value : [])
 
 const canDownload = computed(() => {
   if (!product.value) return false
-  if (product.value.hideDetailImage && !isOwnerView.value) return false
-  if (!isOwnerView.value && !isVipMember(currentUserInfo.value)) return false
-  return true
+  return (product.value.allowDownload === true || isOwnerView.value) && isVipMember(currentUserInfo.value)
+})
+
+const downloadableImages = computed(() => {
+  if (!product.value) return []
+  if (product.value.hideDetailImage && !isOwnerView.value) return colorChartImages.value
+  return productImages.value
 })
 
 const loadProduct = async () => {
@@ -147,6 +152,10 @@ const handleDownload = () => {
     toast.error('分享者未开放图片下载')
     return
   }
+  if (downloadableImages.value.length === 0) {
+    toast.error('暂无可下载图片')
+    return
+  }
   
   showDownloadDialog.value = true
 }
@@ -160,12 +169,18 @@ const handleContact = () => {
   toast.info('联系信息已复制到剪贴板')
 }
 
-const handleImageClick = (imageUrl: string, index: number, type: 'colorChart' | 'detailChart') => {
+const handleImageClick = (index: number, type: 'colorChart' | 'detailChart') => {
   const images = type === 'colorChart' ? colorChartImages.value : detailChartImages.value
-  const imageUrls = images.map(img => img.url)
+  const imageUrls = images.map(img => productImageUrl(img, 'preview')).filter(Boolean)
   
   const params = new URLSearchParams({
     imageUrls: JSON.stringify(imageUrls),
+    imageIds: JSON.stringify(images.map(img => img.id)),
+    imageNames: JSON.stringify(images.map(img => img.name || 'image')),
+    imageSizes: JSON.stringify(images.map(img => img.sizeBytes || 0)),
+    imageOriginalUrls: JSON.stringify(images.map(img => productImageUrl(img, 'origin'))),
+    imageDownloadUrls: JSON.stringify(images.map(img => productImageUrl(img, 'download'))),
+    imageTypes: JSON.stringify(images.map(img => img.type || 'colorChart')),
     currentIndex: index.toString(),
     productId: product.value?.id || ''
   })
@@ -250,7 +265,7 @@ const handleLoginSuccess = () => {
               <ProductImageGallery
                 v-if="colorChartImages.length > 0"
                 :images="colorChartImages"
-                @image-click="(index) => handleImageClick(colorChartImages[index].url, index, 'colorChart')"
+                @image-click="(index) => handleImageClick(index, 'colorChart')"
               />
               <div v-else class="text-center py-8 text-muted-foreground">
                 <SafeIcon name="Image" :size="32" class="mx-auto mb-2 opacity-50" />
@@ -259,21 +274,17 @@ const handleLoginSuccess = () => {
             </section>
 
             <!-- Detail Chart Images Section -->
-            <section class="space-y-3">
+            <section v-if="shouldShowDetailImages" class="space-y-3">
               <div class="flex items-center justify-between">
                 <h3 class="text-section-title font-semibold">
                   详情图
-                  <span class="text-muted-foreground text-sm font-normal ml-2">{{ detailChartImages.length }} 张</span>
+                  <span class="text-muted-foreground text-sm font-normal ml-2">{{ visibleDetailChartImages.length }} 张</span>
                 </h3>
               </div>
-              <div v-if="product?.hideDetailImage && !isOwnerView" class="p-4 bg-muted/50 rounded-lg border border-border">
-                <p class="text-sm text-muted-foreground">分享者已隐藏详情图</p>
-                <p class="text-xs text-muted-foreground mt-1">当前产品的详情图仅分享者本人可见</p>
-              </div>
               <ProductImageGallery
-                v-else-if="detailChartImages.length > 0"
-                :images="detailChartImages"
-                @image-click="(index) => handleImageClick(detailChartImages[index].url, index, 'detailChart')"
+                v-if="visibleDetailChartImages.length > 0"
+                :images="visibleDetailChartImages"
+                @image-click="(index) => handleImageClick(index, 'detailChart')"
               />
               <div v-else class="text-center py-8 text-muted-foreground">
                 <SafeIcon name="Image" :size="32" class="mx-auto mb-2 opacity-50" />
@@ -324,7 +335,8 @@ const handleLoginSuccess = () => {
       v-if="isLoggedIn && canDownload"
       :open="showDownloadDialog"
       :product-id="product?.id || ''"
-      :images="productImages"
+      :images="downloadableImages"
+      :can-download="canDownload"
       @update:open="(v) => showDownloadDialog = v"
     />
   </div>

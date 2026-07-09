@@ -21,6 +21,8 @@ use think\Model;
 
 class WdXcxUser extends BaseModel
 {
+    const DEFAULT_FREE_SPACE_MB = 50;
+
     protected $pk = 'id';
     protected $name = 'wd_xcx_user';
     protected $autoWriteTimestamp = true;
@@ -211,7 +213,10 @@ class WdXcxUser extends BaseModel
     public function getVipGradeInfoAttr()
     {
         $grade_info = $this->gradeInfo;
-        $base_size = WdXcxBase::where('uniacid', 1)->value('space_size');
+        $base_size = (int)WdXcxBase::where('uniacid', 1)->value('space_size');
+        if ($base_size <= 0 || $base_size == 300) {
+            $base_size = self::DEFAULT_FREE_SPACE_MB;
+        }
         if(!$grade_info){
             $grade_info = WdXcxUserVipGradeInfo::create([
                 'uniacid' => $this->uniacid,
@@ -407,7 +412,10 @@ class WdXcxUser extends BaseModel
 
     private function createWechatUser($openid, $unionid = '', $inviteFromCode = '', $extra = [])
     {
-        $base_size = WdXcxBase::where('uniacid', 1)->value('space_size');
+        $base_size = (int)WdXcxBase::where('uniacid', 1)->value('space_size');
+        if ($base_size <= 0 || $base_size == 300) {
+            $base_size = self::DEFAULT_FREE_SPACE_MB;
+        }
         $inviteCode = $this->generateInviteCode();
         $homeShareCode = $this->generateHomeShareCode();
         $data = array_merge([
@@ -418,7 +426,7 @@ class WdXcxUser extends BaseModel
             'avatar' => getLocalImage('/image/users/user_default.png'),
             'create_time' => time(),
             'user_uuid' => $this->getUuId(),
-            'space_size' => $base_size ? $base_size : 300,
+            'space_size' => $base_size,
             'invite_code' => $inviteCode,
             'home_share_code' => $homeShareCode,
             'invite_from_code' => $inviteFromCode,
@@ -434,7 +442,7 @@ class WdXcxUser extends BaseModel
             'change_log' => [
                 [
                     'change_time' => date('Y-m-d H:i:s'),
-                    'change_info' => '用户注册，默认等级为0,默认空间300M'
+                    'change_info' => '用户注册，默认等级为0,默认空间' . $base_size . 'M'
                 ]
             ]
         ]);

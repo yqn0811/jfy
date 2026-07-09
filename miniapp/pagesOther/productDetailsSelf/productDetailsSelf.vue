@@ -120,6 +120,7 @@ import {
   consumeRefreshMarker,
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
+import { imageUrlFor } from "@/common/helper/imageUrls.js";
 
 export default {
   components: {
@@ -195,22 +196,18 @@ export default {
       return Number(value) === 1 ? 1 : 2;
     },
     normalizeProductPicture(item = {}, fallbackPoster = "") {
-      const imageUrl =
-        item.imgurl ||
-        item.picture_url ||
-        item.src ||
-        item.url ||
-        item.imageField ||
-        item.file_url ||
-        item.original_url ||
-        "";
+      const thumbUrl = imageUrlFor(item, "thumb");
+      const previewUrl = imageUrlFor(item, "preview");
+      const originUrl = imageUrlFor(item, "origin");
+      const imageUrl = thumbUrl || previewUrl || originUrl;
       return {
         id: item.id || item.pic_id || "",
         imgurl: imageUrl,
         imageField: imageUrl,
-        picture_url: imageUrl,
-        picture_url_original:
-          item.picture_url_original || item.original_url || imageUrl,
+        picture_url: previewUrl || imageUrl,
+        picture_url_original: originUrl || previewUrl || imageUrl,
+        image_urls: item.image_urls || item.imageUrls || item.urls || {},
+        imageUrls: item.imageUrls || item.image_urls || item.urls || {},
         pic_name: item.pic_name || item.name || "",
         file_type: item.file_type || 1,
         poster: item.poster || fallbackPoster || imageUrl,
@@ -303,8 +300,10 @@ export default {
             productItems.forEach((item) => {
               picList.push({
                 pic_id: item.id,
-                picture_url: item.imgurl,
+                picture_url: item.picture_url || item.imgurl,
                 picture_url_original: item.picture_url_original,
+                image_urls: item.image_urls,
+                imageUrls: item.imageUrls,
                 pic_name: item.pic_name,
                 poster: fallbackPoster || item.imgurl,
               });
@@ -312,8 +311,10 @@ export default {
             detailItems.forEach((item) => {
               picList.push({
                 pic_id: item.id,
-                picture_url: item.imgurl,
+                picture_url: item.picture_url || item.imgurl,
                 picture_url_original: item.picture_url_original,
+                image_urls: item.image_urls,
+                imageUrls: item.imageUrls,
                 pic_name: item.pic_name,
                 poster: "",
               });
@@ -430,8 +431,10 @@ export default {
       uni.setStorageSync("picInfo", {
         ...item,
         pic_id: item.id,
-        picture_url: item.imgurl,
+        picture_url: item.picture_url || item.imgurl,
         picture_url_original: item.picture_url_original || item.imgurl,
+        image_urls: item.image_urls,
+        imageUrls: item.imageUrls,
       });
       uni.navigateTo({
         url: "/pagesOther/picDetail/picDetail?pic_id=" + item.id,

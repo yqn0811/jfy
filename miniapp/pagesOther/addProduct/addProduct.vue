@@ -93,7 +93,12 @@
 
         <!-- 上传详情图（多张） -->
         <view class="form-item">
-          <text class="label">上传详情图</text>
+          <view class="label-row">
+            <text class="label">上传详情图</text>
+            <text class="hide-detail-toggle" @tap="hideDetailPictures = !hideDetailPictures">
+              {{ hideDetailPictures ? "展示详情页模块" : "关闭详情页模块" }}
+            </text>
+          </view>
           <view class="detail-uploads">
             <view
               class="upload-cell"
@@ -255,7 +260,7 @@ export default {
             uploadedUrl: "",
             uploading: true,
           }) - 1;
-        this.uploadSingleFile(tempPath)
+        this.uploadSingleFile(tempPath, 1, "", 0)
           .then((res) => {
             if (this.coverImages[idx]) {
               this.$set(this.coverImages, idx, {
@@ -481,7 +486,7 @@ export default {
                 uploadedUrl: "",
                 uploading: true,
               }) - 1;
-            this.uploadSingleFile(tempPath, 2, selectedFile.name)
+            this.uploadSingleFile(tempPath, 2, selectedFile.name, selectedFile.size)
               .then((res) => {
                 this.$set(this.coverImages, idx, {
                   src: res.url,
@@ -505,7 +510,7 @@ export default {
                 uploadedUrl: "",
                 uploading: true,
               }) - 1;
-            this.uploadSingleFile(tempPath, 2, selectedFile.name)
+            this.uploadSingleFile(tempPath, 2, selectedFile.name, selectedFile.size)
               .then((res) => {
                 this.$set(this.detailImages, idx, {
                   src: res.url,
@@ -547,7 +552,7 @@ export default {
                   uploadedUrl: "",
                   uploading: true,
                 }) - 1;
-              this.uploadSingleFile(tempPath, 1, selectedFile.name)
+              this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size)
                 .then((res) => {
                   this.$set(this.coverImages, idx, {
                     src: res.url,
@@ -571,7 +576,7 @@ export default {
                   uploadedUrl: "",
                   uploading: true,
                 }) - 1;
-              this.uploadSingleFile(tempPath, 1, selectedFile.name)
+              this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size)
                 .then((res) => {
                   this.$set(this.detailImages, idx, {
                     src: res.url,
@@ -617,7 +622,7 @@ export default {
                 uploadedUrl: "",
                 uploading: true,
               }) - 1;
-            this.uploadSingleFile(tempPath, 1, selectedFile.name)
+            this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size)
               .then((res) => {
                 console.log(res);
                 if (this.coverImages[idx]) {
@@ -674,7 +679,7 @@ export default {
                 uploading: true,
               }) - 1;
             // 立即上传每张图片
-            this.uploadSingleFile(tempPath, 1, selectedFile.name)
+            this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size)
               .then((res) => {
                 if (this.detailImages[idx]) {
                   this.$set(this.detailImages, idx, {
@@ -868,12 +873,62 @@ export default {
     prepareUploadFilePath(filePath, uploadName) {
       return prepareNamedUploadFile(filePath, uploadName);
     },
+    getLocalFileSize(filePath) {
+      return new Promise((resolve) => {
+        if (!filePath) {
+          resolve(0);
+          return;
+        }
+        const getter =
+          (typeof uni !== "undefined" && uni.getFileInfo) ||
+          (typeof wx !== "undefined" && wx.getFileInfo);
+        if (!getter) {
+          resolve(0);
+          return;
+        }
+        getter({
+          filePath,
+          success: (res) => resolve(Number(res.size || 0)),
+          fail: () => resolve(0),
+        });
+      });
+    },
+    compressImageWhenSizeMissing(filePath, fileType = 1) {
+      return new Promise((resolve) => {
+        if (Number(fileType) !== 1 || !uni.compressImage) {
+          resolve(filePath);
+          return;
+        }
+        uni.compressImage({
+          src: filePath,
+          quality: 92,
+          success: (res) => resolve(res.tempFilePath || filePath),
+          fail: () => resolve(filePath),
+        });
+      });
+    },
+    async prepareUploadSource(filePath, fileType = 1, fileSize = 0) {
+      let uploadPath = filePath;
+      let size = Number(fileSize || 0);
+      if (size <= 0) {
+        size = await this.getLocalFileSize(uploadPath);
+      }
+      if (size <= 0) {
+        uploadPath = await this.compressImageWhenSizeMissing(uploadPath, fileType);
+        size = await this.getLocalFileSize(uploadPath);
+      }
+      return {
+        path: uploadPath,
+        size,
+      };
+    },
     // 上传单文件并返回线上访问地址
-    uploadSingleFile(filePath, fileType = 1, originalName = "") {
+    uploadSingleFile(filePath, fileType = 1, originalName = "", fileSize = 0) {
       const that = this;
       return new Promise((resolve, reject) => {
-        const uploadName = that.buildUploadFileName(filePath, fileType, originalName);
-        that.prepareUploadFilePath(filePath, uploadName).then((uploadPath) => {
+        that.prepareUploadSource(filePath, fileType, fileSize).then((sourceFile) => {
+        const uploadName = that.buildUploadFileName(sourceFile.path, fileType, originalName);
+        that.prepareUploadFilePath(sourceFile.path, uploadName).then((uploadPath) => {
           uni.uploadFile({
             url: that.$config.domain + that.uploadEndpoint,
             filePath: uploadPath,
@@ -884,6 +939,8 @@ export default {
             },
             formData: {
               file_type: fileType,
+              file_size: Number(sourceFile.size || 0),
+              size: Number(sourceFile.size || 0),
               ...buildUploadNameFormData(uploadName),
             },
             success: (uploadRes) => {
@@ -898,6 +955,7 @@ export default {
             },
           });
         });
+        }).catch(reject);
       });
     },
   },
@@ -969,6 +1027,23 @@ export default {
       font-size: 22rpx;
       color: #999999;
       margin-top: 8rpx;
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      gap: 24rpx;
+      margin-bottom: 12rpx;
+
+      .label {
+        margin-bottom: 0;
+      }
+    }
+
+    .hide-detail-toggle {
+      font-size: 26rpx;
+      color: #ff3b30;
+      line-height: 1.4;
     }
 
     .select-box {

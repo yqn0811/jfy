@@ -9,7 +9,8 @@ import ShareDialog from '@/components/product_detail/ShareDialog.vue'
 import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
 import ProductImageGallery from '@/components/product_detail/ProductImageGallery.vue'
 import ImagePreviewDialog from '@/components/product_detail/ImagePreviewDialog.vue'
-import { pcApi } from '@/lib/api'
+import { authStore, pcApi } from '@/lib/api'
+import { isVipMember } from '@/lib/account'
 import { mapProductDetail, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import type { ProductImageData } from '@/data/ProductImageData'
@@ -38,11 +39,15 @@ const showDownloadDialog = ref(false)
 const showImagePreview = ref(false)
 const previewImages = ref<ProductImageData[]>([])
 const previewIndex = ref(0)
+const currentUser = ref<any>({})
 
 const colorImages = computed(() => productImages.value.filter(item => item.type === 'colorChart'))
 const detailImages = computed(() => productImages.value.filter(item => item.type === 'detailChart'))
 const isOwnerView = computed(() => !!props.currentUserId && props.currentUserId === product.value?.ownerUserId)
-const canDownload = computed(() => !!product.value && (product.value.allowDownload === true || isOwnerView.value))
+const canUseOriginalImage = computed(() => isVipMember(currentUser.value))
+const canDownload = computed(() => !!product.value && (product.value.allowDownload === true || isOwnerView.value) && canUseOriginalImage.value)
+const shouldShowDetailImages = computed(() => !!product.value && (!product.value.hideDetailImage || isOwnerView.value))
+const visibleDetailImages = computed(() => shouldShowDetailImages.value ? detailImages.value : [])
 const downloadableImages = computed(() => {
   if (!product.value) return []
   if (product.value.hideDetailImage && !isOwnerView.value) return colorImages.value
@@ -58,6 +63,7 @@ const loadProduct = async () => {
   isLoading.value = true
   product.value = null
   productImages.value = []
+  currentUser.value = authStore.getUser<any>() || {}
   try {
     const raw = await pcApi.getHomeProductDetail(homeTarget.value, props.productId)
     const detail = raw?.folder_info || raw?.product || raw
@@ -66,6 +72,14 @@ const loadProduct = async () => {
     isProductFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
     if (props.isLoggedIn) {
       pcApi.addVisit('product', product.value.id).catch(() => {})
+      if (!isVipMember(currentUser.value)) {
+        pcApi.getCurrentUser()
+          .then((user) => {
+            currentUser.value = user || {}
+            authStore.setUser(user)
+          })
+          .catch(() => {})
+      }
     }
   } catch (error: any) {
     toast.error(error?.message || '产品加载失败')
@@ -109,7 +123,11 @@ const handleDownload = () => {
     return
   }
   if (!canDownload.value) {
-    toast.error('商户未开放保存权限')
+    if (!canUseOriginalImage.value) {
+      toast.warning('开通会员后可下载原图')
+    } else {
+      toast.error('商户未开放保存权限')
+    }
     return
   }
   showDownloadDialog.value = true
@@ -141,7 +159,7 @@ const handleViewImage = (imageIndex: number, type: 'colorChart' | 'detailChart')
         </div>
         <div v-if="product" class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Badge variant="secondary">花色图 {{ colorImages.length }} 张</Badge>
-          <Badge variant="secondary">详情图 {{ detailImages.length }} 张</Badge>
+          <Badge variant="secondary">详情图 {{ visibleDetailImages.length }} 张</Badge>
           <span v-if="product.updatedAt">更新时间 {{ product.updatedAt }}</span>
         </div>
       </div>
@@ -195,18 +213,14 @@ const handleViewImage = (imageIndex: number, type: 'colorChart' | 'detailChart')
         </div>
       </section>
 
-      <section class="space-y-3">
+      <section v-if="shouldShowDetailImages" class="space-y-3">
         <div class="flex items-center justify-between">
           <h3 class="text-section-title font-semibold">详情图</h3>
-          <Badge variant="secondary" class="text-xs">{{ detailImages.length }} 张</Badge>
-        </div>
-        <div v-if="product.hideDetailImage && !isOwnerView" class="rounded-lg border border-border bg-muted/40 p-4">
-          <p class="text-sm font-medium">分享者已隐藏详情图</p>
-          <p class="mt-1 text-xs text-muted-foreground">当前产品的详情图仅分享者本人可见</p>
+          <Badge variant="secondary" class="text-xs">{{ visibleDetailImages.length }} 张</Badge>
         </div>
         <ProductImageGallery
-          v-else-if="detailImages.length > 0"
-          :images="detailImages"
+          v-if="visibleDetailImages.length > 0"
+          :images="visibleDetailImages"
           @image-click="(index) => handleViewImage(index, 'detailChart')"
         />
         <div v-else class="rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">

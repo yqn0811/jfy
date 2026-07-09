@@ -16,12 +16,12 @@ import ProductShareDialog from '@/components/product_detail/ShareDialog.vue'
 import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
 import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { isVipMember } from '@/lib/account'
-import { downloadImagesAsZip, downloadUrl } from '@/lib/download'
+import { downloadImagesAsZip, downloadUrl, resolveProductImageDownloadUrl } from '@/lib/download'
 import { mapCategory, mapProduct, mapProductImagesFromDetail, normalizeHomePayload, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { HomeProfileData } from '@/data/HomeProfileData'
 import type { CategoryData } from '@/data/CategoryData'
 import type { ProductData } from '@/data/ProductData'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
 
 const isClient = ref(true)
 const isLoading = ref(false)
@@ -61,14 +61,16 @@ const isProductDetailMode = computed(() => !!selectedProductId.value)
 const selectedColorImages = computed(() => selectedProductImages.value.filter(item => item.type === 'colorChart'))
 const selectedDetailImages = computed(() => selectedProductImages.value.filter(item => item.type === 'detailChart'))
 const selectedSelectionCount = computed(() => selectedSelectionPicIds.value.size)
+const shouldShowSelectedDetailImages = computed(() => !!selectedProduct.value && (!selectedProduct.value.hideDetailImage || isOwnerViewingOwnHome.value))
+const visibleSelectedDetailImages = computed(() => shouldShowSelectedDetailImages.value ? selectedDetailImages.value : [])
 const downloadableImages = computed(() => {
   if (!selectedProduct.value) return []
-  if (selectedProduct.value.hideDetailImage) return selectedColorImages.value
+  if (selectedProduct.value.hideDetailImage && !isOwnerViewingOwnHome.value) return selectedColorImages.value
   return selectedProductImages.value
 })
 const isOwnerViewingOwnHome = computed(() => !!currentUserId.value && !!homeProfile.value?.ownerUserId && currentUserId.value === homeProfile.value.ownerUserId)
 const isCurrentUserVip = computed(() => isVipMember(currentUser.value))
-const canUseOriginalImage = computed(() => isOwnerViewingOwnHome.value || isCurrentUserVip.value)
+const canUseOriginalImage = computed(() => isCurrentUserVip.value)
 const canDownloadProductImages = computed(() => (!!homeProfile.value?.allowSavePic || isOwnerViewingOwnHome.value) && canUseOriginalImage.value)
 const previewImage = computed(() => previewImages.value[previewImageIndex.value] || null)
 
@@ -198,7 +200,7 @@ const loadProductDetail = async (productId: string) => {
     isSelectingImages.value = false
     selectedSelectionPicIds.value = new Set()
     selectedProduct.value.colorChartCount = selectedColorImages.value.length
-    selectedProduct.value.detailChartCount = selectedProduct.value.hideDetailImage ? 0 : selectedDetailImages.value.length
+    selectedProduct.value.detailChartCount = shouldShowSelectedDetailImages.value ? selectedDetailImages.value.length : 0
     isProductFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
     if (isLoggedIn.value) {
       pcApi.addVisit('product', selectedProduct.value.id).catch(() => {})
@@ -492,7 +494,10 @@ const downloadImages = async (images: ProductImageData[]) => {
     return
   }
   try {
-    await downloadImagesAsZip(images, `product-${selectedProduct.value?.id || 'images'}.zip`)
+    await downloadImagesAsZip(
+      images,
+      `product-${selectedProduct.value?.id || 'images'}.zip`
+    )
     toast.success(`已打包 ${images.length} 张图片`)
   } catch (error: any) {
     toast.error(error?.message || '打包下载失败，请稍后重试')
@@ -518,16 +523,21 @@ const handlePreviewNext = () => {
   previewImageIndex.value = (previewImageIndex.value + 1) % previewImages.value.length
 }
 
-const handleOpenOriginalImage = () => {
-  if (!previewImage.value?.url) return
+const handleOpenOriginalImage = async () => {
+  if (!previewImage.value) return
   if (!canUseOriginalImage.value) {
     toast.warning('开通会员后可查看原图')
     return
   }
-  window.open(previewImage.value.url, '_blank')
+  try {
+    const url = await resolveProductImageDownloadUrl(previewImage.value)
+    if (url) window.open(url, '_blank')
+  } catch (error: any) {
+    toast.error(error?.message || '原图暂不可查看')
+  }
 }
 
-const handleDownloadPreviewImage = () => {
+const handleDownloadPreviewImage = async () => {
   if (!previewImage.value) return
   if (!homeProfile.value?.allowSavePic && !isOwnerViewingOwnHome.value) {
     toast.error('分享者未开放图片下载')
@@ -537,7 +547,16 @@ const handleDownloadPreviewImage = () => {
     toast.warning('开通会员后可下载原图')
     return
   }
-  downloadUrl(previewImage.value.url, previewImage.value.name || 'image')
+  try {
+    const url = await resolveProductImageDownloadUrl(previewImage.value)
+    if (!url) {
+      toast.error('图片地址无效')
+      return
+    }
+    downloadUrl(url, previewImage.value.name || 'image')
+  } catch (error: any) {
+    toast.error(error?.message || '下载失败')
+  }
 }
 
 const handleLoginSuccess = () => {
@@ -668,7 +687,7 @@ const handleLoginSuccess = () => {
                 <p class="max-w-3xl text-body text-muted-foreground">{{ selectedProduct.intro || '暂无产品简介' }}</p>
                 <div class="flex flex-wrap gap-3 text-sm text-muted-foreground">
                   <span>花色图 {{ selectedColorImages.length }} 张</span>
-                  <span>详情图 {{ selectedProduct.hideDetailImage ? 0 : selectedDetailImages.length }} 张</span>
+                  <span>详情图 {{ visibleSelectedDetailImages.length }} 张</span>
                   <span v-if="selectedProduct.updatedAt">更新 {{ selectedProduct.updatedAt }}</span>
                 </div>
               </div>
@@ -720,7 +739,7 @@ const handleLoginSuccess = () => {
                   :class="isImageSelectedForSelection(image) ? 'border-primary ring-2 ring-primary' : ''"
                   @click="handleViewImage(index, 'colorChart')"
                 >
-                  <img :src="image.thumbnailUrl || image.url" :alt="image.name" class="h-full w-full object-cover transition group-hover:scale-[1.02]" />
+                  <img :src="productImageUrl(image, 'thumb')" :alt="image.name" class="h-full w-full object-cover transition group-hover:scale-[1.02]" />
                   <span
                     v-if="isSelectingImages"
                     class="absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/70 bg-background/95 shadow"
@@ -738,23 +757,20 @@ const handleLoginSuccess = () => {
               </div>
             </section>
 
-            <section class="space-y-4">
+            <section v-if="shouldShowSelectedDetailImages" class="space-y-4">
               <div class="flex items-center justify-between">
                 <h3 class="text-section-title">详情图</h3>
-                <Badge variant="secondary">{{ selectedProduct.hideDetailImage ? 0 : selectedDetailImages.length }} 张</Badge>
+                <Badge variant="secondary">{{ visibleSelectedDetailImages.length }} 张</Badge>
               </div>
-              <div v-if="selectedProduct.hideDetailImage" class="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-                分享者已隐藏详情图
-              </div>
-              <div v-else-if="selectedDetailImages.length > 0" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+              <div v-if="visibleSelectedDetailImages.length > 0" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
                 <button
-                  v-for="(image, index) in selectedDetailImages"
+                  v-for="(image, index) in visibleSelectedDetailImages"
                   :key="image.id"
                   type="button"
                   class="group aspect-square overflow-hidden rounded-lg border border-border bg-muted text-left transition hover:border-primary"
                   @click="handleViewImage(index, 'detailChart')"
                 >
-                  <img :src="image.thumbnailUrl || image.url" :alt="image.name" class="h-full w-full object-cover transition group-hover:scale-[1.02]" />
+                  <img :src="productImageUrl(image, 'thumb')" :alt="image.name" class="h-full w-full object-cover transition group-hover:scale-[1.02]" />
                 </button>
               </div>
               <div v-else class="rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">
@@ -864,7 +880,7 @@ const handleLoginSuccess = () => {
           </Button>
           <img
             v-if="previewImage"
-            :src="previewImage.url"
+            :src="productImageUrl(previewImage, 'preview')"
             :alt="previewImage.name"
             class="max-h-[70vh] max-w-full rounded-md object-contain"
           />

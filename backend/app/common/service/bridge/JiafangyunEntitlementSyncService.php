@@ -12,6 +12,8 @@ use think\facade\Log;
 
 class JiafangyunEntitlementSyncService extends BaseService
 {
+    const DEFAULT_FREE_SPACE_MB = 50;
+
     private $bridgeClient;
 
     public function __construct(App $app)
@@ -47,6 +49,9 @@ class JiafangyunEntitlementSyncService extends BaseService
             $capacityBytes = (int)$entitlements['resource_storage']['capacity_bytes'];
         }
         $spaceSizeMb = $this->bytesToMb($capacityBytes);
+        if ($spaceSizeMb <= 0 && $gradeLevel <= 0) {
+            $spaceSizeMb = self::DEFAULT_FREE_SPACE_MB;
+        }
         $expireAt = $this->parseExpireAt($entitlements['membership_expire_at'] ?? null, $gradeLevel);
         $plan = is_array($entitlements['plan'] ?? null) ? $entitlements['plan'] : [];
         $benefits = is_array($plan['benefits_json'] ?? null) ? $plan['benefits_json'] : (is_array($plan['benefits'] ?? null) ? $plan['benefits'] : []);
@@ -78,6 +83,13 @@ class JiafangyunEntitlementSyncService extends BaseService
             'membership_level' => $level,
             'membership_plan_id' => (int)($entitlements['membership_plan_id'] ?? 0),
             'resource_storage' => $entitlements['resource_storage'] ?? [],
+            'resource_storage_capacity_bytes' => (int)($entitlements['resource_storage_capacity_bytes'] ?? ($spaceSizeMb * 1024 * 1024)),
+            'resource_storage_used_bytes' => (int)($entitlements['resource_storage_used_bytes'] ?? 0),
+            'resource_storage_remaining_bytes' => (int)($entitlements['resource_storage_remaining_bytes'] ?? 0),
+            'used_traffic_bytes' => (int)($entitlements['used_traffic_bytes'] ?? 0),
+            'used_traffic_gb' => (float)($entitlements['used_traffic_gb'] ?? 0),
+            'traffic_used_gb' => (float)($entitlements['traffic_used_gb'] ?? ($entitlements['used_traffic_gb'] ?? 0)),
+            'concurrency_limit' => (int)($benefits['concurrency_limit'] ?? ($entitlements['concurrency_limit'] ?? 0)),
             'points_balance' => (int)($entitlements['points_balance'] ?? 0),
         ];
     }

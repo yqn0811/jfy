@@ -130,12 +130,6 @@ const handleView = (fav: any) => {
   window.location.href = buildPcTargetUrl(fav.targetType, fav.targetId, fav.targetUserId, fav.targetShareCode)
 }
 
-const handleDownload = (fav: any) => {
-  if (fav.targetType === 'product') {
-    toast.success('下载已开始')
-  }
-}
-
 const openRemoveConfirm = (favorite: PcRecordItem) => {
   selectedFavorite.value = favorite
   confirmDialogOpen.value = true
@@ -319,17 +313,6 @@ const handleLoginSuccess = async () => {
                       >
                         <SafeIcon name="Eye" :size="14" class="mr-1" />
                         查看
-                      </Button>
-
-                      <Button
-                        v-if="fav.targetType === 'product'"
-                        variant="outline"
-                        size="sm"
-                        class="h-8 px-3 text-xs"
-                        @click="handleDownload(fav)"
-                      >
-                        <SafeIcon name="Download" :size="14" class="mr-1" />
-                        下载
                       </Button>
 
                       <Button

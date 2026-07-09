@@ -1,7 +1,7 @@
 import type { HomeProfileData } from '@/data/HomeProfileData'
 import type { CategoryData } from '@/data/CategoryData'
 import type { ProductData } from '@/data/ProductData'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { buildProductImageUrls, type ProductImageData, type ProductImageUrls } from '@/data/ProductImageData'
 
 const fallbackImage = 'https://api.jfyuntu.com/image/static/footer/jfyuntu.png'
 
@@ -67,6 +67,60 @@ export const pickImage = (...values: any[]) => {
     }
   }
   return ''
+}
+
+const pickNestedImageUrls = (...values: any[]): ProductImageUrls => {
+  for (const value of values) {
+    const urls = value?.image_urls || value?.imageUrls || value?.urls
+    if (urls && typeof urls === 'object') {
+      return {
+        thumb: pickImage(urls.thumb, urls.thumbnail, urls.thumbnail_url, urls.thumbnailUrl),
+        preview: pickImage(urls.preview, urls.preview_url, urls.previewUrl),
+        edit: pickImage(urls.edit, urls.edit_url, urls.editUrl, urls.preview, urls.preview_url, urls.previewUrl),
+        origin: pickImage(urls.origin, urls.original, urls.origin_url, urls.originUrl, urls.original_url, urls.originalUrl),
+        download: pickImage(urls.download, urls.download_url, urls.downloadUrl),
+      }
+    }
+  }
+  return {}
+}
+
+export const normalizeProductImageUrls = (...values: any[]): ProductImageUrls => {
+  const nested = pickNestedImageUrls(...values)
+  const thumb = pickImage(
+    nested.thumb,
+    ...values.map(value => value?.thumbnail_url ?? value?.thumbnailUrl ?? value?.thumb_url ?? value?.thumbUrl ?? value?.thumb)
+  )
+  const preview = pickImage(
+    nested.preview,
+    ...values.map(value => value?.preview_url ?? value?.previewUrl ?? value?.picture_url ?? value?.pictureUrl ?? value?.image_url ?? value?.imageUrl)
+  )
+  const edit = pickImage(
+    nested.edit,
+    ...values.map(value => value?.edit_url ?? value?.editUrl ?? value?.preview_url ?? value?.previewUrl)
+  )
+  const origin = pickImage(
+    nested.origin,
+    ...values.map(value => value?.origin_url ?? value?.originUrl ?? value?.original_url ?? value?.originalUrl ?? value?.picture_url_original ?? value?.pictureUrlOriginal ?? value?.file_url ?? value?.fileUrl ?? value?.url ?? value?.imgurl)
+  )
+  const download = pickImage(
+    nested.download,
+    ...values.map(value => value?.download_url ?? value?.downloadUrl ?? value?.signed_url ?? value?.signedUrl)
+  )
+
+  return buildProductImageUrls(
+    {
+      thumb,
+      preview,
+      edit,
+      origin,
+      download,
+    },
+    {
+      url: pickImage(origin, download, edit, preview, thumb),
+      thumbnailUrl: pickImage(thumb, preview, edit, origin, download),
+    }
+  )
 }
 
 const countImages = (value: any) => {
@@ -226,15 +280,18 @@ export const mapProductDetail = (raw: any, homeId = ''): ProductData => {
 
 const mapImageItem = (raw: any, productId: string, type: 'colorChart' | 'detailChart', index: number): ProductImageData => {
   const source = raw?.picture || raw || {}
-  const url = pickImage(raw?.picture_url, raw?.imgurl, raw?.picture_url_original, raw?.url, raw?.src, source, raw)
+  const imageUrls = normalizeProductImageUrls(raw, source)
+  const url = pickImage(imageUrls.origin, imageUrls.download, imageUrls.edit, imageUrls.preview, raw?.picture_url, raw?.imgurl, raw?.picture_url_original, raw?.url, raw?.src, source, raw)
+  const thumbnailUrl = pickImage(imageUrls.thumb, raw?.thumbnailUrl, raw?.thumb, raw?.picture_url, raw?.url, source, raw) || url
   const id = String(raw?.pic_id || source?.id || raw?.id || `${productId}_${type}_${index}`)
   return {
     id,
     productId,
     type,
     name: raw?.pic_name || source?.pic_name || raw?.name || source?.name || raw?.file_name || `${type === 'colorChart' ? '花色图' : '详情图'} ${index + 1}`,
+    imageUrls: buildProductImageUrls(imageUrls, { url, thumbnailUrl }),
     url,
-    thumbnailUrl: pickImage(raw?.thumbnailUrl, raw?.thumb, raw?.picture_url, raw?.url, source, raw) || url,
+    thumbnailUrl,
     sizeLabel: raw?.sizeLabel || raw?.size_label || source?.sizeLabel || source?.size_label || '',
     sizeBytes: Number(raw?.sizeBytes || raw?.size || source?.sizeBytes || source?.size || 0),
     sortOrder: Number(raw?.sort || raw?.sortOrder || index),
