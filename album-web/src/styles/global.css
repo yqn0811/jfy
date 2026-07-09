@@ -13,12 +13,12 @@
     --popover: 0 0% 100%;
     --popover-foreground: 30 8% 18%;
 
-    /* Brand - 小程序深金黄体系 */
-    --primary: 43 100% 42%;
-    --primary-foreground: 30 8% 18%;
-    --secondary: 42 28% 92%;
+    /* Brand - 旧版 PC 蓝色体系 */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 92%;
     --secondary-foreground: 30 8% 18%;
-    --accent: 31 100% 43%;
+    --accent: 217 91% 56%;
     --accent-foreground: 0 0% 100%;
 
     /* Muted - 暖灰中性色 */
@@ -30,12 +30,12 @@
     --destructive-foreground: 0 0% 100%;
     --border: 40 18% 88%;
     --input: 40 18% 88%;
-    --ring: 43 100% 42%;
+    --ring: 217 91% 60%;
     --radius: 0.5rem;
 
     /* Hover States */
-    --primary-hover: 43 92% 48%;
-    --accent-hover: 31 92% 48%;
+    --primary-hover: 217 91% 54%;
+    --accent-hover: 217 91% 50%;
     --muted-hover: 42 20% 86%;
     --secondary-hover: 42 28% 86%;
 

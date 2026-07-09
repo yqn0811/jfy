@@ -73,7 +73,7 @@ const initUpload = async () => {
       folder_type: 2,
     })
     if (accessClosed.value) {
-      accessError.value = '此产品上传入口已关闭，请联系分享者开启'
+      accessError.value = '此产品协同编辑入口已关闭，请联系分享者开启'
       return
     }
     const cachedToken = uploadTokenStore.get(uploadCode.value)
@@ -162,7 +162,7 @@ const handleViewProduct = () => {
   if (productId.value) {
     const params = new URLSearchParams({ productId: productId.value })
     if (ownerId.value) params.set('uid', ownerId.value)
-    window.location.href = `./product-detail.html?${params.toString()}`
+    window.location.href = `./share-home.html?${params.toString()}`
   } else {
     window.location.href = './share-home.html'
   }
@@ -181,7 +181,7 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
   <div class="w-full space-y-6">
     <!-- 标题区 -->
     <div class="text-center space-y-2">
-      <h1 class="text-3xl font-bold text-foreground">批量上传图片</h1>
+      <h1 class="text-3xl font-bold text-foreground">协同编辑图片</h1>
       <p class="text-muted-foreground">
         {{ product?.name || folderInfo?.folder_name || '未命名产品' }}
       </p>
@@ -189,8 +189,8 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
 
     <div v-if="accessClosed" class="surface-base card-padding text-center space-y-3">
       <SafeIcon name="Lock" :size="36" class="mx-auto text-muted-foreground" />
-      <h3 class="text-section-title">无法访问上传入口</h3>
-      <p class="text-sm text-muted-foreground">{{ accessError || '此产品上传入口已关闭' }}</p>
+      <h3 class="text-section-title">无法访问协同编辑入口</h3>
+      <p class="text-sm text-muted-foreground">{{ accessError || '此产品协同编辑入口已关闭' }}</p>
     </div>
 
     <!-- 上传区域 -->

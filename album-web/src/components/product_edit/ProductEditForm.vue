@@ -429,9 +429,9 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
 
     <!-- Scrollable Content Area -->
     <div class="min-h-0 flex-1 overflow-y-auto px-1">
-      <div class="grid min-h-full gap-8 pb-6 lg:grid-cols-[minmax(320px,0.9fr)_minmax(560px,1.1fr)]">
+      <div class="grid min-h-full gap-6 pb-6 lg:grid-cols-[minmax(320px,0.9fr)_minmax(560px,1.1fr)]">
         <!-- Basic Information Section -->
-        <section class="space-y-6 lg:border-r lg:border-border lg:pr-8">
+        <section class="space-y-5 lg:border-r lg:border-border lg:pr-8">
           <div class="space-y-2">
             <Label for="product-name" class="text-label text-base">产品名称</Label>
             <Input
@@ -448,7 +448,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               id="product-intro"
               v-model="formState.intro"
               placeholder="输入产品简介"
-              class="min-h-[136px] resize-none rounded-lg bg-background text-base"
+              class="min-h-[96px] resize-none rounded-lg bg-background text-base"
             />
           </div>
 
@@ -517,10 +517,10 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
         </section>
 
         <!-- Image Sections -->
-        <section class="space-y-8">
-          <div class="space-y-4">
+        <section class="space-y-6">
+          <div class="space-y-3">
             <div class="flex items-center justify-between">
-              <h2 class="text-xl font-semibold">花色图</h2>
+              <h2 class="text-lg font-semibold">花色图</h2>
               <div class="flex items-center gap-4 text-sm font-medium text-primary">
                 <button
                   type="button"
@@ -545,7 +545,8 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               type="colorChart"
               :images="formState.colorChartImages"
               :upload-handler="handleUploadImage"
-              class="min-h-[166px]"
+              compact
+              class="min-h-[118px]"
               @add-images="handleAddImages"
               @remove-image="handleRemoveImage"
             />
@@ -560,9 +561,9 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
             />
           </div>
 
-          <div class="space-y-4">
+          <div class="space-y-3">
             <div class="flex items-center justify-between">
-              <h2 class="text-xl font-semibold">详情图</h2>
+              <h2 class="text-lg font-semibold">详情图</h2>
               <div class="flex items-center gap-4 text-sm font-medium text-primary">
                 <button
                   type="button"
@@ -587,7 +588,8 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               type="detailChart"
               :images="formState.detailChartImages"
               :upload-handler="handleUploadImage"
-              class="min-h-[166px]"
+              compact
+              class="min-h-[118px]"
               @add-images="handleAddImages"
               @remove-image="handleRemoveImage"
             />

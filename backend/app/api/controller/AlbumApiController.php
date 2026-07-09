@@ -189,6 +189,20 @@ class AlbumApiController extends ApiBaseController
         $this->result($this->album_service->resetBatchUploadLink($param['fid'], request()->userID()), 0, '重置成功');
     }
 
+    public function saveBatchUploadPassword()
+    {
+        $param = $this->request->postMore([
+            ['fid', 0],
+            ['upload_enabled', 0],
+            ['upload_pwd', ''],
+            ['upload_pwd_expire_time', 0],
+        ]);
+        if(empty($param['fid'])){
+            throwError('请选择产品');
+        }
+        $this->result($this->album_service->saveBatchUploadPassword($param, request()->userID()), 0, '保存成功');
+    }
+
     public function deleteAlbumFolder()
     {
         $param = $this->request->postMore([

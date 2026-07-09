@@ -93,9 +93,13 @@ class WebUploadApiController extends ApiBaseController
                 throwError('您没有权限访问此相册');
             }
         }
+        $file_type = (int)$this->request->post('file_type', 1);
+        if(!in_array($file_type, [1, 2])){
+            throwError('文件类型不正确');
+        }
         $result = $this->upload_service->uploadFileAlbum([
             'files' => $files,
-            'file_type' => 1,
+            'file_type' => $file_type,
             'pid' => $pid,
             'original_names' => $this->getUploadOriginalNames($this->request->post()),
         ], $uid);

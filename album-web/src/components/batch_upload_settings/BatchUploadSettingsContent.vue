@@ -41,10 +41,10 @@ const productData = ref<Partial<ProductVO> | null>(null)
 
 // 本地编辑状态
 const isClient = ref(true)
+const uploadEnabled = ref(false)
 const passwordEnabled = ref(false)
 const password = ref('')
 const expire = ref('permanent')
-const isClosed = ref(true)
 const uploadUrl = ref('')
 const qrCodeUrl = ref('')
 
@@ -101,12 +101,15 @@ const applyBatchData = (data: any) => {
 
   const incomingEnabled = data?.upload_enabled ?? data?.access_enabled
   if (incomingEnabled !== undefined) {
-    passwordEnabled.value = Number(incomingEnabled) === 1
-  } else if (incomingPassword) {
-    passwordEnabled.value = true
+    uploadEnabled.value = Number(incomingEnabled) === 1
   }
 
-  isClosed.value = !passwordEnabled.value
+  const incomingHasPassword = data?.has_password
+  if (incomingHasPassword !== undefined) {
+    passwordEnabled.value = Number(incomingHasPassword) === 1
+  } else {
+    passwordEnabled.value = !!incomingPassword
+  }
   syncExpire(Number(data?.password_expire_time || data?.upload_pwd_expire_time || 0))
 }
 
@@ -127,7 +130,7 @@ const loadData = async () => {
       productData.value = mapProduct(rawProduct) as ProductVO
     }
   } catch (error: any) {
-    toast.error(error?.message || '加载批量上传设置失败')
+    toast.error(error?.message || '加载协同编辑设置失败')
   } finally {
     isLoading.value = false
   }
@@ -175,9 +178,9 @@ const openQrPreview = () => {
 
 // 复制组合信息
 const handleCopyCombined = async () => {
-  const combined = passwordEnabled.value
-    ? `上传链接: ${uploadUrl.value}\n密码: ${password.value}\n有效期: ${expireLabel.value}${qrCodeUrl.value ? `\n二维码: ${qrCodeUrl.value}` : ''}`
-    : `上传链接: ${uploadUrl.value}\n状态: 已关闭，此产品无法访问`
+  const combined = uploadEnabled.value
+    ? `协同编辑链接: ${uploadUrl.value}${passwordEnabled.value ? `\n访问密码: ${password.value}\n密码有效期: ${expireLabel.value}` : '\n访问密码: 未启用'}${qrCodeUrl.value ? `\n二维码: ${qrCodeUrl.value}` : ''}`
+    : `协同编辑链接: ${uploadUrl.value}\n状态: 已关闭，此产品无法访问`
   try {
     await navigator.clipboard.writeText(combined)
     toast.success('已复制')
@@ -186,21 +189,43 @@ const handleCopyCombined = async () => {
   }
 }
 
+const handleToggleUpload = (checked: boolean) => {
+  uploadEnabled.value = checked
+  if (checked && passwordEnabled.value && !password.value) {
+    password.value = generatePassword()
+  }
+}
+
 // 切换密码启用
 const handleTogglePassword = (checked: boolean) => {
   passwordEnabled.value = checked
-  isClosed.value = !checked
-  if (checked && !password.value) {
-    password.value = generatePassword()
+  if (checked) {
+    uploadEnabled.value = true
+    if (!password.value) {
+      password.value = generatePassword()
+    }
   }
 }
 
 // 刷新密码
 const handleRefreshPassword = () => {
   passwordEnabled.value = true
-  isClosed.value = false
+  uploadEnabled.value = true
   password.value = generatePassword()
   toast.success('密码已刷新')
+}
+
+const handleCopyPassword = async () => {
+  if (!passwordEnabled.value || !password.value) {
+    toast.error('请先启用访问密码')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(password.value)
+    toast.success('密码已复制')
+  } catch (err) {
+    toast.error('复制失败')
+  }
 }
 
 // 关闭链接
@@ -209,8 +234,7 @@ const handleCloseLink = () => {
 }
 
 const handleConfirmClose = () => {
-  passwordEnabled.value = false
-  isClosed.value = true
+  uploadEnabled.value = false
   toast.success('链接已关闭')
   showConfirmClose.value = false
 }
@@ -219,12 +243,15 @@ const handleConfirmClose = () => {
 const handleSave = async () => {
   isSaving.value = true
   try {
-    const isEnabled = passwordEnabled.value
+    const isEnabled = uploadEnabled.value
+    if (isEnabled && passwordEnabled.value && !password.value) {
+      password.value = generatePassword()
+    }
     const updatedData = {
       fid: currentProductId.value,
       upload_enabled: isEnabled ? 1 : 0,
-      upload_pwd: isEnabled ? password.value : '',
-      upload_pwd_expire_time: isEnabled ? getExpireTimestamp() : 0,
+      upload_pwd: passwordEnabled.value ? password.value : '',
+      upload_pwd_expire_time: passwordEnabled.value ? getExpireTimestamp() : 0,
     }
     const data = await pcApi.saveBatchUploadPassword(updatedData)
     applyBatchData(data)
@@ -252,7 +279,7 @@ const handleViewProduct = () => {
     emit('view-product', currentProductId.value)
     return
   }
-  window.location.href = `./product-detail.html?productId=${currentProductId.value}`
+  window.location.href = `./share-home.html?productId=${currentProductId.value}`
 }
 
 onMounted(() => {
@@ -283,8 +310,8 @@ const expireLabel = computed(() => {
     <!-- 页面标题 -->
     <div v-if="!props.embedded" class="flex items-center justify-between">
       <div>
-        <h1 class="text-page-title">批量上传设置</h1>
-        <p class="text-caption mt-1">为产品生成协作上传链接，邀请团队成员上传花色图和详情图</p>
+        <h1 class="text-page-title">协同编辑设置</h1>
+        <p class="text-caption mt-1">为产品生成协同编辑链接，邀请团队成员上传花色图和详情图</p>
       </div>
       <Button variant="outline" size="sm" @click="handleViewProduct">
         <SafeIcon name="Eye" :size="16" class="mr-2" />
@@ -318,7 +345,7 @@ const expireLabel = computed(() => {
 
           <Card class="surface-raised">
             <CardHeader class="pb-3">
-              <CardTitle class="text-base">上传链接</CardTitle>
+              <CardTitle class="text-base">协同编辑链接</CardTitle>
               <CardDescription>分享给团队成员上传花色图和详情图</CardDescription>
             </CardHeader>
             <CardContent class="space-y-3">
@@ -346,7 +373,7 @@ const expireLabel = computed(() => {
                   :disabled="!uploadUrl"
                 >
                   <SafeIcon name="Copy" :size="16" class="mr-2" />
-                  复制信息
+                  复制链接和密码
                 </Button>
                 <Button
                   variant="outline"
@@ -363,9 +390,20 @@ const expireLabel = computed(() => {
           <Card class="surface-raised">
             <CardHeader class="pb-3">
               <CardTitle class="text-base">访问控制</CardTitle>
-              <CardDescription>关闭后，此产品上传入口无法访问</CardDescription>
+              <CardDescription>关闭后，此产品协同编辑入口无法访问</CardDescription>
             </CardHeader>
             <CardContent class="space-y-4">
+              <div class="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
+                <div class="flex items-center gap-2">
+                  <Label class="text-label">开启协同编辑入口</Label>
+                  <SafeIcon name="UploadCloud" :size="14" class="text-muted-foreground" />
+                </div>
+                <Switch
+                  :checked="uploadEnabled"
+                  @update:checked="handleToggleUpload"
+                />
+              </div>
+
               <div class="flex items-center justify-between gap-4">
                 <div class="flex items-center gap-2">
                   <Label class="text-label">启用访问密码</Label>
@@ -377,43 +415,57 @@ const expireLabel = computed(() => {
                 />
               </div>
 
-              <div v-if="passwordEnabled" class="grid gap-3 md:grid-cols-[1fr_180px]">
-                <div class="flex items-center gap-2">
-                  <Input
-                    v-model="password"
-                    readonly
-                    class="flex-1 bg-muted/50 text-muted-foreground cursor-not-allowed font-mono text-center tracking-widest"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    @click="handleRefreshPassword"
-                    class="shrink-0"
-                  >
-                    <SafeIcon name="RefreshCw" :size="16" />
-                  </Button>
+              <div v-if="uploadEnabled && passwordEnabled" class="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-sm font-medium text-foreground">访问密码</span>
+                  <span class="text-xs text-muted-foreground">有效期：{{ expireLabel }}</span>
                 </div>
-                <Select v-model="expire">
-                  <SelectTrigger class="w-full">
-                    <SelectValue :placeholder="expireLabel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="permanent">永久有效</SelectItem>
-                    <SelectItem value="1d">1 天</SelectItem>
-                    <SelectItem value="7d">7 天</SelectItem>
-                    <SelectItem value="30d">30 天</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div class="grid gap-3 md:grid-cols-[1fr_180px]">
+                  <div class="flex items-center gap-2">
+                    <Input
+                      v-model="password"
+                      readonly
+                      class="flex-1 bg-card font-mono text-center text-lg font-semibold tracking-widest"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      @click="handleCopyPassword"
+                      class="shrink-0"
+                    >
+                      <SafeIcon name="Copy" :size="16" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      @click="handleRefreshPassword"
+                      class="shrink-0"
+                    >
+                      <SafeIcon name="RefreshCw" :size="16" />
+                    </Button>
+                  </div>
+                  <Select v-model="expire">
+                    <SelectTrigger class="w-full bg-card">
+                      <SelectValue :placeholder="expireLabel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="permanent">永久有效</SelectItem>
+                      <SelectItem value="1d">1 天</SelectItem>
+                      <SelectItem value="7d">7 天</SelectItem>
+                      <SelectItem value="30d">30 天</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div
                 :class="[
                   'flex items-center gap-3 rounded-lg border p-3 text-sm',
-                  isClosed ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  !uploadEnabled ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
                 ]"
               >
-                <SafeIcon :name="isClosed ? 'AlertTriangle' : 'ShieldCheck'" :size="18" class="shrink-0" />
-                <span>{{ isClosed ? '链接已关闭，外部用户无法访问上传页面' : '链接已开启，访客进入时需要输入访问密码' }}</span>
+                <SafeIcon :name="!uploadEnabled ? 'AlertTriangle' : 'ShieldCheck'" :size="18" class="shrink-0" />
+                <span>{{ !uploadEnabled ? '链接已关闭，外部用户无法访问协同编辑页面' : passwordEnabled ? `链接已开启，访客进入时需要输入访问密码，有效期${expireLabel}` : '链接已开启，访客无需密码即可上传' }}</span>
               </div>
             </CardContent>
           </Card>
@@ -422,7 +474,7 @@ const expireLabel = computed(() => {
         <Card class="surface-raised">
           <CardHeader class="pb-3">
             <CardTitle class="text-base">二维码</CardTitle>
-            <CardDescription>可扫码打开上传页面</CardDescription>
+            <CardDescription>可扫码打开协同编辑页面</CardDescription>
           </CardHeader>
           <CardContent class="space-y-3">
             <div
@@ -474,7 +526,7 @@ const expireLabel = computed(() => {
 
       <div class="flex items-center gap-3">
         <Button
-          v-if="!isClosed"
+          v-if="uploadEnabled"
           variant="outline"
           class="text-destructive hover:text-destructive hover:bg-destructive/10"
           @click="handleCloseLink"
@@ -489,7 +541,7 @@ const expireLabel = computed(() => {
           :disabled="isSaving"
         >
           <SafeIcon v-if="isSaving" name="Loader2" :size="16" class="mr-2 animate-spin" />
-          <span v-else>{{ isClosed ? '保存关闭状态' : '保存设置' }}</span>
+          <span v-else>{{ uploadEnabled ? '保存设置' : '保存关闭状态' }}</span>
         </Button>
       </div>
     </div>
@@ -508,7 +560,7 @@ const expireLabel = computed(() => {
             class="w-64 h-64 object-contain"
           />
           <p class="text-xs text-muted-foreground mt-4 text-center">
-            使用微信或其他二维码扫描工具扫描此二维码即可打开上传页面
+            使用微信或其他二维码扫描工具扫描此二维码即可打开协同编辑页面
           </p>
         </div>
       </DialogContent>

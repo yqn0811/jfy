@@ -6,17 +6,20 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
 import ShareDialog from '@/components/share_home/ShareDialog.vue'
 import ContactDialog from '@/components/share_home/ContactDialog.vue'
-import ProductDetailDrawer from '@/components/share_home/ProductDetailDrawer.vue'
+import ProductShareDialog from '@/components/product_detail/ShareDialog.vue'
+import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
 import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
-import { mapCategory, mapProduct, normalizeHomePayload, unwrapList } from '@/lib/jfyuntu-mappers'
+import { mapCategory, mapProduct, mapProductImagesFromDetail, normalizeHomePayload, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { HomeProfileData } from '@/data/HomeProfileData'
 import type { CategoryData } from '@/data/CategoryData'
 import type { ProductData } from '@/data/ProductData'
+import type { ProductImageData } from '@/data/ProductImageData'
 
 const isClient = ref(true)
 const isLoading = ref(false)
@@ -36,9 +39,29 @@ const showLoginDialog = ref(false)
 const showShareDialog = ref(false)
 const showContactDialog = ref(false)
 const selectedProductId = ref<string | null>(null)
-const showProductDrawer = ref(false)
+const selectedProduct = ref<ProductData | null>(null)
+const selectedProductImages = ref<ProductImageData[]>([])
+const isProductDetailLoading = ref(false)
+const isProductFavorited = ref(false)
+const showProductShareDialog = ref(false)
+const showDownloadDialog = ref(false)
+const previewImages = ref<ProductImageData[]>([])
+const previewImageIndex = ref(0)
+const showImagePreviewDialog = ref(false)
 
 const isHomeFavorited = ref(false)
+
+const isProductDetailMode = computed(() => !!selectedProductId.value)
+const selectedColorImages = computed(() => selectedProductImages.value.filter(item => item.type === 'colorChart'))
+const selectedDetailImages = computed(() => selectedProductImages.value.filter(item => item.type === 'detailChart'))
+const downloadableImages = computed(() => {
+  if (!selectedProduct.value) return []
+  if (selectedProduct.value.hideDetailImage) return selectedColorImages.value
+  return selectedProductImages.value
+})
+const isOwnerViewingOwnHome = computed(() => !!currentUserId.value && !!homeProfile.value?.ownerUserId && currentUserId.value === homeProfile.value.ownerUserId)
+const canDownloadProductImages = computed(() => !!homeProfile.value?.allowSavePic || isOwnerViewingOwnHome.value)
+const previewImage = computed(() => previewImages.value[previewImageIndex.value] || null)
 
 const getHomeTargetRef = () => ({
   targetUserId: targetUserId.value,
@@ -146,6 +169,38 @@ const loadCategoryProducts = async (categoryId: string) => {
   }
 }
 
+const loadProductDetail = async (productId: string) => {
+  const target = getHomeTargetRef()
+  isProductDetailLoading.value = true
+  try {
+    const raw = await pcApi.getHomeProductDetail(target, productId)
+    const detailSource = raw?.folder_info || raw?.product || raw
+    const detail = {
+      ...detailSource,
+      pictures: detailSource?.pictures ?? raw?.pictures,
+      pic_list: detailSource?.pic_list ?? raw?.pic_list,
+      pic_ids_arr: detailSource?.pic_ids_arr ?? raw?.pic_ids_arr,
+      detail_pic_list: detailSource?.detail_pic_list ?? raw?.detail_pic_list,
+      detail_pic_ids_arr: detailSource?.detail_pic_ids_arr ?? raw?.detail_pic_ids_arr,
+    }
+    selectedProduct.value = mapProduct(detail, homeProfile.value?.id || targetUserId.value)
+    selectedProductImages.value = mapProductImagesFromDetail(detail, selectedProduct.value.id)
+    selectedProduct.value.colorChartCount = selectedColorImages.value.length
+    selectedProduct.value.detailChartCount = selectedProduct.value.hideDetailImage ? 0 : selectedDetailImages.value.length
+    isProductFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
+    if (isLoggedIn.value) {
+      pcApi.addVisit('product', selectedProduct.value.id).catch(() => {})
+    }
+  } catch (error: any) {
+    selectedProductId.value = null
+    selectedProduct.value = null
+    selectedProductImages.value = []
+    toast.error(error?.message || '产品加载失败')
+  } finally {
+    isProductDetailLoading.value = false
+  }
+}
+
 const categoryOptions = computed(() => {
   return [
     { id: 'all', name: '全部' },
@@ -226,11 +281,17 @@ onMounted(() => {
     shareCode.value = target.shareCode
     const keyword = params.get('keyword')
     const categoryId = params.get('categoryId') || params.get('cate_id')
+    const productId = params.get('productId') || params.get('product_id')
     if (keyword) searchKeyword.value = keyword
     selectedCategoryId.value = categoryId || 'all'
     isLoggedIn.value = authStore.isLoggedIn()
     isClient.value = true
-    loadHomeData()
+    loadHomeData().then(() => {
+      if (productId && isLoggedIn.value) {
+        selectedProductId.value = productId
+        loadProductDetail(productId)
+      }
+    })
   })
 })
 
@@ -244,6 +305,9 @@ const handleSearch = () => {
 }
 
 const handleCategoryChange = async (categoryId: string) => {
+  selectedProductId.value = null
+  selectedProduct.value = null
+  selectedProductImages.value = []
   selectedCategoryId.value = categoryId
   if (categoryId === 'all') {
     categoryProducts.value = []
@@ -288,7 +352,116 @@ const handleShareHome = () => {
 
 const handleProductClick = (productId: string) => {
   selectedProductId.value = productId
-  showProductDrawer.value = true
+  selectedProduct.value = null
+  selectedProductImages.value = []
+  loadProductDetail(productId)
+  if (typeof window !== 'undefined') {
+    const params = buildHomeSearchParams()
+    if (selectedCategoryId.value && selectedCategoryId.value !== 'all') params.set('categoryId', selectedCategoryId.value)
+    params.set('productId', productId)
+    window.history.replaceState(null, '', `./share-home.html?${params.toString()}`)
+  }
+}
+
+const handleBackToList = () => {
+  selectedProductId.value = null
+  selectedProduct.value = null
+  selectedProductImages.value = []
+  showDownloadDialog.value = false
+  showImagePreviewDialog.value = false
+  if (typeof window !== 'undefined') {
+    const params = buildHomeSearchParams()
+    if (selectedCategoryId.value && selectedCategoryId.value !== 'all') params.set('categoryId', selectedCategoryId.value)
+    window.history.replaceState(null, '', `./share-home.html${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+}
+
+const handleFavoriteProduct = async () => {
+  if (!isLoggedIn.value) {
+    showLoginDialog.value = true
+    return
+  }
+  if (!selectedProduct.value) return
+  try {
+    await pcApi.toggleFavorite('product', selectedProduct.value.id, !isProductFavorited.value)
+    isProductFavorited.value = !isProductFavorited.value
+    toast.success(isProductFavorited.value ? '收藏成功' : '已取消收藏')
+  } catch (error: any) {
+    toast.error(error?.message || '操作失败')
+  }
+}
+
+const handleShareProduct = () => {
+  if (!selectedProduct.value) return
+  showProductShareDialog.value = true
+}
+
+const handleDownloadProduct = () => {
+  if (!isLoggedIn.value) {
+    showLoginDialog.value = true
+    return
+  }
+  if (!canDownloadProductImages.value) {
+    toast.error('分享者未开放图片下载')
+    return
+  }
+  if (downloadableImages.value.length === 0) {
+    toast.error('暂无可下载图片')
+    return
+  }
+  showDownloadDialog.value = true
+}
+
+const downloadImages = (images: ProductImageData[]) => {
+  if (!canDownloadProductImages.value) {
+    toast.error('分享者未开放图片下载')
+    return
+  }
+  if (images.length === 0) {
+    toast.error('暂无可下载图片')
+    return
+  }
+  images.forEach((image, index) => {
+    window.setTimeout(() => {
+      const link = document.createElement('a')
+      link.href = image.url
+      link.download = image.name || `product-${selectedProduct.value?.id || 'image'}-${index + 1}.jpg`
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }, index * 150)
+  })
+  toast.success(`已开始下载 ${images.length} 张图片`)
+}
+
+const handleViewImage = (index: number, type: 'colorChart' | 'detailChart') => {
+  if (!selectedProduct.value) return
+  const images = type === 'colorChart' ? selectedColorImages.value : selectedDetailImages.value
+  if (!images.length) return
+  previewImages.value = images
+  previewImageIndex.value = index
+  showImagePreviewDialog.value = true
+}
+
+const handlePreviewPrev = () => {
+  if (!previewImages.value.length) return
+  previewImageIndex.value = (previewImageIndex.value - 1 + previewImages.value.length) % previewImages.value.length
+}
+
+const handlePreviewNext = () => {
+  if (!previewImages.value.length) return
+  previewImageIndex.value = (previewImageIndex.value + 1) % previewImages.value.length
+}
+
+const handleOpenOriginalImage = () => {
+  if (!previewImage.value?.url) return
+  window.open(previewImage.value.url, '_blank')
+}
+
+const handleDownloadPreviewImage = () => {
+  if (!previewImage.value) return
+  downloadImages([previewImage.value])
 }
 
 const handleLoginSuccess = () => {
@@ -373,7 +546,7 @@ const handleLoginSuccess = () => {
     </section>
 
     <!-- 分类导航区 -->
-    <section v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0" class="border-b border-border bg-background">
+    <section v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode" class="border-b border-border bg-background px-6 md:px-8">
       <div class="page-container">
         <Tabs :model-value="selectedCategoryId || 'all'" @update:model-value="(value) => handleCategoryChange(String(value))" class="w-full">
           <TabsList class="w-full justify-start overflow-x-auto bg-transparent rounded-none h-auto p-0 gap-1">
@@ -390,12 +563,100 @@ const handleLoginSuccess = () => {
       </div>
     </section>
 
-    <!-- 产品流区 -->
+    <!-- 产品流区 / 产品详情区 -->
     <section v-if="isLoggedIn" class="page-body">
       <div class="page-container">
         <div v-if="isLoading" class="py-16 text-center text-muted-foreground">
           <SafeIcon name="Loader2" :size="24" class="mx-auto mb-2 animate-spin" />
           加载中...
+        </div>
+
+        <div v-else-if="isProductDetailMode" class="space-y-6">
+          <Button variant="outline" class="gap-2" @click="handleBackToList">
+            <SafeIcon name="ArrowLeft" :size="16" />
+            返回列表
+          </Button>
+
+          <div v-if="isProductDetailLoading" class="py-16 text-center text-muted-foreground">
+            <SafeIcon name="Loader2" :size="24" class="mx-auto mb-2 animate-spin" />
+            加载产品详情...
+          </div>
+
+          <div v-else-if="selectedProduct" class="space-y-8">
+            <div class="flex flex-col gap-4 border-b border-border pb-6 lg:flex-row lg:items-start lg:justify-between">
+              <div class="min-w-0 space-y-3">
+                <div class="flex items-center gap-3">
+                  <h2 class="text-page-title">{{ selectedProduct.name || '未命名产品' }}</h2>
+                  <Badge variant="outline">{{ selectedProduct.categoryName || selectedProduct.categoryNames?.[0] || '未分类' }}</Badge>
+                </div>
+                <p class="max-w-3xl text-body text-muted-foreground">{{ selectedProduct.intro || '暂无产品简介' }}</p>
+                <div class="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                  <span>花色图 {{ selectedColorImages.length }} 张</span>
+                  <span>详情图 {{ selectedProduct.hideDetailImage ? 0 : selectedDetailImages.length }} 张</span>
+                  <span v-if="selectedProduct.updatedAt">更新 {{ selectedProduct.updatedAt }}</span>
+                </div>
+              </div>
+              <div class="grid w-full grid-cols-3 gap-2 sm:w-auto sm:min-w-[360px]">
+                <Button :variant="isProductFavorited ? 'default' : 'outline'" class="gap-2" @click="handleFavoriteProduct">
+                  <SafeIcon name="Heart" :size="16" :fill="isProductFavorited ? 'currentColor' : 'none'" />
+                  {{ isProductFavorited ? '已收藏' : '收藏' }}
+                </Button>
+                <Button variant="outline" class="gap-2" @click="handleShareProduct">
+                  <SafeIcon name="Share2" :size="16" />
+                  分享
+                </Button>
+                <Button variant="outline" class="gap-2" @click="handleDownloadProduct">
+                  <SafeIcon name="Download" :size="16" />
+                  {{ canDownloadProductImages ? '下载' : '不可下载' }}
+                </Button>
+              </div>
+            </div>
+
+            <section class="space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="text-section-title">花色图</h3>
+                <Badge variant="secondary">{{ selectedColorImages.length }} 张</Badge>
+              </div>
+              <div v-if="selectedColorImages.length > 0" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                <button
+                  v-for="(image, index) in selectedColorImages"
+                  :key="image.id"
+                  type="button"
+                  class="group aspect-square overflow-hidden rounded-lg border border-border bg-muted text-left transition hover:border-primary"
+                  @click="handleViewImage(index, 'colorChart')"
+                >
+                  <img :src="image.thumbnailUrl || image.url" :alt="image.name" class="h-full w-full object-cover transition group-hover:scale-[1.02]" />
+                </button>
+              </div>
+              <div v-else class="rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">
+                暂无花色图
+              </div>
+            </section>
+
+            <section class="space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="text-section-title">详情图</h3>
+                <Badge variant="secondary">{{ selectedProduct.hideDetailImage ? 0 : selectedDetailImages.length }} 张</Badge>
+              </div>
+              <div v-if="selectedProduct.hideDetailImage" class="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+                分享者已隐藏详情图
+              </div>
+              <div v-else-if="selectedDetailImages.length > 0" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                <button
+                  v-for="(image, index) in selectedDetailImages"
+                  :key="image.id"
+                  type="button"
+                  class="group aspect-square overflow-hidden rounded-lg border border-border bg-muted text-left transition hover:border-primary"
+                  @click="handleViewImage(index, 'detailChart')"
+                >
+                  <img :src="image.thumbnailUrl || image.url" :alt="image.name" class="h-full w-full object-cover transition group-hover:scale-[1.02]" />
+                </button>
+              </div>
+              <div v-else class="rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">
+                暂无详情图
+              </div>
+            </section>
+          </div>
         </div>
 
         <div v-else-if="filteredProducts.length === 0" class="py-16">
@@ -461,17 +722,82 @@ const handleLoginSuccess = () => {
       @update:open="(val) => (showContactDialog = val)"
     />
 
-    <!-- 产品详情抽屉 -->
-    <ProductDetailDrawer
-      v-if="isClient && selectedProductId"
-      :open="showProductDrawer"
-      :product-id="selectedProductId"
-      :is-logged-in="isLoggedIn"
-      :current-user-id="currentUserId"
-      @update:open="(val) => (showProductDrawer = val)"
-      @login-required="showLoginDialog = true"
-      @login-success="handleLoginSuccess"
+    <ProductShareDialog
+      v-if="isClient && selectedProduct"
+      :open="showProductShareDialog"
+      :product-id="selectedProduct.id"
+      :target-user-id="targetUserId"
+      :share-code="shareCode"
+      @update:open="showProductShareDialog = $event"
     />
+
+    <DownloadDialog
+      v-if="isClient && selectedProduct && canDownloadProductImages"
+      :open="showDownloadDialog"
+      :product-id="selectedProduct.id"
+      :images="downloadableImages"
+      @update:open="showDownloadDialog = $event"
+    />
+
+    <Dialog :open="showImagePreviewDialog" @update:open="showImagePreviewDialog = $event">
+      <DialogContent class="flex max-h-[92vh] max-w-[92vw] flex-col overflow-hidden p-0 sm:max-w-[960px]">
+        <DialogHeader class="border-b border-border px-5 py-4">
+          <DialogTitle class="truncate text-base">
+            {{ previewImage?.name || '图片预览' }}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div class="relative flex min-h-0 flex-1 items-center justify-center bg-muted/40 p-4">
+          <Button
+            v-if="previewImages.length > 1"
+            variant="outline"
+            size="sm"
+            class="absolute left-4 top-1/2 z-10 h-10 w-10 -translate-y-1/2 rounded-full p-0"
+            @click="handlePreviewPrev"
+          >
+            <SafeIcon name="ChevronLeft" :size="18" />
+          </Button>
+          <img
+            v-if="previewImage"
+            :src="previewImage.url"
+            :alt="previewImage.name"
+            class="max-h-[70vh] max-w-full rounded-md object-contain"
+          />
+          <Button
+            v-if="previewImages.length > 1"
+            variant="outline"
+            size="sm"
+            class="absolute right-4 top-1/2 z-10 h-10 w-10 -translate-y-1/2 rounded-full p-0"
+            @click="handlePreviewNext"
+          >
+            <SafeIcon name="ChevronRight" :size="18" />
+          </Button>
+        </div>
+
+        <DialogFooter class="border-t border-border px-5 py-4">
+          <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span class="text-sm text-muted-foreground">
+              {{ previewImages.length ? `${previewImageIndex + 1} / ${previewImages.length}` : '' }}
+            </span>
+            <div class="flex gap-2">
+              <Button variant="outline" class="gap-2" @click="handleOpenOriginalImage">
+                <SafeIcon name="ExternalLink" :size="16" />
+                查看原图
+              </Button>
+              <Button
+                v-if="canDownloadProductImages"
+                variant="default"
+                class="gap-2"
+                @click="handleDownloadPreviewImage"
+              >
+                <SafeIcon name="Download" :size="16" />
+                下载
+              </Button>
+            </div>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 

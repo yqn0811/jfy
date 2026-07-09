@@ -177,6 +177,7 @@ Route::group('album', function (){
     Route::post('ai/import_resource', 'AlbumApiController/importAiResource'); // 我的资源库图片导入产品
     Route::get('batch_link', 'AlbumApiController/getBatchUploadLink'); //获取大批量上传链接
     Route::post('reset_batch_link', 'AlbumApiController/resetBatchUploadLink'); //重置大批量上传链接
+    Route::post('batch_upload_password', 'AlbumApiController/saveBatchUploadPassword'); //保存大批量上传入口和密码
     
     Route::post('delete/folder', 'AlbumApiController/deleteAlbumFolder'); //删除相册文件夹
     Route::post('delete/category', 'AlbumApiController/deleteCategory'); //删除分类

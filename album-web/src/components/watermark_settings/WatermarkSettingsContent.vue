@@ -4,9 +4,8 @@ import { ref, computed, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'
 import { pcApi } from '@/lib/api'
@@ -82,6 +81,7 @@ const previewStyle = computed(() => ({
   position: 'relative' as const,
   overflow: 'hidden' as const,
   borderRadius: '0.5rem',
+  aspectRatio: '1 / 1',
 }))
 
 const watermarkOverlayStyle = computed(() => ({
@@ -99,98 +99,86 @@ const watermarkOverlayStyle = computed(() => ({
 </script>
 
 <template>
-  <div class="page-body flex h-full min-h-0 flex-col space-y-4 overflow-hidden">
+  <div class="page-body space-y-4">
     <!-- 页面标题 -->
-    <div class="shrink-0">
+    <div>
       <h1 class="text-page-title mb-2">水印设置</h1>
-      <p class="text-caption">为您的产品图片添加版权保护水印，访客在预览和下载时都能看到水印效果</p>
+      <p class="text-caption">设置产品图片预览和下载水印</p>
     </div>
 
-    <div class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
       <!-- 左侧：设置表单 -->
-      <div class="min-h-0 space-y-4 overflow-y-auto pr-1">
-        <!-- 水印文案设置 -->
+      <div class="space-y-4">
         <Card class="surface-base">
           <CardHeader class="pb-3">
-            <CardTitle class="text-section-title">水印文案</CardTitle>
-            <CardDescription>输入要显示在图片上的文字</CardDescription>
+            <CardTitle class="text-section-title">功能区</CardTitle>
           </CardHeader>
-          <CardContent class="space-y-3">
+          <CardContent class="space-y-4">
             <div class="space-y-2">
               <Label for="watermark-text" class="text-label">文案内容</Label>
               <Textarea
                 id="watermark-text"
                 v-model="watermarkText"
                 placeholder="输入水印文案，如：© 公司名 版权所有"
-                class="min-h-[72px] resize-none"
+                class="min-h-[64px] resize-none"
                 maxlength="100"
               />
               <p class="text-[11px] text-muted-foreground">
                 {{ watermarkText.length }} / 100 字符
               </p>
             </div>
-          </CardContent>
-        </Card>
 
-        <!-- 水印样式设置 -->
-        <Card class="surface-base">
-          <CardHeader class="pb-3">
-            <CardTitle class="text-section-title">样式设置</CardTitle>
-          </CardHeader>
-          <CardContent class="space-y-3">
-            <!-- 字体大小 -->
-            <div class="space-y-2">
-              <Label for="font-size" class="text-label">字体大小</Label>
-              <div class="flex items-center gap-3">
-                <Input
-                  id="font-size"
-                  v-model.number="fontSize"
-                  type="number"
-                  min="12"
-                  max="72"
-                  class="flex-1 h-9"
-                />
-                <span class="text-sm text-muted-foreground w-12">{{ fontSize }}px</span>
+            <div class="grid gap-4 md:grid-cols-3">
+              <div class="space-y-2">
+                <Label for="font-size" class="text-label">字体大小</Label>
+                <div class="flex items-center gap-3">
+                  <Input
+                    id="font-size"
+                    v-model.number="fontSize"
+                    type="number"
+                    min="12"
+                    max="72"
+                    class="h-9 flex-1"
+                  />
+                  <span class="w-12 text-sm text-muted-foreground">{{ fontSize }}px</span>
+                </div>
               </div>
-            </div>
 
-            <!-- 透明度 -->
-            <div class="space-y-2">
-              <Label for="opacity" class="text-label">透明度</Label>
-              <div class="flex items-center gap-3">
-                <input
-                  id="opacity"
-                  v-model.number="opacity"
-                  type="range"
-                  min="0.1"
-                  max="1"
-                  step="0.1"
-                  class="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                />
-                <span class="text-sm text-muted-foreground w-12">{{ Math.round(opacity * 100) }}%</span>
+              <div class="space-y-2">
+                <Label for="opacity" class="text-label">透明度</Label>
+                <div class="flex items-center gap-3">
+                  <input
+                    id="opacity"
+                    v-model.number="opacity"
+                    type="range"
+                    min="0.1"
+                    max="1"
+                    step="0.1"
+                    class="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-muted accent-primary"
+                  />
+                  <span class="w-12 text-sm text-muted-foreground">{{ Math.round(opacity * 100) }}%</span>
+                </div>
               </div>
-            </div>
 
-            <!-- 旋转角度 -->
-            <div class="space-y-2">
-              <Label for="angle" class="text-label">旋转角度</Label>
-              <div class="flex items-center gap-3">
-                <Input
-                  id="angle"
-                  v-model.number="angle"
-                  type="number"
-                  min="-90"
-                  max="90"
-                  class="flex-1 h-9"
-                />
-                <span class="text-sm text-muted-foreground w-12">{{ angle }}°</span>
+              <div class="space-y-2">
+                <Label for="angle" class="text-label">旋转角度</Label>
+                <div class="flex items-center gap-3">
+                  <Input
+                    id="angle"
+                    v-model.number="angle"
+                    type="number"
+                    min="-90"
+                    max="90"
+                    class="h-9 flex-1"
+                  />
+                  <span class="w-12 text-sm text-muted-foreground">{{ angle }}°</span>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <!-- 操作按钮 -->
-        <div class="space-y-2">
+        <div class="grid gap-2 sm:grid-cols-2">
           <Button
             class="w-full h-10 bg-primary text-primary-foreground hover:bg-primary-hover"
             :disabled="isSaving"
@@ -209,61 +197,36 @@ const watermarkOverlayStyle = computed(() => ({
             恢复默认
           </Button>
         </div>
-
-        <!-- 提示信息 -->
-        <Alert class="bg-accent/10 border-accent/30">
-          <SafeIcon name="Info" :size="16" class="text-accent" />
-          <AlertDescription class="text-xs text-accent ml-2">
-            水印将应用于所有产品图片的预览和下载版本
-          </AlertDescription>
-        </Alert>
       </div>
 
       <!-- 右侧：预览区 -->
-      <div class="min-h-0">
-        <Card class="surface-base flex h-full min-h-0 flex-col">
-          <CardHeader class="shrink-0 pb-3">
+      <div>
+        <Card class="surface-base">
+          <CardHeader class="pb-3">
             <CardTitle class="text-section-title">预览效果</CardTitle>
-            <CardDescription>实时预览水印在图片上的显示效果</CardDescription>
           </CardHeader>
-          <CardContent class="min-h-0 flex-1">
+          <CardContent>
             <div
               v-if="isClient"
               :style="previewStyle"
-              class="flex h-[min(520px,calc(100vh-260px))] min-h-[280px] w-full items-center justify-center bg-muted rounded-lg overflow-hidden border border-border"
+              class="flex w-full items-center justify-center rounded-lg border border-border bg-muted"
             >
               <!-- 预览图片 -->
               <img
                 :src="previewImageUrl"
                 alt="水印预览"
-                class="max-h-full max-w-full object-contain"
+                class="h-full w-full object-cover"
               />
               <!-- 水印覆盖层 -->
               <div :style="watermarkOverlayStyle">
                 {{ watermarkText || '水印预览' }}
               </div>
             </div>
-            <div v-else class="h-[min(520px,calc(100vh-260px))] min-h-[280px] w-full bg-muted rounded-lg animate-pulse" />
+            <div v-else class="aspect-square w-full rounded-lg bg-muted animate-pulse" />
           </CardContent>
         </Card>
       </div>
     </div>
-
-    <!-- 应用说明 -->
-    <Card class="surface-base shrink-0 bg-secondary/20 border-secondary/30">
-      <CardHeader class="pb-2">
-        <CardTitle class="text-sm flex items-center gap-2">
-          <SafeIcon name="HelpCircle" :size="18" class="text-primary" />
-          应用说明
-        </CardTitle>
-      </CardHeader>
-      <CardContent class="grid gap-x-6 gap-y-1 text-xs text-muted-foreground md:grid-cols-2">
-        <p>水印将应用于产品花色图和详情图</p>
-        <p>访客预览和下载时可看到水印效果</p>
-        <p>下载图片会包含水印，保护版权</p>
-        <p>修改后，新上传图片使用最新配置</p>
-      </CardContent>
-    </Card>
   </div>
 </template>
 

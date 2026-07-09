@@ -467,6 +467,48 @@ class UserService extends BaseService
         return array_values(array_unique($ids));
     }
 
+    private function getProductUploadedPictureMap($productIds)
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $productIds))));
+        if (empty($ids)) {
+            return [];
+        }
+        $rows = WdXcxUserAlbumPic::whereIn('folder_id', $ids)
+            ->with(['picture'])
+            ->select();
+        $map = [];
+        foreach ($rows as $row) {
+            if (!$row->picture) {
+                continue;
+            }
+            $folderId = (int)$row->folder_id;
+            $picId = (int)$row->pic_id;
+            $fileType = (int)$row->picture->file_type;
+            if (!$folderId || !$picId || !in_array($fileType, [1, 2], true)) {
+                continue;
+            }
+            if (!isset($map[$folderId])) {
+                $map[$folderId] = [1 => [], 2 => []];
+            }
+            $map[$folderId][$fileType][$picId] = true;
+        }
+        return $map;
+    }
+
+    private function countProductPictures($fieldPicIds, $uploadedPictureMap, $productId, $fileType)
+    {
+        $ids = [];
+        foreach ($this->normalizeProductPicIds($fieldPicIds) as $picId) {
+            $ids[$picId] = true;
+        }
+        foreach (($uploadedPictureMap[(int)$productId][(int)$fileType] ?? []) as $picId => $exists) {
+            if ($exists) {
+                $ids[(int)$picId] = true;
+            }
+        }
+        return count($ids);
+    }
+
     private function hydrateProductThumb($item)
     {
         if (!$item || (string)$item->new_thumb !== '') {
@@ -542,11 +584,22 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,is_hot,layout_type,pic_layout,pic_ids,detail_pic_ids')
+            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,is_hot,layout_type,pic_layout,pic_ids,detail_pic_ids,hide_detail_pictures')
             ->order('is_hot desc, sort desc, set_top desc, set_top_time desc, id desc')
-            ->select()
-            ->each(function($item) use ($visitorUid, $collected_ids){
+            ->select();
+
+        $productIds = [];
+        foreach ($products as $product) {
+            $productIds[] = (int)$product->id;
+        }
+        $uploadedPictureMap = $this->getProductUploadedPictureMap($productIds);
+
+        $products->each(function($item) use ($visitorUid, $collected_ids, $is_owner, $uploadedPictureMap){
                 $this->hydrateProductThumb($item);
+                $item->color_chart_count = $this->countProductPictures($item->pic_ids ?? '', $uploadedPictureMap, $item->id, 1);
+                $item->detail_chart_count = ((int)($item->hide_detail_pictures ?? 0) === 1 && !$is_owner)
+                    ? 0
+                    : $this->countProductPictures($item->detail_pic_ids ?? '', $uploadedPictureMap, $item->id, 2);
                 $item->son_count = $item->SonCount;
                 if($item->uid != $visitorUid){
                     $item->folder_name = $item->folder_name;
@@ -1157,12 +1210,12 @@ class UserService extends BaseService
 
         if (!empty($param['upload_pwd'])) {
             if (!preg_match('/^[A-Za-z0-9]{4}$/', $param['upload_pwd'])) {
-                throwError('上传密码需为4位字母或数字');
+                throwError('协同编辑密码需为4位字母或数字');
             }
         }
         if (isset($param['upload_pwd_expire_time']) && $param['upload_pwd_expire_time'] !== null && $param['upload_pwd_expire_time'] !== '') {
             if (!is_numeric($param['upload_pwd_expire_time']) || (int)$param['upload_pwd_expire_time'] < 0) {
-                throwError('上传密码有效期不合法');
+                throwError('协同编辑密码有效期不合法');
             }
             $param['upload_pwd_expire_time'] = (int)$param['upload_pwd_expire_time'];
         }

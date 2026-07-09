@@ -16,7 +16,7 @@ const handleNavigate = (productId: string) => {
   const params = new URLSearchParams({ productId })
   if (props.shareCode) params.set('code', props.shareCode)
   else if (props.targetUserId) params.set('uid', props.targetUserId)
-  window.location.href = `./product-detail.html?${params.toString()}`
+  window.location.href = `./share-home.html?${params.toString()}`
 }
 </script>
 

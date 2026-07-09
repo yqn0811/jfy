@@ -83,7 +83,7 @@ const selectedSet = computed(() => new Set(props.selectedIds))
             product.visibility === 'public'
               ? 'bg-emerald-50 text-emerald-600'
               : product.visibility === 'shared'
-                ? 'bg-amber-50 text-amber-700'
+                ? 'bg-blue-50 text-blue-700'
                 : 'bg-slate-50 text-slate-600'
           ]"
         >
@@ -92,44 +92,6 @@ const selectedSet = computed(() => new Set(props.selectedIds))
 
         <div class="absolute inset-0 z-10 bg-black/0 transition-colors group-hover:bg-black/10 group-focus-within:bg-black/10" />
 
-        <div class="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-          <Button
-            variant="secondary"
-            size="icon"
-            class="h-9 w-9 rounded-full bg-black/45 text-white shadow-sm backdrop-blur hover:bg-black/60 hover:text-white"
-            title="批量上传"
-            @click="emit('batch-upload', product.id)"
-          >
-            <SafeIcon name="Upload" :size="16" />
-          </Button>
-          <Button
-            variant="secondary"
-            size="icon"
-            class="h-9 w-9 rounded-full bg-black/45 text-white shadow-sm backdrop-blur hover:bg-black/60 hover:text-white"
-            title="分享"
-            @click="emit('share', product)"
-          >
-            <SafeIcon name="Share2" :size="16" />
-          </Button>
-          <Button
-            variant="secondary"
-            size="icon"
-            class="h-9 w-9 rounded-full bg-black/45 text-white shadow-sm backdrop-blur hover:bg-black/60 hover:text-white"
-            title="编辑"
-            @click="emit('edit', product.id)"
-          >
-            <SafeIcon name="Edit2" :size="16" />
-          </Button>
-          <Button
-            variant="secondary"
-            size="icon"
-            class="h-9 w-9 rounded-full bg-black/45 text-white shadow-sm backdrop-blur hover:bg-destructive hover:text-white"
-            title="删除"
-            @click="emit('delete', product)"
-          >
-            <SafeIcon name="Trash2" :size="16" />
-          </Button>
-        </div>
       </div>
 
       <div class="space-y-3 bg-card px-4 py-4">
@@ -145,6 +107,46 @@ const selectedSet = computed(() => new Set(props.selectedIds))
         <div class="flex items-center justify-between text-sm font-medium text-muted-foreground">
           <span>花色图: {{ product.colorChartCount || 0 }}张</span>
           <span>详情图: {{ product.detailChartCount || 0 }}张</span>
+        </div>
+
+        <div class="grid grid-cols-[1fr_auto_auto_auto] gap-2">
+          <Button
+            variant="default"
+            size="sm"
+            class="min-w-0 gap-1 px-2 text-xs"
+            title="协同编辑"
+            @click="emit('batch-upload', product.id)"
+          >
+            <SafeIcon name="UploadCloud" :size="15" />
+            <span class="truncate">协同编辑</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            class="h-9 w-9"
+            title="分享"
+            @click="emit('share', product)"
+          >
+            <SafeIcon name="Share2" :size="15" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            class="h-9 w-9"
+            title="编辑"
+            @click="emit('edit', product.id)"
+          >
+            <SafeIcon name="Edit2" :size="15" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            class="h-9 w-9 text-destructive hover:bg-destructive hover:text-white"
+            title="删除"
+            @click="emit('delete', product)"
+          >
+            <SafeIcon name="Trash2" :size="15" />
+          </Button>
         </div>
       </div>
     </article>

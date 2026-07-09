@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import {
   Dialog,
@@ -29,7 +29,6 @@ const emit = defineEmits<{
 }>()
 
 const selectedImages = ref<Set<string>>(new Set())
-const downloadFormat = ref<'original' | 'compressed'>('original')
 
 const productImages = computed(() => {
   return props.images || []
@@ -49,18 +48,25 @@ const selectAll = computed({
     if (value) {
       selectedImages.value = new Set(productImages.value.map(img => img.id))
     } else {
-      selectedImages.value.clear()
+      selectedImages.value = new Set()
     }
   }
 })
 
 const toggleImage = (imageId: string) => {
-  if (selectedImages.value.has(imageId)) {
-    selectedImages.value.delete(imageId)
+  const next = new Set(selectedImages.value)
+  if (next.has(imageId)) {
+    next.delete(imageId)
   } else {
-    selectedImages.value.add(imageId)
+    next.add(imageId)
   }
+  selectedImages.value = next
 }
+
+watch(() => props.open, (open) => {
+  if (!open) return
+  selectedImages.value = new Set()
+})
 
 const handleDownload = () => {
   if (selectedImages.value.size === 0) {
@@ -68,13 +74,10 @@ const handleDownload = () => {
     return
   }
 
-  const selectedCount = selectedImages.value.size
-  const format = downloadFormat.value === 'original' ? '原图' : '压缩图'
-  
-  toast.success(`已开始下载 ${selectedCount} 张${format}`)
+  const selectedList = productImages.value.filter(image => selectedImages.value.has(image.id))
+  toast.success(`已开始下载 ${selectedList.length} 张图片`)
 
-  productImages.value
-    .filter(image => selectedImages.value.has(image.id))
+  selectedList
     .forEach((image, index) => {
       window.setTimeout(() => {
         const link = document.createElement('a')
@@ -97,45 +100,14 @@ const handleDownload = () => {
       <DialogHeader class="flex-shrink-0">
         <DialogTitle>下载图片</DialogTitle>
         <DialogDescription>
-          选择要下载的图片和格式
+          选择要下载的图片
         </DialogDescription>
       </DialogHeader>
 
       <!-- Scrollable content -->
       <div class="flex-1 overflow-y-auto min-h-0 space-y-4 py-4">
-        <!-- Download Format Selection -->
-        <div class="space-y-2 px-6">
-          <label class="text-sm font-medium">下载格式</label>
-          <div class="space-y-2">
-            <div class="flex items-center gap-2">
-              <input
-                type="radio"
-                id="format-original"
-                v-model="downloadFormat"
-                value="original"
-                class="w-4 h-4"
-              />
-              <Label for="format-original" class="font-normal cursor-pointer">
-                原图 (高清无损)
-              </Label>
-            </div>
-            <div class="flex items-center gap-2">
-              <input
-                type="radio"
-                id="format-compressed"
-                v-model="downloadFormat"
-                value="compressed"
-                class="w-4 h-4"
-              />
-              <Label for="format-compressed" class="font-normal cursor-pointer">
-                压缩图 (更小的文件)
-              </Label>
-            </div>
-          </div>
-        </div>
-
         <!-- Select All -->
-        <div class="px-6 border-t pt-4">
+        <div class="px-6">
           <div class="flex items-center gap-2">
             <Checkbox
               :checked="selectAll"
@@ -159,6 +131,7 @@ const handleDownload = () => {
             >
               <Checkbox
                 :checked="selectedImages.has(image.id)"
+                @click.stop
                 @update:checked="toggleImage(image.id)"
               />
               <img
@@ -186,6 +159,7 @@ const handleDownload = () => {
             >
               <Checkbox
                 :checked="selectedImages.has(image.id)"
+                @click.stop
                 @update:checked="toggleImage(image.id)"
               />
               <img

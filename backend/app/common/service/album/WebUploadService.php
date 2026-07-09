@@ -28,6 +28,7 @@ class WebUploadService extends BaseService
      */
     public function getWebAlbumInfo($param)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $record = WdXcxUserAlbumUploadCode::where('upload_code', $param['code'])->find();
         if(!$record){
             throwError('指定的上传码不存在');
@@ -64,6 +65,8 @@ class WebUploadService extends BaseService
         }
         $result = [
             'content' => '把该链接分享给好友，即可多人一起上传哦',
+            'upload_enabled' => (int)$record->upload_enabled,
+            'access_enabled' => (int)$record->upload_enabled,
             'has_password' => $user->upload_pwd ? 1 : 0,
             'password_expire_time' => (int)$user->upload_pwd_expire_time,
             'password_expired' => $uploadPwdExpired ? 1 : 0,
@@ -84,6 +87,7 @@ class WebUploadService extends BaseService
      */
     public function getWebAlbumUploadToken($param)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $record = WdXcxUserAlbumUploadCode::where('upload_code', $param['code'])->find();
         if(!$record){
             throwError('指定的上传码不存在');
@@ -100,9 +104,12 @@ class WebUploadService extends BaseService
         if(!$user){
             throwError('指定的上传码对应的用户不存在');
         }
+        if((int)$record->upload_enabled !== 1){
+            throwError('此产品协同编辑入口已关闭');
+        }
         if($user->upload_pwd){
             if($this->isUploadPasswordExpired($user)){
-                throwError('上传密码已过期，请联系分享者更新密码');
+                throwError('协同编辑密码已过期，请联系分享者更新密码');
             }
             if(empty($param['password'])){
                 throwError('请填写密码');

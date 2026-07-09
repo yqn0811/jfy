@@ -785,7 +785,7 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
     case 'web/token/upload': {
       const info = uploadInfoByCode(state, String(body.code || params.code))
       if (!info) throw new Error('链接无效或已失效')
-      if (Number(info.upload_enabled || 0) !== 1) throw new Error('此产品上传入口已关闭')
+      if (Number(info.upload_enabled || 0) !== 1) throw new Error('此产品协同编辑入口已关闭')
       if (info.upload_pwd && String(body.password || '') !== String(info.upload_pwd)) throw new Error('访问密码错误')
       return ok({ token: `mock_upload_${info.fid}_${Date.now()}` }) as T
     }

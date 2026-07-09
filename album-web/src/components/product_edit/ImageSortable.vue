@@ -20,35 +20,77 @@ const emit = defineEmits<{
 }>()
 
 const draggedIndex = ref<number | null>(null)
-const dragOverIndex = ref<number | null>(null)
+const draggedImageId = ref<string | null>(null)
+const dragOverIndex = ref<number | 'end' | null>(null)
 
-const handleDragStart = (index: number) => {
+const resetDragState = () => {
+  draggedIndex.value = null
+  draggedImageId.value = null
+  dragOverIndex.value = null
+}
+
+const handleDragStart = (index: number, event: DragEvent) => {
   draggedIndex.value = index
+  draggedImageId.value = props.images[index]?.id || null
+  if (event.dataTransfer && draggedImageId.value) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.dropEffect = 'move'
+    event.dataTransfer.setData('text/plain', draggedImageId.value)
+  }
 }
 
 const handleDragOver = (index: number, e: DragEvent) => {
   e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
   dragOverIndex.value = index
+}
+
+const handleListDragOver = (event: DragEvent) => {
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dragOverIndex.value = 'end'
 }
 
 const handleDragLeave = () => {
   dragOverIndex.value = null
 }
 
-const handleDrop = (targetIndex: number) => {
-  if (draggedIndex.value === null || draggedIndex.value === targetIndex) {
-    draggedIndex.value = null
-    dragOverIndex.value = null
+const moveImage = (targetIndex: number) => {
+  const sourceIndex = draggedImageId.value
+    ? props.images.findIndex(image => image.id === draggedImageId.value)
+    : draggedIndex.value
+
+  if (sourceIndex === null || sourceIndex < 0) {
+    resetDragState()
     return
   }
 
   const newImages = [...props.images]
-  const [draggedItem] = newImages.splice(draggedIndex.value, 1)
-  newImages.splice(targetIndex, 0, draggedItem)
+  const [draggedItem] = newImages.splice(sourceIndex, 1)
+  const nextIndex = Math.max(0, Math.min(targetIndex, newImages.length))
+  newImages.splice(nextIndex, 0, draggedItem)
   emit('reorder', newImages.map((item, index) => ({ ...item, sortOrder: index })), props.type)
 
-  draggedIndex.value = null
-  dragOverIndex.value = null
+  resetDragState()
+}
+
+const handleDrop = (targetIndex: number) => {
+  if (draggedIndex.value === null) {
+    resetDragState()
+    return
+  }
+
+  if (draggedIndex.value === targetIndex) {
+    resetDragState()
+    return
+  }
+
+  moveImage(targetIndex)
+}
+
+const handleDropAtEnd = () => {
+  if (draggedIndex.value === null) return
+  moveImage(props.images.length)
 }
 
 const handleRemove = (id: string) => {
@@ -62,31 +104,38 @@ const typeLabel = computed(() => {
 
 <template>
   <div :class="props.class">
-    <p class="text-sm font-medium text-muted-foreground mb-3">
+    <p class="mb-2 text-sm font-medium text-muted-foreground">
       已上传 {{ images.length }} 张{{ typeLabel }}（可拖拽排序）
     </p>
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+    <div
+      class="flex flex-wrap gap-3"
+      @dragover.self.prevent="handleListDragOver"
+      @drop.self.prevent="handleDropAtEnd"
+    >
       <div
         v-for="(image, index) in images"
         :key="image.id"
-        draggable
-        class="group relative aspect-square rounded-lg border-2 border-dashed border-border overflow-hidden bg-muted/30 cursor-move transition-all hover:border-primary"
+        draggable="true"
+        class="group relative h-28 w-28 overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted/30 cursor-move transition-all hover:border-primary"
         :class="
           cn(
             dragOverIndex === index && 'border-primary bg-primary/10',
             draggedIndex === index && 'opacity-50'
           )
         "
-        @dragstart="handleDragStart(index)"
+        :aria-grabbed="draggedIndex === index"
+        @dragstart="handleDragStart(index, $event)"
         @dragover="handleDragOver(index, $event)"
         @dragleave="handleDragLeave"
-        @drop="handleDrop(index)"
+        @drop.stop.prevent="handleDrop(index)"
+        @dragend="resetDragState"
       >
         <!-- Image Preview -->
         <img
           :src="image.thumbnailUrl"
           :alt="image.name"
+          draggable="false"
           class="w-full h-full object-cover"
         />
 
@@ -109,6 +158,24 @@ const typeLabel = computed(() => {
           {{ index + 1 }}
         </div>
 
+        <div class="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded bg-black/50 text-white opacity-80">
+          <SafeIcon name="GripVertical" :size="14" />
+        </div>
+
+      </div>
+
+      <div
+        v-if="draggedIndex !== null"
+        :class="
+          cn(
+            'flex h-28 w-28 items-center justify-center rounded-lg border-2 border-dashed text-xs text-muted-foreground transition-colors',
+            dragOverIndex === 'end' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-muted/20'
+          )
+        "
+        @dragover.stop.prevent="handleListDragOver"
+        @drop.stop.prevent="handleDropAtEnd"
+      >
+        放到末尾
       </div>
     </div>
   </div>
