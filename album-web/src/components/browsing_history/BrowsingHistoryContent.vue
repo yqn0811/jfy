@@ -131,7 +131,7 @@ const handleConfirmDelete = async () => {
 }
 
 const handleGoToBrowse = () => {
-  window.location.href = './share-home.html'
+  window.location.href = './share-home'
 }
 
 const formatDate = (dateStr: string) => {

@@ -1520,6 +1520,49 @@ class UserService extends BaseService
         if (isset($param['home_share_image']) && $param['home_share_image'] !== null) {
             $user->home_share_image = $param['home_share_image'];
         }
+        if (isset($param['company_name']) && $param['company_name'] !== null) {
+            $user->company_name = $param['company_name'];
+        }
+        if (isset($param['company_logo']) && $param['company_logo'] !== null) {
+            $user->company_logo = $param['company_logo'];
+        }
+        if (isset($param['company_desc']) && $param['company_desc'] !== null) {
+            $user->company_desc = $param['company_desc'];
+        }
+        if (isset($param['contact_mobile']) && $param['contact_mobile'] !== null) {
+            $user->contact_mobile = $param['contact_mobile'];
+        }
+        if (isset($param['contact_wechat']) && $param['contact_wechat'] !== null) {
+            $user->contact_wechat = $param['contact_wechat'];
+        }
+        if (isset($param['address_province']) && $param['address_province'] !== null) {
+            $user->address_province = $param['address_province'];
+        }
+        if (isset($param['address_city']) && $param['address_city'] !== null) {
+            $user->address_city = $param['address_city'];
+        }
+        if (isset($param['address_district']) && $param['address_district'] !== null) {
+            $user->address_district = $param['address_district'];
+        }
+        if (isset($param['address_detail']) && $param['address_detail'] !== null) {
+            $user->address_detail = $param['address_detail'];
+        }
+        if (isset($param['is_show_home']) && $param['is_show_home'] !== null) {
+            $user->is_show_home = (int)$param['is_show_home'];
+        }
+        if (isset($param['industry_info']) && $param['industry_info'] !== null && $param['industry_info'] !== '') {
+            $industry = (int)$param['industry_info'];
+            if (!in_array($industry, [0, 1, 2, 3], true)) {
+                throwError('行业信息不合法');
+            }
+            $user->industry_info = $industry;
+        }
+        if (isset($param['latitude']) && $param['latitude'] !== null) {
+            $user->latitude = $param['latitude'];
+        }
+        if (isset($param['longitude']) && $param['longitude'] !== null) {
+            $user->longitude = $param['longitude'];
+        }
         $user->save();
     }
 
@@ -2062,6 +2105,8 @@ class UserService extends BaseService
      */
     public function getUserAllDeleteProductLists($user_id, $params = [])
     {
+        $this->clearExpiredRecycleProducts($user_id);
+
         $limit = isset($params['limit']) ? $params['limit'] : 30;
         $key = isset($params['key']) ? $params['key'] : '';
 
@@ -2073,7 +2118,7 @@ class UserService extends BaseService
         }
 
         $lists = $query->order('id desc')
-            ->field('id, folder_name, folder_type, new_thumb, pic_ids, detail_pic_ids, create_time')
+            ->field('id, folder_name, folder_type, new_thumb, pic_ids, detail_pic_ids, create_time, delete_time')
             ->paginate($limit)->each(function ($item){
                 $thumb = $item->NewThumb;
                 if (!$thumb && $item->folder_type == 2) {
@@ -2099,9 +2144,25 @@ class UserService extends BaseService
                 $item->pic_name = $item->folder_name;
                 $item->isChecked = false;
                 $item->create_time_str = date('Y/m/d H:i', $item->getData('create_time'));
+                $deleteTime = (int)$item->getData('delete_time');
+                $item->delete_time_str = $deleteTime > 0 ? date('Y/m/d H:i', $deleteTime) : '';
+                $item->expire_time_str = $deleteTime > 0 ? date('Y/m/d H:i', $deleteTime + 30 * 86400) : '';
                 unset($item->pic_ids, $item->detail_pic_ids);
             });
         return $lists;
+    }
+
+    private function clearExpiredRecycleProducts($user_id)
+    {
+        $expireTime = time() - 30 * 86400;
+        $products = WdXcxAlbumFolder::onlyTrashed()
+            ->where('uid', $user_id)
+            ->whereNotNull('delete_time')
+            ->where('delete_time', '<=', $expireTime)
+            ->select();
+        foreach ($products as $product) {
+            $product->force()->delete();
+        }
     }
 
     /**用户还原回收站产品

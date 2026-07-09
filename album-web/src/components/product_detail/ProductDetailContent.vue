@@ -11,6 +11,7 @@ import DownloadDialog from './DownloadDialog.vue'
 import ImagePreviewDialog from './ImagePreviewDialog.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
 import { authStore, getUrlHomeTarget, pcApi } from '@/lib/api'
+import { isVipMember } from '@/lib/account'
 import { mapProductDetail, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import type { ProductImageData } from '@/data/ProductImageData'
@@ -26,6 +27,7 @@ const shareCode = ref('')
 const isFavorited = ref(false)
 const isLoggedIn = ref(false)
 const isOwnerView = ref(false)
+const currentUser = ref<any>({})
 const showLoginDialog = ref(false)
 const showShareDialog = ref(false)
 const showDownloadDialog = ref(false)
@@ -42,9 +44,11 @@ const detailChartImages = computed(() =>
   productImages.value.filter(img => img.type === 'detailChart')
 )
 
+const canUseOriginalImage = computed(() => isOwnerView.value || isVipMember(currentUser.value))
+
 const canDownload = computed(() => {
   if (!product.value) return false
-  return product.value.allowDownload === true || isOwnerView.value
+  return (product.value.allowDownload === true || isOwnerView.value) && canUseOriginalImage.value
 })
 
 const downloadableImages = computed(() => {
@@ -64,6 +68,7 @@ const loadProduct = async () => {
     return
   }
   isLoggedIn.value = authStore.isLoggedIn()
+  currentUser.value = authStore.getUser<any>() || {}
 
   isLoading.value = true
   try {
@@ -74,7 +79,7 @@ const loadProduct = async () => {
     product.value = mapProductDetail(raw, targetUserId.value)
     productImages.value = mapProductImagesFromDetail(raw, product.value.id)
     isFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
-    const currentUid = String(authStore.getUser<any>()?.id || authStore.getUser<any>()?.uid || '')
+    const currentUid = String(currentUser.value?.id || currentUser.value?.uid || '')
     isOwnerView.value = !!currentUid && currentUid === String(detail?.uid || product.value.ownerUserId)
     if (isLoggedIn.value) pcApi.addVisit('product', product.value.id).catch(() => {})
   } catch (error: any) {
@@ -128,7 +133,11 @@ const handleDownload = () => {
   }
 
   if (!canDownload.value) {
-    toast.error('分享者未开放图片下载')
+    if (!canUseOriginalImage.value) {
+      toast.warning('开通会员后可下载原图')
+    } else {
+      toast.error('分享者未开放图片下载')
+    }
     return
   }
 

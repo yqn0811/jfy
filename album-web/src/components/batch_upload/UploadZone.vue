@@ -74,7 +74,7 @@ const handleFiles = async (files: FileList) => {
     return
   }
 
-  const items = imageFiles.map(file => ({
+  const items: UploadItem[] = imageFiles.map(file => ({
     previewUrl: URL.createObjectURL(file),
     finalUrl: '',
     status: 'uploading' as const,

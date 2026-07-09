@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 
 const handleReturnHome = () => {
-  window.location.href = './share-home.html'
+  window.location.href = './share-home'
 }
 </script>
 

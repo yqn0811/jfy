@@ -37,7 +37,7 @@ const currentReason = computed(() => {
 })
 
 const handleReturn = () => {
-  window.location.href = './share-home.html'
+  window.location.href = './share-home'
 }
 </script>
 

@@ -510,7 +510,7 @@ watch([keyword, visibilityFilter], () => {
                   <Select
                     :model-value="rowDraft(row.category).visibility"
                     :disabled="isRowSaving(row.category.id)"
-                    @update:model-value="(value) => updateRowVisibility(row.category, value)"
+                    @update:model-value="(value) => updateRowVisibility(row.category, String(value))"
                   >
                     <SelectTrigger class="h-9 w-32">
                       <SelectValue />

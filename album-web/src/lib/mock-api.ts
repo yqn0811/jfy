@@ -396,7 +396,7 @@ const currentOrigin = () => {
   return window.location.origin
 }
 
-const buildBatchLink = (code: string) => `${currentOrigin()}/assets/page/product-list.html?uploadd_code=${code}`
+const buildBatchLink = (code: string) => `${currentOrigin()}/batch-upload?uploadd_code=${code}`
 
 const ensureBatchLink = (state: MockState, fid: string) => {
   if (!state.batchLinks[fid]) {
@@ -670,8 +670,8 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
         share_link: mobileLink,
         link: mobileLink,
         url_link: mobileLink,
-        pc_link: `${currentOrigin()}/share-home.html?code=${encodeURIComponent(code)}`,
-        web_link: `${currentOrigin()}/share-home.html?code=${encodeURIComponent(code)}`,
+        pc_link: `${currentOrigin()}/share-home?code=${encodeURIComponent(code)}`,
+        web_link: `${currentOrigin()}/share-home?code=${encodeURIComponent(code)}`,
         share_code: code,
         code,
         invite_code: state.user.invite_code,

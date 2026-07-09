@@ -162,14 +162,14 @@ const handleViewProduct = () => {
   if (productId.value) {
     const params = new URLSearchParams({ productId: productId.value })
     if (ownerId.value) params.set('uid', ownerId.value)
-    window.location.href = `./share-home.html?${params.toString()}`
+    window.location.href = `./share-home?${params.toString()}`
   } else {
-    window.location.href = './share-home.html'
+    window.location.href = './share-home'
   }
 }
 
 const handleBackHome = () => {
-  window.location.href = './share-home.html'
+  window.location.href = './share-home'
 }
 
 const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {

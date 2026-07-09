@@ -14,6 +14,7 @@ export const homeProfileDataList: HomeProfileData[] = [
     region: '浙江省 / 杭州市 / 余杭区',
     address: '文一西路 998 号云纺大厦 8F',
     isPublic: true,
+    allowSavePic: true,
     shareTitle: '云织家纺产品主页',
     shareDescription: '展示家纺产品、分类与详情图。',
     shareCoverUrl: 'https://spark-builder.s3.cn-north-1.amazonaws.com.cn/image/2026/7/8/3bef1daf-0218-4591-9a2c-07dc6ad5721f.png',

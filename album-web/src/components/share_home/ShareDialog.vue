@@ -38,7 +38,7 @@ const buildPcShareUrl = () => {
   const params = new URLSearchParams()
   if (props.homeProfile.shareCode) params.set('code', props.homeProfile.shareCode)
   else params.set('uid', props.homeProfile.ownerUserId || props.homeProfile.id)
-  const url = new URL('./share-home.html', window.location.href)
+  const url = new URL('./share-home', window.location.href)
   url.search = params.toString()
   return url.toString()
 }

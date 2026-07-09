@@ -194,6 +194,19 @@ class UserApiController extends ApiBaseController
             ['home_share_title', null],
             ['home_share_desc', null],
             ['home_share_image', null],
+            ['company_name', null],
+            ['company_logo', null],
+            ['company_desc', null],
+            ['contact_mobile', null],
+            ['contact_wechat', null],
+            ['address_province', null],
+            ['address_city', null],
+            ['address_district', null],
+            ['address_detail', null],
+            ['is_show_home', null],
+            ['industry_info', null],
+            ['latitude', null],
+            ['longitude', null],
         ]);
         $this->userService->updatePcSettings($param, request()->userID());
         $this->result([], 0, '更新成功');
@@ -418,6 +431,16 @@ class UserApiController extends ApiBaseController
             'upload_pwd' => $user->upload_pwd,
             'upload_pwd_expire_time' => (int)$user->upload_pwd_expire_time,
             'id' => $user->id,
+            'company_name' => $user->company_name,
+            'company_logo' => $user->company_logo,
+            'company_desc' => $user->company_desc,
+            'contact_mobile' => $user->contact_mobile,
+            'contact_wechat' => $user->contact_wechat,
+            'address_province' => $user->address_province,
+            'address_city' => $user->address_city,
+            'address_district' => $user->address_district,
+            'address_detail' => $user->address_detail,
+            'is_show_home' => (int)$user->is_show_home,
             'visit_no_need_nickname' => (int)$user->visit_no_need_nickname,
             'visit_no_need_mobile' => (int)$user->visit_no_need_mobile,
             'visit_allow_save_pic' => (int)$user->visit_allow_save_pic,
@@ -439,7 +462,11 @@ class UserApiController extends ApiBaseController
         }else{
             $result['all_space'] = $vipGradeInfo['space_size'] . 'M';
         }
-        $UserPicSize = WdXcxPic::where('uid', $uid)->sum('size');
+        $normalPicSize = (int)WdXcxPic::where('uid', $uid)->sum('size');
+        $trashPicSize = (int)WdXcxPic::onlyTrashed()->where('uid', $uid)->sum('size');
+        $UserPicSize = $normalPicSize + $trashPicSize;
+        $result['normal_space_bytes'] = $normalPicSize;
+        $result['trash_space_bytes'] = $trashPicSize;
         $result['use_space'] = $UserPicSize;
         if($UserPicSize > 0 && $vipGradeInfo['space_size'] > 0){
             $result['space_used'] = bcmul(bcdiv($UserPicSize, $vipGradeInfo['space_size'] * 1024 * 1024, 4), 100, 2);

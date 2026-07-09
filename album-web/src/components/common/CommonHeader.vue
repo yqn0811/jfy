@@ -38,7 +38,7 @@ const props = withDefaults(defineProps<Props>(), {
   isAuthenticated: false,
   userName: "访客用户",
   userAvatar: "",
-  currentPath: "./share-home.html",
+  currentPath: "./share-home",
 });
 
 const searchQuery = ref("");
@@ -51,13 +51,13 @@ const displayName = computed(() => userInfo.value?.company_name || userInfo.valu
 const displayAvatar = computed(() => userInfo.value?.avatar || userInfo.value?.company_logo || props.userAvatar);
 
 const navItems = [
-  { name: "我的收藏", href: "./favorites.html", icon: "Heart", panel: "favorites" as const },
-  { name: "浏览足迹", href: "./browsing-history.html", icon: "History", panel: "history" as const },
+  { name: "我的收藏", href: "./favorites", icon: "Heart", panel: "favorites" as const },
+  { name: "浏览足迹", href: "./browsing-history", icon: "History", panel: "history" as const },
 ];
 
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
-    window.location.href = `./share-home.html?keyword=${encodeURIComponent(searchQuery.value.trim())}`;
+    window.location.href = `./share-home?keyword=${encodeURIComponent(searchQuery.value.trim())}`;
   }
 };
 
@@ -71,7 +71,7 @@ const handleNavClick = (item: typeof navItems[number]) => {
 
 const handleMerchantLogin = () => {
   if (loggedIn.value) {
-    handleNavigate('./management-workbench.html');
+    handleNavigate('./management-workbench');
     return;
   }
   showLoginDialog.value = true;
@@ -92,7 +92,7 @@ const handleLoginSuccess = async () => {
   } catch {
     // ignore
   }
-  handleNavigate('./management-workbench.html');
+  handleNavigate('./management-workbench');
 };
 
 const isActive = (href: string) => {
@@ -122,7 +122,7 @@ onMounted(() => {
       <!-- Logo Section -->
       <div 
         class="flex items-center gap-2 cursor-pointer shrink-0" 
-        @click="handleNavigate('./share-home.html')"
+        @click="handleNavigate('./share-home')"
       >
         <BrandMark :size="32" />
         <span class="text-xl font-bold tracking-tight text-foreground">家纺云相册</span>
@@ -184,7 +184,7 @@ onMounted(() => {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem @click="handleNavigate('./management-workbench.html')" class="cursor-pointer">
+              <DropdownMenuItem @click="handleNavigate('./management-workbench')" class="cursor-pointer">
                 <SafeIcon name="LayoutDashboard" class="mr-2 h-4 w-4" />
                 <span>管理工作台</span>
               </DropdownMenuItem>

@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import type { CategoryData } from '@/data/CategoryData'
+import type { CategoryData, CategoryLayout, CategoryVisibility } from '@/data/CategoryData'
 import { toast } from 'vue-sonner'
 
 interface Props {
@@ -37,7 +37,12 @@ const emit = defineEmits<{
 const isEditing = computed(() => !!props.category?.id)
 const isLoading = ref(false)
 
-const form = ref({
+const form = ref<{
+  name: string
+  intro: string
+  visibility: CategoryVisibility
+  layout: CategoryLayout
+}>({
   name: '',
   intro: '',
   visibility: 'public' as const,

@@ -4,7 +4,8 @@ import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'
-import type { ProductImageData, ProductImageType } from '@/data/ProductData'
+import type { ProductImageType } from '@/data/ProductData'
+import type { ProductImageData } from '@/data/ProductImageData'
 
 interface Props {
   type: ProductImageType

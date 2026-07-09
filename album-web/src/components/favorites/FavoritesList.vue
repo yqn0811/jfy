@@ -162,10 +162,10 @@ const handleRemoveFavorite = async () => {
 
 const handleGoToBrowse = () => {
   if (props.embedded) {
-    window.location.href = './share-home.html'
+    window.location.href = './share-home'
     return
   }
-  window.location.href = './share-home.html'
+  window.location.href = './share-home'
 }
 
 const handlePageChange = (page: number) => {

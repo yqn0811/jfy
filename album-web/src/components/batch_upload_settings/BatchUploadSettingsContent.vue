@@ -270,7 +270,7 @@ const handleCancel = () => {
     emit('cancel')
     return
   }
-  window.location.href = './product-management.html'
+  window.location.href = './product-management'
 }
 
 // 查看产品
@@ -279,7 +279,7 @@ const handleViewProduct = () => {
     emit('view-product', currentProductId.value)
     return
   }
-  window.location.href = `./share-home.html?productId=${currentProductId.value}`
+  window.location.href = `./share-home?productId=${currentProductId.value}`
 }
 
 onMounted(() => {

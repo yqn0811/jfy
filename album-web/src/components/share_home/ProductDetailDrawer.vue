@@ -107,7 +107,7 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
   const target = getUrlHomeTarget()
   if (target.shareCode) params.set('code', target.shareCode)
   else if (target.targetUserId) params.set('uid', target.targetUserId)
-  window.location.href = `./image-viewer.html?${params.toString()}`
+  window.location.href = `./image-viewer?${params.toString()}`
 }
 </script>
 

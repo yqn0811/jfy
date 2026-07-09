@@ -377,13 +377,13 @@ export const buildPcTargetUrl = (type: PcTargetType, id: string, targetUserId = 
   const params = new URLSearchParams()
   if (targetShareCode) params.set('code', targetShareCode)
   else if (targetUserId) params.set('uid', targetUserId)
-  if (type === 'home') return `./share-home.html${params.toString() ? `?${params.toString()}` : ''}`
+  if (type === 'home') return `./share-home${params.toString() ? `?${params.toString()}` : ''}`
   if (type === 'category') {
     params.set('categoryId', id)
-    return `./category.html?${params.toString()}`
+    return `./category?${params.toString()}`
   }
   params.set('productId', id)
-  return `./share-home.html?${params.toString()}`
+  return `./share-home?${params.toString()}`
 }
 
 export const normalizeHomePayload = (homeRaw: any, categoriesRaw: any, productsRaw: any) => {

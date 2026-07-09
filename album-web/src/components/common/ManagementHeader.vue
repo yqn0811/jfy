@@ -60,21 +60,21 @@ onMounted(async () => {
 const handlePreview = () => {
   const code = userInfo.value?.share_code || userInfo.value?.shareCode || userInfo.value?.home_share_code || '';
   if (!code) return;
-  window.location.href = `./share-home.html?code=${encodeURIComponent(code)}`;
+  window.location.href = `./share-home?code=${encodeURIComponent(code)}`;
 };
 
 const handleUpgrade = () => {
-  window.location.href = './billing-usage.html';
+  window.location.href = './billing-usage';
 };
 
 const handleLogout = () => {
   authStore.clearToken();
   userInfo.value = {};
-  window.location.href = './share-home.html';
+  window.location.href = './share-home';
 };
 
 const goToWorkbench = () => {
-  window.location.href = './management-workbench.html';
+  window.location.href = './management-workbench';
 };
 </script>
 

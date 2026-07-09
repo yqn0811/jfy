@@ -16,6 +16,7 @@ import ShareDialog from './ShareDialog.vue'
 import DownloadDialog from './DownloadDialog.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
 import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
+import { isVipMember } from '@/lib/account'
 import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import type { ProductImageData } from '@/data/ProductImageData'
@@ -27,6 +28,7 @@ const isLoading = ref(false)
 const targetUserId = ref('')
 const shareCode = ref('')
 const productId = ref('')
+const currentUserInfo = ref<any>({})
 
 // State management
 const isDialogOpen = ref(true)
@@ -51,6 +53,7 @@ const hasDetailImages = computed(() => detailChartImages.value.length > 0)
 const canDownload = computed(() => {
   if (!product.value) return false
   if (product.value.hideDetailImage && !isOwnerView.value) return false
+  if (!isOwnerView.value && !isVipMember(currentUserInfo.value)) return false
   return true
 })
 
@@ -81,6 +84,7 @@ const loadProduct = async () => {
       currentUser = await pcApi.getCurrentUser()
       authStore.setUser(currentUser)
     }
+    currentUserInfo.value = currentUser || {}
     const currentUid = getCurrentUserId(currentUser)
     isOwnerView.value = !!currentUid && currentUid === String(detail?.uid || product.value.ownerUserId)
     if (isLoggedIn.value) pcApi.addVisit('product', product.value.id).catch(() => {})
@@ -136,6 +140,10 @@ const handleDownload = () => {
   }
   
   if (!canDownload.value) {
+    if (!isOwnerView.value && !isVipMember(currentUserInfo.value)) {
+      toast.warning('开通会员后可下载原图')
+      return
+    }
     toast.error('分享者未开放图片下载')
     return
   }
@@ -164,7 +172,7 @@ const handleImageClick = (imageUrl: string, index: number, type: 'colorChart' | 
   if (shareCode.value) params.set('code', shareCode.value)
   else if (targetUserId.value) params.set('uid', targetUserId.value)
   
-  window.location.href = `./image-viewer.html?${params.toString()}`
+  window.location.href = `./image-viewer?${params.toString()}`
 }
 
 const handleCloseDialog = (open = false) => {
@@ -290,7 +298,7 @@ const handleLoginSuccess = () => {
             </Button>
             <Button variant="outline" class="h-11 gap-2" @click="handleDownload">
               <SafeIcon name="Download" :size="16" />
-              下载
+              下载 ZIP
             </Button>
             <Button variant="outline" class="h-11 gap-2" @click="handleContact">
               <SafeIcon name="MessageCircle" :size="16" />
@@ -313,7 +321,7 @@ const handleLoginSuccess = () => {
       @update:open="(v) => showShareDialog = v"
     />
     <DownloadDialog
-      v-if="isLoggedIn"
+      v-if="isLoggedIn && canDownload"
       :open="showDownloadDialog"
       :product-id="product?.id || ''"
       :images="productImages"

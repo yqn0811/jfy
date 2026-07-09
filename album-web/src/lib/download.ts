@@ -1,0 +1,68 @@
+import type { ProductImageData } from '@/data/ProductImageData'
+
+const sanitizeFilename = (value: string) => {
+  const cleaned = value
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return cleaned || 'image'
+}
+
+const extensionFromUrl = (url: string) => {
+  try {
+    const parsed = new URL(url, window.location.href)
+    const match = parsed.pathname.match(/\.([a-z0-9]{2,5})$/i)
+    return match ? match[1].toLowerCase() : 'jpg'
+  } catch {
+    const match = url.split('?')[0].match(/\.([a-z0-9]{2,5})$/i)
+    return match ? match[1].toLowerCase() : 'jpg'
+  }
+}
+
+export const downloadUrl = (url: string, filename: string) => {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = sanitizeFilename(filename)
+  link.target = '_blank'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+export const downloadImagesAsZip = async (
+  images: ProductImageData[],
+  filename = 'product-images.zip',
+  onProgress?: (completed: number, total: number) => void
+) => {
+  if (!images.length) return
+
+  const { default: JSZip } = await import('jszip')
+  const zip = new JSZip()
+  const usedNames = new Map<string, number>()
+
+  for (let index = 0; index < images.length; index += 1) {
+    const image = images[index]
+    const response = await fetch(image.url, { mode: 'cors' })
+    if (!response.ok) {
+      throw new Error(`图片下载失败: ${image.name || index + 1}`)
+    }
+
+    const blob = await response.blob()
+    const extension = extensionFromUrl(image.url)
+    const baseName = sanitizeFilename(image.name || `图片-${index + 1}`)
+    const usedCount = usedNames.get(baseName) || 0
+    usedNames.set(baseName, usedCount + 1)
+    const finalName = usedCount > 0 ? `${baseName}-${usedCount + 1}.${extension}` : `${baseName}.${extension}`
+    zip.file(finalName, blob)
+    onProgress?.(index + 1, images.length)
+  }
+
+  const content = await zip.generateAsync({ type: 'blob' })
+  const objectUrl = URL.createObjectURL(content)
+  try {
+    downloadUrl(objectUrl, filename)
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+  }
+}
+

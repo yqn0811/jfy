@@ -39,7 +39,7 @@ const isLoading = ref(false)
 const isCreatingOrder = ref(false)
 const paymentDialogOpen = ref(false)
 const activePayment = ref<any>(null)
-let paymentTimer: ReturnType<typeof window.setInterval> | null = null
+let paymentTimer: number | null = null
 
 onMounted(() => {
   loadBilling()
@@ -243,7 +243,7 @@ const handleUpgrade = async (planId: string) => {
 }
 
 const handleBackToWorkbench = () => {
-  window.location.href = './management-workbench.html'
+  window.location.href = './management-workbench'
 }
 </script>
 

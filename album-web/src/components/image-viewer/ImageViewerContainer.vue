@@ -6,7 +6,9 @@ import ImageViewerHeader from './ImageViewerHeader.vue'
 import ImageViewerContent from './ImageViewerContent.vue'
 import ImageViewerFooter from './ImageViewerFooter.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
-import { authStore } from '@/lib/api'
+import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
+import { downloadUrl } from '@/lib/download'
+import { isVipMember } from '@/lib/account'
 
 interface ImageData {
   url: string
@@ -20,19 +22,21 @@ const imageUrls = ref<string[]>([])
 const currentIndex = ref(0)
 const productId = ref('')
 const isAuthenticated = ref(false)
+const canUseOriginal = ref(false)
 const isLoadingOriginal = ref(false)
 const showLoginDialog = ref(false)
 const imageLoadError = ref(false)
 
 const currentImage = computed(() => {
   if (imageUrls.value.length === 0) return null
-  return {
-    url: imageUrls.value[currentIndex.value],
-    index: currentIndex.value + 1,
-    total: imageUrls.value.length,
-    type: 'colorChart'
-  }
-})
+    return {
+      url: imageUrls.value[currentIndex.value],
+      index: currentIndex.value + 1,
+      total: imageUrls.value.length,
+      type: 'colorChart' as const,
+      isOriginalLarge: false,
+    }
+  })
 
 const handlePrevious = () => {
   if (currentIndex.value > 0) {
@@ -59,6 +63,10 @@ const handleViewOriginal = () => {
     showLoginDialog.value = true
     return
   }
+  if (!canUseOriginal.value) {
+    toast.warning('开通会员后可查看原图')
+    return
+  }
 
   if (currentImage.value?.isOriginalLarge) {
     isLoadingOriginal.value = true
@@ -74,16 +82,14 @@ const handleDownload = () => {
     showLoginDialog.value = true
     return
   }
+  if (!canUseOriginal.value) {
+    toast.warning('开通会员后可下载原图')
+    return
+  }
 
   const url = currentImage.value?.url
   if (!url) return
-  const link = document.createElement('a')
-  link.href = url
-  link.download = url.split('/').pop() || 'image.jpg'
-  link.target = '_blank'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  downloadUrl(url, url.split('/').pop() || 'image.jpg')
 }
 
 const handleClose = () => {
@@ -134,6 +140,8 @@ onMounted(() => {
   isAuthenticated.value = authStore.isLoggedIn()
   if (!isAuthenticated.value) {
     showLoginDialog.value = true
+  } else {
+    loadCurrentUserPermission()
   }
 
   window.addEventListener('keydown', handleKeyDown)
@@ -141,6 +149,25 @@ onMounted(() => {
     window.removeEventListener('keydown', handleKeyDown)
   }
 })
+
+const loadCurrentUserPermission = async () => {
+  try {
+    let user = authStore.getUser<any>() || {}
+    if (!getCurrentUserId(user)) {
+      user = await pcApi.getCurrentUser()
+      authStore.setUser(user)
+    }
+    canUseOriginal.value = isVipMember(user)
+  } catch {
+    canUseOriginal.value = false
+  }
+}
+
+const handleLoginSuccess = () => {
+  isAuthenticated.value = true
+  showLoginDialog.value = false
+  loadCurrentUserPermission()
+}
 </script>
 
 <template>
@@ -196,7 +223,7 @@ onMounted(() => {
     <LoginDialog
       :open="showLoginDialog"
       @update:open="showLoginDialog = $event"
-      @login-success="isAuthenticated = true"
+      @login-success="handleLoginSuccess"
     />
   </div>
 </template>

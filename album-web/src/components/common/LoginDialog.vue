@@ -28,7 +28,7 @@ const status = ref<'loading' | 'ready' | 'error' | 'local'>('loading')
 const loginError = ref('')
 const authUrl = ref('')
 const containerId = `wx-login-${Math.random().toString(36).slice(2)}`
-let scriptPollTimer: ReturnType<typeof window.setInterval> | null = null
+let scriptPollTimer: number | null = null
 
 const stopWaitingScript = () => {
   if (scriptPollTimer) {

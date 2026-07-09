@@ -18,7 +18,7 @@ const isClient = ref(true)
 const isLoading = ref(false)
 const targetType = ref<'colorChart' | 'detailChart'>('colorChart')
 const productId = ref('')
-const returnTo = ref('./product-edit.html')
+const returnTo = ref('./product-edit')
 const allResources = ref<ResourceImageVO[]>([])
 const selectedIds = ref<Set<string>>(new Set())
 const searchKeyword = ref('')
@@ -31,7 +31,7 @@ onMounted(() => {
     const target = params.get('targetType') as 'colorChart' | 'detailChart' | null
     if (target && ['colorChart', 'detailChart'].includes(target)) targetType.value = target
     productId.value = params.get('productId') || params.get('product_id') || ''
-    returnTo.value = params.get('returnTo') || (productId.value ? `./product-edit.html?productId=${productId.value}` : './product-edit.html')
+    returnTo.value = params.get('returnTo') || (productId.value ? `./product-edit?productId=${productId.value}` : './product-edit')
     isClient.value = true
     loadResources()
   })

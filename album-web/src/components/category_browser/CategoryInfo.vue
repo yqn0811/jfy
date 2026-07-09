@@ -54,7 +54,7 @@ const buildShareUrl = () => {
   if (props.shareCode) params.set('code', props.shareCode)
   else if (props.targetUserId) params.set('uid', props.targetUserId)
   const basePath = window.location.pathname.replace(/[^/]*$/, '')
-  return `${window.location.origin}${basePath}category.html?${params.toString()}`
+  return `${window.location.origin}${basePath}category?${params.toString()}`
 }
 
 const handleShare = async () => {

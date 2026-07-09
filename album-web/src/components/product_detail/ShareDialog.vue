@@ -37,7 +37,7 @@ const buildShareUrl = () => {
   const params = new URLSearchParams({ productId: props.productId })
   if (props.shareCode) params.set('code', props.shareCode)
   else if (props.targetUserId) params.set('uid', props.targetUserId)
-  const url = new URL('./share-home.html', window.location.href)
+  const url = new URL('./share-home', window.location.href)
   url.search = params.toString()
   return url.toString()
 }

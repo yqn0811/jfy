@@ -282,7 +282,7 @@ const handleCancel = () => {
     emit('cancel')
     return
   }
-  window.location.href = './product-management.html'
+  window.location.href = './product-management'
 }
 
 const buildSavePayload = () => ({
@@ -325,7 +325,7 @@ const handleSave = async () => {
     if (props.embedded) {
       emit('saved', formState.value.id || productId.value || '')
     } else {
-      window.location.href = './product-management.html'
+      window.location.href = './product-management'
     }
   } catch (error) {
     console.error('Failed to save product:', error)

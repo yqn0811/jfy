@@ -157,7 +157,7 @@ const handleSearch = () => {
   if (selectedStatus.value !== 'all') params.set('status', selectedStatus.value)
 
   const queryString = params.toString()
-  const newUrl = queryString ? `./product-management.html?${queryString}` : './product-management.html'
+  const newUrl = queryString ? `./product-management?${queryString}` : './product-management'
   window.history.replaceState({}, '', newUrl)
 }
 
@@ -168,7 +168,7 @@ const handleReset = () => {
   sortKey.value = ''
   sortDirection.value = 'asc'
   currentPage.value = 1
-  window.history.replaceState({}, '', './product-management.html')
+  window.history.replaceState({}, '', './product-management')
 }
 
 watch([filteredProducts, currentPage], () => {
@@ -412,18 +412,18 @@ const handleOpenShareHome = async () => {
     toast.error('分享码获取失败，请刷新后重试')
     return
   }
-  window.open(`./share-home.html?code=${encodeURIComponent(currentShareCode.value)}`, '_blank')
+  window.open(`./share-home?code=${encodeURIComponent(currentShareCode.value)}`, '_blank')
 }
 
 const handleOpenRecycle = () => {
-  window.location.href = './recycling-bin.html'
+  window.location.href = './recycling-bin'
 }
 
 const handleOpenProductPreview = (productId: string) => {
   if (!productId) return
   const params = new URLSearchParams({ productId })
   if (currentShareCode.value) params.set('code', currentShareCode.value)
-  window.open(`./share-home.html?${params.toString()}`, '_blank')
+  window.open(`./share-home?${params.toString()}`, '_blank')
 }
 
 const handleProductSaved = async () => {

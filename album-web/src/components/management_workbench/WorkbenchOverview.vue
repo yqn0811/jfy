@@ -90,19 +90,19 @@ const quickActions = [
     title: '分类管理',
     description: '组织产品分类',
     icon: 'FolderTree',
-    href: './category-management.html',
+    href: './category-management',
   },
   {
     title: '产品管理',
     description: '编辑产品信息',
     icon: 'Package',
-    href: './product-management.html',
+    href: './product-management',
   },
   {
     title: '回收站',
     description: '恢复删除内容',
     icon: 'Trash2',
-    href: './recycling-bin.html',
+    href: './recycling-bin',
   },
 ]
 
@@ -119,7 +119,7 @@ const handleBatchUpload = () => {
     toast.error('请先创建产品')
     return
   }
-  window.location.href = './product-management.html'
+  window.location.href = './product-management'
 }
 
 const buildCategoryPayload = (data: CategoryData) => ({
@@ -180,7 +180,7 @@ const handleCreateProduct = async (data: {
 }
 
 const handleStorageClick = () => {
-  window.location.href = './billing-usage.html'
+  window.location.href = './billing-usage'
 }
 </script>
 

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/common/EmptyState.vue'
 
 const handleGoHome = () => {
-  window.location.href = './share-home.html'
+  window.location.href = './share-home'
 }
 </script>
 

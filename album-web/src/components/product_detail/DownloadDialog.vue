@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import type { ProductImageData } from '@/data/ProductImageData'
-import { pcApi } from '@/lib/api'
+import { downloadImagesAsZip } from '@/lib/download'
 
 interface Props {
   open: boolean
@@ -33,6 +33,8 @@ const emit = defineEmits<{
 }>()
 
 const selectedImages = ref<Set<string>>(new Set())
+const isDownloading = ref(false)
+const downloadProgress = ref('')
 
 const productImages = computed(() => {
   return props.images || []
@@ -88,7 +90,7 @@ const toggleSelectAll = () => {
 
 watch(() => props.open, (open) => {
   if (!open) return
-  selectedImages.value = new Set(productImages.value.map(imageKey))
+  selectedImages.value = new Set()
 })
 
 watch(productImages, (images) => {
@@ -96,7 +98,7 @@ watch(productImages, (images) => {
   selectedImages.value = new Set([...selectedImages.value].filter(id => validImageKeys.has(id)))
 })
 
-const handleDownload = () => {
+const handleDownload = async () => {
   if (!props.canDownload) {
     toast.error('商户未开放保存权限')
     return
@@ -107,23 +109,24 @@ const handleDownload = () => {
   }
 
   const selectedList = selectedImageList.value
-  toast.success(`已开始下载 ${selectedList.length} 张图片`)
-
-  selectedList
-    .forEach((image, index) => {
-      window.setTimeout(() => {
-        const link = document.createElement('a')
-        link.href = image.url
-        link.download = image.name || `product-${props.productId}-${index + 1}.jpg`
-        link.target = '_blank'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        pcApi.recordDownloadTraffic(image.id, image.url, image.sizeBytes).catch(() => {})
-      }, index * 150)
-    })
-
-  emit('update:open', false)
+  isDownloading.value = true
+  downloadProgress.value = '正在打包图片...'
+  try {
+    await downloadImagesAsZip(
+      selectedList,
+      `product-${props.productId || 'images'}.zip`,
+      (completed, total) => {
+        downloadProgress.value = `正在打包 ${completed}/${total}`
+      }
+    )
+    toast.success(`已打包 ${selectedList.length} 张图片`)
+    emit('update:open', false)
+  } catch (error: any) {
+    toast.error(error?.message || '打包下载失败，请稍后重试')
+  } finally {
+    isDownloading.value = false
+    downloadProgress.value = ''
+  }
 }
 </script>
 
@@ -133,7 +136,7 @@ const handleDownload = () => {
       <DialogHeader class="flex-shrink-0">
         <DialogTitle>下载图片</DialogTitle>
         <DialogDescription>
-          选择要下载的图片
+          选择要下载的图片，系统会打包为 ZIP 文件
         </DialogDescription>
       </DialogHeader>
 
@@ -238,12 +241,12 @@ const handleDownload = () => {
           取消
         </Button>
         <Button
-          :disabled="!canDownload || productImages.length === 0 || selectedImageList.length === 0"
+          :disabled="!canDownload || productImages.length === 0 || selectedImageList.length === 0 || isDownloading"
           @click="handleDownload"
           class="flex items-center gap-2"
         >
-          <SafeIcon name="Download" :size="16" />
-          下载 ({{ selectedImageList.length }})
+          <SafeIcon :name="isDownloading ? 'Loader2' : 'Download'" :size="16" :class="isDownloading ? 'animate-spin' : ''" />
+          {{ isDownloading ? downloadProgress || '打包中...' : `下载 ZIP (${selectedImageList.length})` }}
         </Button>
       </DialogFooter>
     </DialogContent>

@@ -16,7 +16,7 @@ const handleNavigate = (categoryId: string) => {
   const params = new URLSearchParams({ categoryId })
   if (props.shareCode) params.set('code', props.shareCode)
   else if (props.targetUserId) params.set('uid', props.targetUserId)
-  window.location.href = `./category.html?${params.toString()}`
+  window.location.href = `./category?${params.toString()}`
 }
 </script>
 

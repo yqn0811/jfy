@@ -45,24 +45,27 @@ const menuGroups: MenuGroup[] = [
   {
     label: '核心业务',
     items: [
-      { title: '工作台概览', icon: 'BarChart4', url: './management-workbench.html' },
-      { title: '产品管理', icon: 'Package', url: './product-management.html' },
-      { title: '分类管理', icon: 'FolderTree', url: './category-management.html' },
+      { title: '工作台概览', icon: 'BarChart4', url: './management-workbench' },
+      { title: '产品管理', icon: 'Package', url: './product-management' },
+      { title: '分类管理', icon: 'FolderTree', url: './category-management' },
+      { title: '编辑主页', icon: 'Store', url: './home-settings' },
+      { title: '客户选款', icon: 'ClipboardList', url: './customer-selections' },
     ],
   },
   {
     label: '个人中心',
     items: [
-      { title: '我的收藏', icon: 'Heart', url: './favorites.html', panel: 'favorites' },
-      { title: '浏览足迹', icon: 'History', url: './browsing-history.html', panel: 'history' },
+      { title: '我的收藏', icon: 'Heart', url: './favorites', panel: 'favorites' },
+      { title: '我的选款', icon: 'ListChecks', url: './my-selections' },
+      { title: '浏览足迹', icon: 'History', url: './browsing-history', panel: 'history' },
     ],
   },
   {
     label: '系统设置',
     items: [
-      { title: '水印设置', icon: 'Stamp', url: './watermark-settings.html' },
-      { title: '容量套餐', icon: 'Database', url: './billing-usage.html' },
-      { title: '回收站', icon: 'Trash2', url: './recycling-bin.html' },
+      { title: '水印设置', icon: 'Stamp', url: './watermark-settings' },
+      { title: '容量套餐', icon: 'Database', url: './billing-usage' },
+      { title: '回收站', icon: 'Trash2', url: './recycling-bin' },
     ],
   },
 ];
@@ -71,8 +74,8 @@ const quickPanel = ref<'favorites' | 'history' | ''>('');
 
 const isActive = (url: string) => {
   if (!props.currentPath) return false;
-  const normalizedNav = url.replace(/^\.\//, '').replace(/\.html$/, '');
-  const normalizedPath = props.currentPath.replace(/^\//, '').replace(/\.html$/, '');
+  const normalizedNav = url.replace(/^\.\//, '');
+  const normalizedPath = props.currentPath.replace(/^\//, '');
   return normalizedPath === normalizedNav || (normalizedNav !== '' && normalizedPath.startsWith(normalizedNav));
 };
 

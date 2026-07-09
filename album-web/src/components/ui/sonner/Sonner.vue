@@ -8,11 +8,14 @@ const props = defineProps<ToasterProps>()
 <template>
   <Sonner
     class="toaster group"
+    position="top-center"
+    rich-colors
     v-bind="props"
     :toast-options="{
+      duration: 2800,
       classes: {
-        toast: 'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
-        description: 'group-[.toast]:text-muted-foreground',
+        toast: 'jfy-toast group toast',
+        description: 'jfy-toast-description',
         actionButton:
           'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground',
         cancelButton:
