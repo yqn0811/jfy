@@ -930,21 +930,11 @@ onMounted(() => {
 .quick-send-page {
   position: relative;
   overflow-x: hidden;
-  background:
-    linear-gradient(90deg, rgb(15 23 42 / 0.035) 1px, transparent 1px),
-    linear-gradient(180deg, rgb(15 23 42 / 0.035) 1px, transparent 1px),
-    linear-gradient(135deg, #f5f8fb 0%, #eef5f1 48%, #f7f4ed 100%);
-  background-size: 32px 32px, 32px 32px, auto;
+  background: hsl(var(--background));
 }
 
 .quick-send-page::before {
-  position: absolute;
-  inset: 0;
-  content: '';
-  pointer-events: none;
-  background:
-    linear-gradient(116deg, transparent 0 58%, rgb(39 98 118 / 0.08) 58% 58.35%, transparent 58.35%),
-    linear-gradient(116deg, transparent 0 72%, rgb(177 111 54 / 0.09) 72% 72.3%, transparent 72.3%);
+  display: none;
 }
 
 .quick-send-container {
@@ -966,10 +956,10 @@ onMounted(() => {
 .transfer-card,
 .settings-card,
 .utility-panel {
-  border: 1px solid rgb(15 23 42 / 0.1);
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
-  background: rgb(255 255 255 / 0.92);
-  box-shadow: 0 18px 42px rgb(15 23 42 / 0.09);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-soft);
 }
 
 .control-panel,
@@ -997,8 +987,8 @@ onMounted(() => {
   width: fit-content;
   align-items: center;
   border-radius: 999px;
-  background: rgb(43 118 105 / 0.1);
-  color: #20685c;
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
@@ -1013,7 +1003,7 @@ onMounted(() => {
 }
 
 .intro-block h1 {
-  color: #172033;
+  color: hsl(var(--foreground));
   font-size: 30px;
   font-weight: 800;
   line-height: 1.18;
@@ -1045,7 +1035,7 @@ onMounted(() => {
   gap: 12px;
   border: 1px solid hsl(var(--border));
   border-radius: 8px;
-  background: #fff;
+  background: hsl(var(--card));
   padding: 12px;
   text-align: left;
   transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
@@ -1053,8 +1043,8 @@ onMounted(() => {
 
 .mode-option:hover,
 .mode-option.is-active {
-  border-color: rgb(43 118 105 / 0.45);
-  box-shadow: 0 10px 22px rgb(15 23 42 / 0.08);
+  border-color: hsl(var(--primary) / 0.45);
+  box-shadow: var(--shadow-soft);
 }
 
 .mode-option.is-active {
@@ -1068,8 +1058,8 @@ onMounted(() => {
   flex: 0 0 auto;
   place-items: center;
   border-radius: 8px;
-  background: rgb(43 118 105 / 0.1);
-  color: #20685c;
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
 
 .mode-copy {
@@ -1093,7 +1083,7 @@ onMounted(() => {
 }
 
 .mode-check {
-  color: #20685c;
+  color: hsl(var(--primary));
 }
 
 .stat-grid {
@@ -1127,18 +1117,18 @@ onMounted(() => {
 }
 
 .tone-blue {
-  background: rgb(57 105 164 / 0.1);
-  color: #3969a4;
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
 
 .tone-green {
-  background: rgb(43 118 105 / 0.1);
-  color: #20685c;
+  background: hsl(var(--success) / 0.1);
+  color: hsl(var(--success));
 }
 
 .tone-amber {
-  background: rgb(177 111 54 / 0.12);
-  color: #9b5f2c;
+  background: hsl(var(--warning) / 0.12);
+  color: hsl(var(--warning));
 }
 
 .panel-link-button {
@@ -1159,19 +1149,19 @@ onMounted(() => {
 
 .command-pill,
 .command-icon {
-  background: rgb(255 255 255 / 0.9);
-  box-shadow: 0 8px 22px rgb(15 23 42 / 0.08);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-soft);
 }
 
 .command-pill {
-  border-color: rgb(15 23 42 / 0.1);
-  color: #344054;
+  border-color: hsl(var(--border));
+  color: hsl(var(--foreground));
 }
 
 .command-icon {
-  border: 1px solid rgb(15 23 42 / 0.08);
+  border: 1px solid hsl(var(--border));
   border-radius: 999px;
-  color: #344054;
+  color: hsl(var(--foreground));
 }
 
 .transfer-card {
@@ -1183,8 +1173,8 @@ onMounted(() => {
 }
 
 .transfer-card.is-dragging {
-  border-color: rgb(43 118 105 / 0.55);
-  box-shadow: 0 22px 46px rgb(43 118 105 / 0.18);
+  border-color: hsl(var(--primary) / 0.55);
+  box-shadow: 0 14px 30px hsl(var(--primary) / 0.14);
   transform: translateY(-2px);
 }
 
@@ -1197,7 +1187,7 @@ onMounted(() => {
 
 .transfer-card-header h2 {
   margin-top: 10px;
-  color: #172033;
+  color: hsl(var(--foreground));
   font-size: 22px;
   font-weight: 800;
   line-height: 1.25;
@@ -1220,12 +1210,10 @@ onMounted(() => {
   width: 96px;
   height: 96px;
   place-items: center;
-  border: 1px dashed rgb(43 118 105 / 0.42);
+  border: 1px dashed hsl(var(--primary) / 0.42);
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgb(43 118 105 / 0.12), rgb(57 105 164 / 0.08)),
-    #fff;
-  color: #20685c;
+  background: hsl(var(--primary) / 0.06);
+  color: hsl(var(--primary));
 }
 
 .choose-file-button {
@@ -1240,9 +1228,9 @@ onMounted(() => {
 }
 
 .format-row span {
-  border: 1px solid rgb(15 23 42 / 0.08);
+  border: 1px solid hsl(var(--border));
   border-radius: 999px;
-  background: rgb(248 250 252 / 0.9);
+  background: hsl(var(--muted) / 0.45);
   padding: 6px 10px;
   color: hsl(var(--muted-foreground));
   font-size: 12px;
@@ -1287,10 +1275,11 @@ onMounted(() => {
   justify-content: center;
   gap: 8px;
   margin: 0 auto;
-  border: 0;
+  border: 1px solid hsl(var(--warning) / 0.22);
+  border-top: 0;
   border-radius: 0 0 8px 8px;
-  background: #b16f36;
-  color: white;
+  background: hsl(var(--warning) / 0.1);
+  color: hsl(32 72% 28%);
   font-size: 14px;
   line-height: 1.35;
   text-align: center;
@@ -1318,12 +1307,12 @@ onMounted(() => {
 .terms-row input {
   width: 16px;
   height: 16px;
-  accent-color: #20685c;
+  accent-color: hsl(var(--primary));
 }
 
 .terms-row button,
 .login-row button {
-  color: #172033;
+  color: hsl(var(--foreground));
   font-weight: 600;
 }
 
@@ -1393,8 +1382,8 @@ onMounted(() => {
 
 .panel-tab.is-active {
   background: white;
-  color: #20685c;
-  box-shadow: 0 4px 12px rgb(15 23 42 / 0.08);
+  color: hsl(var(--primary));
+  box-shadow: var(--shadow-soft);
 }
 
 .panel-section {
@@ -1405,7 +1394,7 @@ onMounted(() => {
 }
 
 .panel-heading h2 {
-  color: #172033;
+  color: hsl(var(--foreground));
   font-size: 18px;
   font-weight: 800;
   letter-spacing: 0;
@@ -1491,7 +1480,7 @@ onMounted(() => {
 
 .hint-list svg,
 .security-list svg {
-  color: #20685c;
+  color: hsl(var(--primary));
 }
 
 .recent-list {
@@ -1516,7 +1505,7 @@ onMounted(() => {
 }
 
 .recent-item:hover {
-  border-color: rgb(43 118 105 / 0.45);
+  border-color: hsl(var(--primary) / 0.45);
   transform: translateY(-1px);
 }
 

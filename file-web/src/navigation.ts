@@ -13,7 +13,7 @@ const legacyPathAliases: Record<string, string> = {
 export const normalizePath = (path: string) => {
   if (!path || path === '/' || path === '/index.html') return '/quick-send'
   const withLeadingSlash = path.startsWith('/') ? path : `/${path}`
-  const cleanPath = withLeadingSlash.replace(/\.html$/, '')
+  const cleanPath = withLeadingSlash.replace(/\.html$/, '').replace(/\/+$/, '') || '/quick-send'
   return legacyPathAliases[cleanPath] || cleanPath
 }
 

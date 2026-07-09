@@ -5,39 +5,39 @@
 
 @layer base {
   :root {
-    /* Background & Surface */
-    --background: 210 15% 98%;
-    --foreground: 215 20% 15%;
+    /* Background & Surface - align with album-web PC product shell */
+    --background: 40 20% 98%;
+    --foreground: 30 8% 18%;
     --card: 0 0% 100%;
-    --card-foreground: 215 20% 15%;
+    --card-foreground: 30 8% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 215 20% 15%;
+    --popover-foreground: 30 8% 18%;
 
-    /* Brand — 沉稳钴蓝,专业工具感 */
-    --primary: 215 78% 52%;
+    /* Brand - shared PC blue system */
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 215 20% 55%;
-    --secondary-foreground: 0 0% 100%;
-    --accent: 215 85% 95%;
-    --accent-foreground: 215 78% 52%;
+    --secondary: 214 32% 92%;
+    --secondary-foreground: 30 8% 18%;
+    --accent: 217 91% 56%;
+    --accent-foreground: 0 0% 100%;
 
     /* Muted */
-    --muted: 215 15% 92%;
-    --muted-foreground: 215 15% 45%;
+    --muted: 42 20% 92%;
+    --muted-foreground: 30 8% 45%;
 
     /* State & UI */
     --destructive: 0 75% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 215 15% 88%;
-    --input: 215 15% 88%;
-    --ring: 215 78% 52%;
+    --border: 40 18% 88%;
+    --input: 40 18% 88%;
+    --ring: 217 91% 60%;
     --radius: 0.5rem;
 
-    /* Hover states — 主色提亮 8%,辅助色提亮 5% */
-    --primary-hover: 215 78% 60%;
-    --secondary-hover: 215 20% 60%;
-    --accent-hover: 215 85% 92%;
-    --muted-hover: 215 15% 88%;
+    /* Hover states */
+    --primary-hover: 217 91% 54%;
+    --secondary-hover: 42 28% 86%;
+    --accent-hover: 217 91% 50%;
+    --muted-hover: 42 20% 86%;
 
     /* Custom state colors */
     --success: 145 65% 45%;
@@ -46,11 +46,11 @@
     --warning-foreground: 0 0% 100%;
 
     /* Shadows */
-    --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.08);
-    --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.12);
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.12);
 
-    /* Font stack — 熟悉专业 */
-    --font-sans: "PingFang SC", "Microsoft YaHei UI", "Hiragino Sans GB", system-ui, sans-serif;
+    /* Font stack */
+    --font-sans: "PingFang SC", "Helvetica Neue", system-ui, sans-serif;
 
     /* Header height for layout calculation */
     --header-height: 60px;

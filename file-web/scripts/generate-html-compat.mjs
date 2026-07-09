@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const distDir = join(process.cwd(), 'dist')
@@ -24,5 +24,6 @@ if (!existsSync(source)) {
 for (const route of routeDirs) {
   const routeDir = join(distDir, route)
   mkdirSync(routeDir, { recursive: true })
-  copyFileSync(source, join(routeDir, 'index.html'))
+  const html = readFileSync(source, 'utf8').replace(/(src|href)="\.\//g, '$1="../')
+  writeFileSync(join(routeDir, 'index.html'), html)
 }
