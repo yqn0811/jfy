@@ -6,6 +6,7 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'
 import { PublicSubmissionService } from '@/data/PublicSubmissionService'
 import type { SubmissionReceiptVO } from '@/data/PublicSubmissionService'
+import { navigateTo } from '@/navigation'
 
 const receipt = ref<SubmissionReceiptVO | null>(null)
 const isLoading = ref(false)
@@ -42,11 +43,11 @@ const handleCopyContact = () => {
 }
 
 const handleReturnToSubmission = () => {
-  window.location.href = `./submission-upload-page.html?taskId=${taskId.value}`
+  navigateTo(`/submission-upload?taskId=${taskId.value}`)
 }
 
 const handleResubmit = () => {
-  window.location.href = `./submission-upload-page.html?taskId=${taskId.value}`
+  navigateTo(`/submission-upload?taskId=${taskId.value}`)
 }
 
 const formatDate = (dateString: string) => {
@@ -68,7 +69,8 @@ const formatDate = (dateString: string) => {
 
 <template>
   <div class="page-body">
-    <div class="max-w-2xl mx-auto space-y-8">
+    <div class="page-container">
+      <div class="max-w-2xl mx-auto space-y-8">
       <!-- 成功状态卡片 -->
       <div class="surface-raised card-padding text-center space-y-6">
         <!-- 成功图标 -->
@@ -170,6 +172,7 @@ const formatDate = (dateString: string) => {
         <p>
           此页面将在 <span class="font-medium">5 分钟</span> 后自动关闭
         </p>
+      </div>
       </div>
     </div>
   </div>

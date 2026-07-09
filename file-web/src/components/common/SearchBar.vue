@@ -31,7 +31,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
 </script>
 
 <template>
-  <div class="relative w-full max-w-sm flex items-center">
+  <div class="relative w-full sm:max-w-sm flex items-center">
     <div class="absolute left-3 flex items-center pointer-events-none text-muted-foreground/60">
       <SafeIcon 
         name="Search" 

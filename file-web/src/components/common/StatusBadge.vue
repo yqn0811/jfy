@@ -4,7 +4,16 @@ import { computed } from 'vue';
 import { cn } from '@/lib/utils';
 
 interface Props {
-  status: 'draft' | 'collecting' | 'pending_review' | 'need_resubmit' | 'approved' | 'archived' | 'expired';
+  status:
+    | 'draft'
+    | 'collecting'
+    | 'pending_review'
+    | 'need_resubmit'
+    | 'need_resubmission'
+    | 'approved'
+    | 'archived'
+    | 'expired'
+    | 'submitted';
   size?: 'sm' | 'md';
 }
 
@@ -17,9 +26,11 @@ const statusConfig = {
   collecting: { label: '进行中', className: 'status-badge-collecting' },
   pending_review: { label: '待审核', className: 'status-badge-pending' },
   need_resubmit: { label: '待重传', className: 'status-badge-need-resubmit' },
+  need_resubmission: { label: '待重传', className: 'status-badge-need-resubmit' },
   approved: { label: '已通过', className: 'status-badge-approved' },
   archived: { label: '已归档', className: 'status-badge-archived' },
-  expired: { label: '已过期', className: 'status-badge-expired' }
+  expired: { label: '已过期', className: 'status-badge-expired' },
+  submitted: { label: '已提交', className: 'status-badge-collecting' }
 } as const;
 
 const config = computed(() => statusConfig[props.status] || { label: props.status, className: 'status-badge-draft' });

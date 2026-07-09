@@ -1,21 +1,25 @@
 {
-  "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
     "target": "ES2022",
+    "useDefineForClassFields": true,
     "module": "ESNext",
     "incremental": true,
-    "tsBuildInfoFile": ".astro/.tsbuildinfo",
+    "tsBuildInfoFile": "node_modules/.cache/vue-tsconfig.tsbuildinfo",
     "skipLibCheck": true,
     "noUnusedLocals": false,
     "isolatedModules": true,
     "moduleResolution": "Bundler",
+    "strict": false,
     "strictFunctionTypes": false,
     "strictNullChecks": false,
     "jsx": "preserve",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue", "src/**/*.astro"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue", "vite.config.ts"],
+  "exclude": ["dist", "node_modules"]
 }

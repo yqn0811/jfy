@@ -6,6 +6,7 @@ import type { SubmissionData } from '@/data/SubmissionData'
 import { CollectionTaskService } from '@/data/CollectionTaskService'
 import { SubmissionService } from '@/data/SubmissionService'
 import { toast } from 'vue-sonner'
+import { navigateTo } from '@/navigation'
 import TaskDetailsHeader from '@/components/task-details/TaskDetailsHeader.vue'
 import StatCardsRow from '@/components/task-details/StatCardsRow.vue'
 import SubmissionTable from '@/components/task-details/SubmissionTable.vue'
@@ -107,12 +108,12 @@ const handleArchiveTask = () => {
   
   toast.success('任务已归档')
   setTimeout(() => {
-    window.location.href = './space-archive.html'
+    navigateTo('/space-archive')
   }, 800)
 }
 
 const handleCopyLink = () => {
-  const link = `${window.location.origin}/submission-upload-page.html?taskId=${props.taskId}`
+  const link = `${window.location.origin}/submission-upload?taskId=${props.taskId}`
   navigator.clipboard.writeText(link).then(() => {
     toast.success('收集链接已复制')
   }).catch(() => {
@@ -121,12 +122,28 @@ const handleCopyLink = () => {
 }
 
 const handlePreviewSubmission = () => {
-  window.open(`./submission-upload-page.html?taskId=${props.taskId}`, '_blank')
+  window.open(`/submission-upload?taskId=${props.taskId}`, '_blank')
 }
 
 const handleShowQRCode = () => {
   toast.info('二维码已显示（模拟）')
 }
+
+watch(
+  () => props.task,
+  (nextTask) => {
+    currentTask.value = nextTask
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.submissions,
+  (nextSubmissions) => {
+    submissionList.value = nextSubmissions || []
+  },
+  { immediate: true }
+)
 </script>
 
 <template>

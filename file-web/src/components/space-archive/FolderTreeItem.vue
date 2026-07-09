@@ -45,8 +45,7 @@ const handleSelect = () => {
         <SafeIcon
           name="ChevronRight"
           :size="16"
-          class="text-muted-foreground transition-transform"
-          :class="{ 'rotate-90': isExpanded }"
+          :class="cn('text-muted-foreground transition-transform', isExpanded && 'rotate-90')"
         />
       </button>
       <div v-else class="w-6" />
@@ -78,4 +77,3 @@ const handleSelect = () => {
     </div>
   </div>
 </template>
-

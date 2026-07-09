@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import SafeIcon from '@/components/common/SafeIcon.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import { Button } from '@/components/ui/button';
+import { navigateTo } from '@/navigation';
 import { cn } from '@/lib/utils';
 
 interface Breadcrumb {
@@ -13,7 +14,7 @@ interface Breadcrumb {
 
 interface Props {
   title: string;
-  status?: 'draft' | 'collecting' | 'pending_review' | 'need_resubmit' | 'approved' | 'archived' | 'expired';
+  status?: 'draft' | 'collecting' | 'pending_review' | 'need_resubmit' | 'need_resubmission' | 'approved' | 'archived' | 'expired' | 'submitted';
   breadcrumbs?: Breadcrumb[];
 }
 
@@ -23,7 +24,7 @@ const hasBreadcrumbs = computed(() => (props.breadcrumbs || []).length > 0);
 
 const handleBack = () => {
   if (hasBreadcrumbs.value && props.breadcrumbs![0].href) {
-    window.location.href = props.breadcrumbs![0].href;
+    navigateTo(props.breadcrumbs![0].href);
   } else {
     window.history.back();
   }
@@ -44,6 +45,7 @@ const handleBack = () => {
             v-if="crumb.href"
             :href="crumb.href"
             class="breadcrumb-item inline-flex items-center"
+            @click.prevent="navigateTo(crumb.href)"
           >
             {{ crumb.label }}
           </a>

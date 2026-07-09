@@ -97,7 +97,7 @@ const formatSize = (mb: number) => {
         @update:model-value="(keyword) => emit('search', keyword)"
       />
 
-      <Select :model-value="statusFilter" @update:model-value="(status) => emit('status-filter', status)">
+      <Select :model-value="statusFilter" @update:model-value="(status) => emit('status-filter', String(status))">
         <SelectTrigger class="w-40 h-9">
           <SelectValue placeholder="选择状态" />
         </SelectTrigger>

@@ -404,11 +404,14 @@ export const taskRuleConfigDataList: TaskRuleConfigData[] = [
 
 export class CollectionTaskService {
   static getAll(): CollectionTaskData[] {
-    return collectionTaskDataList
+    const taskMap = new Map<string, CollectionTaskData>()
+    collectionTaskDataList.forEach((item) => taskMap.set(item.id, item))
+    this.loadPersisted()?.forEach((item) => taskMap.set(item.id, item))
+    return Array.from(taskMap.values())
   }
 
   static getById(id: string): CollectionTaskData | undefined {
-    return collectionTaskDataList.find((item) => item.id === id)
+    return this.getAll().find((item) => item.id === id)
   }
 
   static query(params: {
@@ -422,7 +425,7 @@ export class CollectionTaskService {
     const sortKey = params.sortKey
     const sortDirection = params.sortDirection ?? 'asc'
 
-    return collectionTaskDataList
+    return this.getAll()
       .filter((item) => {
         const matchKeyword = !keyword || item.name.toLowerCase().includes(keyword)
         const matchFilter = Object.entries(filter).every(([key, val]) => {

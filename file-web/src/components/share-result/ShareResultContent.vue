@@ -2,6 +2,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { FileShareService, type FileShareVO } from '@/data/FileShareService'
+import { FileTransferApi, getRememberedSharePassword } from '@/data/FileTransferApi'
+import { authStore, getApiErrorMessage } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,30 +12,55 @@ import { Separator } from '@/components/ui/separator'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import DetailPageHeader from '@/components/common/DetailPageHeader.vue'
 import { toast } from 'vue-sonner'
+import { navigateTo } from '@/navigation'
 import { cn } from '@/lib/utils'
 
 const allShares = ref(FileShareService.getAll())
 const currentShare = ref<FileShareVO | null>(null)
 const shareId = ref<string>('')
+const isLoadingShare = ref(true)
 
-onMounted(() => {
+onMounted(async () => {
   const params = new URLSearchParams(window.location.search)
   const paramShareId = params.get('shareId')
+  const paramShareCode = params.get('shareCode') || params.get('code')
   
-  if (paramShareId) {
-    shareId.value = paramShareId
-    const share = FileShareService.getShareVOById(paramShareId)
-    if (share) {
+  try {
+    if (paramShareCode) {
+      const rememberedPassword = getRememberedSharePassword(paramShareCode)
+      const share = authStore.hasToken()
+        ? await FileTransferApi.getOwnerShare(paramShareCode)
+        : await FileTransferApi.getPublicShare(paramShareCode, rememberedPassword)
       currentShare.value = share
-    } else {
-      currentShare.value = FileShareService.getShareVOById(allShares.value[0]?.id) || null
+      shareId.value = share.id
+      return
     }
-  } else {
+
+    if (paramShareId) {
+      shareId.value = paramShareId
+      const share = FileShareService.getShareVOById(paramShareId)
+      if (share) {
+        currentShare.value = share
+        return
+      }
+    }
+
     const defaultShare = allShares.value[0]
     if (defaultShare) {
       shareId.value = defaultShare.id
       currentShare.value = FileShareService.getShareVOById(defaultShare.id) || null
     }
+  } catch (error) {
+    if (paramShareId) {
+      const fallbackShare = FileShareService.getShareVOById(paramShareId)
+      if (fallbackShare) {
+        currentShare.value = fallbackShare
+        return
+      }
+    }
+    toast.error(getApiErrorMessage(error, '分享信息加载失败'))
+  } finally {
+    isLoadingShare.value = false
   }
 })
 
@@ -108,102 +135,103 @@ const handleExtendExpiry = () => {
 }
 
 const handleViewDownloadRecords = () => {
-  window.location.href = './delivery-records.html'
+  navigateTo('/delivery-records')
 }
 
 const handleContinueSending = () => {
-  window.location.href = './quick-send.html'
+  navigateTo('/quick-send')
 }
 
 const handleBack = () => {
-  window.location.href = './workbench.html'
+  navigateTo('/workbench')
 }
 </script>
 
 <template>
   <div class="page-body">
-    <!-- Header with Back Button -->
-    <DetailPageHeader
-      title="分享链接已生成"
-      :breadcrumbs="[
-        { label: '工作台', href: './workbench.html' },
-        { label: '分享结果' }
-      ]"
-    />
+    <div class="page-container">
+      <!-- Header with Back Button -->
+      <DetailPageHeader
+        title="分享链接已生成"
+        :breadcrumbs="[
+          { label: '工作台', href: '/workbench' },
+          { label: '分享结果' }
+        ]"
+      />
 
-    <div v-if="currentShare" class="space-y-8">
-      <!-- Success Status Card -->
-      <Card class="border-l-4 border-l-[hsl(var(--success))] bg-[hsl(var(--success)_/_0.02)]">
-        <CardHeader class="pb-3">
-          <div class="flex items-start justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-[hsl(var(--success))] flex items-center justify-center">
-                <SafeIcon name="CheckCircle2" :size="20" color="white" />
+      <div v-if="currentShare" class="space-y-8">
+        <!-- Success Status Card -->
+        <Card class="border-l-4 border-l-[hsl(var(--success))] bg-[hsl(var(--success)_/_0.02)]">
+          <CardHeader class="pb-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-[hsl(var(--success))] flex items-center justify-center">
+                  <SafeIcon name="CheckCircle2" :size="20" color="white" />
+                </div>
+                <div>
+                  <CardTitle class="text-lg">分享链接已生成</CardTitle>
+                  <CardDescription>您可以将链接分享给他人，他们可以通过链接访问您的文件</CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle class="text-lg">分享链接已生成</CardTitle>
-                <CardDescription>您可以将链接分享给他人，他们可以通过链接访问您的文件</CardDescription>
-              </div>
+              <Badge variant="outline" class="bg-[hsl(var(--success)_/_0.1)] text-[hsl(var(--success))] border-[hsl(var(--success)_/_0.3)]">
+                {{ isExpired ? '已过期' : '有效' }}
+              </Badge>
             </div>
-            <Badge variant="outline" class="bg-[hsl(var(--success)_/_0.1)] text-[hsl(var(--success))] border-[hsl(var(--success)_/_0.3)]">
-              {{ isExpired ? '已过期' : '有效' }}
-            </Badge>
-          </div>
-        </CardHeader>
-      </Card>
+          </CardHeader>
+        </Card>
 
-      <!-- Main Content Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left Column: Link & Settings -->
-        <div class="lg:col-span-2 space-y-6">
-          <!-- Share Link Section -->
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">分享链接</CardTitle>
-            </CardHeader>
-            <CardContent class="space-y-4">
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-foreground">链接地址</label>
-                <div class="flex gap-2">
-                  <Input
-                    :value="currentShare.shareUrl"
-                    readonly
-                    class="bg-muted/50 text-sm font-mono"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    class="shrink-0"
-                    @click="handleCopyLink"
-                  >
-                    <SafeIcon name="Copy" :size="18" />
-                  </Button>
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Left Column: Link & Settings -->
+          <div class="lg:col-span-2 space-y-6">
+            <!-- Share Link Section -->
+            <Card>
+              <CardHeader>
+                <CardTitle class="text-base">分享链接</CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-foreground">链接地址</label>
+                  <div class="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      :value="currentShare.shareUrl"
+                      readonly
+                      class="bg-muted/50 text-sm font-mono"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      class="shrink-0 max-sm:w-full"
+                      @click="handleCopyLink"
+                    >
+                      <SafeIcon name="Copy" :size="18" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              <Separator />
+                <Separator />
 
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-foreground">访问密码</label>
-                <div class="flex gap-2">
-                  <Input
-                    :value="currentShare.password"
-                    readonly
-                    type="password"
-                    class="bg-muted/50 text-sm font-mono"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    class="shrink-0"
-                    @click="handleCopyPassword"
-                  >
-                    <SafeIcon name="Copy" :size="18" />
-                  </Button>
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-foreground">访问密码</label>
+                  <div class="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      :value="currentShare.password"
+                      readonly
+                      type="password"
+                      class="bg-muted/50 text-sm font-mono"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      class="shrink-0 max-sm:w-full"
+                      @click="handleCopyPassword"
+                    >
+                      <SafeIcon name="Copy" :size="18" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
           <!-- Access Settings Summary -->
           <Card>
@@ -273,7 +301,7 @@ const handleBack = () => {
                   <p class="text-xs text-muted-foreground">二维码</p>
                 </div>
               </div>
-              <div class="flex gap-2">
+              <div class="flex flex-col gap-2 sm:flex-row">
                 <Button
                   variant="outline"
                   size="sm"
@@ -356,28 +384,33 @@ const handleBack = () => {
         </div>
       </div>
 
-      <!-- Bottom Action Bar -->
-      <div class="flex gap-3 justify-end pt-4 border-t border-border">
-        <Button
-          variant="outline"
-          @click="handleBack"
-        >
-          返回工作台
-        </Button>
-        <Button
-          @click="handleContinueSending"
-        >
-          <SafeIcon name="Plus" :size="16" class="mr-2" />
-          继续发送文件
-        </Button>
+        <!-- Bottom Action Bar -->
+        <div class="flex flex-col-reverse gap-3 justify-end pt-4 border-t border-border sm:flex-row">
+          <Button
+            variant="outline"
+            @click="handleBack"
+          >
+            返回工作台
+          </Button>
+          <Button
+            @click="handleContinueSending"
+          >
+            <SafeIcon name="Plus" :size="16" class="mr-2" />
+            继续发送文件
+          </Button>
+        </div>
       </div>
-    </div>
 
-    <!-- Loading State -->
-    <div v-else class="flex items-center justify-center py-16">
-      <div class="text-center">
-        <SafeIcon name="Loader2" :size="48" class="text-muted-foreground/40 mx-auto mb-4 animate-spin" />
-        <p class="text-muted-foreground">加载中...</p>
+      <!-- Loading State -->
+      <div v-else class="flex items-center justify-center py-16">
+        <div class="text-center">
+          <SafeIcon
+            :name="isLoadingShare ? 'Loader2' : 'Link2Off'"
+            :size="48"
+            :class="isLoadingShare ? 'text-muted-foreground/40 mx-auto mb-4 animate-spin' : 'text-muted-foreground/40 mx-auto mb-4'"
+          />
+          <p class="text-muted-foreground">{{ isLoadingShare ? '加载中...' : '没有找到分享链接' }}</p>
+        </div>
       </div>
     </div>
   </div>

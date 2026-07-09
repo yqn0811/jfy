@@ -20,7 +20,7 @@ const props = withDefaults(defineProps<SidebarMenuButtonProps & {
 
 const { isMobile, state } = useSidebar()
 
-const delegatedProps = reactiveOmit(props, "tooltip")
+const delegatedProps = reactiveOmit(props, "tooltip") as any
 </script>
 
 <template>

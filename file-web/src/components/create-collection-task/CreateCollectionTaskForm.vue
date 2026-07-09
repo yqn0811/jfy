@@ -23,7 +23,10 @@ import RulesStep from '@/components/create-collection-task/RulesStep.vue'
 import PreviewStep from '@/components/create-collection-task/PreviewStep.vue'
 import { CollectionTaskService } from '@/data/CollectionTaskService'
 import { TemplateService } from '@/data/TemplateService'
-import type { TaskFieldConfigData, TaskMaterialItemData, TaskRuleConfigData } from '@/data/CollectionTaskData'
+import type { CollectionTaskData, TaskFieldConfigData, TaskMaterialItemData, TaskRuleConfigData } from '@/data/CollectionTaskData'
+import { FileTransferApi } from '@/data/FileTransferApi'
+import { getApiErrorMessage } from '@/lib/apiClient'
+import { navigateTo } from '@/navigation'
 
 const isClient = ref(true)
 const currentStep = ref(1)
@@ -32,6 +35,10 @@ const isSaving = ref(false)
 const isCreating = ref(false)
 const showCancelDialog = ref(false)
 const lastSaveTime = ref(0)
+const LOCAL_FALLBACK_ENABLED =
+  import.meta.env.DEV ||
+  import.meta.env.PUBLIC_ENABLE_MOCK === '1' ||
+  import.meta.env.PUBLIC_ENABLE_MOCK === 'true'
 
 const formData = reactive({
   name: '',
@@ -139,42 +146,79 @@ const handleCreateTask = async () => {
   isCreating.value = true
 
   try {
-    const newTask = {
-      id: `task-${Date.now()}`,
-      teamId: 'team-001',
+    const created = await FileTransferApi.createCollectionTask({
       templateId: null,
       name: formData.name,
       description: formData.description,
-      status: 'collecting' as const,
       dueAt: formData.dueAt,
       submitTargetDescription: formData.submitTargetDescription,
-      submitterFieldIds: formData.fields.map((f) => f.id),
-      materialItemIds: formData.materials.map((m) => m.id),
-      ruleConfigId: `rule-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      archivedAt: null,
-      ownerId: 'user-001',
-    }
+      fields: formData.fields,
+      materials: formData.materials,
+      ruleConfig: formData.ruleConfig,
+    })
 
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('collectionTaskDraft')
-      localStorage.removeItem('collectionTaskDraftFields')
-      localStorage.removeItem('collectionTaskDraftMaterials')
-      localStorage.removeItem('collectionTaskDraftRuleConfig')
-    }
+    persistCreatedTask(created.task)
+    clearDraftStorage()
 
     toast.success('收集任务创建成功！')
 
     setTimeout(() => {
-      window.location.href = `./task-details.html?taskId=${newTask.id}`
+      navigateTo(`/task-details?taskId=${created.task.id}`)
     }, 500)
   } catch (error) {
     console.error('Create task error:', error)
-    toast.error('创建任务失败，请重试')
+    if (!LOCAL_FALLBACK_ENABLED) {
+      toast.error(getApiErrorMessage(error, '创建任务失败，请重试'))
+      return
+    }
+
+    const localTask = createLocalTask()
+    persistCreatedTask(localTask)
+    clearDraftStorage()
+    toast.success('收集任务创建成功！')
+    setTimeout(() => {
+      navigateTo(`/task-details?taskId=${localTask.id}`)
+    }, 500)
   } finally {
     isCreating.value = false
   }
+}
+
+const createLocalTask = () => ({
+  id: `task-${Date.now()}`,
+  teamId: 'team-001',
+  templateId: null,
+  name: formData.name,
+  description: formData.description,
+  status: 'collecting' as const,
+  dueAt: formData.dueAt,
+  submitTargetDescription: formData.submitTargetDescription,
+  submitterFieldIds: formData.fields.map((f) => f.id),
+  materialItemIds: formData.materials.map((m) => m.id),
+  ruleConfigId: `rule-${Date.now()}`,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  archivedAt: null,
+  ownerId: 'user-001',
+})
+
+const persistCreatedTask = (task: CollectionTaskData) => {
+  const allTasks = CollectionTaskService.getAll()
+  const existingIndex = allTasks.findIndex((item) => item.id === task.id)
+  if (existingIndex >= 0) {
+    allTasks[existingIndex] = task
+  } else {
+    allTasks.push(task)
+  }
+  CollectionTaskService.savePersisted(allTasks)
+}
+
+const clearDraftStorage = () => {
+  if (typeof localStorage === 'undefined') return
+  localStorage.removeItem('collectionTaskDraft')
+  localStorage.removeItem('collectionTaskDraftFields')
+  localStorage.removeItem('collectionTaskDraftMaterials')
+  localStorage.removeItem('collectionTaskDraftRuleConfig')
 }
 
 const handleCancel = () => {
@@ -183,7 +227,7 @@ const handleCancel = () => {
 
 const confirmCancel = () => {
   autoSaveDraft()
-  window.location.href = './workbench.html'
+  navigateTo('/workbench')
 }
 
 const loadDraftFromStorage = () => {
@@ -250,9 +294,9 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-col gap-8 max-w-4xl mx-auto" v-if="isClient">
+  <div class="flex flex-col gap-6 lg:gap-8 max-w-4xl mx-auto" v-if="isClient">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex items-start justify-between gap-4">
       <div>
         <h1 class="text-page-title mb-2">创建收集任务</h1>
         <p class="text-caption">通过简单的步骤配置任务，快速启动文件收集流程</p>
@@ -307,10 +351,11 @@ watch(
     </div>
 
     <!-- Navigation Buttons -->
-    <div class="flex items-center justify-between gap-4">
+    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex items-center gap-3">
         <Button
           variant="outline"
+          class="w-full sm:w-auto"
           @click="handlePreviousStep"
           :disabled="currentStep === 1"
         >
@@ -319,10 +364,10 @@ watch(
         </Button>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
         <AlertDialog v-model:open="showCancelDialog">
           <AlertDialogTrigger as-child>
-            <Button variant="outline">取消</Button>
+            <Button variant="outline" class="w-full sm:w-auto">取消</Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -342,6 +387,7 @@ watch(
 
         <Button
           v-if="currentStep < totalSteps"
+          class="w-full sm:w-auto"
           @click="handleNextStep"
           :disabled="!canProceedToNext"
         >
@@ -351,9 +397,9 @@ watch(
 
         <Button
           v-if="currentStep === totalSteps"
+          class="w-full sm:w-auto bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))] text-white"
           @click="handleCreateTask"
           :disabled="!canProceedToNext || isCreating"
-          class="bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))] text-white"
         >
           <SafeIcon
             v-if="isCreating"

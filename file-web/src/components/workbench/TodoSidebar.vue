@@ -24,7 +24,8 @@ const storageVariant = computed(() => {
 </script>
 
 <template>
-  <aside class="w-80 hidden lg:flex flex-col gap-6 py-6 pr-6 border-l border-border">
+  <aside class="w-full xl:w-80 flex flex-col gap-4 xl:gap-6 xl:py-6 xl:pr-6 xl:border-l border-border">
+    <div class="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-1 gap-4 xl:gap-6">
     <!-- Today Pending -->
     <StatCard
       label="今日待处理"
@@ -48,6 +49,7 @@ const storageVariant = computed(() => {
       icon="RefreshCw"
       variant="warning"
     />
+    </div>
 
     <!-- Storage Usage -->
     <div class="surface-base card-padding">

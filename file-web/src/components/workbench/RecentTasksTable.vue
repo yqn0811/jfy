@@ -29,6 +29,7 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'vue-sonner'
+import { navigateTo } from '@/navigation'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -92,7 +93,7 @@ const hoursUntilDue = (dueAt: string) => {
 }
 
 const handleTaskClick = (taskId: string) => {
-  window.location.href = `./task-details.html?taskId=${taskId}`
+  navigateTo(`/task-details?taskId=${taskId}`)
 }
 
 const handleCopyLink = (taskId: string) => {
@@ -120,7 +121,7 @@ const handleDelete = (taskId: string) => {
   <div class="space-y-4">
     <!-- Filter Bar -->
     <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-      <div class="flex-1 min-w-0 max-w-sm">
+      <div class="w-full sm:flex-1 min-w-0 sm:max-w-sm">
         <Input
           type="text"
           placeholder="搜索任务名称..."
@@ -130,7 +131,7 @@ const handleDelete = (taskId: string) => {
         />
       </div>
 
-      <Select :model-value="statusFilter" @update:model-value="(v) => emit('update:status-filter', v)">
+      <Select :model-value="statusFilter" @update:model-value="(v) => emit('update:status-filter', String(v))">
         <SelectTrigger class="w-full sm:w-48 h-9">
           <SelectValue placeholder="筛选状态" />
         </SelectTrigger>
@@ -143,7 +144,40 @@ const handleDelete = (taskId: string) => {
     </div>
 
     <!-- Table -->
-    <div class="surface-base overflow-x-auto">
+    <div class="grid gap-3 md:hidden">
+      <article
+        v-for="task in tasks"
+        :key="task.id"
+        class="surface-base p-4"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <button class="text-left text-sm font-semibold text-primary hover:underline" @click="handleTaskClick(task.id)">
+              {{ task.name }}
+            </button>
+            <p class="mt-1 text-caption">
+              {{ task.type === 'send' ? '发送' : task.type === 'collection' ? '收集' : '归档' }} ·
+              {{ new Date(task.dueAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) }}
+            </p>
+          </div>
+          <StatusBadge :status="task.status" size="sm" />
+        </div>
+
+        <div class="mt-4 flex items-center gap-2">
+          <Progress :model-value="task.submitProgress * 100" class="h-1.5 flex-1" />
+          <span class="text-xs font-medium text-muted-foreground">
+            {{ Math.round(task.submitProgress * 100) }}%
+          </span>
+        </div>
+
+        <div class="mt-3 flex items-center justify-between text-caption">
+          <span>{{ formatStorage(task.storageUsedGb) }} / {{ formatStorage(task.storageLimitGb) }}</span>
+          <button class="text-primary" @click="handleCopyLink(task.id)">复制链接</button>
+        </div>
+      </article>
+    </div>
+
+    <div class="surface-base hidden overflow-x-auto md:block">
       <Table>
         <TableHeader>
           <TableRow class="border-b border-border hover:bg-transparent">

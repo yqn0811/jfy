@@ -162,6 +162,26 @@ Route::group('order', function (){
 Route::any('pay/callback', 'PayNotifyController/orderNotify'); //支付回调通知
 
 
+// 文件传输相关。使用 PostgreSQL ai_jf 库 ft_ 前缀表，独立于相册 MySQL 表。
+Route::group('file', function (){
+    Route::get('shares/public', 'FileTransferApiController/getPublicShare');
+    Route::post('shares/verify_password', 'FileTransferApiController/verifySharePassword');
+    Route::get('shares/download', 'FileTransferApiController/downloadSharedFile');
+
+    Route::group('', function (){
+        Route::post('files/upload', 'FileTransferApiController/uploadFiles');
+        Route::post('files/register', 'FileTransferApiController/registerFile');
+        Route::get('files/download', 'FileTransferApiController/downloadFile');
+        Route::post('shares', 'FileTransferApiController/createShare');
+        Route::get('shares', 'FileTransferApiController/listShares');
+        Route::get('shares/detail', 'FileTransferApiController/getShare');
+
+        Route::post('collection/tasks', 'FileCollectionApiController/createTask');
+        Route::get('collection/tasks', 'FileCollectionApiController/listTasks');
+        Route::get('collection/tasks/detail', 'FileCollectionApiController/getTask');
+    })->middleware('auth');
+});
+
 
 
 //相册相关

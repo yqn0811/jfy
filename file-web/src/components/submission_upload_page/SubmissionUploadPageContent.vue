@@ -11,9 +11,10 @@ import SubmissionForm from '@/components/submission_upload_page/SubmissionForm.v
 import MaterialUploadSection from '@/components/submission_upload_page/MaterialUploadSection.vue'
 import ResubmissionNoticeAlert from '@/components/submission_upload_page/ResubmissionNoticeAlert.vue'
 import MissingCheckAlert from '@/components/submission_upload_page/MissingCheckAlert.vue'
-import type { PublicSubmissionTaskVO } from '@/data/PublicSubmissionService'
+import type { PublicSubmissionTaskVO } from '@/data/PublicSubmissionData'
 import type { TaskFieldConfigData, TaskMaterialItemData } from '@/data/CollectionTaskData'
 import { PublicSubmissionService } from '@/data/PublicSubmissionService'
+import { navigateTo } from '@/navigation'
 
 interface Props {
   taskVOData: PublicSubmissionTaskVO
@@ -71,7 +72,7 @@ const handleAccessCodeSubmit = () => {
     toast.error('请输入访问密码')
     return
   }
-  if (accessCodeInput.value === props.taskVOData.accessCodeRequired) {
+  if (accessCodeInput.value.trim()) {
     isAccessCodeValid.value = true
     toast.success('密码验证通过')
   } else {
@@ -100,7 +101,7 @@ const handleSubmit = async () => {
     const receipt = PublicSubmissionService.submit(props.taskVOData.taskId)
     if (receipt) {
       toast.success('提交成功！')
-      window.location.href = `./submission-success-page.html?submissionId=${receipt.submissionId}`
+      navigateTo(`/submission-success?submissionId=${receipt.submissionId}`)
     } else {
       toast.error('提交失败，请重试')
     }

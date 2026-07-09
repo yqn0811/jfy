@@ -8,6 +8,7 @@
 - 扩展要求：
   - openssl
   - pdo_mysql
+  - pdo_pgsql / pgsql（文件传输模块）
   - mbstring
   - curl
   - fileinfo
@@ -60,6 +61,22 @@ DATABASE_PASSWORD = your_password
 DATABASE_HOSTPORT = 3306
 DATABASE_CHARSET = utf8mb4
 DATABASE_PREFIX = 
+
+# 文件传输模块 PostgreSQL 配置
+# 103 测试服使用 AI 生图同库 ai_jf，不同表前缀 ft_。
+[FILE_DB]
+TYPE = pgsql
+HOSTNAME = 127.0.0.1
+DATABASE = ai_jf
+USERNAME = ai_jf_user
+PASSWORD = your_file_db_password
+HOSTPORT = 5433
+CHARSET = utf8
+PREFIX = ft_
+SCHEMA = public
+
+[FILE_TRANSFER]
+MAX_UPLOAD_MB = 500
 
 # 日志配置
 LOG_CHANNEL = file

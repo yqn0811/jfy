@@ -27,7 +27,7 @@ const emit = defineEmits<{
 }>()
 
 const breadcrumbs = [
-  { label: '工作台', href: './workbench.html' },
+  { label: '工作台', href: '/workbench' },
   { label: props.task.name }
 ]
 

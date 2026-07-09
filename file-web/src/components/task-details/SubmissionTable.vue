@@ -96,8 +96,8 @@ const handleSelectRow = (submissionId: string, checked: boolean) => {
         @update:model-value="emit('update:search-keyword', $event)"
       />
 
-      <Select :model-value="statusFilter" @update:model-value="emit('update:status-filter', $event)">
-        <SelectTrigger class="w-40 h-10">
+      <Select :model-value="statusFilter" @update:model-value="(value) => emit('update:status-filter', String(value))">
+        <SelectTrigger class="w-full sm:w-40 h-10">
           <SelectValue placeholder="筛选状态" />
         </SelectTrigger>
         <SelectContent>
@@ -119,7 +119,7 @@ const handleSelectRow = (submissionId: string, checked: boolean) => {
         <Button 
           variant="outline" 
           size="sm"
-          class="gap-2"
+          class="flex-1 gap-2 sm:flex-none"
           @click="emit('batch-remind')"
         >
           <SafeIcon name="Bell" :size="16" />
@@ -128,7 +128,7 @@ const handleSelectRow = (submissionId: string, checked: boolean) => {
         <Button 
           variant="outline" 
           size="sm"
-          class="gap-2"
+          class="flex-1 gap-2 sm:flex-none"
           @click="emit('batch-download')"
         >
           <SafeIcon name="Download" :size="16" />
@@ -137,7 +137,7 @@ const handleSelectRow = (submissionId: string, checked: boolean) => {
         <Button 
           variant="outline" 
           size="sm"
-          class="gap-2"
+          class="flex-1 gap-2 sm:flex-none"
           @click="emit('export-list')"
         >
           <SafeIcon name="FileDown" :size="16" />
@@ -159,7 +159,43 @@ const handleSelectRow = (submissionId: string, checked: boolean) => {
     </EmptyState>
 
     <!-- Table -->
-    <div v-else class="surface-base overflow-hidden">
+    <div v-else class="grid gap-3 md:hidden">
+      <article
+        v-for="submission in submissions"
+        :key="submission.id"
+        class="surface-base p-4"
+        @click="handleRowClick(submission.id)"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-foreground">{{ submission.submitterName }}</h3>
+            <p class="mt-1 text-caption">
+              {{ submission.submitterPhone }} · {{ submission.submitterDepartment }}
+            </p>
+          </div>
+          <StatusBadge :status="submission.status" size="sm" />
+        </div>
+
+        <div class="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <p class="text-xs text-muted-foreground">完整度</p>
+            <p :class="submission.hasMissing ? 'text-warning font-medium' : 'text-[hsl(var(--success))] font-medium'">
+              {{ getCompletionRate(submission) }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs text-muted-foreground">文件数</p>
+            <p class="font-medium">{{ submission.fileCount }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-muted-foreground">提交时间</p>
+            <p class="font-medium">{{ formatDate(submission.submittedAt) }}</p>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div v-if="submissions.length > 0" class="surface-base hidden overflow-hidden md:block">
       <div class="overflow-x-auto">
         <Table>
           <TableHeader>

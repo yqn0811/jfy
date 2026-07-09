@@ -1,0 +1,321 @@
+import type { CollectionTaskData, TaskFieldConfigData, TaskMaterialItemData, TaskRuleConfigData } from './CollectionTaskData'
+import type { FileShareData } from './FileShareData'
+import type { FileShareVO } from './FileShareService'
+import { apiRequest, apiUpload } from '@/lib/apiClient'
+
+export interface UploadedFileResult {
+  id: string
+  fileName: string
+  fileSizeMb: number
+  sizeBytes: number
+  status: string
+  previewUrl?: string
+  downloadUrl?: string
+}
+
+export interface CreateSharePayload {
+  title: string
+  fileIds: Array<string | number>
+  password: string
+  expiresAt: string
+  maxDownloads: number
+  allowPreview: boolean
+  notifyOnDownload: boolean
+}
+
+export interface CreateCollectionTaskPayload {
+  templateId?: string | null
+  name: string
+  description: string
+  dueAt: string
+  submitTargetDescription: string
+  fields: TaskFieldConfigData[]
+  materials: TaskMaterialItemData[]
+  ruleConfig: Omit<TaskRuleConfigData, 'id' | 'taskId' | 'draftId'>
+}
+
+export interface FileTransferShareVO extends FileShareVO {
+  shareCode: string
+}
+
+export interface CollectionTaskDetailVO {
+  task: CollectionTaskData
+  fields: TaskFieldConfigData[]
+  materials: TaskMaterialItemData[]
+  ruleConfig: TaskRuleConfigData
+  raw: any
+}
+
+const isBlank = (value: unknown) => value === undefined || value === null || value === ''
+
+const pick = <T = any>(source: any, keys: string[], fallback?: T): T => {
+  for (const key of keys) {
+    if (!isBlank(source?.[key])) return source[key] as T
+  }
+  return fallback as T
+}
+
+const toStringValue = (value: unknown, fallback = '') => {
+  if (isBlank(value)) return fallback
+  return String(value)
+}
+
+const toNumber = (value: unknown, fallback = 0) => {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : fallback
+}
+
+const toBoolean = (value: unknown, fallback = false) => {
+  if (value === undefined || value === null || value === '') return fallback
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') return !['0', 'false', 'no', 'off'].includes(value.toLowerCase())
+  return Boolean(value)
+}
+
+const toIsoLike = (value: unknown) => {
+  const raw = toStringValue(value)
+  if (!raw) return ''
+  const date = new Date(raw.replace(' ', 'T'))
+  return Number.isNaN(date.getTime()) ? raw : date.toISOString()
+}
+
+export const makeShareExpiresAt = (expiresIn: '7d' | '30d' | '90d') => {
+  const dayMap = {
+    '7d': 7,
+    '30d': 30,
+    '90d': 90,
+  }
+  return new Date(Date.now() + dayMap[expiresIn] * 24 * 60 * 60 * 1000).toISOString()
+}
+
+export const rememberSharePassword = (shareCode: string, password: string) => {
+  if (typeof sessionStorage === 'undefined' || !shareCode) return
+  sessionStorage.setItem(`file-share-password:${shareCode}`, password)
+}
+
+export const getRememberedSharePassword = (shareCode: string) => {
+  if (typeof sessionStorage === 'undefined' || !shareCode) return ''
+  return sessionStorage.getItem(`file-share-password:${shareCode}`) || ''
+}
+
+export const toAbsoluteShareUrl = (shareUrl: string, shareCode = '') => {
+  const fallbackPath = shareCode ? `/share-result?shareCode=${encodeURIComponent(shareCode)}` : '/share-result'
+  const raw = shareUrl || fallbackPath
+  if (/^https?:\/\//i.test(raw)) return raw
+  if (typeof window === 'undefined') return raw
+  return new URL(raw.replace(/\.html(?=\?|$)/, ''), window.location.origin).toString()
+}
+
+export const normalizeUploadedFile = (raw: any): UploadedFileResult => {
+  const sizeBytes = toNumber(pick(raw, ['sizeBytes', 'size_bytes'], 0))
+  const sizeMb = toNumber(pick(raw, ['sizeMb', 'size_mb', 'fileSizeMb'], sizeBytes / 1024 / 1024))
+  return {
+    id: toStringValue(pick(raw, ['id'])),
+    fileName: toStringValue(pick(raw, ['fileName', 'file_name', 'originalName', 'original_name'])),
+    fileSizeMb: Number(sizeMb.toFixed(2)),
+    sizeBytes,
+    status: toStringValue(pick(raw, ['status'], 'uploaded')),
+    previewUrl: toStringValue(pick(raw, ['previewUrl', 'preview_url'])),
+    downloadUrl: toStringValue(pick(raw, ['downloadUrl', 'download_url'])),
+  }
+}
+
+export const normalizeShareVO = (raw: any, password = ''): FileTransferShareVO => {
+  const shareCode = toStringValue(pick(raw, ['shareCode', 'share_code']))
+  const id = toStringValue(pick(raw, ['id', 'shareId', 'share_id'], shareCode || `share-${Date.now()}`))
+  return {
+    id,
+    shareCode,
+    title: toStringValue(pick(raw, ['title'], '快速分享')),
+    shareUrl: toAbsoluteShareUrl(toStringValue(pick(raw, ['shareUrl', 'share_url'])), shareCode),
+    password,
+    expiresAt: toIsoLike(pick(raw, ['expiresAt', 'expires_at'])),
+    maxDownloads: toNumber(pick(raw, ['maxDownloads', 'max_downloads'], 0)),
+    allowPreview: toBoolean(pick(raw, ['allowPreview', 'allow_preview'], true), true),
+    notifyOnDownload: toBoolean(pick(raw, ['notifyOnDownload', 'notify_on_download'], false), false),
+    status: toStringValue(pick(raw, ['status'], 'active')) as FileShareData['status'],
+    fileCount: toNumber(pick(raw, ['fileCount', 'file_count'], Array.isArray(raw?.files) ? raw.files.length : 0)),
+    totalSizeMb: toNumber(pick(raw, ['totalSizeMb', 'total_size_mb'], toNumber(pick(raw, ['totalSizeBytes', 'total_size_bytes'], 0)) / 1024 / 1024)),
+    downloadCount: toNumber(pick(raw, ['downloadCount', 'download_count'], 0)),
+    recentLogs: [],
+  }
+}
+
+export const normalizeShareData = (raw: any, password = ''): FileShareData => {
+  const vo = normalizeShareVO(raw, password)
+  return {
+    id: vo.id,
+    taskId: toStringValue(pick(raw, ['taskId', 'task_id'])),
+    title: vo.title,
+    shareUrl: vo.shareUrl,
+    password: vo.password,
+    expiresAt: vo.expiresAt,
+    maxDownloads: vo.maxDownloads,
+    allowPreview: vo.allowPreview,
+    notifyOnDownload: vo.notifyOnDownload,
+    status: vo.status,
+    fileCount: vo.fileCount,
+    totalSizeMb: vo.totalSizeMb,
+    createdAt: toIsoLike(pick(raw, ['createdAt', 'created_at'], new Date().toISOString())),
+    updatedAt: toIsoLike(pick(raw, ['updatedAt', 'updated_at'], new Date().toISOString())),
+  }
+}
+
+const normalizeTaskStatus = (raw: any): CollectionTaskData['status'] => {
+  const status = toStringValue(raw, 'collecting')
+  if (status === 'active') return 'collecting'
+  return status as CollectionTaskData['status']
+}
+
+const normalizeField = (raw: any, taskId: string): TaskFieldConfigData => ({
+  id: toStringValue(pick(raw, ['id'], `field-${taskId}-${pick(raw, ['fieldKey', 'field_key', 'fieldLabel', 'field_label'], Date.now())}`)),
+  taskId,
+  fieldKey: toStringValue(pick(raw, ['fieldKey', 'field_key', 'key'], 'field')),
+  fieldLabel: toStringValue(pick(raw, ['fieldLabel', 'field_label', 'label'], '字段')),
+  fieldType: toStringValue(pick(raw, ['fieldType', 'field_type', 'type'], 'text')) as TaskFieldConfigData['fieldType'],
+  required: toBoolean(pick(raw, ['required'], true), true),
+  placeholder: toStringValue(pick(raw, ['placeholder'])),
+  order: toNumber(pick(raw, ['order', 'sort_order'], 0)),
+})
+
+const normalizeMaterial = (raw: any, taskId: string): TaskMaterialItemData => {
+  const types = pick<any>(raw, ['fileTypes', 'file_types'], [])
+  return {
+    id: toStringValue(pick(raw, ['id'], `mat-${taskId}-${pick(raw, ['materialName', 'material_name'], Date.now())}`)),
+    taskId,
+    materialName: toStringValue(pick(raw, ['materialName', 'material_name', 'name'], '材料')),
+    fileTypes: Array.isArray(types)
+      ? types.map((item) => String(item))
+      : String(types || '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+    required: toBoolean(pick(raw, ['required'], true), true),
+    maxSizeMb: toNumber(pick(raw, ['maxSizeMb', 'max_size_mb'], 100)),
+    order: toNumber(pick(raw, ['order', 'sort_order'], 0)),
+  }
+}
+
+export const normalizeCollectionTaskDetail = (raw: any): CollectionTaskDetailVO => {
+  const id = toStringValue(pick(raw, ['id'], `task-${Date.now()}`))
+  const fields = Array.isArray(raw?.fields) ? raw.fields.map((item: any) => normalizeField(item, id)) : []
+  const materials = Array.isArray(raw?.materials) ? raw.materials.map((item: any) => normalizeMaterial(item, id)) : []
+  const ruleConfig: TaskRuleConfigData = {
+    id: `rule-${id}`,
+    taskId: id,
+    namingRule: toStringValue(pick(raw, ['namingRule', 'naming_rule'])),
+    allowResubmission: toBoolean(pick(raw, ['allowResubmission', 'allow_resubmission'], true), true),
+    enableAICheck: toBoolean(pick(raw, ['enableAICheck', 'enable_ai_check'], false), false),
+    anonymousSubmit: toBoolean(pick(raw, ['anonymousSubmit', 'anonymous_submit'], false), false),
+    allowPreview: toBoolean(pick(raw, ['allowPreview', 'allow_preview'], false), false),
+    reminderBeforeDueHours: toNumber(pick(raw, ['reminderBeforeDueHours', 'reminder_before_due_hours'], 24)),
+  }
+
+  return {
+    task: {
+      id,
+      teamId: toStringValue(pick(raw, ['teamId', 'team_id'])),
+      templateId: pick(raw, ['templateId', 'template_id'], null),
+      name: toStringValue(pick(raw, ['name'], '收集任务')),
+      description: toStringValue(pick(raw, ['description'])),
+      status: normalizeTaskStatus(pick(raw, ['status'], 'collecting')),
+      dueAt: toIsoLike(pick(raw, ['dueAt', 'due_at'])),
+      submitTargetDescription: toStringValue(pick(raw, ['submitTargetDescription', 'submit_target_description'])),
+      submitterFieldIds: fields.map((item) => item.id),
+      materialItemIds: materials.map((item) => item.id),
+      ruleConfigId: ruleConfig.id,
+      createdAt: toIsoLike(pick(raw, ['createdAt', 'created_at'], new Date().toISOString())),
+      updatedAt: toIsoLike(pick(raw, ['updatedAt', 'updated_at'], new Date().toISOString())),
+      archivedAt: pick(raw, ['archivedAt', 'archived_at'], null),
+      ownerId: toStringValue(pick(raw, ['ownerId', 'owner_id', 'ownerUserId', 'owner_user_id'])),
+    },
+    fields,
+    materials,
+    ruleConfig,
+    raw,
+  }
+}
+
+export class FileTransferApi {
+  static async uploadFiles(files: File[]): Promise<UploadedFileResult[]> {
+    const form = new FormData()
+    files.forEach((file) => {
+      form.append('files[]', file, file.name)
+      form.append('original_names[]', file.name)
+    })
+    const data = await apiUpload<{ items?: any[]; file_ids?: Array<string | number> }>('file/files/upload', form)
+    return (data.items || []).map(normalizeUploadedFile)
+  }
+
+  static async createShare(payload: CreateSharePayload): Promise<FileTransferShareVO> {
+    const data = await apiRequest<any>('file/shares', {
+      method: 'POST',
+      body: {
+        title: payload.title,
+        fileIds: payload.fileIds,
+        password: payload.password,
+        expiresAt: payload.expiresAt,
+        maxDownloads: payload.maxDownloads,
+        allowPreview: payload.allowPreview,
+        notifyOnDownload: payload.notifyOnDownload,
+      },
+    })
+    const shareCode = toStringValue(pick(data, ['shareCode', 'share_code']))
+    rememberSharePassword(shareCode, payload.password)
+    return normalizeShareVO(data, payload.password)
+  }
+
+  static async getOwnerShare(shareCode: string): Promise<FileTransferShareVO> {
+    const data = await apiRequest<any>('file/shares/detail', { params: { code: shareCode } })
+    return normalizeShareVO(data, getRememberedSharePassword(shareCode))
+  }
+
+  static async getPublicShare(shareCode: string, password = ''): Promise<FileTransferShareVO> {
+    const data = await apiRequest<any>('file/shares/public', {
+      params: { code: shareCode, password },
+      auth: false,
+    })
+    return normalizeShareVO(data, password || getRememberedSharePassword(shareCode))
+  }
+
+  static async createCollectionTask(payload: CreateCollectionTaskPayload): Promise<CollectionTaskDetailVO> {
+    const data = await apiRequest<any>('file/collection/tasks', {
+      method: 'POST',
+      body: {
+        templateId: payload.templateId,
+        name: payload.name,
+        description: payload.description,
+        dueAt: payload.dueAt,
+        submitTargetDescription: payload.submitTargetDescription,
+        fields: payload.fields.map((field, index) => ({
+          fieldKey: field.fieldKey || `field_${index + 1}`,
+          fieldLabel: field.fieldLabel,
+          fieldType: field.fieldType,
+          required: field.required,
+          placeholder: field.placeholder,
+          order: field.order || index,
+        })),
+        materials: payload.materials.map((material, index) => ({
+          materialName: material.materialName,
+          fileTypes: material.fileTypes,
+          required: material.required,
+          maxSizeMb: material.maxSizeMb,
+          order: material.order || index,
+        })),
+        namingRule: payload.ruleConfig.namingRule,
+        allowResubmission: payload.ruleConfig.allowResubmission,
+        enableAICheck: payload.ruleConfig.enableAICheck,
+        anonymousSubmit: payload.ruleConfig.anonymousSubmit,
+        allowPreview: payload.ruleConfig.allowPreview,
+        reminderBeforeDueHours: payload.ruleConfig.reminderBeforeDueHours,
+      },
+    })
+    return normalizeCollectionTaskDetail(data)
+  }
+
+  static async getCollectionTask(taskId: string | number): Promise<CollectionTaskDetailVO> {
+    const data = await apiRequest<any>('file/collection/tasks/detail', { params: { id: taskId } })
+    return normalizeCollectionTaskDetail(data)
+  }
+}

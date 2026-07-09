@@ -13,6 +13,7 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'
+import { navigateTo } from '@/navigation'
 import { cn } from '@/lib/utils'
 
 const isClient = ref(true)
@@ -102,7 +103,7 @@ const formatStorageSize = (mb: number) => {
 }
 
 const handleRecordClick = (recordId: string) => {
-  window.location.href = `./task-details.html?taskId=${recordId}`
+  navigateTo(`/task-details?taskId=${recordId}`)
 }
 
 const handleExport = () => {
@@ -140,9 +141,9 @@ onMounted(() => {
 <template>
   <div v-if="isClient" class="w-full flex flex-col gap-6">
     <!-- 页面标题 -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <h1 class="text-page-title">交付记录</h1>
-      <p class="text-caption">查看和管理所有已发送和已收集的任务记录</p>
+      <p class="text-caption sm:text-right">查看和管理所有已发送和已收集的任务记录</p>
     </div>
 
     <!-- 筛选栏 -->
@@ -153,7 +154,7 @@ onMounted(() => {
       />
 
       <Select v-model="selectedType">
-        <SelectTrigger class="w-40 h-9">
+        <SelectTrigger class="w-full sm:w-40 h-9">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -164,7 +165,7 @@ onMounted(() => {
       </Select>
 
       <Select v-model="selectedStatus">
-        <SelectTrigger class="w-40 h-9">
+        <SelectTrigger class="w-full sm:w-40 h-9">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -175,11 +176,11 @@ onMounted(() => {
       </Select>
 
       <template #actions>
-        <Button variant="outline" size="sm" @click="handleBatchDownload">
+        <Button variant="outline" size="sm" class="flex-1 sm:flex-none" @click="handleBatchDownload">
           <SafeIcon name="Download" :size="16" class="mr-2" />
           批量下载
         </Button>
-        <Button variant="outline" size="sm" @click="handleExport">
+        <Button variant="outline" size="sm" class="flex-1 sm:flex-none" @click="handleExport">
           <SafeIcon name="FileDown" :size="16" class="mr-2" />
           导出清单
         </Button>
@@ -194,7 +195,7 @@ onMounted(() => {
         description="还没有任何发送或收集的记录。返回工作台创建新任务。"
       >
         <template #actions>
-          <Button @click="() => (window.location.href = './workbench.html')">
+          <Button @click="navigateTo('/workbench')">
             <SafeIcon name="ArrowLeft" :size="16" class="mr-2" />
             返回工作台
           </Button>

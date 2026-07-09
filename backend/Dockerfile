@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     libzip-dev \
     libonig-dev \
+    libpq-dev \
     libxml2-dev
 
 # Clear cache
@@ -28,7 +29,7 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg
 
 # Install extensions
-RUN docker-php-ext-install pdo_mysql mbstring zip exif pcntl bcmath gd
+RUN docker-php-ext-install pdo_mysql pdo_pgsql pgsql mbstring zip exif pcntl bcmath gd
 
 # Install Redis extension
 RUN pecl install redis-5.3.7 \

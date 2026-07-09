@@ -7,12 +7,7 @@ import {
   HelpCircle, 
   ChevronDown, 
   Plus,
-  LayoutDashboard,
-  Send,
-  Download,
-  History,
-  LayoutTemplate,
-  FolderOpen
+  Menu
 } from 'lucide-vue-next';
 import { 
   Input 
@@ -31,7 +26,15 @@ import {
   AvatarImage,
 } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import SafeIcon from '@/components/common/SafeIcon.vue';
+import { navigateTo } from '@/navigation';
 import { cn } from '@/lib/utils';
 
 const props = defineProps<{
@@ -46,39 +49,70 @@ const user = {
 };
 
 const navigationItems = [
-  { name: '工作台', href: './workbench.html', icon: 'LayoutDashboard' },
-  { name: '发文件', href: './quick-send.html', icon: 'Send' },
-  { name: '收文件', href: './create-collection-task.html', icon: 'Download' },
-  { name: '交付记录', href: './delivery-records.html', icon: 'History' },
-  { name: '空间', href: './space-archive.html', icon: 'FolderOpen' },
+  { name: '发文件', href: '/quick-send', icon: 'Send' },
+  { name: '收文件', href: '/create-collection-task', icon: 'Download' },
+  { name: '交付记录', href: '/delivery-records', icon: 'History' },
+  { name: '空间', href: '/space-archive', icon: 'FolderOpen' },
 ];
 
 const isActive = (href: string) => {
   if (!props.currentPath) return false;
-  const current = props.currentPath.replace(/^\//, '').replace(/\.html$/, '');
-  const target = href.replace(/^\.\//, '').replace(/\.html$/, '');
-  return current === target || (target !== 'workbench' && current.startsWith(target));
+  const current = props.currentPath.replace(/\/$/, '');
+  const target = href.replace(/\/$/, '');
+  return current === target || (target !== '/workbench' && current.startsWith(target));
 };
 
 const handleNavClick = (href: string) => {
-  window.location.href = href;
+  navigateTo(href);
 };
 </script>
 
 <template>
   <header class="sticky top-0 z-50 w-full h-[60px] bg-card border-b border-border shadow-sm">
-    <div class="h-full px-6 flex items-center justify-between mx-auto">
+    <div class="h-full w-full max-w-[1440px] px-4 sm:px-6 lg:px-8 flex items-center justify-between mx-auto gap-3">
       <!-- Left: Logo and Main Nav -->
-      <div class="flex items-center gap-8 h-full">
+      <div class="flex items-center gap-3 lg:gap-8 h-full min-w-0">
+        <Sheet>
+          <SheetTrigger as-child>
+            <Button variant="ghost" size="icon" class="lg:hidden shrink-0">
+              <Menu class="w-5 h-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" class="w-[280px] p-0">
+            <SheetHeader class="border-b border-border px-4 py-4 text-left">
+              <SheetTitle class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                  <SafeIcon name="ShipWheel" :size="20" color="white" :stroke-width="2.5" />
+                </div>
+                织序传输
+              </SheetTitle>
+            </SheetHeader>
+            <nav class="p-3 space-y-1">
+              <button
+                v-for="item in navigationItems"
+                :key="item.href"
+                :class="cn(
+                  'w-full flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-left transition-colors',
+                  isActive(item.href) ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )"
+                @click="handleNavClick(item.href)"
+              >
+                <SafeIcon :name="item.icon" :size="18" />
+                {{ item.name }}
+              </button>
+            </nav>
+          </SheetContent>
+        </Sheet>
+
         <!-- Logo -->
         <div 
           class="flex items-center gap-2 cursor-pointer shrink-0" 
-          @click="handleNavClick('./workbench.html')"
+          @click="handleNavClick('/quick-send')"
         >
           <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
             <SafeIcon name="ShipWheel" :size="20" color="white" :stroke-width="2.5" />
           </div>
-          <span class="text-xl font-bold tracking-tight text-foreground whitespace-nowrap">织序传输</span>
+          <span class="hidden min-[420px]:inline text-lg sm:text-xl font-bold tracking-tight text-foreground whitespace-nowrap">织序传输</span>
         </div>
 
         <!-- Navigation -->
@@ -98,9 +132,9 @@ const handleNavClick = (href: string) => {
       </div>
 
       <!-- Right: Search and Tools -->
-      <div class="flex items-center gap-4">
+      <div class="flex items-center gap-1 sm:gap-3 lg:gap-4 min-w-0">
         <!-- Global Search -->
-        <div class="hidden md:flex items-center relative w-64">
+        <div class="hidden md:flex items-center relative w-48 xl:w-64">
           <Search class="absolute left-3 w-4 h-4 text-muted-foreground" />
           <Input 
             placeholder="搜索任务、文件或记录..." 
@@ -108,7 +142,7 @@ const handleNavClick = (href: string) => {
           />
         </div>
 
-        <div class="flex items-center gap-1 border-x border-border/60 px-2 mx-1">
+        <div class="hidden sm:flex items-center gap-1 border-x border-border/60 px-2 mx-1">
           <Button variant="ghost" size="icon" class="text-muted-foreground hover:text-foreground relative">
             <Bell class="w-5 h-5" />
             <span class="absolute top-2.5 right-2.5 w-2 h-2 bg-destructive rounded-full border-2 border-card"></span>
@@ -119,7 +153,7 @@ const handleNavClick = (href: string) => {
         </div>
 
         <!-- Team & User Profile -->
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button variant="ghost" class="hidden sm:flex items-center gap-2 px-2 hover:bg-muted">
@@ -157,7 +191,10 @@ const handleNavClick = (href: string) => {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem @click="handleNavClick('./workbench.html')">个人中心</DropdownMenuItem>
+              <DropdownMenuItem @click="handleNavClick('/workbench')">
+                <SafeIcon name="LayoutDashboard" :size="16" class="mr-2" />
+                工作台
+              </DropdownMenuItem>
               <DropdownMenuItem>账号设置</DropdownMenuItem>
               <DropdownMenuItem>安全钥匙</DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -176,4 +213,3 @@ input:focus {
   @apply ring-1 ring-primary/20 border-primary/30;
 }
 </style>
-    

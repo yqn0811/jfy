@@ -169,11 +169,14 @@ export const shareAccessLogDataList: ShareAccessLogData[] = [
 
 export class FileShareService {
   static getAll(): FileShareData[] {
-    return fileShareDataList
+    const shareMap = new Map<string, FileShareData>()
+    fileShareDataList.forEach((item) => shareMap.set(item.id, item))
+    this.loadPersisted()?.forEach((item) => shareMap.set(item.id, item))
+    return Array.from(shareMap.values())
   }
 
   static getById(id: string): FileShareData | undefined {
-    return fileShareDataList.find((item) => item.id === id)
+    return this.getAll().find((item) => item.id === id)
   }
 
   static query(params: {
@@ -187,7 +190,7 @@ export class FileShareService {
     const sortKey = params.sortKey
     const sortDirection = params.sortDirection ?? 'asc'
 
-    return fileShareDataList
+    return this.getAll()
       .filter((item) => {
         const matchKeyword = !keyword || item.title.toLowerCase().includes(keyword)
         const matchFilter = Object.entries(filter).every(([key, val]) => {

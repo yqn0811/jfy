@@ -8,6 +8,7 @@ import ActionCard from '@/components/workbench/ActionCard.vue'
 import RecentTasksTable from '@/components/workbench/RecentTasksTable.vue'
 import TodoSidebar from '@/components/workbench/TodoSidebar.vue'
 import { Button } from '@/components/ui/button'
+import { navigateTo } from '@/navigation'
 
 const isClient = ref(true)
 
@@ -54,12 +55,13 @@ const handleTaskArchived = (taskId: string) => {
 </script>
 
 <template>
-  <main class="page-body min-h-screen flex gap-6">
-    <!-- Main Content -->
-    <div class="flex-1 min-w-0">
+  <main class="page-body min-h-screen">
+    <div class="page-container flex flex-col xl:flex-row gap-6">
+      <!-- Main Content -->
+      <div class="flex-1 min-w-0">
       <!-- Header Section -->
       <div class="mb-8">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
             <h1 class="text-page-title mb-1">工作台</h1>
             <p class="text-caption">{{ workspaceOverview.teamName }}</p>
@@ -72,13 +74,13 @@ const handleTaskArchived = (taskId: string) => {
             title="发送文件"
             description="快速生成分享链接，支持密码、有效期和下载限制"
             icon="Send"
-            @click="() => (window.location.href = './quick-send.html')"
+            @click="navigateTo('/quick-send')"
           />
           <ActionCard
             title="创建收集任务"
             description="多人提交、自动整理、验收状态一目了然"
             icon="Download"
-            @click="() => (window.location.href = './create-collection-task.html')"
+            @click="navigateTo('/create-collection-task')"
           />
         </div>
       </div>
@@ -112,11 +114,11 @@ const handleTaskArchived = (taskId: string) => {
             <div class="flex gap-2">
               <Button
                 variant="outline"
-                @click="() => (window.location.href = './quick-send.html')"
+                @click="navigateTo('/quick-send')"
               >
                 发送文件
               </Button>
-              <Button @click="() => (window.location.href = './create-collection-task.html')">
+              <Button @click="navigateTo('/create-collection-task')">
                 创建收集任务
               </Button>
             </div>
@@ -135,10 +137,11 @@ const handleTaskArchived = (taskId: string) => {
           @task-archived="handleTaskArchived"
         />
       </div>
-    </div>
+      </div>
 
-    <!-- Right Sidebar -->
-    <TodoSidebar :workspace-overview="workspaceOverview" />
+      <!-- Right Sidebar -->
+      <TodoSidebar :workspace-overview="workspaceOverview" />
+    </div>
   </main>
 </template>
 

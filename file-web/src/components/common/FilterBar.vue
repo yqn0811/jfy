@@ -13,10 +13,10 @@ import { cn } from '@/lib/utils'
 </script>
 
 <template>
-  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+  <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
     <!-- Left: Filter Inputs -->
     <div 
-      class="flex flex-wrap items-center gap-3"
+      class="flex w-full flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3"
       aria-label="筛选区域"
     >
       <slot />
@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils'
 
     <!-- Right: Actions -->
     <div 
-      class="flex items-center gap-2 shrink-0"
+      class="flex w-full flex-wrap items-center gap-2 shrink-0 lg:w-auto lg:justify-end"
       aria-label="操作按钮"
     >
       <slot name="actions" />
