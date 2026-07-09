@@ -19,6 +19,7 @@ const isLoading = ref(false)
 const selections = ref<any[]>([])
 const confirmOpen = ref(false)
 const selectionToDelete = ref<any>(null)
+const brokenPreviewImages = ref<Set<string>>(new Set())
 
 const pageTitle = computed(() => props.mode === 'customer' ? '客户选款' : '我的选款')
 const pageDesc = computed(() => props.mode === 'customer' ? '客户发送给你的选款单会展示在这里' : '你发送给商家的选款单会展示在这里')
@@ -49,7 +50,16 @@ const getPreviewImages = (item: any) => {
   const preview = item.selected_preview || item.preview || []
   if (Array.isArray(preview) && preview.length) return preview
   const covers = item.cover_img || []
-  return Array.isArray(covers) ? covers.map((src: string) => ({ src, imgurl: src })) : []
+  return Array.isArray(covers) ? covers.map((src: any) => typeof src === 'string' ? { src, imgurl: src } : src) : []
+}
+const getPreviewImageSrc = (image: any) =>
+  image?.src || image?.imgurl || image?.url || image?.thumbnail_url || image?.thumbnailUrl || ''
+const getPreviewImageKey = (item: any, image: any, index: number) =>
+  `${item.id || 'selection'}:${index}:${getPreviewImageSrc(image)}`
+const isPreviewImageBroken = (item: any, image: any, index: number) =>
+  brokenPreviewImages.value.has(getPreviewImageKey(item, image, index))
+const markPreviewImageBroken = (item: any, image: any, index: number) => {
+  brokenPreviewImages.value = new Set([...brokenPreviewImages.value, getPreviewImageKey(item, image, index)])
 }
 
 const formatTime = (value: any) => {
@@ -125,13 +135,22 @@ onMounted(loadSelections)
         <CardContent class="p-5">
           <div class="flex gap-4">
             <div class="grid h-24 w-24 shrink-0 grid-cols-2 gap-1 overflow-hidden rounded-lg bg-muted">
-              <img
+              <div
                 v-for="(image, index) in getPreviewImages(item).slice(0, 4)"
                 :key="index"
-                :src="image.src || image.imgurl"
-                alt=""
-                class="h-full w-full object-cover"
-              />
+                class="h-full w-full overflow-hidden"
+              >
+                <img
+                  v-if="getPreviewImageSrc(image) && !isPreviewImageBroken(item, image, index)"
+                  :src="getPreviewImageSrc(image)"
+                  alt=""
+                  class="h-full w-full object-cover"
+                  @error="markPreviewImageBroken(item, image, index)"
+                />
+                <div v-else class="flex h-full w-full items-center justify-center bg-muted">
+                  <SafeIcon name="Image" :size="18" class="text-muted-foreground" />
+                </div>
+              </div>
               <div v-if="getPreviewImages(item).length === 0" class="col-span-2 flex h-24 items-center justify-center">
                 <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
               </div>
