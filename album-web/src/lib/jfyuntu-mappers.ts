@@ -281,7 +281,7 @@ export const mapProductDetail = (raw: any, homeId = ''): ProductData => {
 const mapImageItem = (raw: any, productId: string, type: 'colorChart' | 'detailChart', index: number): ProductImageData => {
   const source = raw?.picture || raw || {}
   const imageUrls = normalizeProductImageUrls(raw, source)
-  const url = pickImage(imageUrls.origin, imageUrls.download, imageUrls.edit, imageUrls.preview, raw?.picture_url, raw?.imgurl, raw?.picture_url_original, raw?.url, raw?.src, source, raw)
+  const url = pickImage(imageUrls.origin, imageUrls.edit, imageUrls.preview, imageUrls.thumb, raw?.picture_url, raw?.imgurl, raw?.picture_url_original, raw?.url, raw?.src, source, raw, imageUrls.download)
   const thumbnailUrl = pickImage(imageUrls.thumb, raw?.thumbnailUrl, raw?.thumb, raw?.picture_url, raw?.url, source, raw) || url
   const id = String(raw?.pic_id || source?.id || raw?.id || `${productId}_${type}_${index}`)
   return {

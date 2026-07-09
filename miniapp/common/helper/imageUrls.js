@@ -65,11 +65,11 @@ export const getImageUrls = (item = {}) => {
 
 export const imageUrlFor = (item = {}, usage = "preview") => {
   const urls = getImageUrls(item);
-  if (usage === "thumb") return pickDisplayUrl(urls.thumb, urls.preview, urls.edit, urls.origin);
-  if (usage === "edit") return pickDisplayUrl(urls.edit, urls.preview, urls.origin, urls.thumb);
-  if (usage === "origin") return pickDisplayUrl(urls.origin, urls.edit, urls.preview, urls.thumb);
+  if (usage === "thumb") return pickDisplayUrl(urls.thumb, urls.preview, urls.edit, urls.origin, urls.download);
+  if (usage === "edit") return pickDisplayUrl(urls.edit, urls.preview, urls.origin, urls.download, urls.thumb);
+  if (usage === "origin") return pickDisplayUrl(urls.origin, urls.download, urls.edit, urls.preview, urls.thumb);
   if (usage === "download") return pickFirst(urls.download, urls.origin, urls.edit, urls.preview, urls.thumb);
-  return pickDisplayUrl(urls.preview, urls.edit, urls.origin, urls.thumb);
+  return pickDisplayUrl(urls.preview, urls.edit, urls.origin, urls.download, urls.thumb);
 };
 
 export const resolveImageDownloadUrl = (request, item = {}, extra = {}) => {

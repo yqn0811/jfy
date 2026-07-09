@@ -118,7 +118,7 @@ const setVisibility = (value: FormState['visibility']) => {
 
 const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: string): ProductImageData => {
   const imageUrls = normalizeProductImageUrls(item)
-  const url = pickImage(imageUrls.origin, imageUrls.download, imageUrls.edit, imageUrls.preview, item.original_url, item.file_url, item.fileUrl, item.picture_url_original, item.url, item)
+  const url = pickImage(imageUrls.origin, imageUrls.edit, imageUrls.preview, imageUrls.thumb, item.original_url, item.file_url, item.fileUrl, item.picture_url_original, item.url, item, imageUrls.download)
   const thumbnailUrl = pickImage(imageUrls.thumb, item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
   return {
     id: String(item.pid || item.pic_id || item.resource_id || item.id || `resource_${Date.now()}`),
@@ -395,7 +395,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
   const item = rows[0] || {}
   const imageUrls = normalizeProductImageUrls(item)
   const fallbackUrl = URL.createObjectURL(file)
-  const url = pickImage(imageUrls.origin, imageUrls.download, imageUrls.edit, imageUrls.preview, item.url, fallbackUrl)
+  const url = pickImage(imageUrls.origin, imageUrls.edit, imageUrls.preview, imageUrls.thumb, item.url, fallbackUrl, imageUrls.download)
   const thumbnailUrl = pickImage(imageUrls.thumb, imageUrls.preview, url)
   return {
     id: String(item.pid || item.id || `img_${Date.now()}`),

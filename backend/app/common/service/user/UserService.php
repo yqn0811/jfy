@@ -825,8 +825,13 @@ class UserService extends BaseService
         if (!$product) {
             return false;
         }
-        return $this->isPictureInProductField($product, $picId, 'pic_ids')
-            || $this->isPictureInProductField($product, $picId, 'detail_pic_ids');
+        if ($this->isPictureInProductField($product, $picId, 'pic_ids')
+            || $this->isPictureInProductField($product, $picId, 'detail_pic_ids')) {
+            return true;
+        }
+        return (bool)WdXcxUserAlbumPic::where('folder_id', (int)$product->id)
+            ->where('pic_id', (int)$picId)
+            ->find();
     }
 
     private function assertPictureDownloadVisible($pic, $viewerUid, $targetUserId = 0, $productId = 0)

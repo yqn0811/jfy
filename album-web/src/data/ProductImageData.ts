@@ -80,15 +80,15 @@ export const productImageUrl = (
 
   switch (usage) {
     case 'thumb':
-      return firstUrl(urls.thumb, urls.preview, urls.edit, urls.origin, urls.download)
+      return firstDisplayUrl(urls.thumb, urls.preview, urls.edit, urls.origin, urls.download)
     case 'edit':
-      return firstUrl(urls.edit, urls.preview, urls.origin, urls.download, urls.thumb)
+      return firstDisplayUrl(urls.edit, urls.preview, urls.origin, urls.download, urls.thumb)
     case 'origin':
-      return firstUrl(urls.origin, urls.download, urls.edit, urls.preview, urls.thumb)
+      return firstDisplayUrl(urls.origin, urls.download, urls.edit, urls.preview, urls.thumb)
     case 'download':
       return firstUrl(urls.download, urls.origin, urls.edit, urls.preview, urls.thumb)
     case 'preview':
     default:
-      return firstUrl(urls.preview, urls.edit, urls.origin, urls.download, urls.thumb)
+      return firstDisplayUrl(urls.preview, urls.edit, urls.origin, urls.download, urls.thumb)
   }
 }
