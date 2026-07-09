@@ -186,15 +186,41 @@ class SelectionService extends BaseService
             return null;
         }
 
+        $getValue = function ($source, $keys, $default = '') {
+            foreach ((array)$keys as $key) {
+                if (is_array($source) && array_key_exists($key, $source)) {
+                    return $source[$key];
+                }
+                if (is_object($source) && isset($source->{$key})) {
+                    return $source->{$key};
+                }
+            }
+            return $default;
+        };
+
+        $picId = (int)$getValue($pic, ['id', 'pic_id'], 0);
+        if (!$picId) {
+            return null;
+        }
+
+        $src = (string)$getValue($pic, ['src', 'imgurl', 'picture_url', 'preview_url', 'thumbnail_url'], '');
+        if ($src === '' && is_object($pic) && isset($pic->TruePic)) {
+            $src = (string)$pic->TruePic;
+        }
+        $name = (string)$getValue($pic, ['name', 'pic_name'], '');
+        $fileType = (int)$getValue($pic, ['file_type'], 1);
+        $selectionItemId = $selectionItem ? (int)$getValue($selectionItem, ['id'], 0) : 0;
+        $productId = $selectionItem ? (int)$getValue($selectionItem, ['product_id'], 0) : (int)$getValue($pic, ['product_id'], 0);
+
         return [
-            'id' => (int)$pic->id,
-            'selection_item_id' => $selectionItem ? (int)$selectionItem->id : 0,
-            'src' => $pic->TruePic,
-            'imgurl' => $pic->TruePic,
-            'name' => $pic->pic_name ?: '',
-            'pic_name' => $pic->pic_name ?: '',
-            'file_type' => (int)$pic->file_type,
-            'product_id' => $selectionItem ? (int)$selectionItem->product_id : 0,
+            'id' => $picId,
+            'selection_item_id' => $selectionItemId,
+            'src' => $src,
+            'imgurl' => $src,
+            'name' => $name,
+            'pic_name' => $name,
+            'file_type' => $fileType,
+            'product_id' => $productId,
             'is_main' => false,
         ];
     }

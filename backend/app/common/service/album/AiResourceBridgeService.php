@@ -263,25 +263,72 @@ class AiResourceBridgeService extends BaseService
             'mini_openid' => $user->openid,
             'unionid' => $user->unionid ?: '',
         ];
-        $resp = $this->requestAiResource('GET', '/jiafangyun/bridge/resources/' . $resourceId . '?' . http_build_query($query), null);
+        try {
+            $resp = $this->requestAiResource('GET', '/jiafangyun/bridge/resources/' . $resourceId . '?' . http_build_query($query), null);
+        } catch (\Throwable $e) {
+            Log::warning('[AiResourceBridge] resource lookup failed, fallback to stored picture: ' . $e->getMessage());
+            $url = $this->getSignedStoredPictureUrl($pic, $type);
+            Cache::set($cacheKey, $url, $type === 'original' ? 300 : 1800);
+            return $url;
+        }
         $resource = $resp['resource'] ?? null;
         if (!$resource) {
-            return '';
+            $url = $this->getSignedStoredPictureUrl($pic, $type);
+            Cache::set($cacheKey, $url, $type === 'original' ? 300 : 1800);
+            return $url;
         }
         $url = '';
         if ($type === 'original') {
             $url = $this->firstResourceImageUrl($resource, $this->resourceOriginalUrlFields());
+            if (!$url) {
+                $url = $this->getSignedStoredPictureUrl($pic, $type);
+            }
             Cache::set($cacheKey, $url, 300);
             return $url;
         }
         if ($type === 'preview') {
             $url = $this->firstResourceImageUrl($resource, $this->resourcePreviewUrlFields());
+            if (!$url) {
+                $url = $this->getSignedStoredPictureUrl($pic, $type);
+            }
             Cache::set($cacheKey, $url, 1800);
             return $url;
         }
         $url = $this->firstResourceImageUrl($resource, $this->resourceThumbnailUrlFields());
+        if (!$url) {
+            $url = $this->getSignedStoredPictureUrl($pic, $type);
+        }
         Cache::set($cacheKey, $url, 1800);
         return $url;
+    }
+
+    private function getSignedStoredPictureUrl($pic, $type = 'thumb')
+    {
+        $url = trim((string)($pic->imgurl ?? ''));
+        if ($url === '') {
+            return '';
+        }
+        if (strpos($url, '//') === 0) {
+            $url = 'https:' . $url;
+        } elseif (WdXcxPic::isSchemeLessHttpUrl($url)) {
+            $url = 'https://' . ltrim($url, '/');
+        } elseif (!WdXcxPic::isHttpUrl($url)) {
+            $url = removePicStyle(remote($pic->uniacid ?: $this->uniacid, $url, 1));
+        }
+        $url = removePicStyle($url);
+        if ($url === '') {
+            return '';
+        }
+        try {
+            $resp = $this->requestAiResource('POST', '/jiafangyun/bridge/images/sign', [
+                'url' => $url,
+                'expire_minutes' => $type === 'original' ? 10 : 30,
+            ]);
+            return trim((string)($resp['signed_url'] ?? ($resp['url'] ?? '')));
+        } catch (\Throwable $e) {
+            Log::error('[AiResourceBridge] sign stored picture failed: ' . $e->getMessage());
+            return '';
+        }
     }
 
     private function getResourceIdFromPicture($pic)
