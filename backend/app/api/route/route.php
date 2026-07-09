@@ -25,6 +25,7 @@ Route::get('/user/home/categories', 'UserApiController/getHomeCategories')->midd
 Route::get('/user/home/products', 'UserApiController/getHomeProducts')->middleware('auth', false); // 主页产品列表（公开，可选登录）
 Route::get('/user/home/products/detail', 'UserApiController/getHomeProductsDetails')->middleware('auth', false); // 主页产品详情（公开，可选登录）
 Route::get('/user/home/products/details', 'UserApiController/getHomeProductsDetails')->middleware('auth', false); // 主页产品详情别名（兼容）
+Route::get('/user/home/picture/detail', 'UserApiController/getHomePictureDetail')->middleware('auth', false); // 主页图片详情（公开，可选登录）
 Route::any('/wechat/serve', 'WechatController/serve'); // 微信公众号服务器回调
 Route::any('/wechat/push', 'WechatController/serve'); // 微信消息推送回调（配置用）
 
@@ -38,6 +39,7 @@ Route::get('/user/login/callback', 'UserApiController/wechatCallback'); // 微�
 Route::get('/user/login/status', 'UserApiController/checkLoginStatus'); // 检查登录状态
 Route::get('/user/testLogin', 'UserApiController/testLogin'); // 测试登录
 Route::post('/user/update_info', 'UserApiController/updateUserInfo'); //更新主页信息 = 用户信息
+Route::post('/user/update_pc_settings', 'UserApiController/updatePcSettings')->middleware('auth'); // PC端更新主页设置
 
 //公共相关
 Route::group('common', function (){
@@ -177,6 +179,7 @@ Route::group('album', function (){
     Route::post('ai/import_resource', 'AlbumApiController/importAiResource'); // 我的资源库图片导入产品
     Route::get('batch_link', 'AlbumApiController/getBatchUploadLink'); //获取大批量上传链接
     Route::post('reset_batch_link', 'AlbumApiController/resetBatchUploadLink'); //重置大批量上传链接
+    Route::post('batch_upload_password', 'AlbumApiController/saveBatchUploadPassword'); //保存大批量上传入口和密码
     
     Route::post('delete/folder', 'AlbumApiController/deleteAlbumFolder'); //删除相册文件夹
     Route::post('delete/category', 'AlbumApiController/deleteCategory'); //删除分类

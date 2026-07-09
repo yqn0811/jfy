@@ -135,6 +135,14 @@ class CommonService extends BaseService
         return $result;
     }
 
+    public function memberUpgradeConfig()
+    {
+        return [
+            "show_upgrade" => 1,
+            "upgrade_url" => "https://pic.jfyuntu.com/assets/page/product-list.html",
+        ];
+    }
+
     public function getWorkbenchMenu()
     {
         $set = (new \app\common\model\system_set\WdXcxWorkbenchMenuSet())->getBase($this->uniacid);

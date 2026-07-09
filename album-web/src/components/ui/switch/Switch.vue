@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import type { SwitchRootEmits, SwitchRootProps } from "reka-ui"
+import type { SwitchRootProps } from "reka-ui"
 import type { HTMLAttributes } from "vue"
+import { computed } from "vue"
 import { reactiveOmit } from "@vueuse/core"
 import {
   SwitchRoot,
@@ -10,18 +11,30 @@ import {
 } from "reka-ui"
 import { cn } from "@/lib/utils"
 
-const props = defineProps<SwitchRootProps & { class?: HTMLAttributes["class"] }>()
+const props = defineProps<SwitchRootProps & { checked?: boolean | null; class?: HTMLAttributes["class"] }>()
 
-const emits = defineEmits<SwitchRootEmits>()
+const emits = defineEmits<{
+  "update:modelValue": [value: boolean]
+  "update:checked": [value: boolean]
+}>()
 
-const delegatedProps = reactiveOmit(props, "class")
+const delegatedProps = reactiveOmit(props, "class", "checked", "modelValue")
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
+
+const modelValue = computed(() => props.modelValue ?? props.checked ?? false)
+
+const handleUpdate = (value: boolean) => {
+  emits("update:modelValue", value)
+  emits("update:checked", value)
+}
 </script>
 
 <template>
   <SwitchRoot
     v-bind="forwarded"
+    :model-value="modelValue"
+    @update:model-value="handleUpdate"
     :class="cn(
       'peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input',
       props.class,

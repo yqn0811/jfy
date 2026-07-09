@@ -26,6 +26,9 @@ class UserApiController extends ApiBaseController
 
     private function resolveHomeTargetUserId($params, $requireShareCode = false)
     {
+        if (empty($params['target_user_id']) && !empty($params['uid'])) {
+            $params['target_user_id'] = $params['uid'];
+        }
         $shareCode = $params['code'] ?? ($params['share_code'] ?? '');
         $inviteCode = $params['invite_code'] ?? '';
         if ($shareCode !== '') {
@@ -173,6 +176,26 @@ class UserApiController extends ApiBaseController
             ['longitude', null],
         ]);
         $this->userService->updateUserInfo($param);
+        $this->result([], 0, '更新成功');
+    }
+
+    /**PC端更新主页设置
+     * @return void
+     * @throws \cores\exception\BaseException
+     */
+    public function updatePcSettings()
+    {
+        $param = $this->request->postMore([
+            ['visit_no_need_nickname', null],
+            ['visit_no_need_mobile', null],
+            ['visit_allow_save_pic', null],
+            ['home_watermark_text', null],
+            ['home_service_name', null],
+            ['home_share_title', null],
+            ['home_share_desc', null],
+            ['home_share_image', null],
+        ]);
+        $this->userService->updatePcSettings($param, request()->userID());
         $this->result([], 0, '更新成功');
     }
 
@@ -689,11 +712,12 @@ class UserApiController extends ApiBaseController
     {
         $targetUserId = $this->request->getMore([
             ['target_user_id', 0],
+            ['uid', 0],
             ['code', ''],
             ['share_code', ''],
             ['invite_code', ''],
         ]);
-        $targetUserId = $this->resolveHomeTargetUserId($targetUserId, true);
+        $targetUserId = $this->resolveHomeTargetUserId($targetUserId, false);
 
         $visitorUid = 0;
         try {
@@ -709,13 +733,14 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['uid', 0],
             ['code', ''],
             ['share_code', ''],
             ['invite_code', ''],
             ['fid', 0],
             ['include_current', 0],
         ]);
-        $targetUserId = $this->resolveHomeTargetUserId($params, true);
+        $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $visitorUid = 0;
         try {
             $visitorUid = request()->userID();
@@ -728,13 +753,14 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['uid', 0],
             ['code', ''],
             ['share_code', ''],
             ['invite_code', ''],
             ['cate_id', 0],
             ['product_id', 0],
         ]);
-        $targetUserId = $this->resolveHomeTargetUserId($params, true);
+        $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $visitorUid = 0;
         try {
             $visitorUid = request()->userID();
@@ -750,12 +776,13 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['uid', 0],
             ['code', ''],
             ['share_code', ''],
             ['invite_code', ''],
             ['product_id', 0],
         ]);
-        $targetUserId = $this->resolveHomeTargetUserId($params, true);
+        $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $productId = $params['product_id'];
         if (!$productId) {
             throwError('参数错误');
@@ -766,6 +793,32 @@ class UserApiController extends ApiBaseController
         } catch (\Exception $e) {
         }
         $this->result($this->userService->getHomeProductsDetails($targetUserId, $productId, $visitorUid));
+    }
+
+    public function getHomePictureDetail()
+    {
+        $params = $this->request->getMore([
+            ['target_user_id', 0],
+            ['uid', 0],
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
+            ['pic_id', 0],
+        ]);
+        if (empty($params['target_user_id']) && !empty($params['uid'])) {
+            $params['target_user_id'] = $params['uid'];
+        }
+        $targetUserId = $this->resolveHomeTargetUserId($params, false);
+        $picId = (int)$params['pic_id'];
+        if (!$picId) {
+            throwError('参数错误');
+        }
+        $visitorUid = 0;
+        try {
+            $visitorUid = request()->userID();
+        } catch (\Exception $e) {
+        }
+        $this->result($this->userService->getHomePictureDetail($targetUserId, $picId, $visitorUid));
     }
 
     public function getHomeMiniProgramCode()

@@ -75,7 +75,7 @@ const stats = computed(() => [
     label: '存储已用',
     value: `${usedMb.value.toFixed(1)}MB`,
     icon: 'Database',
-    color: 'text-orange-600',
+    color: 'text-sky-600',
   },
   {
     label: '浏览量',
@@ -241,7 +241,7 @@ const handleStorageClick = () => {
           <CardHeader class="pb-3">
             <div class="flex items-start justify-between">
               <div class="flex-1">
-                <CardTitle class="text-base">批量上传</CardTitle>
+                <CardTitle class="text-base">协同编辑</CardTitle>
                 <CardDescription class="text-xs mt-1">协作上传产品图片</CardDescription>
               </div>
               <div class="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center shrink-0">

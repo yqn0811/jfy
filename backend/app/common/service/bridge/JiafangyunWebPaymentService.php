@@ -95,7 +95,8 @@ class JiafangyunWebPaymentService extends BaseService
         if (!empty($param['order_no'])) {
             $query['order_no'] = $param['order_no'];
         }
-        return $this->bridgeClient->get('/jiafangyun/bridge/payment/orders?' . http_build_query($query));
+        $resp = $this->bridgeClient->get('/jiafangyun/bridge/payment/orders?' . http_build_query($query));
+        return $this->normalizeOrderListResponse($resp);
     }
 
     private function createNativeOrder($user, $payload, $prefix)
@@ -117,13 +118,14 @@ class JiafangyunWebPaymentService extends BaseService
     {
         $orderNo = $order['order_no'] ?? ($order['order_id'] ?? '');
         $codeUrl = $order['payment_url'] ?? ($order['code_url'] ?? '');
+        $amountCents = $this->normalizeAmountCents($order);
         return [
             'order_no' => $orderNo,
             'order_id' => $orderNo,
-            'status' => $order['status'] ?? 'created',
+            'status' => $this->normalizeOrderStatus($order),
             'order_type' => $order['order_type'] ?? '',
-            'amount_cents' => (int)($order['amount_cents'] ?? 0),
-            'amount' => number_format(((int)($order['amount_cents'] ?? 0)) / 100, 2, '.', ''),
+            'amount_cents' => $amountCents,
+            'amount' => $this->centsToMoney($amountCents),
             'payment_method' => $order['payment_method'] ?? 'wechatpay',
             'payment_url' => $codeUrl,
             'code_url' => $codeUrl,
@@ -151,6 +153,110 @@ class JiafangyunWebPaymentService extends BaseService
         } catch (\Throwable $e) {
             return '';
         }
+    }
+
+    private function normalizeOrderListResponse($resp)
+    {
+        if (!is_array($resp)) {
+            return $resp;
+        }
+        foreach (['orders', 'list', 'data', 'lists'] as $key) {
+            if (isset($resp[$key]) && is_array($resp[$key])) {
+                $resp[$key] = $this->normalizeOrderRows($resp[$key]);
+            }
+        }
+        return $resp;
+    }
+
+    private function normalizeOrderRows($rows)
+    {
+        $list = [];
+        foreach ((array)$rows as $row) {
+            $list[] = is_array($row) ? $this->normalizeOrderRow($row) : $row;
+        }
+        return $list;
+    }
+
+    private function normalizeOrderRow($order)
+    {
+        $orderNo = $order['order_no'] ?? ($order['order_id'] ?? ($order['id'] ?? ''));
+        $amountCents = $this->normalizeAmountCents($order);
+        $order['order_no'] = $orderNo;
+        $order['order_id'] = $orderNo;
+        $order['amount_cents'] = $amountCents;
+        $order['amount'] = $this->centsToMoney($amountCents);
+        $order['status'] = $this->normalizeOrderStatus($order);
+        if (empty($order['expires_at'])) {
+            $createdAt = $this->parseOrderTime($order['created_at'] ?? ($order['create_time'] ?? ''));
+            if ($createdAt > 0) {
+                $order['expires_at'] = date('Y-m-d H:i:s', $createdAt + 15 * 60);
+            }
+        }
+        return $order;
+    }
+
+    private function normalizeAmountCents($order)
+    {
+        foreach (['amount_cents', 'pay_amount_cents', 'price_cents', 'total_fee', 'pay_fee', 'cash_fee'] as $field) {
+            if (isset($order[$field]) && $order[$field] !== '') {
+                return (int)round((float)$order[$field]);
+            }
+        }
+        foreach (['amount', 'pay_price', 'price', 'total_amount', 'paid_amount', 'pay_amount'] as $field) {
+            if (isset($order[$field]) && $order[$field] !== '') {
+                $text = str_replace([',', '¥', '￥', ' '], '', (string)$order[$field]);
+                if (is_numeric($text)) {
+                    return (int)round(((float)$text) * 100);
+                }
+            }
+        }
+        return 0;
+    }
+
+    private function normalizeOrderStatus($order)
+    {
+        $status = strtolower(trim((string)($order['status'] ?? ($order['pay_status'] ?? ($order['trade_state'] ?? '')))));
+        if (in_array($status, ['paid', 'success', 'completed', 'finished', '1'], true)) {
+            return 'paid';
+        }
+        if (in_array($status, ['closed', 'expired', 'cancelled', 'canceled', 'timeout'], true)) {
+            return 'expired';
+        }
+        if (in_array($status, ['failed', 'fail', 'payment_failed', '-1'], true)) {
+            return 'failed';
+        }
+        if ($this->isOrderPastFifteenMinutes($order)) {
+            return 'expired';
+        }
+        return 'created';
+    }
+
+    private function isOrderPastFifteenMinutes($order)
+    {
+        $expireAt = $this->parseOrderTime($order['expires_at'] ?? ($order['expire_time'] ?? ($order['expired_at'] ?? '')));
+        if ($expireAt > 0 && $expireAt <= time()) {
+            return true;
+        }
+        $createdAt = $this->parseOrderTime($order['created_at'] ?? ($order['create_time'] ?? ''));
+        return $createdAt > 0 && $createdAt + 15 * 60 <= time();
+    }
+
+    private function parseOrderTime($value)
+    {
+        if ($value === null || $value === '') {
+            return 0;
+        }
+        if (is_numeric($value)) {
+            $timestamp = (int)$value;
+            return $timestamp > 1000000000000 ? (int)floor($timestamp / 1000) : $timestamp;
+        }
+        $timestamp = strtotime((string)$value);
+        return $timestamp ?: 0;
+    }
+
+    private function centsToMoney($cents)
+    {
+        return number_format(((int)$cents) / 100, 2, '.', '');
     }
 
     private function resolveMembershipPlanIdByLegacyGrade($param)

@@ -42,10 +42,29 @@ export const pickImage = (...values: any[]) => {
     if (value?.previewUrl) return value.previewUrl
     if (value?.thumbnail_url) return value.thumbnail_url
     if (value?.thumbnailUrl) return value.thumbnailUrl
+    if (value?.thumb_url) return value.thumb_url
+    if (value?.thumbUrl) return value.thumbUrl
+    if (value?.thumb) return value.thumb
+    if (value?.image_url) return value.image_url
+    if (value?.imageUrl) return value.imageUrl
+    if (value?.cover_url) return value.cover_url
+    if (value?.coverUrl) return value.coverUrl
     if (value?.imgurl) return value.imgurl
     if (value?.picture_url) return value.picture_url
+    if (value?.pictureUrl) return value.pictureUrl
     if (value?.picture_url_original) return value.picture_url_original
+    if (value?.pictureUrlOriginal) return value.pictureUrlOriginal
+    if (value?.original_url) return value.original_url
+    if (value?.originalUrl) return value.originalUrl
+    if (value?.signed_url) return value.signed_url
+    if (value?.signedUrl) return value.signedUrl
+    if (value?.download_url) return value.download_url
+    if (value?.downloadUrl) return value.downloadUrl
     if (value?.src) return value.src
+    if (value?.picture) {
+      const nested = pickImage(value.picture)
+      if (nested) return nested
+    }
   }
   return ''
 }
@@ -98,6 +117,7 @@ export const mapHomeProfile = (raw: any): HomeProfileData => {
     region,
     address: info.address_detail || info.address || '',
     isPublic: Number(info.is_show_home ?? 1) === 1,
+    allowSavePic: Number(info.visit_allow_save_pic ?? info.allowSavePic ?? 1) === 1,
     shareTitle: info.home_share_title || `${companyName}的产品主页`,
     shareDescription: info.home_share_desc || info.company_desc || info.user_desc || '',
     shareCoverUrl: pickImage(info.home_share_image, info.company_logo, info.avatar),
@@ -164,26 +184,31 @@ export const mapProduct = (raw: any, homeId = ''): ProductData => {
 }
 
 const mapImageItem = (raw: any, productId: string, type: 'colorChart' | 'detailChart', index: number): ProductImageData => {
-  const url = pickImage(raw.picture_url, raw.imgurl, raw.picture_url_original, raw.url, raw.src, raw)
-  const id = String(raw.id || raw.pic_id || `${productId}_${type}_${index}`)
+  const source = raw?.picture || raw || {}
+  const url = pickImage(raw?.picture_url, raw?.imgurl, raw?.picture_url_original, raw?.url, raw?.src, source, raw)
+  const id = String(raw?.pic_id || source?.id || raw?.id || `${productId}_${type}_${index}`)
   return {
     id,
     productId,
     type,
-    name: raw.pic_name || raw.name || raw.file_name || `${type === 'colorChart' ? '花色图' : '详情图'} ${index + 1}`,
+    name: raw?.pic_name || source?.pic_name || raw?.name || source?.name || raw?.file_name || `${type === 'colorChart' ? '花色图' : '详情图'} ${index + 1}`,
     url,
-    thumbnailUrl: pickImage(raw.thumbnailUrl, raw.thumb, raw.picture_url, raw.url, raw) || url,
-    sizeLabel: raw.sizeLabel || raw.size_label || '',
-    sizeBytes: Number(raw.sizeBytes || raw.size || 0),
-    sortOrder: Number(raw.sort || raw.sortOrder || index),
-    isOriginalLarge: Number(raw.size || raw.sizeBytes || 0) > 3 * 1024 * 1024,
-    createdAt: raw.create_time || raw.createdAt || '',
+    thumbnailUrl: pickImage(raw?.thumbnailUrl, raw?.thumb, raw?.picture_url, raw?.url, source, raw) || url,
+    sizeLabel: raw?.sizeLabel || raw?.size_label || source?.sizeLabel || source?.size_label || '',
+    sizeBytes: Number(raw?.sizeBytes || raw?.size || source?.sizeBytes || source?.size || 0),
+    sortOrder: Number(raw?.sort || raw?.sortOrder || index),
+    isOriginalLarge: Number(raw?.size || raw?.sizeBytes || source?.size || source?.sizeBytes || 0) > 3 * 1024 * 1024,
+    createdAt: raw?.create_time || raw?.createdAt || source?.create_time || source?.createdAt || '',
   }
 }
 
 export const mapProductImagesFromDetail = (raw: any, productId: string) => {
-  const color = toArray(raw.pic_ids_arr || raw.pic_list || raw.color_images || raw.pictures || raw.color_pictures)
-  const detail = toArray(raw.detail_pic_ids_arr || raw.detail_pic_list || raw.detail_pictures || raw.detail_images)
+  const rawPictures = toArray(raw.pictures)
+  const getFileType = (item: any) => Number(item?.file_type ?? item?.fileType ?? item?.picture?.file_type ?? item?.picture?.fileType ?? 1)
+  const typedColor = rawPictures.filter(item => getFileType(item) === 1)
+  const typedDetail = rawPictures.filter(item => getFileType(item) === 2)
+  const color = toArray(raw.pic_ids_arr || raw.pic_list || raw.color_images || raw.color_pictures || raw.colorCharts || typedColor)
+  const detail = toArray(raw.detail_pic_ids_arr || raw.detail_pic_list || raw.detail_pictures || raw.detail_images || raw.detailCharts || typedDetail)
   return [
     ...color.map((item, index) => mapImageItem(item, productId, 'colorChart', index)),
     ...detail.map((item, index) => mapImageItem(item, productId, 'detailChart', index)),
@@ -292,7 +317,7 @@ export const buildPcTargetUrl = (type: PcTargetType, id: string, targetUserId = 
     return `./category.html?${params.toString()}`
   }
   params.set('productId', id)
-  return `./product-detail.html?${params.toString()}`
+  return `./share-home.html?${params.toString()}`
 }
 
 export const normalizeHomePayload = (homeRaw: any, categoriesRaw: any, productsRaw: any) => {

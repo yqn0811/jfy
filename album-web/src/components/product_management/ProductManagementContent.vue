@@ -421,7 +421,9 @@ const handleOpenRecycle = () => {
 
 const handleOpenProductPreview = (productId: string) => {
   if (!productId) return
-  window.open(`./product-detail.html?productId=${encodeURIComponent(productId)}`, '_blank')
+  const params = new URLSearchParams({ productId })
+  if (currentShareCode.value) params.set('code', currentShareCode.value)
+  window.open(`./share-home.html?${params.toString()}`, '_blank')
 }
 
 const handleProductSaved = async () => {
@@ -468,7 +470,7 @@ const statusOptions = [
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-page-title">产品列表 <span class="text-base font-normal text-muted-foreground">({{ selectedCategoryName }})</span></h1>
-          <p class="text-caption mt-1">按分类维护产品、图片、批量上传和分享设置</p>
+          <p class="text-caption mt-1">按分类维护产品、图片、协同编辑和分享设置</p>
         </div>
         <div class="flex items-center gap-3">
           <Button variant="outline" class="gap-2" @click="handleOpenShareHome">
@@ -489,7 +491,7 @@ const statusOptions = [
 
     <div class="flex min-h-0 flex-1">
       <!-- 分类树 -->
-      <aside class="w-72 shrink-0 border-r border-border bg-card/50 p-4">
+      <aside class="w-56 shrink-0 border-r border-border bg-card/50 p-3">
         <div class="mb-3 flex items-center justify-between">
           <h2 class="text-sm font-semibold text-foreground">分类</h2>
           <span class="text-xs text-muted-foreground">{{ allCategories.length }} 个</span>
@@ -498,7 +500,7 @@ const statusOptions = [
           <button
             type="button"
             :class="cn(
-              'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors',
+              'flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm transition-colors',
               selectedCategoryId === 'all' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
             )"
             @click="handleCategoryChange('all')"
@@ -515,10 +517,10 @@ const statusOptions = [
             :key="category.id"
             type="button"
             :class="cn(
-              'flex w-full items-center justify-between rounded-md py-2 pr-3 text-left text-sm transition-colors',
+              'flex w-full items-center justify-between rounded-md py-2 pr-2.5 text-left text-sm transition-colors',
               selectedCategoryId === category.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
             )"
-            :style="{ paddingLeft: `${12 + category.level * 18}px` }"
+            :style="{ paddingLeft: `${10 + category.level * 14}px` }"
             @click="handleCategoryChange(category.id)"
           >
             <span class="flex min-w-0 items-center gap-2">
@@ -774,8 +776,8 @@ const statusOptions = [
       <DialogScrollContent class="max-h-[92vh] max-w-[1160px] overflow-hidden p-0">
         <div class="flex max-h-[92vh] min-h-[620px] flex-col">
           <DialogHeader class="border-b border-border px-6 py-4">
-            <DialogTitle>批量上传设置</DialogTitle>
-            <DialogDescription>生成协作上传链接、二维码和访问密码</DialogDescription>
+            <DialogTitle>协同编辑设置</DialogTitle>
+            <DialogDescription>生成协同编辑链接、二维码和访问密码</DialogDescription>
           </DialogHeader>
           <div class="min-h-0 flex-1 px-6 py-4">
             <BatchUploadSettingsContent

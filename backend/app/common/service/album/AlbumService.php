@@ -919,6 +919,78 @@ class AlbumService extends BaseService
             });
     }
 
+    private function mapProductPictureItem($pic, $index = 0)
+    {
+        if (!$pic) {
+            return [];
+        }
+        $url = $pic->TruePic;
+        return [
+            'id' => (int)$pic->id,
+            'pic_id' => (int)$pic->id,
+            'imgurl' => $url,
+            'picture_url' => $url,
+            'picture_url_original' => removePicStyle($url),
+            'pic_name' => $pic->pic_name ?: ('图片' . ($index + 1)),
+            'file_type' => (int)$pic->file_type,
+            'size' => $pic->getData('size'),
+            'create_time' => $pic->getData('create_time'),
+        ];
+    }
+
+    private function getProductFieldPictures($picIds)
+    {
+        $ids = $this->normalizeIdList($picIds);
+        if (empty($ids)) {
+            return [];
+        }
+        $order = implode(',', $ids);
+        $pictures = WdXcxPic::whereIn('id', $ids)
+            ->field('id, imgurl, pic_name, uniacid, file_type, size, create_time')
+            ->orderRaw('FIELD(id, ' . $order . ')')
+            ->select();
+        $result = [];
+        foreach ($pictures as $index => $pic) {
+            $result[] = $this->mapProductPictureItem($pic, $index);
+        }
+        return $result;
+    }
+
+    private function getProductUploadedPictures($productId, $fileType)
+    {
+        $rows = WdXcxUserAlbumPic::where('folder_id', $productId)
+            ->with(['picture'])
+            ->order('sort asc, set_top_time desc, id desc')
+            ->select();
+        $result = [];
+        foreach ($rows as $row) {
+            if (!$row->picture || (int)$row->picture->file_type !== (int)$fileType) {
+                continue;
+            }
+            $item = $this->mapProductPictureItem($row->picture, count($result));
+            $item['album_pic_id'] = (int)$row->id;
+            $result[] = $item;
+        }
+        return $result;
+    }
+
+    private function mergeProductPictures($fieldPictures, $uploadedPictures)
+    {
+        $merged = [];
+        $seen = [];
+        foreach (array_merge($fieldPictures, $uploadedPictures) as $item) {
+            $picId = (int)($item['pic_id'] ?? $item['id'] ?? 0);
+            if ($picId && isset($seen[$picId])) {
+                continue;
+            }
+            if ($picId) {
+                $seen[$picId] = true;
+            }
+            $merged[] = $item;
+        }
+        return $merged;
+    }
+
     private function hydrateProductThumb($item)
     {
         if (!$item || (string)$item->new_thumb !== '') {
@@ -2036,6 +2108,7 @@ class AlbumService extends BaseService
 
     private function getUploadCode($fid, $uid)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $info = WdXcxUserAlbumUploadCode::where([
             'fid' => $fid,
             'uid' => $uid,
@@ -2059,6 +2132,7 @@ class AlbumService extends BaseService
 
     public function getBatchUploadLink($fid, $uid)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $folder = WdXcxAlbumFolder::where('id', $fid)
             ->where('folder_type', 2)
             ->find();
@@ -2069,6 +2143,10 @@ class AlbumService extends BaseService
             throwError('您没有权限操作此产品');
         }
         $code = $this->getUploadCode($fid, $folder->uid);
+        $record = WdXcxUserAlbumUploadCode::where([
+            'fid' => $fid,
+            'uid' => $folder->uid,
+        ])->find();
         $url = 'https://pic.jfyuntu.com/assets/page/product-list.html?uploadd_code=' . urlencode($code);
         (new WdXcxUser())->ensureUploadPasswordColumns();
         $user = WdXcxUser::where('id', $folder->uid)->field('upload_pwd,upload_pwd_expire_time')->find();
@@ -2086,7 +2164,12 @@ class AlbumService extends BaseService
             'qrcode' => $qrcode,
             'qrcode_url' => $qrcode,
             'qr_image' => $qrcode,
+            'upload_enabled' => $record ? (int)$record->upload_enabled : 0,
+            'access_enabled' => $record ? (int)$record->upload_enabled : 0,
             'password' => $user && $user->upload_pwd ? $user->upload_pwd : '',
+            'pwd' => $user && $user->upload_pwd ? $user->upload_pwd : '',
+            'upload_pwd' => $user && $user->upload_pwd ? $user->upload_pwd : '',
+            'has_password' => $user && $user->upload_pwd ? 1 : 0,
             'password_expire_time' => $expireTime,
             'upload_pwd_expire_time' => $expireTime,
         ];
@@ -2094,6 +2177,7 @@ class AlbumService extends BaseService
 
     public function resetBatchUploadLink($fid, $uid)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $folder = WdXcxAlbumFolder::where('id', $fid)
             ->where('folder_type', 2)
             ->where('uid', $uid)
@@ -2101,11 +2185,65 @@ class AlbumService extends BaseService
         if(!$folder){
             throwError('产品不存在');
         }
+        $oldRecord = WdXcxUserAlbumUploadCode::where([
+            'fid' => $fid,
+            'uid' => $uid,
+        ])->find();
+        $uploadEnabled = $oldRecord ? (int)$oldRecord->upload_enabled : 0;
         WdXcxUserAlbumUploadCode::where([
             'fid' => $fid,
             'uid' => $uid,
         ])->delete();
+        $this->getUploadCode($fid, $uid);
+        if($uploadEnabled){
+            WdXcxUserAlbumUploadCode::where([
+                'fid' => $fid,
+                'uid' => $uid,
+            ])->update(['upload_enabled' => 1]);
+        }
         return $this->getBatchUploadLink($fid, $uid);
+    }
+
+    public function saveBatchUploadPassword($param, $uid)
+    {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
+        (new WdXcxUser())->ensureUploadPasswordColumns();
+
+        $folder = WdXcxAlbumFolder::where('id', $param['fid'])
+            ->where('folder_type', 2)
+            ->find();
+        if(!$folder){
+            throwError('产品不存在');
+        }
+        if((int)$folder->uid !== (int)$uid){
+            throwError('您没有权限操作此产品');
+        }
+
+        $uploadEnabled = (int)($param['upload_enabled'] ?? 0) === 1 ? 1 : 0;
+        $uploadPwd = trim((string)($param['upload_pwd'] ?? ''));
+        if($uploadPwd !== '' && !preg_match('/^[A-Za-z0-9]{4}$/', $uploadPwd)){
+            throwError('协同编辑密码需为4位字母或数字');
+        }
+        $expireTime = (int)($param['upload_pwd_expire_time'] ?? 0);
+        if($expireTime < 0){
+            throwError('协同编辑密码有效期不合法');
+        }
+
+        $this->getUploadCode($folder->id, $folder->uid);
+        WdXcxUserAlbumUploadCode::where([
+            'fid' => $folder->id,
+            'uid' => $folder->uid,
+        ])->update(['upload_enabled' => $uploadEnabled]);
+
+        $user = WdXcxUser::where('id', $folder->uid)->find();
+        if(!$user){
+            throwError('用户不存在');
+        }
+        $user->upload_pwd = $uploadPwd;
+        $user->upload_pwd_expire_time = $uploadPwd === '' ? 0 : $expireTime;
+        $user->save();
+
+        return $this->getBatchUploadLink($folder->id, $uid);
     }
 
     private function generateRandomString($length = 10)
@@ -2732,39 +2870,25 @@ class AlbumService extends BaseService
              throwError('此内容为私有，请勿访问');
         }
 
-        $pic_ids = $this->normalizeIdList($product->pic_ids);
-        $product->pic_list = [];
-        if (!empty($pic_ids)) {
-            $picOrder = implode(',', $pic_ids);
-            $product->pic_list = WdXcxPic::whereIn('id', $pic_ids)
-                ->field('id, imgurl, pic_name, uniacid, file_type')
-                ->orderRaw('FIELD(id, ' . $picOrder . ')')
-                ->select()
-                ->each(function($item){
-                    $item->imgurl = $item->TruePic;
-                    $item->picture_url = $item->imgurl;
-                    $item->picture_url_original = removePicStyle($item->imgurl);
-                });
-        }
+        $product->pic_list = $this->mergeProductPictures(
+            $this->getProductFieldPictures($product->pic_ids),
+            $this->getProductUploadedPictures($product->id, 1)
+        );
+        $product->pic_ids_arr = $product->pic_list;
 
         $hideDetailPictures = (int)($product->hide_detail_pictures ?? 0) === 1;
         $product->hide_detail_pictures = $hideDetailPictures ? 1 : 0;
-        $detail_pic_ids = $hideDetailPictures && (int)$product->uid !== (int)$uid
-            ? []
-            : $this->normalizeIdList($product->detail_pic_ids);
-        $product->detail_pic_list = [];
-        if (!empty($detail_pic_ids)) {
-            $detailOrder = implode(',', $detail_pic_ids);
-            $product->detail_pic_list = WdXcxPic::whereIn('id', $detail_pic_ids)
-                ->field('id, imgurl, pic_name, uniacid, file_type')
-                ->orderRaw('FIELD(id, ' . $detailOrder . ')')
-                ->select()
-                ->each(function($item){
-                    $item->imgurl = $item->TruePic;
-                    $item->picture_url = $item->imgurl;
-                    $item->picture_url_original = removePicStyle($item->imgurl);
-                });
+        if ($hideDetailPictures && (int)$product->uid !== (int)$uid) {
+            $product->detail_pic_list = [];
+        } else {
+            $product->detail_pic_list = $this->mergeProductPictures(
+                $this->getProductFieldPictures($product->detail_pic_ids),
+                $this->getProductUploadedPictures($product->id, 2)
+            );
         }
+        $product->detail_pic_ids_arr = $product->detail_pic_list;
+        $product->color_chart_count = count($product->pic_list);
+        $product->detail_chart_count = count($product->detail_pic_list);
 
         $isCollect = 0;
         if ($uid) {

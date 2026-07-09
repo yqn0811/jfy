@@ -103,7 +103,7 @@ class UserService extends BaseService
         if ($user->is_show_home == 0 && $visitorUidInt !== $targetUserIdInt) {
             throwError('该用户未公开主页');
         }
-        $this->assertHomeVisitRequirement($user, $visitorUidInt);
+        $this->assertHomeVisitRequirement($user, $visitorUidInt, null, true);
 
         // 记录访问
         if (!$visitorUid) {
@@ -276,7 +276,7 @@ class UserService extends BaseService
             throwError('该用户未公开主页');
         }
         $is_owner = ($visitorUid == $targetUserId && $visitorUid != 0);
-        $this->assertHomeVisitRequirement($user, $visitorUid, $is_owner);
+        $this->assertHomeVisitRequirement($user, $visitorUid, $is_owner, true);
         $shared_ids = [];
         if (!$is_owner && $visitorUid) {
             try {
@@ -374,7 +374,7 @@ class UserService extends BaseService
         });
     }
 
-    private function assertHomeVisitRequirement($owner, $visitorUid, $isOwner = null)
+    private function assertHomeVisitRequirement($owner, $visitorUid, $isOwner = null, $allowAnonymousPreview = false)
     {
         $visitorUid = (int)$visitorUid;
         $ownerUid = (int)$owner->id;
@@ -384,7 +384,7 @@ class UserService extends BaseService
         if ($isOwner) {
             return;
         }
-        if ((int)$owner->visit_no_need_nickname === 1 && (int)$owner->visit_no_need_mobile === 1) {
+        if ($allowAnonymousPreview || ((int)$owner->visit_no_need_nickname === 1 && (int)$owner->visit_no_need_mobile === 1)) {
             return;
         }
         if (!$visitorUid) {
@@ -467,6 +467,48 @@ class UserService extends BaseService
         return array_values(array_unique($ids));
     }
 
+    private function getProductUploadedPictureMap($productIds)
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $productIds))));
+        if (empty($ids)) {
+            return [];
+        }
+        $rows = WdXcxUserAlbumPic::whereIn('folder_id', $ids)
+            ->with(['picture'])
+            ->select();
+        $map = [];
+        foreach ($rows as $row) {
+            if (!$row->picture) {
+                continue;
+            }
+            $folderId = (int)$row->folder_id;
+            $picId = (int)$row->pic_id;
+            $fileType = (int)$row->picture->file_type;
+            if (!$folderId || !$picId || !in_array($fileType, [1, 2], true)) {
+                continue;
+            }
+            if (!isset($map[$folderId])) {
+                $map[$folderId] = [1 => [], 2 => []];
+            }
+            $map[$folderId][$fileType][$picId] = true;
+        }
+        return $map;
+    }
+
+    private function countProductPictures($fieldPicIds, $uploadedPictureMap, $productId, $fileType)
+    {
+        $ids = [];
+        foreach ($this->normalizeProductPicIds($fieldPicIds) as $picId) {
+            $ids[$picId] = true;
+        }
+        foreach (($uploadedPictureMap[(int)$productId][(int)$fileType] ?? []) as $picId => $exists) {
+            if ($exists) {
+                $ids[(int)$picId] = true;
+            }
+        }
+        return count($ids);
+    }
+
     private function hydrateProductThumb($item)
     {
         if (!$item || (string)$item->new_thumb !== '') {
@@ -496,7 +538,7 @@ class UserService extends BaseService
             throwError('该用户未公开主页');
         }
         $is_owner = ($visitorUid == $targetUserId && $visitorUid != 0);
-        $this->assertHomeVisitRequirement($user, $visitorUid, $is_owner);
+        $this->assertHomeVisitRequirement($user, $visitorUid, $is_owner, true);
         $shared_ids = [];
         if (!$is_owner && $visitorUid) {
             try {
@@ -542,11 +584,22 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,is_hot,layout_type,pic_layout,pic_ids,detail_pic_ids')
+            ->field('id,folder_name,folder_desc,new_thumb,pid,sort,uid,is_hot,layout_type,pic_layout,pic_ids,detail_pic_ids,hide_detail_pictures')
             ->order('is_hot desc, sort desc, set_top desc, set_top_time desc, id desc')
-            ->select()
-            ->each(function($item) use ($visitorUid, $collected_ids){
+            ->select();
+
+        $productIds = [];
+        foreach ($products as $product) {
+            $productIds[] = (int)$product->id;
+        }
+        $uploadedPictureMap = $this->getProductUploadedPictureMap($productIds);
+
+        $products->each(function($item) use ($visitorUid, $collected_ids, $is_owner, $uploadedPictureMap){
                 $this->hydrateProductThumb($item);
+                $item->color_chart_count = $this->countProductPictures($item->pic_ids ?? '', $uploadedPictureMap, $item->id, 1);
+                $item->detail_chart_count = ((int)($item->hide_detail_pictures ?? 0) === 1 && !$is_owner)
+                    ? 0
+                    : $this->countProductPictures($item->detail_pic_ids ?? '', $uploadedPictureMap, $item->id, 2);
                 $item->son_count = $item->SonCount;
                 if($item->uid != $visitorUid){
                     $item->folder_name = $item->folder_name;
@@ -574,7 +627,7 @@ class UserService extends BaseService
         }
 
         $is_owner = ($visitorUid == $targetUserId && $visitorUid != 0);
-        $this->assertHomeVisitRequirement($user, $visitorUid, $is_owner);
+        $this->assertHomeVisitRequirement($user, $visitorUid, $is_owner, true);
         $shared_ids = [];
         if (!$is_owner && $visitorUid) {
             try {
@@ -592,6 +645,143 @@ class UserService extends BaseService
 
         $albumService = new AlbumService($this->app);
         return $albumService->getProductDetail($productId, $visitorUid);
+    }
+
+    public function getHomePictureDetail($targetUserId, $picId, $visitorUid = 0)
+    {
+        $targetUserId = (int)$targetUserId;
+        $picId = (int)$picId;
+        $visitorUid = (int)$visitorUid;
+        $user = WdXcxUser::find($targetUserId);
+        if (!$user || !$user->is_show_home) {
+            throwError('该用户未公开主页');
+        }
+
+        $isOwner = ($visitorUid === $targetUserId && $visitorUid !== 0);
+        $pic = null;
+        $product = null;
+        $relation = null;
+
+        $directPic = WdXcxPic::where('id', $picId)->find();
+        if ($directPic) {
+            $directProduct = $this->findVisibleHomeProductByPicture($targetUserId, (int)$directPic->id, $visitorUid, $isOwner);
+            if ($directProduct) {
+                $pic = $directPic;
+                $product = $directProduct;
+            }
+        }
+
+        if (!$pic || !$product) {
+            $relation = WdXcxUserAlbumPic::where('id', $picId)
+                ->where('user_id', $targetUserId)
+                ->find();
+            if (!$relation) {
+                $relation = WdXcxUserAlbumPic::where('pic_id', $picId)
+                    ->where('user_id', $targetUserId)
+                    ->find();
+            }
+            if ($relation) {
+                $relationPic = $relation->picture;
+                if ($relationPic) {
+                    $relationProduct = $this->findVisibleHomeProductByPicture($targetUserId, (int)$relationPic->id, $visitorUid, $isOwner);
+                    if ($relationProduct) {
+                        $pic = $relationPic;
+                        $product = $relationProduct;
+                    }
+                }
+            }
+        }
+
+        if (!$pic || !$product) {
+            throwError('分享链接无效');
+        }
+
+        return $this->mapHomePictureDetail($pic, $product, $relation, $user);
+    }
+
+    private function findVisibleHomeProductByPicture($targetUserId, $picId, $visitorUid, $isOwner)
+    {
+        $sharedIds = [];
+        if (!$isOwner && $visitorUid) {
+            try {
+                $sharedIds = \app\common\model\album\WdXcxAlbumShareBind::where('bind_uid', $visitorUid)->column('fid');
+            } catch (\Exception $e) {
+                $sharedIds = [];
+            }
+        }
+
+        $picId = (int)$picId;
+        $relations = WdXcxUserAlbumPic::where('pic_id', $picId)->select();
+        foreach ($relations as $relation) {
+            $product = WdXcxAlbumFolder::where('id', (int)$relation->folder_id)
+                ->where('uid', $targetUserId)
+                ->where('folder_type', 2)
+                ->find();
+            if ($product && $this->canVisitorSeeHomeProduct($product, $isOwner, $sharedIds)) {
+                return $product;
+            }
+        }
+
+        $products = WdXcxAlbumFolder::where('uid', $targetUserId)
+            ->where('folder_type', 2)
+            ->whereRaw('(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))', [$picId, $picId])
+            ->select();
+        foreach ($products as $product) {
+            if ($this->canVisitorSeeHomeProduct($product, $isOwner, $sharedIds)) {
+                return $product;
+            }
+        }
+
+        return null;
+    }
+
+    private function canVisitorSeeHomeProduct($product, $isOwner, $sharedIds)
+    {
+        if ($isOwner) {
+            return true;
+        }
+        $privateType = (int)($product->private_type ?? 1);
+        if ($privateType === 1) {
+            return true;
+        }
+        if ($privateType === 4) {
+            return true;
+        }
+        return false;
+    }
+
+    private function mapHomePictureDetail($pic, $product = null, $relation = null, $user = null)
+    {
+        $url = $pic->TruePic;
+        if (!$url) {
+            throwError('图片暂不可预览');
+        }
+        $createTime = (int)$pic->getData('create_time');
+        $userInfo = $pic->UserInfo;
+        $nickname = $user ? $user->nickname : ($userInfo['nickname'] ?? '');
+        $picName = $pic->pic_beizhu ?: ($pic->pic_name ?: '');
+        return [
+            'id' => (int)$pic->id,
+            'pic_id' => (int)$pic->id,
+            'relation_id' => $relation ? (int)$relation->id : 0,
+            'product_id' => $product ? (int)$product->id : 0,
+            'folder_id' => $product ? (int)$product->id : 0,
+            'uid' => (int)$pic->uid,
+            'imgurl' => $url,
+            'src' => $url,
+            'picture_url' => $url,
+            'picture_url_original' => removePicStyle($url),
+            'pic_name' => $picName ?: '图片名称未命名',
+            'pic_beizhu' => $picName,
+            'file_type' => (int)$pic->file_type,
+            'is_video' => (int)$pic->file_type === 2 ? 1 : 0,
+            'size' => $pic->getData('size'),
+            'file_size' => (int)$pic->getData('size'),
+            'nickname' => $nickname,
+            'avatar' => $userInfo['avatar'] ?? '',
+            'upload_time' => $createTime ? date('Y年m月d日 H:i', $createTime) : '',
+            'create_time' => $createTime,
+        ];
     }
 
     private function safeString($val)
@@ -1157,12 +1347,12 @@ class UserService extends BaseService
 
         if (!empty($param['upload_pwd'])) {
             if (!preg_match('/^[A-Za-z0-9]{4}$/', $param['upload_pwd'])) {
-                throwError('上传密码需为4位字母或数字');
+                throwError('协同编辑密码需为4位字母或数字');
             }
         }
         if (isset($param['upload_pwd_expire_time']) && $param['upload_pwd_expire_time'] !== null && $param['upload_pwd_expire_time'] !== '') {
             if (!is_numeric($param['upload_pwd_expire_time']) || (int)$param['upload_pwd_expire_time'] < 0) {
-                throwError('上传密码有效期不合法');
+                throwError('协同编辑密码有效期不合法');
             }
             $param['upload_pwd_expire_time'] = (int)$param['upload_pwd_expire_time'];
         }
@@ -1283,6 +1473,50 @@ class UserService extends BaseService
 
         if(!$user->join_time){
             $user->join_time = time();
+        }
+        $user->save();
+    }
+
+    /**PC端更新主页设置
+     * @param $param
+     * @param $uid
+     * @return void
+     * @throws \cores\exception\BaseException
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\DbException
+     * @throws \think\db\exception\ModelNotFoundException
+     */
+    public function updatePcSettings($param, $uid)
+    {
+        $this->userModel->ensureHomePreferenceColumns();
+        $user = $this->userModel->getUserById($uid);
+        if (!$user) {
+            throwError('用户不存在');
+        }
+
+        if (isset($param['visit_no_need_nickname']) && $param['visit_no_need_nickname'] !== null) {
+            $user->visit_no_need_nickname = (int)$param['visit_no_need_nickname'];
+        }
+        if (isset($param['visit_no_need_mobile']) && $param['visit_no_need_mobile'] !== null) {
+            $user->visit_no_need_mobile = (int)$param['visit_no_need_mobile'];
+        }
+        if (isset($param['visit_allow_save_pic']) && $param['visit_allow_save_pic'] !== null) {
+            $user->visit_allow_save_pic = (int)$param['visit_allow_save_pic'];
+        }
+        if (isset($param['home_watermark_text']) && $param['home_watermark_text'] !== null) {
+            $user->home_watermark_text = $param['home_watermark_text'];
+        }
+        if (isset($param['home_service_name']) && $param['home_service_name'] !== null) {
+            $user->home_service_name = $param['home_service_name'] === '' ? '服务' : $param['home_service_name'];
+        }
+        if (isset($param['home_share_title']) && $param['home_share_title'] !== null) {
+            $user->home_share_title = $param['home_share_title'];
+        }
+        if (isset($param['home_share_desc']) && $param['home_share_desc'] !== null) {
+            $user->home_share_desc = $param['home_share_desc'];
+        }
+        if (isset($param['home_share_image']) && $param['home_share_image'] !== null) {
+            $user->home_share_image = $param['home_share_image'];
         }
         $user->save();
     }

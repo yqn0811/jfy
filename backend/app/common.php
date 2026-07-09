@@ -317,7 +317,15 @@ function doRemote($uniacid, $url, $type)
 
 function removePicStyle($url)
 {
-    return str_replace('?x-oss-process=image/resize,m_fixed,w_480/quality,Q_75', '', $url);
+    $url = (string)$url;
+    $style = 'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75';
+    if ($url === '' || strpos($url, 'x-oss-process=') === false) {
+        return $url;
+    }
+    $url = str_replace(['?' . $style . '&', '&' . $style . '&'], ['?', '&'], $url);
+    $url = str_replace(['?' . $style, '&' . $style], '', $url);
+    $url = rtrim($url, '?&');
+    return $url;
 }
 
 function isProxyableExternalImageUrl($url)
@@ -343,6 +351,7 @@ function isProxyableExternalImageUrl($url)
     $allowedHosts = [
         'ai-jf-1307475442.cos.ap-shanghai.myqcloud.com',
         'ai.jfyuntu.com',
+        'ai-test.jfyuntu.com',
     ];
     $envHosts = (string)env('AI_RESOURCE_IMAGE_PROXY_HOSTS', getenv('AI_RESOURCE_IMAGE_PROXY_HOSTS') ?: '');
     if ($envHosts !== '') {

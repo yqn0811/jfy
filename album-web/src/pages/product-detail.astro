@@ -1,12 +1,33 @@
 
 ---
-import StandardLayout from '@/layouts/StandardLayout.astro'
-import ProductDetailDrawer from '@/components/product_detail/ProductDetailDrawer.vue'
+const redirectScript = `
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const productId = params.get('productId') || params.get('product_id') || params.get('id') || '';
+  const next = new URL('./share-home.html', window.location.href);
+  ['code', 'share_code', 'uid', 'target_user_id', 'categoryId', 'cate_id'].forEach((key) => {
+    const value = params.get(key);
+    if (!value) return;
+    if (key === 'share_code') next.searchParams.set('code', value);
+    else if (key === 'uid') next.searchParams.set('target_user_id', value);
+    else if (key === 'cate_id') next.searchParams.set('categoryId', value);
+    else next.searchParams.set(key, value);
+  });
+  if (productId) next.searchParams.set('productId', productId);
+  window.location.replace(next.toString());
+})();
+`
 ---
 
-<StandardLayout title="产品详情 - 家纺云相册">
-  <main class="page-body min-h-screen">
-    <!-- ProductDetailDrawer is a client component that manages drawer state and all interactions -->
-    <ProductDetailDrawer client:load />
-  </main>
-</StandardLayout>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>产品详情 - 家纺云相册</title>
+    <script is:inline set:html={redirectScript}></script>
+  </head>
+  <body>
+    <p>正在打开产品详情...</p>
+  </body>
+</html>

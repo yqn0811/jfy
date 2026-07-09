@@ -10,6 +10,7 @@ use app\common\service\BaseService;
 use app\common\service\JwtService;
 use app\common\service\WxService;
 use app\index\model\WdXcxBase;
+use app\index\model\WdXcxPic;
 use app\index\service\upload\UploadService;
 use think\App;
 use think\facade\Db;
@@ -28,6 +29,7 @@ class WebUploadService extends BaseService
      */
     public function getWebAlbumInfo($param)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $record = WdXcxUserAlbumUploadCode::where('upload_code', $param['code'])->find();
         if(!$record){
             throwError('指定的上传码不存在');
@@ -64,12 +66,18 @@ class WebUploadService extends BaseService
         }
         $result = [
             'content' => '把该链接分享给好友，即可多人一起上传哦',
+            'upload_enabled' => (int)$record->upload_enabled,
+            'access_enabled' => (int)$record->upload_enabled,
             'has_password' => $user->upload_pwd ? 1 : 0,
             'password_expire_time' => (int)$user->upload_pwd_expire_time,
             'password_expired' => $uploadPwdExpired ? 1 : 0,
             'id' => $folder->id,
             'image_base64' => $record->ewm_code,
             'folder_name' => $folder->folder_name,
+            'owner_info' => $this->buildOwnerInfo($user),
+            'owner_storage' => $this->buildOwnerStorage($user),
+            'upload_policy' => $this->buildUploadPolicy($user),
+            'product_info' => $this->buildProductInfo($folder),
         ];
         return $result;
     }
@@ -84,6 +92,7 @@ class WebUploadService extends BaseService
      */
     public function getWebAlbumUploadToken($param)
     {
+        WdXcxUserAlbumUploadCode::ensureUploadEnabledColumn();
         $record = WdXcxUserAlbumUploadCode::where('upload_code', $param['code'])->find();
         if(!$record){
             throwError('指定的上传码不存在');
@@ -100,9 +109,12 @@ class WebUploadService extends BaseService
         if(!$user){
             throwError('指定的上传码对应的用户不存在');
         }
+        if((int)$record->upload_enabled !== 1){
+            throwError('此产品协同编辑入口已关闭');
+        }
         if($user->upload_pwd){
             if($this->isUploadPasswordExpired($user)){
-                throwError('上传密码已过期，请联系分享者更新密码');
+                throwError('协同编辑密码已过期，请联系分享者更新密码');
             }
             if(empty($param['password'])){
                 throwError('请填写密码');
@@ -262,6 +274,84 @@ class WebUploadService extends BaseService
     {
         $expireTime = isset($user->upload_pwd_expire_time) ? (int)$user->upload_pwd_expire_time : 0;
         return $expireTime > 0 && $expireTime < time();
+    }
+
+    private function buildOwnerInfo($user)
+    {
+        return [
+            'id' => (int)$user->id,
+            'nickname' => (string)($user->nickname ?: '分享者'),
+            'company_name' => (string)($user->company_name ?: ''),
+            'display_name' => (string)($user->company_name ?: ($user->nickname ?: '分享者')),
+            'avatar' => (string)($user->avatar ?: ''),
+            'company_logo' => (string)($user->company_logo ?: ''),
+            'company_desc' => (string)($user->company_desc ?: ''),
+        ];
+    }
+
+    private function buildOwnerStorage($user)
+    {
+        $vipGradeInfo = $user->VipGradeInfo;
+        $capacityMb = isset($vipGradeInfo['space_size']) ? (float)$vipGradeInfo['space_size'] : 0;
+        $capacityBytes = max(0, (int)round($capacityMb * 1024 * 1024));
+        $usedBytes = (int)WdXcxPic::where('uid', $user->id)->sum('size');
+        $remainingBytes = $capacityBytes > 0 ? max(0, $capacityBytes - $usedBytes) : 0;
+        $usedPercent = $capacityBytes > 0 ? round(min(100, max(0, $usedBytes / $capacityBytes * 100)), 2) : 0;
+        return [
+            'capacity_bytes' => $capacityBytes,
+            'used_bytes' => $usedBytes,
+            'remaining_bytes' => $remainingBytes,
+            'capacity_text' => $this->formatBytes($capacityBytes),
+            'used_text' => $this->formatBytes($usedBytes),
+            'remaining_text' => $this->formatBytes($remainingBytes),
+            'used_percent' => $usedPercent,
+        ];
+    }
+
+    private function buildUploadPolicy($user)
+    {
+        return [
+            'concurrency' => 1,
+            'upload_concurrency' => 1,
+            'concurrency_limit' => 1,
+            'single_file_limit_mb' => (int)$user->TrueUploadSize,
+            'traffic_limit_bytes' => 0,
+            'traffic_used_bytes' => 0,
+            'traffic_remaining_bytes' => 0,
+            'traffic_limit_text' => '不限量',
+            'traffic_used_text' => '0MB',
+            'traffic_remaining_text' => '不限量',
+            'traffic_used_percent' => 0,
+        ];
+    }
+
+    private function buildProductInfo($folder)
+    {
+        return [
+            'id' => (int)$folder->id,
+            'name' => (string)$folder->folder_name,
+            'folder_name' => (string)$folder->folder_name,
+            'desc' => (string)($folder->folder_desc ?: ''),
+            'cover' => (string)($folder->new_thumb ?: ''),
+        ];
+    }
+
+    private function formatBytes($bytes)
+    {
+        $bytes = max(0, (float)$bytes);
+        if ($bytes >= 1024 * 1024 * 1024 * 1024) {
+            return rtrim(rtrim(number_format($bytes / 1024 / 1024 / 1024 / 1024, 2, '.', ''), '0'), '.') . 'TB';
+        }
+        if ($bytes >= 1024 * 1024 * 1024) {
+            return rtrim(rtrim(number_format($bytes / 1024 / 1024 / 1024, 2, '.', ''), '0'), '.') . 'GB';
+        }
+        if ($bytes >= 1024 * 1024) {
+            return rtrim(rtrim(number_format($bytes / 1024 / 1024, 2, '.', ''), '0'), '.') . 'MB';
+        }
+        if ($bytes >= 1024) {
+            return rtrim(rtrim(number_format($bytes / 1024, 2, '.', ''), '0'), '.') . 'KB';
+        }
+        return (int)$bytes . 'B';
     }
 
 

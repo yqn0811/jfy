@@ -228,16 +228,14 @@ class CommonApiController extends ApiBaseController
         $url = $this->request->getMore([
             ['url', ''],
         ])['url'];
-        $url = removePicStyle(trim((string)$url));
+        $url = html_entity_decode(trim((string)$url), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $url = removePicStyle($url);
         if (!$url || !isProxyableExternalImageUrl($url)) {
             throwError('图片地址不允许');
         }
 
         $parts = parse_url($url);
         $path = isset($parts['path']) ? $parts['path'] : '';
-        if (!preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $path)) {
-            throwError('图片格式不支持');
-        }
 
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -259,16 +257,11 @@ class CommonApiController extends ApiBaseController
             throwError('图片读取失败');
         }
         $mime = strtolower(trim(explode(';', $mime)[0]));
-        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
-            if (preg_match('/\.png$/i', $path)) {
-                $mime = 'image/png';
-            } elseif (preg_match('/\.gif$/i', $path)) {
-                $mime = 'image/gif';
-            } elseif (preg_match('/\.webp$/i', $path)) {
-                $mime = 'image/webp';
-            } else {
-                $mime = 'image/jpeg';
-            }
+        if (!$this->isSupportedImageMime($mime)) {
+            $mime = $this->detectImageMime($content, $path);
+        }
+        if (!$this->isSupportedImageMime($mime)) {
+            throwError('图片格式不支持');
         }
         return Response::create($content, 'html', 200)->header([
             'Content-Type' => $mime,
@@ -319,13 +312,50 @@ class CommonApiController extends ApiBaseController
         if ($status < 200 || $status >= 300 || $content === false || $content === '') {
             throwError('图片读取失败');
         }
-        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
-            $mime = 'image/jpeg';
+        if (!$this->isSupportedImageMime($mime)) {
+            $mime = $this->detectImageMime($content);
+        }
+        if (!$this->isSupportedImageMime($mime)) {
+            throwError('图片格式不支持');
         }
         return Response::create($content, 'html', 200)->header([
             'Content-Type' => $mime,
             'Cache-Control' => 'public, max-age=' . (int)$maxAge,
         ]);
+    }
+
+    private function isSupportedImageMime($mime)
+    {
+        return in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true);
+    }
+
+    private function detectImageMime($content, $path = '')
+    {
+        if (strncmp($content, "\xFF\xD8\xFF", 3) === 0) {
+            return 'image/jpeg';
+        }
+        if (strncmp($content, "\x89PNG\r\n\x1A\n", 8) === 0) {
+            return 'image/png';
+        }
+        if (strncmp($content, 'GIF87a', 6) === 0 || strncmp($content, 'GIF89a', 6) === 0) {
+            return 'image/gif';
+        }
+        if (strncmp($content, 'RIFF', 4) === 0 && substr($content, 8, 4) === 'WEBP') {
+            return 'image/webp';
+        }
+        if (preg_match('/\.png$/i', $path)) {
+            return 'image/png';
+        }
+        if (preg_match('/\.gif$/i', $path)) {
+            return 'image/gif';
+        }
+        if (preg_match('/\.webp$/i', $path)) {
+            return 'image/webp';
+        }
+        if (preg_match('/\.(jpg|jpeg)$/i', $path)) {
+            return 'image/jpeg';
+        }
+        return '';
     }
 
     /**保存示例相册的设置

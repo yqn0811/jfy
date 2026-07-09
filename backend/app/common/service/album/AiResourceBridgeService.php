@@ -71,10 +71,13 @@ class AiResourceBridgeService extends BaseService
         ];
         $resp = $this->requestAiResource('GET', '/jiafangyun/bridge/resources/' . $resourceId . '?' . http_build_query($query), null);
         $resource = $resp['resource'] ?? null;
-        if (!$resource || empty($resource['file_url'])) {
+        if (!$resource) {
             throwError('资源库图片不存在');
         }
-        $fileUrl = removePicStyle(trim((string)$resource['file_url']));
+        $fileUrl = removePicStyle($this->firstResourceImageUrl($resource, $this->resourceOriginalUrlFields()));
+        if (!$fileUrl) {
+            throwError('资源库图片不存在');
+        }
 
         $exists = WdXcxPic::where('uid', $uid)
             ->where(function($query) use ($fileUrl, $resourceId) {
@@ -267,16 +270,16 @@ class AiResourceBridgeService extends BaseService
         }
         $url = '';
         if ($type === 'original') {
-            $url = trim((string)($resource['preview_url'] ?: ($resource['file_url'] ?? '')));
+            $url = $this->firstResourceImageUrl($resource, $this->resourceOriginalUrlFields());
             Cache::set($cacheKey, $url, 300);
             return $url;
         }
         if ($type === 'preview') {
-            $url = trim((string)($resource['preview_url'] ?: ($resource['thumbnail_url'] ?: ($resource['file_url'] ?? ''))));
+            $url = $this->firstResourceImageUrl($resource, $this->resourcePreviewUrlFields());
             Cache::set($cacheKey, $url, 1800);
             return $url;
         }
-        $url = trim((string)($resource['thumbnail_url'] ?: ($resource['preview_url'] ?: ($resource['file_url'] ?? ''))));
+        $url = $this->firstResourceImageUrl($resource, $this->resourceThumbnailUrlFields());
         Cache::set($cacheKey, $url, 1800);
         return $url;
     }
@@ -470,7 +473,7 @@ class AiResourceBridgeService extends BaseService
 
     private function resourceDedupeKey($item)
     {
-        $url = $item['file_url'] ?? ($item['preview_url'] ?? ($item['thumbnail_url'] ?? ''));
+        $url = $this->firstResourceImageUrl($item, $this->resourceDedupeUrlFields());
         $url = strtolower(removePicStyle(trim((string)$url)));
         if ($url !== '') {
             return 'url:' . $url;
@@ -483,12 +486,126 @@ class AiResourceBridgeService extends BaseService
 
     private function normalizeResourceImageUrls($item)
     {
-        foreach (['thumbnail_url', 'preview_url', 'file_url'] as $field) {
+        foreach ($this->resourceImageUrlFields() as $field) {
             if (!empty($item[$field])) {
                 $item[$field] = proxyExternalImageUrl($item[$field]);
             }
         }
+        if (empty($item['thumbnail_url'])) {
+            $item['thumbnail_url'] = $this->firstResourceImageUrl($item, $this->resourceThumbnailUrlFields());
+        }
+        if (empty($item['preview_url'])) {
+            $item['preview_url'] = $this->firstResourceImageUrl($item, $this->resourcePreviewUrlFields());
+        }
+        if (empty($item['file_url'])) {
+            $item['file_url'] = $this->firstResourceImageUrl($item, $this->resourceOriginalUrlFields());
+        }
         return $item;
+    }
+
+    private function resourceDedupeUrlFields()
+    {
+        return array_merge($this->resourceOriginalUrlFields(), $this->resourcePreviewUrlFields(), $this->resourceThumbnailUrlFields());
+    }
+
+    private function resourceOriginalUrlFields()
+    {
+        return [
+            'file_url',
+            'fileUrl',
+            'original_url',
+            'originalUrl',
+            'picture_url_original',
+            'pictureUrlOriginal',
+            'signed_url',
+            'signedUrl',
+            'download_url',
+            'downloadUrl',
+            'image_url',
+            'imageUrl',
+            'url',
+            'preview_url',
+            'previewUrl',
+        ];
+    }
+
+    private function resourcePreviewUrlFields()
+    {
+        return [
+            'preview_url',
+            'previewUrl',
+            'image_url',
+            'imageUrl',
+            'url',
+            'picture_url',
+            'pictureUrl',
+            'file_url',
+            'fileUrl',
+            'original_url',
+            'originalUrl',
+            'signed_url',
+            'signedUrl',
+        ];
+    }
+
+    private function resourceThumbnailUrlFields()
+    {
+        return [
+            'thumbnail_url',
+            'thumbnailUrl',
+            'thumb_url',
+            'thumbUrl',
+            'thumb',
+            'preview_url',
+            'previewUrl',
+            'image_url',
+            'imageUrl',
+            'cover_url',
+            'coverUrl',
+            'picture_url',
+            'pictureUrl',
+            'url',
+        ];
+    }
+
+    private function resourceImageUrlFields()
+    {
+        return [
+            'thumbnail_url',
+            'thumbnailUrl',
+            'thumb_url',
+            'thumbUrl',
+            'thumb',
+            'preview_url',
+            'previewUrl',
+            'image_url',
+            'imageUrl',
+            'cover_url',
+            'coverUrl',
+            'file_url',
+            'fileUrl',
+            'original_url',
+            'originalUrl',
+            'picture_url',
+            'pictureUrl',
+            'picture_url_original',
+            'pictureUrlOriginal',
+            'signed_url',
+            'signedUrl',
+            'download_url',
+            'downloadUrl',
+            'url',
+        ];
+    }
+
+    private function firstResourceImageUrl($item, $fields)
+    {
+        foreach ($fields as $field) {
+            if (!empty($item[$field])) {
+                return trim((string)$item[$field]);
+            }
+        }
+        return '';
     }
 
     private function isImportedResourcePicture($pic)

@@ -113,6 +113,11 @@ class VipgradeService extends BaseService
 
     private function formatBridgeVipgradeLists($plans)
     {
+        $resourcePlans = $this->formatResourceStoragePlans($plans);
+        if (!empty($resourcePlans)) {
+            return $resourcePlans;
+        }
+
         $groups = [];
         foreach ((array)$plans as $plan) {
             if (!$this->isMiniappMembershipPlan($plan)) {
@@ -154,6 +159,54 @@ class VipgradeService extends BaseService
         $result = array_values($groups);
         usort($result, function ($a, $b) {
             return ($a['grade_level'] <=> $b['grade_level']);
+        });
+        return $result;
+    }
+
+    private function formatResourceStoragePlans($plans)
+    {
+        $result = [];
+        foreach ((array)$plans as $plan) {
+            if (($plan['plan_category'] ?? '') !== 'resource_storage') {
+                continue;
+            }
+            $benefits = $plan['benefits_json'] ?? [];
+            $storage_mb = (int)($benefits['storage_quota_mb'] ?? 0);
+            if ($storage_mb <= 0) {
+                $storage_mb = $this->storageSizeFromLevel($plan['level'] ?? '');
+            }
+            $grade_level = $this->levelToGrade($plan['level'] ?? '');
+            $upload_size = (int)($benefits['upload_size_mb'] ?? 20);
+            if ($upload_size <= 0) {
+                $upload_size = 20;
+            }
+            $result[] = [
+                'grade_level' => $grade_level,
+                'grade_key' => $plan['level'] ?? '',
+                'grade_name' => $plan['name'] ?? '资源包',
+                'annual_fee' => $this->centsToMoney($plan['current_price_cents'] ?? 0),
+                'market_annual_fee' => $this->centsToMoney($plan['original_price_cents'] ?? ($plan['current_price_cents'] ?? 0)),
+                'midd_month_fee' => '0.00',
+                'market_midd_month_fee' => '0.00',
+                'month_fee' => '0.00',
+                'market_month_fee' => '0.00',
+                'new_buy_annual' => '0.00',
+                'cloud_size' => $storage_mb,
+                'cloud_size_str' => $this->formatStorageSize($storage_mb),
+                'editor_number' => (int)($benefits['concurrency_limit'] ?? 1),
+                'upload_size_type' => 1,
+                'upload_size' => $upload_size,
+                'upload_size_value' => $upload_size,
+                'show_annual_del_str' => $plan['plan_subtitle'] ?? '资源扩容',
+                'show_month_del_str' => '',
+                'annual_plan_id' => (int)($plan['id'] ?? 0),
+                'midd_month_plan_id' => 0,
+                'month_plan_id' => 0,
+                'benefits_json' => $benefits,
+            ];
+        }
+        usort($result, function ($a, $b) {
+            return ($a['cloud_size'] <=> $b['cloud_size']);
         });
         return $result;
     }
@@ -269,6 +322,17 @@ class VipgradeService extends BaseService
             return (int)$matches[1];
         }
         return 99;
+    }
+
+    private function storageSizeFromLevel($level)
+    {
+        if (preg_match('/(\d+)\s*g/i', (string)$level, $matches)) {
+            return (int)$matches[1] * 1024;
+        }
+        if (preg_match('/(\d+)\s*m/i', (string)$level, $matches)) {
+            return (int)$matches[1];
+        }
+        return 0;
     }
 
     private function stripPeriodSuffix($name)

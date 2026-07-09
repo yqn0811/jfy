@@ -7,7 +7,7 @@ import BatchUploadSettingsContent from '@/components/batch_upload_settings/Batch
 const productId = new URL(Astro.request.url).searchParams.get('productId') || ''
 ---
 
-<ManagementLayout title="批量上传设置 - 家纺云">
+<ManagementLayout title="协同编辑设置 - 家纺云">
   <BatchUploadSettingsContent 
     client:only="vue"
     productId={productId}

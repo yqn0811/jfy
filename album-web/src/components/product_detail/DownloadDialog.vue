@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import {
   Dialog,
@@ -29,7 +29,6 @@ const emit = defineEmits<{
 }>()
 
 const selectedImages = ref<Set<string>>(new Set())
-const downloadFormat = ref<'original' | 'compressed'>('original')
 
 const productImages = computed(() => {
   return props.images || []
@@ -43,38 +42,66 @@ const detailChartImages = computed(() => {
   return productImages.value.filter(img => img.type === 'detailChart')
 })
 
+const imageKey = (image: ProductImageData) => String(image.id)
+
+const isImageSelected = (image: ProductImageData) => {
+  return selectedImages.value.has(imageKey(image))
+}
+
+const selectedImageList = computed(() => {
+  return productImages.value.filter(isImageSelected)
+})
+
 const selectAll = computed({
-  get: () => selectedImages.value.size === productImages.value.length && productImages.value.length > 0,
+  get: () => productImages.value.length > 0 && productImages.value.every(isImageSelected),
   set: (value) => {
     if (value) {
-      selectedImages.value = new Set(productImages.value.map(img => img.id))
+      selectedImages.value = new Set(productImages.value.map(imageKey))
     } else {
-      selectedImages.value.clear()
+      selectedImages.value = new Set()
     }
   }
 })
 
-const toggleImage = (imageId: string) => {
-  if (selectedImages.value.has(imageId)) {
-    selectedImages.value.delete(imageId)
+const setImageSelected = (image: ProductImageData, checked: boolean) => {
+  const key = imageKey(image)
+  const next = new Set(selectedImages.value)
+  if (checked) {
+    next.add(key)
   } else {
-    selectedImages.value.add(imageId)
+    next.delete(key)
   }
+  selectedImages.value = next
 }
 
+const toggleImage = (image: ProductImageData) => {
+  setImageSelected(image, !isImageSelected(image))
+}
+
+const toggleSelectAll = () => {
+  selectAll.value = !selectAll.value
+}
+
+watch(() => props.open, (open) => {
+  if (!open) return
+  selectedImages.value = new Set()
+})
+
+watch(productImages, (images) => {
+  const validImageKeys = new Set(images.map(imageKey))
+  selectedImages.value = new Set([...selectedImages.value].filter(id => validImageKeys.has(id)))
+})
+
 const handleDownload = () => {
-  if (selectedImages.value.size === 0) {
+  if (selectedImageList.value.length === 0) {
     toast.error('请选择至少一张图片')
     return
   }
 
-  const selectedCount = selectedImages.value.size
-  const format = downloadFormat.value === 'original' ? '原图' : '压缩图'
-  
-  toast.success(`已开始下载 ${selectedCount} 张${format}`)
+  const selectedList = selectedImageList.value
+  toast.success(`已开始下载 ${selectedList.length} 张图片`)
 
-  productImages.value
-    .filter(image => selectedImages.value.has(image.id))
+  selectedList
     .forEach((image, index) => {
       window.setTimeout(() => {
         const link = document.createElement('a')
@@ -93,53 +120,30 @@ const handleDownload = () => {
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-w-[600px] flex flex-col max-h-[80vh]">
+    <DialogContent class="max-w-[720px] flex flex-col max-h-[80vh]">
       <DialogHeader class="flex-shrink-0">
         <DialogTitle>下载图片</DialogTitle>
         <DialogDescription>
-          选择要下载的图片和格式
+          选择要下载的图片
         </DialogDescription>
       </DialogHeader>
 
       <!-- Scrollable content -->
       <div class="flex-1 overflow-y-auto min-h-0 space-y-4 py-4">
-        <!-- Download Format Selection -->
-        <div class="space-y-2 px-6">
-          <label class="text-sm font-medium">下载格式</label>
-          <div class="space-y-2">
-            <div class="flex items-center gap-2">
-              <input
-                type="radio"
-                id="format-original"
-                v-model="downloadFormat"
-                value="original"
-                class="w-4 h-4"
-              />
-              <Label for="format-original" class="font-normal cursor-pointer">
-                原图 (高清无损)
-              </Label>
-            </div>
-            <div class="flex items-center gap-2">
-              <input
-                type="radio"
-                id="format-compressed"
-                v-model="downloadFormat"
-                value="compressed"
-                class="w-4 h-4"
-              />
-              <Label for="format-compressed" class="font-normal cursor-pointer">
-                压缩图 (更小的文件)
-              </Label>
-            </div>
-          </div>
-        </div>
-
         <!-- Select All -->
-        <div class="px-6 border-t pt-4">
-          <div class="flex items-center gap-2">
+        <div class="px-6">
+          <div
+            role="checkbox"
+            tabindex="0"
+            :aria-checked="selectAll"
+            class="flex w-fit cursor-pointer items-center gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            @click="toggleSelectAll"
+            @keydown.enter.prevent="toggleSelectAll"
+            @keydown.space.prevent="toggleSelectAll"
+          >
             <Checkbox
-              :checked="selectAll"
-              @update:checked="selectAll = $event"
+              :model-value="selectAll"
+              class="pointer-events-none"
             />
             <Label class="font-medium cursor-pointer">
               全选 ({{ productImages.length }} 张)
@@ -150,26 +154,30 @@ const handleDownload = () => {
         <!-- Color Chart Images -->
         <div v-if="colorChartImages.length > 0" class="px-6 space-y-2">
           <h4 class="text-sm font-semibold text-muted-foreground">花色图 ({{ colorChartImages.length }} 张)</h4>
-          <div class="space-y-2">
+          <div class="grid grid-cols-5 gap-3">
             <div
               v-for="image in colorChartImages"
-              :key="image.id"
-              class="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer"
-              @click="toggleImage(image.id)"
+              :key="imageKey(image)"
+              role="button"
+              tabindex="0"
+              class="relative aspect-square overflow-hidden rounded-md border border-border bg-muted transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              :class="isImageSelected(image) ? 'border-primary ring-2 ring-primary' : ''"
+              @click="toggleImage(image)"
+              @keydown.enter.prevent="toggleImage(image)"
+              @keydown.space.prevent="toggleImage(image)"
             >
-              <Checkbox
-                :checked="selectedImages.has(image.id)"
-                @update:checked="toggleImage(image.id)"
-              />
               <img
-                :src="image.thumbnailUrl"
-                :alt="image.name"
-                class="w-12 h-12 object-cover rounded border border-border"
+                :src="image.thumbnailUrl || image.url"
+                :alt="image.name || '图片'"
+                loading="lazy"
+                class="h-full w-full object-cover"
               />
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{{ image.name }}</p>
-                <p class="text-xs text-muted-foreground">{{ image.sizeLabel }}</p>
-              </div>
+              <span class="absolute left-2 top-2 rounded bg-background/90 p-0.5 shadow">
+                <Checkbox
+                  :model-value="isImageSelected(image)"
+                  class="pointer-events-none"
+                />
+              </span>
             </div>
           </div>
         </div>
@@ -177,26 +185,30 @@ const handleDownload = () => {
         <!-- Detail Chart Images -->
         <div v-if="detailChartImages.length > 0" class="px-6 space-y-2 border-t pt-4">
           <h4 class="text-sm font-semibold text-muted-foreground">详情图 ({{ detailChartImages.length }} 张)</h4>
-          <div class="space-y-2">
+          <div class="grid grid-cols-5 gap-3">
             <div
               v-for="image in detailChartImages"
-              :key="image.id"
-              class="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer"
-              @click="toggleImage(image.id)"
+              :key="imageKey(image)"
+              role="button"
+              tabindex="0"
+              class="relative aspect-square overflow-hidden rounded-md border border-border bg-muted transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              :class="isImageSelected(image) ? 'border-primary ring-2 ring-primary' : ''"
+              @click="toggleImage(image)"
+              @keydown.enter.prevent="toggleImage(image)"
+              @keydown.space.prevent="toggleImage(image)"
             >
-              <Checkbox
-                :checked="selectedImages.has(image.id)"
-                @update:checked="toggleImage(image.id)"
-              />
               <img
-                :src="image.thumbnailUrl"
-                :alt="image.name"
-                class="w-12 h-12 object-cover rounded border border-border"
+                :src="image.thumbnailUrl || image.url"
+                :alt="image.name || '图片'"
+                loading="lazy"
+                class="h-full w-full object-cover"
               />
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{{ image.name }}</p>
-                <p class="text-xs text-muted-foreground">{{ image.sizeLabel }}</p>
-              </div>
+              <span class="absolute left-2 top-2 rounded bg-background/90 p-0.5 shadow">
+                <Checkbox
+                  :model-value="isImageSelected(image)"
+                  class="pointer-events-none"
+                />
+              </span>
             </div>
           </div>
         </div>
@@ -207,9 +219,13 @@ const handleDownload = () => {
         <Button variant="outline" @click="emit('update:open', false)">
           取消
         </Button>
-        <Button @click="handleDownload" class="flex items-center gap-2">
+        <Button
+          :disabled="selectedImageList.length === 0"
+          @click="handleDownload"
+          class="flex items-center gap-2"
+        >
           <SafeIcon name="Download" :size="16" />
-          下载 ({{ selectedImages.size }})
+          下载 ({{ selectedImageList.length }})
         </Button>
       </DialogFooter>
     </DialogContent>
