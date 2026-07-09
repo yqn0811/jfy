@@ -1,4 +1,4 @@
-import { ProductImageType } from './ProductData'
+import type { ProductImageType } from './ProductData'
 
 export interface ProductImageData {
   id: string

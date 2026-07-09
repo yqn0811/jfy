@@ -199,6 +199,21 @@ class UserApiController extends ApiBaseController
         $this->result([], 0, '更新成功');
     }
 
+    /**记录图片/视频保存产生的外网流量
+     * @return void
+     * @throws \cores\exception\BaseException
+     */
+    public function recordDownloadTraffic()
+    {
+        $param = $this->request->postMore([
+            ['pic_id', 0],
+            ['id', 0],
+            ['file_size', 0],
+            ['file_url', ''],
+        ]);
+        $this->result($this->userService->recordDownloadTraffic($param, request()->userID()), 0, '记录成功');
+    }
+
     /**获取指定用户的卡券列表
      * @return void
      * @throws \think\db\exception\DbException

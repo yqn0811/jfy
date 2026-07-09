@@ -96,6 +96,38 @@ const formatDateText = (value: any) => {
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
+const pickNested = (...values: any[]) => {
+  for (const value of values) {
+    if (value && typeof value === 'object') return value
+  }
+  return {}
+}
+
+const booleanFromFlag = (value: any, fallback = false) => {
+  if (value === undefined || value === null || value === '') return fallback
+  if (typeof value === 'boolean') return value
+  return Number(value) === 1 || value === 'true'
+}
+
+const resolveDownloadPermission = (raw: any, fallback = false) => {
+  const ownerInfo = pickNested(raw?.user_info, raw?.owner_info, raw?.home_info, raw?.home, raw?.user)
+  return booleanFromFlag(
+    raw?.visit_allow_save_pic ??
+      raw?.allow_save_pic ??
+      raw?.allowSavePic ??
+      raw?.allow_download ??
+      raw?.allowDownload ??
+      raw?.can_download ??
+      raw?.canDownload ??
+      ownerInfo?.visit_allow_save_pic ??
+      ownerInfo?.allow_save_pic ??
+      ownerInfo?.allowSavePic ??
+      ownerInfo?.allow_download ??
+      ownerInfo?.allowDownload,
+    fallback
+  )
+}
+
 export const mapHomeProfile = (raw: any): HomeProfileData => {
   const info = raw?.user_info || raw?.info || raw || {}
   const userId = String(
@@ -117,7 +149,8 @@ export const mapHomeProfile = (raw: any): HomeProfileData => {
     region,
     address: info.address_detail || info.address || '',
     isPublic: Number(info.is_show_home ?? 1) === 1,
-    allowSavePic: Number(info.visit_allow_save_pic ?? info.allowSavePic ?? 1) === 1,
+    allowSavePic: resolveDownloadPermission(info, true),
+    allowDownload: resolveDownloadPermission(info, true),
     shareTitle: info.home_share_title || `${companyName}的产品主页`,
     shareDescription: info.home_share_desc || info.company_desc || info.user_desc || '',
     shareCoverUrl: pickImage(info.home_share_image, info.company_logo, info.avatar),
@@ -174,6 +207,7 @@ export const mapProduct = (raw: any, homeId = ''): ProductData => {
     coverUrl: pickImage(raw.new_thumb, raw.picture_url, colorImages?.[0]) || fallbackImage,
     visibility: Number(raw.private_type) === 2 ? 'private' : Number(raw.private_type) === 4 ? 'shared' : 'public',
     hideDetailImage: Number(raw.hide_detail_pictures || raw.hideDetailImage || 0) === 1,
+    allowDownload: resolveDownloadPermission(raw, false),
     isHot: Number(raw.is_hot || 0) === 1,
     sortOrder: Number(raw.sort || raw.sortOrder || 0),
     colorChartCount: Number(raw.color_chart_count || raw.pic_count || 0) || countImages(colorImages || raw.pic_ids),
@@ -181,6 +215,13 @@ export const mapProduct = (raw: any, homeId = ''): ProductData => {
     updatedAt: formatDateText(raw.update_time || raw.updated_at || ''),
     createdAt: formatDateText(raw.create_time || raw.created_at || ''),
   }
+}
+
+export const mapProductDetail = (raw: any, homeId = ''): ProductData => {
+  const detail = raw?.folder_info || raw?.product || raw?.data?.folder_info || raw?.data?.product || raw?.data || raw || {}
+  const product = mapProduct(detail, homeId)
+  product.allowDownload = resolveDownloadPermission(raw, product.allowDownload)
+  return product
 }
 
 const mapImageItem = (raw: any, productId: string, type: 'colorChart' | 'detailChart', index: number): ProductImageData => {
@@ -203,12 +244,37 @@ const mapImageItem = (raw: any, productId: string, type: 'colorChart' | 'detailC
 }
 
 export const mapProductImagesFromDetail = (raw: any, productId: string) => {
-  const rawPictures = toArray(raw.pictures)
+  const detailSource = raw?.folder_info || raw?.product || raw?.data?.folder_info || raw?.data?.product || raw?.data || raw || {}
+  const rawPictures = toArray(detailSource.pictures || raw?.pictures)
   const getFileType = (item: any) => Number(item?.file_type ?? item?.fileType ?? item?.picture?.file_type ?? item?.picture?.fileType ?? 1)
   const typedColor = rawPictures.filter(item => getFileType(item) === 1)
   const typedDetail = rawPictures.filter(item => getFileType(item) === 2)
-  const color = toArray(raw.pic_ids_arr || raw.pic_list || raw.color_images || raw.color_pictures || raw.colorCharts || typedColor)
-  const detail = toArray(raw.detail_pic_ids_arr || raw.detail_pic_list || raw.detail_pictures || raw.detail_images || raw.detailCharts || typedDetail)
+  const color = toArray(
+    detailSource.pic_ids_arr ||
+      detailSource.pic_list ||
+      detailSource.color_images ||
+      detailSource.color_pictures ||
+      detailSource.colorCharts ||
+      raw?.pic_ids_arr ||
+      raw?.pic_list ||
+      raw?.color_images ||
+      raw?.color_pictures ||
+      raw?.colorCharts ||
+      typedColor
+  )
+  const detail = toArray(
+    detailSource.detail_pic_ids_arr ||
+      detailSource.detail_pic_list ||
+      detailSource.detail_pictures ||
+      detailSource.detail_images ||
+      detailSource.detailCharts ||
+      raw?.detail_pic_ids_arr ||
+      raw?.detail_pic_list ||
+      raw?.detail_pictures ||
+      raw?.detail_images ||
+      raw?.detailCharts ||
+      typedDetail
+  )
   return [
     ...color.map((item, index) => mapImageItem(item, productId, 'colorChart', index)),
     ...detail.map((item, index) => mapImageItem(item, productId, 'detailChart', index)),

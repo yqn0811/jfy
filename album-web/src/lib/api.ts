@@ -374,6 +374,11 @@ export const pcApi = {
     }),
   addVisit: (type: 'homepage' | 'product' | 'category', id: string) =>
     apiRequest<any>('user/add/visit', { method: 'POST', body: { type, id, timestamp: Date.now() } }),
+  recordDownloadTraffic: (picId: string, fileUrl = '', fileSize = 0) =>
+    apiRequest<any>('user/download/traffic', {
+      method: 'POST',
+      body: { pic_id: picId, file_url: fileUrl, file_size: fileSize, timestamp: Date.now() },
+    }),
   getFavorites: (type = 'all', key = '', page = 1) =>
     apiRequest<any>('user/collect/records', { params: { type, key, page, timestamp: Date.now() } }),
   getVisits: (type = 'all', key = '', page = 1) =>

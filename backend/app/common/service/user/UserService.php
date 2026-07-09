@@ -27,6 +27,8 @@ use app\common\service\JwtService;
 use app\common\service\RemoteObjectService;
 use app\common\service\WxService;
 use app\common\service\album\AlbumService;
+use app\common\service\bridge\JiafangyunBridgeClient;
+use app\index\model\WdXcxBase;
 use app\index\model\WdXcxPic;
 use cores\utils\Utils;
 use think\App;
@@ -2762,6 +2764,79 @@ class UserService extends BaseService
         } else {
             throwError('不支持的收藏类型');
         }
+    }
+
+    /**记录下载外网流量，自己下载和他人下载都记录
+     * @param $param
+     * @param $user_id
+     * @return array
+     * @throws \cores\exception\BaseException
+     */
+    public function recordDownloadTraffic($param, $user_id)
+    {
+        $picId = (int)($param['pic_id'] ?? ($param['id'] ?? 0));
+        if ($picId <= 0) {
+            throwError('图片不存在');
+        }
+        $pic = WdXcxPic::where('id', $picId)->find();
+        if (!$pic) {
+            throwError('图片不存在');
+        }
+        $fileSize = (int)($param['file_size'] ?? 0);
+        if ($fileSize <= 0) {
+            $fileSize = (int)$pic->getData('size');
+        }
+        if ($fileSize <= 0) {
+            throwError('文件大小为空');
+        }
+        $fileUrl = trim((string)($param['file_url'] ?? ''));
+        if ($fileUrl === '') {
+            $fileUrl = removePicStyle($pic->TruePic);
+        }
+        $mediaType = ((int)$pic->getData('file_type') === 2) ? 'video' : 'image';
+
+        try {
+            $base = WdXcxBase::where('uniacid', $this->uniacid)->find();
+            if ($base) {
+                $base->inc('down_count', 1)->update();
+            }
+        } catch (\Throwable $e) {
+            Log::error('[DownloadTraffic] increment down_count failed: ' . $e->getMessage());
+        }
+
+        $result = [
+            'pic_id' => $picId,
+            'owner_uid' => (int)$pic->uid,
+            'file_size' => $fileSize,
+            'bridge_synced' => false,
+        ];
+
+        try {
+            $bridgeClient = new JiafangyunBridgeClient($this->app);
+            $owner = $bridgeClient->getUser((int)$pic->uid);
+            $payload = array_merge($bridgeClient->userPayload($owner), [
+                'owner_b_user_id' => (int)$pic->uid,
+                'downloader_b_user_id' => (int)$user_id,
+                'b_pic_id' => $picId,
+                'file_size' => $fileSize,
+                'file_url' => $fileUrl,
+                'media_type' => $mediaType,
+                'source' => 'pc_album',
+                'trace_id' => 'download_' . $user_id . '_' . $picId . '_' . time(),
+                'metadata' => [
+                    'self_download' => ((int)$pic->uid === (int)$user_id),
+                    'downloader_b_user_id' => (int)$user_id,
+                ],
+            ]);
+            $bridgeResp = $bridgeClient->post('/jiafangyun/bridge/traffic/download', $payload);
+            $result['bridge_synced'] = true;
+            $result['used_traffic_gb'] = (float)($bridgeResp['used_traffic_gb'] ?? 0);
+            $result['used_traffic_bytes'] = (int)($bridgeResp['used_traffic_bytes'] ?? 0);
+        } catch (\Throwable $e) {
+            Log::error('[DownloadTraffic] bridge sync failed: ' . $e->getMessage());
+        }
+
+        return $result;
     }
 
     /**删除用户收藏图片

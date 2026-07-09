@@ -15,14 +15,18 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import type { ProductImageData } from '@/data/ProductImageData'
+import { pcApi } from '@/lib/api'
 
 interface Props {
   open: boolean
   productId: string
   images?: ProductImageData[]
+  canDownload?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  canDownload: true,
+})
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
@@ -84,7 +88,7 @@ const toggleSelectAll = () => {
 
 watch(() => props.open, (open) => {
   if (!open) return
-  selectedImages.value = new Set()
+  selectedImages.value = new Set(productImages.value.map(imageKey))
 })
 
 watch(productImages, (images) => {
@@ -93,6 +97,10 @@ watch(productImages, (images) => {
 })
 
 const handleDownload = () => {
+  if (!props.canDownload) {
+    toast.error('商户未开放保存权限')
+    return
+  }
   if (selectedImageList.value.length === 0) {
     toast.error('请选择至少一张图片')
     return
@@ -111,6 +119,7 @@ const handleDownload = () => {
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
+        pcApi.recordDownloadTraffic(image.id, image.url, image.sizeBytes).catch(() => {})
       }, index * 150)
     })
 
@@ -130,8 +139,17 @@ const handleDownload = () => {
 
       <!-- Scrollable content -->
       <div class="flex-1 overflow-y-auto min-h-0 space-y-4 py-4">
+        <div v-if="!canDownload" class="mx-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          商户未开放保存权限，当前产品图片不可下载
+        </div>
+
+        <div v-else-if="productImages.length === 0" class="mx-6 rounded-lg border border-dashed border-border py-10 text-center text-muted-foreground">
+          <SafeIcon name="ImageOff" :size="28" class="mx-auto mb-2 opacity-60" />
+          暂无可下载图片
+        </div>
+
         <!-- Select All -->
-        <div class="px-6">
+        <div v-if="canDownload && productImages.length > 0" class="px-6">
           <div
             role="checkbox"
             tabindex="0"
@@ -152,7 +170,7 @@ const handleDownload = () => {
         </div>
 
         <!-- Color Chart Images -->
-        <div v-if="colorChartImages.length > 0" class="px-6 space-y-2">
+        <div v-if="canDownload && colorChartImages.length > 0" class="px-6 space-y-2">
           <h4 class="text-sm font-semibold text-muted-foreground">花色图 ({{ colorChartImages.length }} 张)</h4>
           <div class="grid grid-cols-5 gap-3">
             <div
@@ -183,7 +201,7 @@ const handleDownload = () => {
         </div>
 
         <!-- Detail Chart Images -->
-        <div v-if="detailChartImages.length > 0" class="px-6 space-y-2 border-t pt-4">
+        <div v-if="canDownload && detailChartImages.length > 0" class="px-6 space-y-2 border-t pt-4">
           <h4 class="text-sm font-semibold text-muted-foreground">详情图 ({{ detailChartImages.length }} 张)</h4>
           <div class="grid grid-cols-5 gap-3">
             <div
@@ -220,7 +238,7 @@ const handleDownload = () => {
           取消
         </Button>
         <Button
-          :disabled="selectedImageList.length === 0"
+          :disabled="!canDownload || productImages.length === 0 || selectedImageList.length === 0"
           @click="handleDownload"
           class="flex items-center gap-2"
         >

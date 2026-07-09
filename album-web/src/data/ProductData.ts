@@ -14,6 +14,7 @@ export interface ProductData {
   coverUrl: string
   visibility: ProductVisibility
   hideDetailImage: boolean
+  allowDownload?: boolean
   isHot: boolean
   sortOrder: number
   colorChartCount: number
