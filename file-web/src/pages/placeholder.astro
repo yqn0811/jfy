@@ -1,0 +1,30 @@
+
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { Package } from 'lucide-vue-next';
+---
+
+<BaseLayout title="页面建设中 - 织序传输" description="该页面正在建设中,敬请期待">
+  <div class="min-h-screen flex items-center justify-center page-body">
+    <div class="text-center max-w-md">
+      <div class="w-20 h-20 mx-auto mb-6 rounded-2xl flex items-center justify-center" 
+           style="background-color: hsl(var(--primary) / 0.1);">
+        <Package class="w-10 h-10" style="color: hsl(var(--primary));" />
+      </div>
+      <h1 class="text-page-title mb-4">页面建设中</h1>
+      <p class="text-body text-muted-foreground mb-8">
+        该功能正在紧张开发中,我们会尽快上线。感谢您的耐心等待!
+      </p>
+      <a 
+        href="./workbench.html" 
+        class="inline-flex items-center justify-center px-6 py-3 rounded-[--radius] font-medium transition-colors"
+        style="background-color: hsl(var(--primary)); color: hsl(var(--primary-foreground));"
+        onmouseover="this.style.backgroundColor='hsl(var(--primary-hover))'"
+        onmouseout="this.style.backgroundColor='hsl(var(--primary))'"
+      >
+        返回工作台
+      </a>
+    </div>
+  </div>
+</BaseLayout>
+    

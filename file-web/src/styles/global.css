@@ -1,0 +1,263 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Background & Surface */
+    --background: 210 15% 98%;
+    --foreground: 215 20% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 20% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 20% 15%;
+
+    /* Brand — 沉稳钴蓝,专业工具感 */
+    --primary: 215 78% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 20% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 215 85% 95%;
+    --accent-foreground: 215 78% 52%;
+
+    /* Muted */
+    --muted: 215 15% 92%;
+    --muted-foreground: 215 15% 45%;
+
+    /* State & UI */
+    --destructive: 0 75% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 215 15% 88%;
+    --input: 215 15% 88%;
+    --ring: 215 78% 52%;
+    --radius: 0.5rem;
+
+    /* Hover states — 主色提亮 8%,辅助色提亮 5% */
+    --primary-hover: 215 78% 60%;
+    --secondary-hover: 215 20% 60%;
+    --accent-hover: 215 85% 92%;
+    --muted-hover: 215 15% 88%;
+
+    /* Custom state colors */
+    --success: 145 65% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 88% 55%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Shadows */
+    --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.12);
+
+    /* Font stack — 熟悉专业 */
+    --font-sans: "PingFang SC", "Microsoft YaHei UI", "Hiragino Sans GB", system-ui, sans-serif;
+
+    /* Header height for layout calculation */
+    --header-height: 60px;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+
+  html {
+    overscroll-behavior: none;
+  }
+}
+
+@layer components {
+  /* === REQUIRED — 下游提示词直接引用,必须有具体值 === */
+  .text-page-title {
+    @apply text-3xl font-bold tracking-tight leading-tight;
+    letter-spacing: -0.015em;
+  }
+
+  .text-body {
+    @apply text-base leading-relaxed text-foreground;
+  }
+
+  .page-body {
+    @apply px-8 py-6;
+  }
+
+  .card-padding {
+    @apply p-6;
+  }
+
+  .surface-base {
+    @apply bg-card border border-border rounded-[--radius];
+    box-shadow: var(--shadow-soft);
+  }
+
+  .surface-raised {
+    @apply bg-card border border-border rounded-[--radius];
+    box-shadow: var(--shadow-card);
+  }
+
+  /* === RECOMMENDED === */
+  .text-section-title {
+    @apply text-xl font-semibold leading-snug;
+  }
+
+  .text-item-title {
+    @apply text-base font-medium leading-normal;
+  }
+
+  .text-caption {
+    @apply text-sm text-muted-foreground leading-snug;
+  }
+
+  .text-label {
+    @apply text-sm font-medium leading-none;
+  }
+
+  .page-container {
+    @apply max-w-screen-2xl mx-auto;
+  }
+
+  .section-spacing {
+    @apply space-y-8;
+  }
+
+  .interactive {
+    @apply transition-colors duration-150 cursor-pointer;
+  }
+
+  .page-section-header {
+    @apply flex items-center justify-between mb-4;
+  }
+
+  .filter-bar {
+    @apply flex flex-wrap items-center gap-3 mb-4;
+  }
+
+  .empty-state {
+    @apply flex flex-col items-center justify-center text-center text-muted-foreground py-16;
+  }
+
+  /* === APP-SPECIFIC === */
+
+  /* 主操作卡片(工作台两大入口) */
+  .action-card {
+    @apply surface-raised card-padding interactive;
+    @apply hover:border-primary/40;
+    transition: border-color 0.2s;
+  }
+
+  .action-card-icon-wrapper {
+    @apply w-12 h-12 rounded-lg flex items-center justify-center mb-3;
+    background-color: hsl(var(--primary) / 0.1);
+    color: hsl(var(--primary));
+  }
+
+  .action-card-title {
+    @apply text-item-title mb-2;
+  }
+
+  .action-card-description {
+    @apply text-caption;
+  }
+
+  /* 文件拖拽上传区 */
+  .upload-zone {
+    @apply border-2 border-dashed border-border rounded-[--radius] p-8;
+    @apply flex flex-col items-center justify-center text-center;
+    @apply transition-colors duration-200 cursor-pointer;
+    background-color: hsl(var(--primary) / 0.02);
+  }
+
+  .upload-zone:hover {
+    border-color: hsl(var(--primary));
+    background-color: hsl(var(--primary) / 0.05);
+  }
+
+  .upload-zone.dragging {
+    border-color: hsl(var(--primary));
+    background-color: hsl(var(--primary) / 0.1);
+  }
+
+  /* 表格行悬停 */
+  .table-row-hover {
+    @apply hover:bg-muted/30 transition-colors cursor-pointer;
+  }
+
+  /* 状态徽标基类(StatusBadge 内部使用) */
+  .status-badge-base {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .status-badge-draft {
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+  }
+
+  .status-badge-collecting {
+    background-color: hsl(var(--primary) / 0.1);
+    color: hsl(var(--primary));
+  }
+
+  .status-badge-pending {
+    background-color: hsl(var(--warning) / 0.1);
+    color: hsl(var(--warning));
+  }
+
+  .status-badge-need-resubmit {
+    background-color: hsl(var(--warning) / 0.15);
+    color: hsl(var(--warning));
+  }
+
+  .status-badge-approved {
+    background-color: hsl(var(--success) / 0.1);
+    color: hsl(var(--success));
+  }
+
+  .status-badge-archived {
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+  }
+
+  .status-badge-expired {
+    background-color: hsl(var(--destructive) / 0.1);
+    color: hsl(var(--destructive));
+  }
+
+  /* 步骤条(用于创建任务引导流程) */
+  .step-item {
+    @apply flex items-center gap-2 text-sm;
+  }
+
+  .step-number {
+    @apply w-8 h-8 rounded-full flex items-center justify-center font-medium;
+    @apply border-2 border-border bg-background text-muted-foreground;
+  }
+
+  .step-item.active .step-number {
+    @apply border-primary bg-primary text-primary-foreground;
+  }
+
+  .step-item.completed .step-number {
+    background-color: hsl(var(--success) / 0.1);
+    border-color: hsl(var(--success));
+    color: hsl(var(--success));
+  }
+
+  /* 面包屑导航 */
+  .breadcrumb-item {
+    @apply text-sm text-muted-foreground hover:text-foreground transition-colors;
+  }
+
+  .breadcrumb-separator {
+    @apply text-muted-foreground mx-2;
+  }
+
+  /* 数据卡片容器 */
+  .stat-card-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4;
+  }
+}
+    

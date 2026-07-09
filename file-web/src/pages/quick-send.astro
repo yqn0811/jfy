@@ -1,0 +1,13 @@
+
+---
+import StandardLayout from '@/layouts/StandardLayout.astro'
+import QuickSendContent from '@/components/quick-send/QuickSendContent.vue'
+---
+
+<StandardLayout title="快速发文件 - 织序传输">
+  <div class="h-screen overflow-hidden flex flex-col">
+    <div class="flex-1 overflow-y-auto min-h-0">
+      <QuickSendContent client:load />
+    </div>
+  </div>
+</StandardLayout>

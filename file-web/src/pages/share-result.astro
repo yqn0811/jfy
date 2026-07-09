@@ -1,0 +1,11 @@
+
+---
+import StandardLayout from '@/layouts/StandardLayout.astro'
+import ShareResultContent from '@/components/share-result/ShareResultContent.vue'
+---
+
+<StandardLayout title="分享结果 - 织序传输">
+  <main class="min-h-screen bg-background">
+    <ShareResultContent client:load />
+  </main>
+</StandardLayout>

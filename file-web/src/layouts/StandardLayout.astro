@@ -1,0 +1,21 @@
+
+---
+import BaseLayout from '@/layouts/BaseLayout.astro'
+import AppHeader from '@/components/common/AppHeader.vue'
+
+interface Props {
+  title?: string
+  description?: string
+}
+
+const { title = 'Project', description = 'Built with Astro' } = Astro.props
+---
+
+<BaseLayout {title} {description}>
+  <div class="flex flex-col min-h-screen">
+    <AppHeader client:load currentPath={Astro.url.pathname} />
+    <main class="flex-1 overflow-y-auto">
+      <slot />
+    </main>
+  </div>
+</BaseLayout>

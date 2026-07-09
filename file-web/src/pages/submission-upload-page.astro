@@ -1,0 +1,42 @@
+
+---
+import PublicLayout from '@/layouts/PublicLayout.astro'
+import SubmissionUploadPageContent from '@/components/submission_upload_page/SubmissionUploadPageContent.vue'
+import { PublicSubmissionService } from '@/data/PublicSubmissionService'
+import { CollectionTaskService, taskFieldConfigDataList, taskMaterialItemDataList } from '@/data/CollectionTaskService'
+
+const defaultTaskId = 'task-001'
+const taskVOData = PublicSubmissionService.getTaskVOById(defaultTaskId) || {
+  id: 'public-task-001',
+  taskId: defaultTaskId,
+  taskName: '示例收集任务',
+  organizationName: '织序传输助手',
+  description: '请完成材料上传',
+  dueAt: '2026-07-09T12:00:00Z',
+  accessCodeRequired: false,
+  submitterFields: [],
+  materials: [],
+  status: 'active'
+}
+
+const taskData = CollectionTaskService.getById(defaultTaskId)
+const fieldConfigs = taskData 
+  ? (taskData.submitterFieldIds || []).map(id => 
+      taskFieldConfigDataList.find(f => f.id === id)
+    ).filter(Boolean)
+  : []
+const materialConfigs = taskData
+  ? (taskData.materialItemIds || []).map(id =>
+      taskMaterialItemDataList.find(m => m.id === id)
+    ).filter(Boolean)
+  : []
+---
+
+<PublicLayout title={taskVOData.taskName}>
+  <SubmissionUploadPageContent 
+    client:load
+    taskVOData={taskVOData}
+    fieldConfigs={fieldConfigs}
+    materialConfigs={materialConfigs}
+  />
+</PublicLayout>
