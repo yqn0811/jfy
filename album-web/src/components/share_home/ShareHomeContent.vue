@@ -111,6 +111,13 @@ const loadCurrentUser = async () => {
   return user
 }
 
+const applyCachedCurrentUser = () => {
+  const user = authStore.getUser<any>() || {}
+  currentUserId.value = getCurrentUserId(user)
+  currentUser.value = user || {}
+  return user
+}
+
 const filteredProducts = computed(() => {
   let result = allProducts.value
 
@@ -284,25 +291,33 @@ const loadHomeData = async () => {
     return
   }
   isLoggedIn.value = true
+  isLoading.value = true
   let user: any = {}
-  try {
-    user = await loadCurrentUser()
-  } catch (error: any) {
-    authStore.clearToken()
-    isLoggedIn.value = false
-    showLoginDialog.value = true
-    toast.error(error?.message || '登录已失效，请重新扫码')
-    return
+  const hasShareTarget = !!targetUserId.value || !!shareCode.value
+  if (hasShareTarget) {
+    user = applyCachedCurrentUser()
+    loadCurrentUser().catch(() => {})
+  } else {
+    try {
+      user = await loadCurrentUser()
+    } catch (error: any) {
+      authStore.clearToken()
+      isLoggedIn.value = false
+      isLoading.value = false
+      showLoginDialog.value = true
+      toast.error(error?.message || '登录已失效，请重新扫码')
+      return
+    }
   }
   if (!targetUserId.value && !shareCode.value) {
     targetUserId.value = getCurrentUserId(user)
   }
   if (!targetUserId.value && !shareCode.value) {
+    isLoading.value = false
     toast.error('登录信息不完整，请重新扫码')
     showLoginDialog.value = true
     return
   }
-  isLoading.value = true
   try {
     const target = getHomeTargetRef()
     const [homeRaw, categoriesRaw, productsRaw] = await Promise.all([
