@@ -14,6 +14,7 @@ import { toast } from 'vue-sonner'
 import { pcApi } from '@/lib/api'
 import { formatBytes, parseSpaceToBytes } from '@/lib/account'
 import { unwrapList, pickImage } from '@/lib/jfyuntu-mappers'
+import { navigateTo } from '@/navigation'
 
 const isClient = ref(true)
 const isLoading = ref(false)
@@ -199,11 +200,11 @@ const handleSearch = (event: Event) => {
 }
 
 const handleBackToWorkbench = () => {
-  window.location.href = './management-workbench'
+  navigateTo('./management-workbench')
 }
 
 const handleBillingUsage = () => {
-  window.location.href = './billing-usage'
+  navigateTo('./billing-usage')
 }
 </script>
 

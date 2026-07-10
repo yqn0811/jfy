@@ -3,6 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import type { ProductData } from '@/data/ProductData'
+import { navigateToInternal } from '@/navigation'
 
 interface Props {
   products: ProductData[]
@@ -16,7 +17,7 @@ const handleNavigate = (productId: string) => {
   const params = new URLSearchParams({ productId })
   if (props.shareCode) params.set('code', props.shareCode)
   else if (props.targetUserId) params.set('uid', props.targetUserId)
-  window.location.href = `./share-home?${params.toString()}`
+  navigateToInternal(`./share-home?${params.toString()}`)
 }
 </script>
 

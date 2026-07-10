@@ -23,6 +23,7 @@ import FavoritesList from '@/components/favorites/FavoritesList.vue';
 import BrowsingHistoryContent from '@/components/browsing_history/BrowsingHistoryContent.vue';
 import HomeSettingsDialog from '@/components/home_settings/HomeSettingsDialog.vue';
 import { cn } from '@/lib/utils';
+import { navigateTo } from '@/navigation';
 
 interface Props {
   currentPath?: string;
@@ -90,7 +91,7 @@ const handleNavigate = (item: MenuItem) => {
     quickPanel.value = item.panel;
     return;
   }
-  window.location.href = item.url;
+  navigateTo(item.url);
 };
 </script>
 

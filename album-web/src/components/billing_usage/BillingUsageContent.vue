@@ -21,6 +21,7 @@ import OrderHistoryTable from '@/components/billing_usage/OrderHistoryTable.vue'
 import { toast } from 'vue-sonner'
 import { pcApi } from '@/lib/api'
 import { unwrapList } from '@/lib/jfyuntu-mappers'
+import { navigateTo } from '@/navigation'
 import type { PlanPackageData } from '@/data/PlanPackageData'
 import type { OrderData } from '@/data/OrderData'
 
@@ -243,7 +244,7 @@ const handleUpgrade = async (planId: string) => {
 }
 
 const handleBackToWorkbench = () => {
-  window.location.href = './management-workbench'
+  navigateTo('./management-workbench')
 }
 </script>
 

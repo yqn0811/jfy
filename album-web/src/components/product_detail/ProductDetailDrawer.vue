@@ -20,6 +20,7 @@ import { isVipMember } from '@/lib/account'
 import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
+import { navigateToInternal } from '@/navigation'
 
 const product = ref<ProductData | null>(null)
 const productImages = ref<ProductImageData[]>([])
@@ -187,7 +188,7 @@ const handleImageClick = (index: number, type: 'colorChart' | 'detailChart') => 
   if (shareCode.value) params.set('code', shareCode.value)
   else if (targetUserId.value) params.set('uid', targetUserId.value)
   
-  window.location.href = `./image-viewer?${params.toString()}`
+  navigateToInternal(`./image-viewer?${params.toString()}`)
 }
 
 const handleCloseDialog = (open = false) => {

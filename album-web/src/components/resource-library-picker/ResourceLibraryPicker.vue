@@ -13,6 +13,7 @@ import type { ResourceImageVO } from '@/data/ResourceLibraryService'
 import { cn } from '@/lib/utils'
 import { pcApi } from '@/lib/api'
 import { pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
+import { navigateToInternal } from '@/navigation'
 
 const isClient = ref(true)
 const isLoading = ref(false)
@@ -122,14 +123,14 @@ const handleConfirm = async () => {
     const role = targetType.value === 'detailChart' ? 'detail' : 'cover'
     await Promise.all(Array.from(selectedIds.value).map(id => pcApi.importAiResource(id, role, productId.value)))
     toast.success(`已导入 ${selectedIds.value.size} 张图片`)
-    window.location.href = returnTo.value
+    navigateToInternal(returnTo.value)
   } catch (error: any) {
     toast.error(error?.message || '导入失败')
   }
 }
 
 const handleCancel = () => {
-  window.location.href = returnTo.value
+  navigateToInternal(returnTo.value)
 }
 </script>
 

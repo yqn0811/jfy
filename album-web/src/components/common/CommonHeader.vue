@@ -18,6 +18,7 @@ import FavoritesList from "@/components/favorites/FavoritesList.vue";
 import BrowsingHistoryContent from "@/components/browsing_history/BrowsingHistoryContent.vue";
 import { cn } from "@/lib/utils";
 import { authStore, pcApi } from "@/lib/api";
+import { navigateToInternal } from "@/navigation";
 
 interface Props {
   isAuthenticated?: boolean;
@@ -47,12 +48,12 @@ const navItems = [
 
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
-    window.location.href = `./share-home?keyword=${encodeURIComponent(searchQuery.value.trim())}`;
+    navigateToInternal(`./share-home?keyword=${encodeURIComponent(searchQuery.value.trim())}`);
   }
 };
 
 const handleNavigate = (href: string) => {
-  window.location.href = href;
+  navigateToInternal(href);
 };
 
 const handleNavClick = (item: typeof navItems[number]) => {

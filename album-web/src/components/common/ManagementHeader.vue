@@ -6,6 +6,7 @@ import SafeIcon from '@/components/common/SafeIcon.vue';
 import BrandMark from '@/components/common/BrandMark.vue';
 import UserProfileMenu from '@/components/common/UserProfileMenu.vue';
 import { authStore, isMockEnabled, pcApi } from '@/lib/api';
+import { navigateTo } from '@/navigation';
 
 const userInfo = ref<any>({});
 
@@ -31,7 +32,7 @@ const handleProfileUpdated = (profile: any) => {
 };
 
 const goToWorkbench = () => {
-  window.location.href = './management-workbench';
+  navigateTo('./management-workbench');
 };
 </script>
 

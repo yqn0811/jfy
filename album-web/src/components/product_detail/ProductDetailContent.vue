@@ -15,6 +15,7 @@ import { isVipMember } from '@/lib/account'
 import { mapProductDetail, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import type { ProductImageData } from '@/data/ProductImageData'
+import { navigateToInternal } from '@/navigation'
 
 const product = ref<ProductData | null>(null)
 const productImages = ref<ProductImageData[]>([])
@@ -171,11 +172,11 @@ const handleBack = () => {
   if (typeof window !== 'undefined' && window.history.length > 1) {
     window.history.back()
   } else {
-    window.location.href = targetUserId.value
-      ? `./share-home.html?uid=${encodeURIComponent(targetUserId.value)}`
+    navigateToInternal(targetUserId.value
+      ? `./share-home?uid=${encodeURIComponent(targetUserId.value)}`
       : shareCode.value
-        ? `./share-home.html?code=${encodeURIComponent(shareCode.value)}`
-      : './share-home.html'
+        ? `./share-home?code=${encodeURIComponent(shareCode.value)}`
+      : './share-home')
   }
 }
 

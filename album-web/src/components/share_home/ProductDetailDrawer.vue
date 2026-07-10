@@ -20,6 +20,7 @@ import { isVipMember } from '@/lib/account'
 import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
+import { navigateToInternal } from '@/navigation'
 
 interface Props {
   open: boolean
@@ -147,7 +148,7 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
   const target = getUrlHomeTarget()
   if (target.shareCode) params.set('code', target.shareCode)
   else if (target.targetUserId) params.set('uid', target.targetUserId)
-  window.location.href = `./image-viewer?${params.toString()}`
+  navigateToInternal(`./image-viewer?${params.toString()}`)
 }
 </script>
 

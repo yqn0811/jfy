@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
+import { navigateToInternal } from '@/navigation'
 
 const reasonMap: Record<string, { title: string; description: string }> = {
   home_closed: {
@@ -37,7 +38,7 @@ const currentReason = computed(() => {
 })
 
 const handleReturn = () => {
-  window.location.href = './share-home'
+  navigateToInternal('./share-home')
 }
 </script>
 

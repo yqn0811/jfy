@@ -8,6 +8,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { pcApi } from '@/lib/api'
 import { unwrapList } from '@/lib/jfyuntu-mappers'
+import { navigateToInternal } from '@/navigation'
 
 type SelectionMode = 'my' | 'customer'
 
@@ -84,7 +85,7 @@ const handleViewProduct = (item: any) => {
   }
   const params = new URLSearchParams({ productId: String(productId) })
   if (targetUserId) params.set('uid', String(targetUserId))
-  window.location.href = `./share-home?${params.toString()}`
+  navigateToInternal(`./share-home?${params.toString()}`)
 }
 
 const openDeleteConfirm = (item: any) => {

@@ -24,6 +24,7 @@ import type { CategoryData } from '@/data/CategoryData'
 import { buildProductImageUrls, type ProductImageData } from '@/data/ProductImageData'
 import ImageUploadZone from './ImageUploadZone.vue'
 import ImageSortable from './ImageSortable.vue'
+import { navigateTo } from '@/navigation'
 import QuickImageUploadTile from './QuickImageUploadTile.vue'
 
 interface FormState {
@@ -285,7 +286,7 @@ const handleCancel = () => {
     emit('cancel')
     return
   }
-  window.location.href = './product-management'
+  navigateTo('./product-management')
 }
 
 const buildSavePayload = () => ({
@@ -328,7 +329,7 @@ const handleSave = async () => {
     if (props.embedded) {
       emit('saved', formState.value.id || productId.value || '')
     } else {
-      window.location.href = './product-management'
+      navigateTo('./product-management')
     }
   } catch (error) {
     console.error('Failed to save product:', error)

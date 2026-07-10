@@ -45,6 +45,25 @@ export const navigateTo = (target: string) => {
   window.scrollTo({ top: 0 })
 }
 
+export const navigateToInternal = (target: string) => {
+  if (/^(mailto:|tel:|weixin:)/i.test(target)) {
+    window.location.href = target
+    return
+  }
+
+  if (/^https?:/i.test(target)) {
+    const current = typeof window === 'undefined' ? 'http://localhost/' : window.location.href
+    const url = new URL(target, current)
+    const currentUrl = new URL(current)
+    if (url.origin !== currentUrl.origin) {
+      window.location.href = target
+      return
+    }
+  }
+
+  navigateTo(target)
+}
+
 export const replaceTo = (target: string) => {
   window.history.replaceState({}, '', resolveTarget(target))
   syncRouteFromLocation()

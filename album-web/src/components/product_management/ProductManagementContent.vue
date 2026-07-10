@@ -31,6 +31,7 @@ import type { CategoryData } from '@/data/CategoryData'
 import { authStore, pcApi } from '@/lib/api'
 import { mapCategory, mapProduct, unwrapList } from '@/lib/jfyuntu-mappers'
 import { cn } from '@/lib/utils'
+import { navigateTo } from '@/navigation'
 
 const isClient = ref(true)
 
@@ -416,7 +417,7 @@ const handleOpenShareHome = async () => {
 }
 
 const handleOpenRecycle = () => {
-  window.location.href = './recycling-bin'
+  navigateTo('./recycling-bin')
 }
 
 const handleOpenProductPreview = (productId: string) => {

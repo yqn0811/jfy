@@ -13,6 +13,7 @@ import LoginDialog from '@/components/common/LoginDialog.vue'
 import { toast } from 'vue-sonner'
 import { authStore, pcApi } from '@/lib/api'
 import { buildPcTargetUrl, mapPcRecord, unwrapList, type PcRecordItem } from '@/lib/jfyuntu-mappers'
+import { navigateToInternal } from '@/navigation'
 
 type FavoriteType = 'all' | 'homepage' | 'category' | 'product'
 
@@ -127,7 +128,7 @@ const handleSearch = () => {
 }
 
 const handleView = (fav: any) => {
-  window.location.href = buildPcTargetUrl(fav.targetType, fav.targetId, fav.targetUserId, fav.targetShareCode)
+  navigateToInternal(buildPcTargetUrl(fav.targetType, fav.targetId, fav.targetUserId, fav.targetShareCode))
 }
 
 const openRemoveConfirm = (favorite: PcRecordItem) => {
@@ -155,11 +156,7 @@ const handleRemoveFavorite = async () => {
 }
 
 const handleGoToBrowse = () => {
-  if (props.embedded) {
-    window.location.href = './share-home'
-    return
-  }
-  window.location.href = './share-home'
+  navigateToInternal('./share-home')
 }
 
 const handlePageChange = (page: number) => {

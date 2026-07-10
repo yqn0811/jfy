@@ -2,9 +2,10 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/common/EmptyState.vue'
+import { navigateToInternal } from '@/navigation'
 
 const handleGoHome = () => {
-  window.location.href = './share-home'
+  navigateToInternal('./share-home')
 }
 </script>
 

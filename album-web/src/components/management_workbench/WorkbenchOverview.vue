@@ -7,6 +7,7 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'
 import { pcApi } from '@/lib/api'
 import { mapCategory, unwrapList } from '@/lib/jfyuntu-mappers'
+import { navigateTo } from '@/navigation'
 import StatCard from '@/components/management_workbench/StatCard.vue'
 import QuickActionCard from '@/components/management_workbench/QuickActionCard.vue'
 import StorageWarning from '@/components/management_workbench/StorageWarning.vue'
@@ -119,7 +120,7 @@ const handleBatchUpload = () => {
     toast.error('请先创建产品')
     return
   }
-  window.location.href = './product-management'
+  navigateTo('./product-management')
 }
 
 const buildCategoryPayload = (data: CategoryData) => ({
@@ -180,7 +181,7 @@ const handleCreateProduct = async (data: {
 }
 
 const handleStorageClick = () => {
-  window.location.href = './billing-usage'
+  navigateTo('./billing-usage')
 }
 </script>
 

@@ -3,6 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import type { CategoryVO } from '@/data/CategoryService'
+import { navigateToInternal } from '@/navigation'
 
 interface Props {
   categories: CategoryVO[]
@@ -16,7 +17,7 @@ const handleNavigate = (categoryId: string) => {
   const params = new URLSearchParams({ categoryId })
   if (props.shareCode) params.set('code', props.shareCode)
   else if (props.targetUserId) params.set('uid', props.targetUserId)
-  window.location.href = `./category?${params.toString()}`
+  navigateToInternal(`./category?${params.toString()}`)
 }
 </script>
 

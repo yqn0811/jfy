@@ -18,6 +18,7 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { pcApi } from '@/lib/api'
 import { mapProduct } from '@/lib/jfyuntu-mappers'
+import { navigateToInternal } from '@/navigation'
 import type { ProductVO } from '@/data/ProductService'
 import { toast } from 'vue-sonner'
 
@@ -270,7 +271,7 @@ const handleCancel = () => {
     emit('cancel')
     return
   }
-  window.location.href = './product-management'
+  navigateToInternal('./product-management')
 }
 
 // 查看产品
@@ -279,7 +280,7 @@ const handleViewProduct = () => {
     emit('view-product', currentProductId.value)
     return
   }
-  window.location.href = `./share-home?productId=${currentProductId.value}`
+  navigateToInternal(`./share-home?productId=${currentProductId.value}`)
 }
 
 onMounted(() => {

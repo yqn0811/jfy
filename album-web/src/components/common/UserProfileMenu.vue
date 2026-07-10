@@ -13,6 +13,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import HomeSettingsDialog from '@/components/home_settings/HomeSettingsDialog.vue'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { authStore } from '@/lib/api'
+import { navigateTo } from '@/navigation'
 
 interface Props {
   userInfo?: Record<string, any>
@@ -114,7 +115,7 @@ const totalStorageText = computed(() => props.userInfo?.all_space || (totalBytes
 const usedStorageText = computed(() => formatBytes(usedBytes.value))
 
 const goToWorkbench = () => {
-  window.location.href = './management-workbench'
+  navigateTo('./management-workbench')
 }
 
 const openHomeSettings = () => {
@@ -122,7 +123,7 @@ const openHomeSettings = () => {
 }
 
 const handleBilling = () => {
-  window.location.href = './billing-usage'
+  navigateTo('./billing-usage')
 }
 
 const handleProfileSaved = (profile: any) => {

@@ -14,6 +14,7 @@ import { toast } from 'vue-sonner'
 import { cn } from '@/lib/utils'
 import { pcApi } from '@/lib/api'
 import { buildPcTargetUrl, mapPcRecord, unwrapList, type PcRecordItem } from '@/lib/jfyuntu-mappers'
+import { navigateToInternal } from '@/navigation'
 
 type TabType = 'all' | 'homepage' | 'category' | 'product'
 
@@ -92,7 +93,7 @@ const handleKeywordInput = (event: Event) => {
 }
 
 const handleView = (record: PcRecordItem) => {
-  window.location.href = buildPcTargetUrl(record.targetType, record.targetId, record.targetUserId, record.targetShareCode)
+  navigateToInternal(buildPcTargetUrl(record.targetType, record.targetId, record.targetUserId, record.targetShareCode))
 }
 
 const handleCollect = async (record: PcRecordItem) => {
@@ -131,7 +132,7 @@ const handleConfirmDelete = async () => {
 }
 
 const handleGoToBrowse = () => {
-  window.location.href = './share-home'
+  navigateToInternal('./share-home')
 }
 
 const formatDate = (dateStr: string) => {
