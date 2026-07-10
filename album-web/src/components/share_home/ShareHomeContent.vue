@@ -4,7 +4,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import SafeIcon from '@/components/common/SafeIcon.vue'
@@ -244,6 +243,37 @@ const categoryOptions = computed(() => {
     { id: 'all', name: '全部' },
     ...categories.value.filter(c => !c.parentId)
   ]
+})
+
+const getCategoryById = (categoryId = '') => categories.value.find(category => category.id === categoryId) || null
+
+const categoryBreadcrumbs = computed(() => {
+  const crumbs: Array<{ id: string; name: string }> = [{ id: 'all', name: '主页' }]
+  const selectedId = selectedCategoryId.value
+  if (!selectedId || selectedId === 'all') return crumbs
+
+  const chain: CategoryData[] = []
+  const seen = new Set<string>()
+  let current = getCategoryById(selectedId)
+  while (current && !seen.has(current.id)) {
+    chain.unshift(current)
+    seen.add(current.id)
+    current = current.parentId ? getCategoryById(current.parentId) : null
+  }
+  return [...crumbs, ...chain.map(category => ({ id: category.id, name: category.name }))]
+})
+
+const childCategoryOptions = computed(() => {
+  const selectedId = selectedCategoryId.value
+  if (!selectedId || selectedId === 'all') {
+    return categories.value.filter(category => !category.parentId)
+  }
+  return categories.value.filter(category => category.parentId === selectedId)
+})
+
+const currentCategoryName = computed(() => {
+  if (!selectedCategoryId.value || selectedCategoryId.value === 'all') return '全部产品'
+  return childCategoryOptions.value.length > 0 ? '下级分类' : '当前分类'
 })
 
 const loadHomeData = async () => {
@@ -571,21 +601,45 @@ const handleLoginSuccess = () => {
     <!-- 分类导航区 -->
     <section
       v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode"
-      class="sticky top-0 z-40 border-b border-border bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:px-8"
+      class="sticky top-0 z-40 border-b border-border bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:px-8"
     >
-      <div class="page-container">
-        <Tabs :model-value="selectedCategoryId || 'all'" @update:model-value="(value) => handleCategoryChange(String(value))" class="w-full">
-          <TabsList class="w-full justify-start overflow-x-auto bg-transparent rounded-none h-auto p-0 gap-1">
-            <TabsTrigger
-              v-for="cat in categoryOptions"
+      <div class="page-container space-y-3">
+        <nav class="flex min-w-0 flex-wrap items-center gap-1 text-sm" aria-label="分类层级">
+          <template v-for="(crumb, index) in categoryBreadcrumbs" :key="crumb.id">
+            <button
+              type="button"
+              class="rounded px-1.5 py-1 font-medium text-muted-foreground transition-colors hover:bg-primary/5 hover:text-primary"
+              :class="index === categoryBreadcrumbs.length - 1 ? 'text-foreground' : ''"
+              @click="handleCategoryChange(crumb.id)"
+            >
+              {{ crumb.name }}
+            </button>
+            <SafeIcon
+              v-if="index < categoryBreadcrumbs.length - 1"
+              name="ChevronRight"
+              :size="14"
+              class="text-muted-foreground/70"
+            />
+          </template>
+        </nav>
+
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="shrink-0 text-xs font-medium text-muted-foreground">{{ currentCategoryName }}</span>
+          <div v-if="childCategoryOptions.length > 0" class="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5">
+            <Button
+              v-for="cat in childCategoryOptions"
               :key="cat.id"
-              :value="cat.id"
-              class="shrink-0 px-4 py-4 rounded-none border-b-2 border-transparent text-muted-foreground transition-colors hover:bg-primary/5 hover:text-primary hover:font-semibold data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary"
+              type="button"
+              variant="outline"
+              size="sm"
+              class="shrink-0 rounded-md border-border bg-card px-3 font-medium hover:border-primary hover:bg-primary/5 hover:text-primary"
+              @click="handleCategoryChange(cat.id)"
             >
               {{ cat.name }}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+            </Button>
+          </div>
+          <span v-else class="text-xs text-muted-foreground">当前分类暂无下级分类</span>
+        </div>
       </div>
     </section>
 
