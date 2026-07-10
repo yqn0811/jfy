@@ -2,6 +2,7 @@ console.log(`环境:${process.env.NODE_ENV}`);
 
 let domain;
 let environment = process.env.NODE_ENV;
+const TEST_API_DOMAIN = "https://api-test.jfyuntu.com";
 console.log(environment);
 if (environment === "development") {
 	//开发域名
@@ -12,14 +13,14 @@ if (environment === "development") {
 	// domain = "https://www.jfyuntu.com";
 	// domain = "http://api.mia-233.cn";
 	// domain = "http://115.190.245.200";
-	domain = "https://api.jfyuntu.com";
+	domain = TEST_API_DOMAIN;
 } else {
 	//发行域名
 	// domain = 'https://yunce.jiumirw.com';
 	// domain = "https://photo.jfc114.com";
 	// domain = "http://api.mia-233.cn";
 	// domain = "http://115.190.245.200";
-	domain = "https://api.jfyuntu.com";
+	domain = TEST_API_DOMAIN;
 	// domain = 'https://manage.4funinnovate.com';
 }
 const config = {

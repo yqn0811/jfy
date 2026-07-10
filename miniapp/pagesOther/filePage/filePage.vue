@@ -7,7 +7,7 @@
 					<image src="@/static/icon/slices/Frame 1000004377@2x.png" class="upload-icon" alt="" />
 					<view class="upload-text">新建相册</view>
 				</view>
-				<view class="select-item" @click="openUploadBox(1)" v-if="this.level < 4">
+				<view class="select-item" @click="openUploadBox(1)" v-if="canCreateChildFolder">
 					<image src="@/static/icon/slices/Frame 1000004894@2x.png" class="upload-icon" alt="" />
 					<view class="upload-text">新建文件夹</view>
 				</view>
@@ -274,6 +274,12 @@ export default {
 
 	onReachBottom() {
 		// TODO: 实现上拉加载更多
+	},
+
+	computed: {
+		canCreateChildFolder() {
+			return Number(this.level || 0) < 4;
+		},
 	},
 
 

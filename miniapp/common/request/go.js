@@ -61,6 +61,25 @@ const getCurrentLoginUid = () => {
   return String(uid);
 };
 
+const buildCurrentPagePath = () => {
+  const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+  const currentPage = pages && pages[pages.length - 1];
+  if (!currentPage || !currentPage.route) return "";
+  const options = currentPage.options || {};
+  const query = Object.keys(options)
+    .filter((key) => options[key] !== undefined && options[key] !== null && options[key] !== "")
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(options[key])}`)
+    .join("&");
+  return `/${currentPage.route}${query ? `?${query}` : ""}`;
+};
+
+const saveLoginRedirect = () => {
+  const redirectUrl = buildCurrentPagePath();
+  if (redirectUrl) {
+    uni.setStorageSync("share_login_redirect", redirectUrl);
+  }
+};
+
 const getCurrentInviteCode = () => {
   const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
   const currentPage = pages && pages[pages.length - 1];
@@ -77,6 +96,7 @@ const redirectToLogin = () => {
   if (route === "pages/login/login" || isRedirectingToLogin) return;
 
   isRedirectingToLogin = true;
+  saveLoginRedirect();
   uni.removeStorageSync("token");
   uni.removeStorageSync("user");
   uni.removeStorageSync("userInfo");

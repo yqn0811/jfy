@@ -203,9 +203,23 @@ class SelectionService extends BaseService
             return null;
         }
 
-        $src = (string)$getValue($pic, ['src', 'imgurl', 'picture_url', 'preview_url', 'thumbnail_url'], '');
-        if ($src === '' && is_object($pic) && isset($pic->TruePic)) {
-            $src = (string)$pic->TruePic;
+        $truePic = '';
+        if (is_object($pic) && isset($pic->TruePic)) {
+            $truePic = (string)$pic->TruePic;
+        }
+        $src = $truePic ?: (string)$getValue($pic, [
+            'src',
+            'picture_url',
+            'preview_url',
+            'thumbnail_url',
+            'thumb_url',
+            'file_url',
+            'imgurl',
+            'url',
+        ], '');
+        $origin = (string)$getValue($pic, ['picture_url_original', 'original_url', 'file_url', 'url'], '');
+        if ($origin === '' && $truePic !== '') {
+            $origin = function_exists('removePicStyle') ? removePicStyle($truePic) : $truePic;
         }
         $name = (string)$getValue($pic, ['name', 'pic_name'], '');
         $fileType = (int)$getValue($pic, ['file_type'], 1);
@@ -217,6 +231,11 @@ class SelectionService extends BaseService
             'selection_item_id' => $selectionItemId,
             'src' => $src,
             'imgurl' => $src,
+            'picture_url' => $src,
+            'preview_url' => $src,
+            'thumbnail_url' => $src,
+            'picture_url_original' => $origin ?: $src,
+            'file_url' => $origin ?: $src,
             'name' => $name,
             'pic_name' => $name,
             'file_type' => $fileType,

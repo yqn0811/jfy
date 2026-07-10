@@ -10,6 +10,7 @@ import SelectionDetailDialog from '@/components/selection/SelectionDetailDialog.
 import SelectionPickerDialog from '@/components/selection/SelectionPickerDialog.vue'
 import { pcApi } from '@/lib/api'
 import { mapProduct, mapProductImagesFromDetail, pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
+import { buildSelectionProductImageMap, pickSelectionImageList } from '@/lib/selection-images'
 import { navigateToInternal } from '@/navigation'
 import type { ProductData } from '@/data/ProductData'
 import type { ProductImageData } from '@/data/ProductImageData'
@@ -40,54 +41,20 @@ const pageDesc = computed(() => props.mode === 'customer' ? '客户发送给你�
 const emptyTitle = computed(() => props.mode === 'customer' ? '暂无客户选款' : '暂无选款单')
 const emptyDesc = computed(() => props.mode === 'customer' ? '客户从你的主页选款并发送后，会在这里看到记录' : '从商家分享主页选择花色并发送后，会在这里看到记录')
 
-const toImageList = (value: any) => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item, index) => {
-        if (!item) return null
-        if (typeof item === 'string') {
-          return { src: item, imgurl: item, name: `花色${index + 1}`, pic_name: `花色${index + 1}` }
-        }
-        return item
-      })
-      .filter(Boolean)
-  }
-  if (typeof value === 'string' && value.trim()) {
-    return value
-      .split(',')
-      .map((src, index) => ({
-        src: src.trim(),
-        imgurl: src.trim(),
-        name: `花色${index + 1}`,
-        pic_name: `花色${index + 1}`,
-      }))
-      .filter(item => item.src)
-  }
-  return []
-}
-
-const pickImageList = (...values: any[]) => {
-  for (const value of values) {
-    const list = toImageList(value)
-    if (list.length) return list
-  }
-  return []
-}
-
-const getDetailSelectedImages = (detail: any) => pickImageList(
-  detail?.list,
-  detail?.selected_preview,
-  detail?.grouped_pictures?.variant_pictures,
-  detail?.grouped_pictures?.color_pictures,
-  detail?.grouped_pictures?.pictures,
-  detail?.cover_img
-)
-
 const mergeSelectionDetail = (item: any, detail: any = null) => {
   const info = detail?.info || {}
   const product = detail?.product_summary || detail?.product || item.product_summary || item.product || {}
-  const detailImages = getDetailSelectedImages(detail)
-  const fallbackImages = pickImageList(item.selected_preview, item.list, item.cover_img)
+  const productImageMap = buildSelectionProductImageMap(detail?.product, item.product, item.product_summary, detail?.product_summary)
+  const detailImages = pickSelectionImageList(
+    productImageMap,
+    detail?.list,
+    detail?.selected_preview,
+    detail?.grouped_pictures?.variant_pictures,
+    detail?.grouped_pictures?.color_pictures,
+    detail?.grouped_pictures?.pictures,
+    detail?.cover_img
+  )
+  const fallbackImages = pickSelectionImageList(productImageMap, item.selected_preview, item.list, item.cover_img)
   const selectedImages = detailImages.length ? detailImages : fallbackImages
   const totalSelected = Number(detail?.total_selected || item.total_selected || item.product_count || selectedImages.length || 0)
 
@@ -100,7 +67,7 @@ const mergeSelectionDetail = (item: any, detail: any = null) => {
     factory: detail?.factory || item.factory || {},
     product,
     product_summary: detail?.product_summary || item.product_summary || product,
-    detail,
+    detail: detail ? { ...detail, list: selectedImages, selected_preview: selectedImages } : detail,
     list: selectedImages,
     selected_preview: selectedImages,
     cover_img: detail?.cover_img || item.cover_img || [],
@@ -154,15 +121,19 @@ const getPeerName = (item: any) => {
     : (item.factory || item.detail?.factory)
   return peer?.company_name || peer?.nickname || peer?.mobile || '未知用户'
 }
-const getPreviewImages = (item: any) => pickImageList(
-  item.selected_preview,
-  item.list,
-  item.detail?.list,
-  item.detail?.selected_preview,
-  item.detail?.grouped_pictures?.variant_pictures,
-  item.cover_img,
-  item.detail?.cover_img
-)
+const getPreviewImages = (item: any) => {
+  const productImageMap = buildSelectionProductImageMap(item.detail?.product, item.product, item.product_summary)
+  return pickSelectionImageList(
+    productImageMap,
+    item.selected_preview,
+    item.list,
+    item.detail?.list,
+    item.detail?.selected_preview,
+    item.detail?.grouped_pictures?.variant_pictures,
+    item.cover_img,
+    item.detail?.cover_img
+  )
+}
 const getPreviewImageSrc = (image: any) => pickImage(image)
 const getPreviewImageName = (image: any, index: number) =>
   image?.pic_name || image?.name || image?.title || `花色${index + 1}`
@@ -417,13 +388,13 @@ watch(
               </span>
             </div>
 
-            <div class="grid grid-cols-4 gap-2">
+            <div class="flex flex-wrap gap-2">
               <div
                 v-for="(image, index) in getPreviewImages(item).slice(0, 4)"
                 :key="index"
-                class="overflow-hidden rounded-md border border-border bg-muted"
+                class="h-24 w-24 overflow-hidden rounded-md border border-border bg-muted"
               >
-                <div class="aspect-square">
+                <div class="h-full w-full">
                   <img
                     v-if="getPreviewImageSrc(image) && !isPreviewImageBroken(item, image, index)"
                     :src="getPreviewImageSrc(image)"
@@ -436,7 +407,7 @@ watch(
                   </div>
                 </div>
               </div>
-              <div v-if="getPreviewImages(item).length === 0" class="col-span-full flex h-24 items-center justify-center rounded-md bg-muted">
+              <div v-if="getPreviewImages(item).length === 0" class="flex h-24 w-24 items-center justify-center rounded-md bg-muted">
                 <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
               </div>
             </div>

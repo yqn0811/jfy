@@ -41,6 +41,9 @@ export const unwrapList = (value: any): any[] => {
 export const pickImage = (...values: any[]) => {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value
+    if (value?.TruePic) return value.TruePic
+    if (value?.true_pic) return value.true_pic
+    if (value?.truePic) return value.truePic
     if (value?.url) return value.url
     if (value?.file_url) return value.file_url
     if (value?.fileUrl) return value.fileUrl

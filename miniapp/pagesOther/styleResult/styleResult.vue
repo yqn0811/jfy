@@ -205,25 +205,7 @@
     </view>
 
     <view class="nav-bottom-btns" v-if="fromPage === 'my'">
-      <view v-if="!isEditMode" class="bottom-btns-wrap">
-        <view class="btns-items">
-          <view class="item" @click="goToStyleList">
-            <image
-              class="item-icon"
-              src="/static/icon/24＊24@2x(1).png"
-              mode="scaleToFill"
-            />
-            <text class="item-text">选款单</text>
-          </view>
-          <view class="item" @click="enterEditMode">
-            <image
-              class="item-icon"
-              src="/static/icon/24＊24@2x(9).png"
-              mode="scaleToFill"
-            />
-            <text class="item-text">编辑</text>
-          </view>
-        </view>
+      <view v-if="!isEditMode" class="bottom-btns-wrap normal-actions">
         <view class="shrae-btns" @click="handleShare">
           <image
             class="item-icon"
@@ -231,6 +213,14 @@
             mode="scaleToFill"
           />
           <text class="item-text">分享</text>
+        </view>
+        <view class="edit-btns" @click="enterEditMode">
+          <image
+            class="item-icon"
+            src="/static/icon/24＊24@2x(9).png"
+            mode="scaleToFill"
+          />
+          <text class="item-text">编辑</text>
         </view>
       </view>
 
@@ -282,6 +272,7 @@
 
 <script>
 import SharePopup from "@/components/SharePopup/index.vue";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 
 export default {
   components: {
@@ -324,9 +315,12 @@ export default {
     this.totalHeight = this.statusBarHeight + this.navigationBarHeight;
     if (options.id) {
       this.styleId = options.id;
-      this.uid = options.uid;
+      this.uid = this.normalizeShareParam(options.uid);
       this.fromPage = options.fromPage;
       this.shareUrl = this.buildShareUrl();
+      if ((this.uid || options.source === "share") && !ensureSharedPageLogin("pagesOther/styleResult/styleResult", options, this.uid)) {
+        return;
+      }
       this.getStyleDetail();
     }
   },
@@ -349,8 +343,18 @@ export default {
       return text;
     },
     buildShareUrl() {
-      const uid = this.normalizeShareParam(this.uid);
-      return `/pagesOther/styleResult/styleResult?id=${this.styleId}${uid ? `&uid=${uid}` : ""}`;
+      const uid = this.getShareOwnerId();
+      const query = [`id=${encodeURIComponent(this.styleId)}`];
+      if (uid) query.push(`uid=${encodeURIComponent(uid)}`);
+      query.push("source=share");
+      return `/pagesOther/styleResult/styleResult?${query.join("&")}`;
+    },
+    getShareOwnerId() {
+      return (
+        this.normalizeShareParam(this.uid) ||
+        this.normalizeShareParam(this.orderInfo.factory_uid) ||
+        (this.$getCurrentUserId ? this.$getCurrentUserId() : "")
+      );
     },
     getShareImage() {
       return (
@@ -1026,18 +1030,24 @@ export default {
   position: fixed;
   bottom: 0;
   left: 0;
-  padding-bottom: calc(24rpx + constant(safe-area-inset-bottom));
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  z-index: 1200;
+  padding: 20rpx 32rpx calc(24rpx + constant(safe-area-inset-bottom));
+  padding: 20rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
   background: #fff;
   box-shadow: 0 -8rpx 24rpx rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+  overflow: hidden;
 
   .bottom-btns-wrap {
-    min-height: 112rpx;
-    padding: 20rpx 32rpx 0;
+    min-height: 96rpx;
     box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: space-between;
+  }
+
+  .normal-actions {
+    gap: 24rpx;
   }
 
   .btns-items {
@@ -1080,7 +1090,6 @@ export default {
 
   .shrae-btns {
     flex: 1;
-    margin: 0 20rpx;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1092,6 +1101,25 @@ export default {
     .item-text {
       font-size: 32rpx;
       color: #333;
+    }
+  }
+
+  .edit-btns {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px solid #00000099;
+    border-radius: 96rpx;
+    padding: 24rpx 0;
+    gap: 8rpx;
+    box-sizing: border-box;
+
+    .item-text {
+      font-size: 32rpx;
+      color: #333;
+      font-weight: bold;
     }
   }
 

@@ -997,6 +997,7 @@ export default {
       const fileUrl = await resolveImageDownloadUrl(this.$go, currentItem, {
         target_user_id: this.uid,
         product_id: currentItem.product_id || currentItem.folder_id,
+        file_size: currentItem.file_size || currentItem.size,
       });
       if (!fileUrl) {
         uni.showToast({
@@ -1113,6 +1114,7 @@ export default {
       const originalUrl = await resolveImageDownloadUrl(this.$go, currentItem, {
         target_user_id: this.uid,
         product_id: currentItem.product_id || currentItem.folder_id,
+        file_size: currentItem.file_size || currentItem.size,
       });
       if (originalUrl) {
         this.currentImageUrl = originalUrl;
@@ -1146,26 +1148,6 @@ export default {
       }
       return gradeLevel > 0 && (!endTime || endTime > Math.floor(Date.now() / 1000));
     },
-    recordDownloadTraffic(item = {}, fileUrl = "") {
-      const picId = item.pic_id || item.id || this.picId;
-      if (!picId || !this.$go) return;
-      const params = {
-        pic_id: picId,
-        file_url: fileUrl,
-        file_size: Number(item.file_size || item.size || 0),
-        timestamp: new Date().getTime(),
-      };
-      this.$go(
-        "user/download/traffic",
-        {
-          ...params,
-          sign: this.$base ? this.$base.getASCII(params) : "",
-        },
-        "post",
-        { show_err: false, loading: false },
-      ).catch(() => {});
-    },
-
     // 添加到相册
     handleAddToAlbum() {
       if (this.option_flag == "false") {

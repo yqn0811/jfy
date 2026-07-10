@@ -74,20 +74,18 @@ export const imageUrlFor = (item = {}, usage = "preview") => {
 
 export const resolveImageDownloadUrl = (request, item = {}, extra = {}) => {
   const picId = item.pic_id || item.id || extra.pic_id || "";
-  const entry = imageUrlFor(item, "download");
-  if (!entry) return Promise.resolve("");
-  if (entry.indexOf("/api/user/download/original") === -1) {
-    return Promise.resolve(entry);
-  }
   if (!request || !picId) {
     return Promise.resolve("");
   }
+  const entry = imageUrlFor(item, "download");
   return request(
     "user/download/original",
     {
       pic_id: picId,
       target_user_id: extra.target_user_id || extra.uid || item.uid || "",
       product_id: extra.product_id || item.product_id || item.folder_id || "",
+      file_url: entry,
+      file_size: Number(extra.file_size || item.file_size || item.size || item.size_bytes || 0),
       timestamp: new Date().getTime(),
     },
     "post",

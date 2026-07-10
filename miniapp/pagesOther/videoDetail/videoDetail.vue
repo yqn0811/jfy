@@ -110,6 +110,7 @@
 
 <script>
 	import { notifyFolderRefresh } from '@/common/helper/refresh.js';
+	import { resolveImageDownloadUrl } from '@/common/helper/imageUrls.js';
 	export default {
 		data() {
 			return {
@@ -332,14 +333,32 @@
 			},
 
 			// 下载原视频
-			handleDownload() {
+			async handleDownload() {
+				if (!this.canUseOriginalMedia()) {
+					uni.showToast({
+						title: '请先升级成为会员',
+						icon: 'none'
+					})
+					return
+				}
+				const downloadUrl = await resolveImageDownloadUrl(this.$go, this.videoInfo, {
+					pic_id: this.videoInfo.pic_id || this.videoInfo.id,
+					file_size: this.videoInfo.file_size || this.videoInfo.size,
+				})
+				if (!downloadUrl) {
+					uni.showToast({
+						title: '视频地址无效',
+						icon: 'none'
+					})
+					return
+				}
 				uni.showLoading({
 					title: '下载中...'
 				})
 
 				// 下载视频
 				uni.downloadFile({
-					url: this.videoInfo.picture_url_original,
+					url: downloadUrl,
 					success: (res) => {
 						if (res.statusCode === 200) {
 							uni.saveVideoToPhotosAlbum({
@@ -370,6 +389,30 @@
 						})
 					}
 				})
+			},
+			canUseOriginalMedia() {
+				const userInfo = uni.getStorageSync('userInfo') || {}
+				const gradeLevel = Number(
+					userInfo.grade_level ||
+					userInfo.gradeLevel ||
+					userInfo.vip_grade ||
+					userInfo.vipGrade ||
+					0
+				)
+				const rawEndTime =
+					userInfo.end_time ||
+					userInfo.endTime ||
+					userInfo.vip_end_time ||
+					userInfo.vipEndTime ||
+					userInfo.expire_time ||
+					userInfo.expireTime ||
+					0
+				let endTime = Number(rawEndTime || 0)
+				if (!endTime && typeof rawEndTime === 'string' && rawEndTime) {
+					const parsed = new Date(rawEndTime).getTime()
+					endTime = Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000)
+				}
+				return gradeLevel > 0 && (!endTime || endTime > Math.floor(Date.now() / 1000))
 			},
 
 			// 播放/暂停切换

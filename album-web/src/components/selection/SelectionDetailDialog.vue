@@ -10,6 +10,7 @@ import {
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { pcApi } from '@/lib/api'
 import { pickImage } from '@/lib/jfyuntu-mappers'
+import { buildSelectionProductImageMap, pickSelectionImageList } from '@/lib/selection-images'
 
 interface Props {
   open: boolean
@@ -41,15 +42,27 @@ const product = computed(() =>
   {}
 )
 const pictures = computed(() => {
-  const list =
+  const productImageMap = buildSelectionProductImageMap(
+    detail.value?.product,
+    detail.value?.product_summary,
+    props.fallback?.product,
+    props.fallback?.product_summary,
+    props.fallback?.detail?.product,
+    props.fallback?.detail?.product_summary
+  )
+  return pickSelectionImageList(
+    productImageMap,
     detail.value?.list ||
-    props.fallback?.selected_preview ||
+      detail.value?.selected_preview,
+    detail.value?.grouped_pictures?.variant_pictures,
+    props.fallback?.selected_preview,
     props.fallback?.list ||
-    props.fallback?.detail?.list ||
+      props.fallback?.detail?.list,
+    props.fallback?.detail?.selected_preview,
     props.fallback?.detail?.grouped_pictures?.variant_pictures ||
-    props.fallback?.cover_img ||
-    []
-  return Array.isArray(list) ? list : []
+      props.fallback?.cover_img,
+    detail.value?.cover_img
+  )
 })
 const title = computed(() => info.value?.title || info.value?.name || props.fallback?.title || props.fallback?.name || '选款单')
 

@@ -68,7 +68,7 @@
 
         <!-- 当有图片但少于一行时也显示“没有更多了~” -->
         <view
-          v-if="totalContentCount > 0 && totalContentCount < minShowCount"
+          v-if="shouldShowLessThanMinHint"
           class="empty-sub"
         >
           <text class="empty-text">没有更多了~</text>
@@ -222,6 +222,9 @@ export default {
     },
     totalContentCount() {
       return this.children.length + this.products.length;
+    },
+    shouldShowLessThanMinHint() {
+      return this.totalContentCount > 0 && this.totalContentCount < this.minShowCount;
     },
     canManageChildCategory() {
       return !this.uid && this.isTopLevelCategory;

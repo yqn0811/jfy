@@ -83,7 +83,7 @@
 
             <view
               class="upload-cell"
-              v-if="coverImages.length < maxCoverImages"
+              v-if="canAddCoverImage"
               @click="openUploadPicker('cover')"
             >
               <view class="upload-plus">+</view>
@@ -118,7 +118,7 @@
 
             <view
               class="upload-cell"
-              v-if="detailImages.length < maxDetailImages"
+              v-if="canAddDetailImage"
               @click="openUploadPicker('detail')"
             >
               <view class="upload-plus">+</view>
@@ -237,7 +237,14 @@ export default {
       console.error("读取我的资源库选择失败", e);
     }
   },
-  computed: {},
+  computed: {
+    canAddCoverImage() {
+      return this.coverImages.length < this.maxCoverImages;
+    },
+    canAddDetailImage() {
+      return this.detailImages.length < this.maxDetailImages;
+    },
+  },
   methods: {
     openUploadPicker(target) {
       this.uploadTarget = target; // 'cover' 或 'detail'

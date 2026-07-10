@@ -163,7 +163,7 @@ onBeforeUnmount(stopWaitingScript)
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="sm:max-w-[430px] gap-6">
+    <DialogContent class="max-h-[92vh] overflow-y-auto sm:max-w-[430px] gap-5">
       <DialogHeader class="items-center text-center">
         <DialogTitle class="text-xl">{{ status === 'wechat' ? '微信授权登录' : '微信扫码登录' }}</DialogTitle>
         <DialogDescription class="text-sm">
@@ -171,8 +171,8 @@ onBeforeUnmount(stopWaitingScript)
         </DialogDescription>
       </DialogHeader>
 
-      <div class="flex flex-col items-center justify-center gap-4 py-2">
-        <div class="relative h-[310px] w-[310px] overflow-hidden rounded-lg border border-border bg-white">
+      <div class="flex flex-col items-center justify-center gap-4 py-1">
+        <div class="relative h-[390px] w-[310px] overflow-hidden rounded-lg border border-border bg-white">
           <div :id="containerId" class="h-full w-full" />
 
           <div

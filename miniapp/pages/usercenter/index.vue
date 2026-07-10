@@ -580,14 +580,14 @@ export default {
         return url;
       }
       if (url.indexOf("users/user_default.png") !== -1 || url.startsWith("/image/")) {
-        const domain = this.$config && this.$config.domain ? this.$config.domain : "https://api.jfyuntu.com";
+        const domain = this.$config && this.$config.domain ? this.$config.domain : "https://api-test.jfyuntu.com";
         const path = url.startsWith("/") ? url : `/${url}`;
         return `${domain}${path}`;
       }
       if (url.indexOf("upimages/") !== -1) {
         return "/static/image/headurl.jpg";
       }
-      const domain = this.$config && this.$config.domain ? this.$config.domain : "https://api.jfyuntu.com";
+      const domain = this.$config && this.$config.domain ? this.$config.domain : "https://api-test.jfyuntu.com";
       const path = url.startsWith("/") ? url : `/${url}`;
       return `${domain}${path}`;
     },

@@ -89,7 +89,7 @@
 
           <!-- 上传按钮 -->
           <view
-            v-if="imageList.length < maxImages"
+            v-if="canAddFeedbackImage"
             class="upload-btn"
             @click="chooseImage"
           >
@@ -146,6 +146,12 @@ export default {
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.totalHeight = this.statusBarHeight + this.navigationBarHeight;
     this.contentTop = this.totalHeight + 18;
+  },
+
+  computed: {
+    canAddFeedbackImage() {
+      return this.imageList.length < this.maxImages;
+    },
   },
 
   methods: {

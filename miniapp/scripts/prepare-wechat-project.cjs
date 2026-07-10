@@ -22,10 +22,30 @@ const buildConfig = {
   miniprogramRoot: 'mp-weixin/'
 }
 
-fs.writeFileSync(path.join(distRoot, 'project.config.json'), `${JSON.stringify(standaloneConfig, null, 2)}\n`)
-fs.writeFileSync(path.join(buildRoot, 'project.config.json'), `${JSON.stringify(buildConfig, null, 2)}\n`)
+const loadPrivateConfig = () => {
+  if (!fs.existsSync(projectPrivateConfigPath)) {
+    return null
+  }
+  return JSON.parse(fs.readFileSync(projectPrivateConfigPath, 'utf8'))
+}
 
-if (fs.existsSync(projectPrivateConfigPath)) {
-  fs.copyFileSync(projectPrivateConfigPath, path.join(distRoot, 'project.private.config.json'))
-  fs.copyFileSync(projectPrivateConfigPath, path.join(buildRoot, 'project.private.config.json'))
+const writeJson = (filePath, value) => {
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`)
+}
+
+writeJson(path.join(distRoot, 'project.config.json'), standaloneConfig)
+writeJson(path.join(buildRoot, 'project.config.json'), buildConfig)
+
+const privateConfig = loadPrivateConfig()
+if (privateConfig) {
+  const standalonePrivateConfig = { ...privateConfig }
+  delete standalonePrivateConfig.miniprogramRoot
+
+  const buildPrivateConfig = {
+    ...privateConfig,
+    miniprogramRoot: 'mp-weixin/'
+  }
+
+  writeJson(path.join(distRoot, 'project.private.config.json'), standalonePrivateConfig)
+  writeJson(path.join(buildRoot, 'project.private.config.json'), buildPrivateConfig)
 }
