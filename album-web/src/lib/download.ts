@@ -68,6 +68,18 @@ const resolveControlledDownloadPicId = (image: ProductImageData, url: string) =>
   }
 }
 
+const resolveControlledDownloadIds = (images: ProductImageData[]) => {
+  const ids: string[] = []
+  for (const image of images) {
+    const downloadEntry = productImageUrl(image, 'download')
+    if (!downloadEntry || !isControlledDownloadUrl(downloadEntry)) return []
+    const picId = resolveControlledDownloadPicId(image, downloadEntry)
+    if (!picId || /^.+_(colorChart|detailChart)_\d+$/i.test(picId)) return []
+    ids.push(String(picId))
+  }
+  return ids
+}
+
 export const resolveProductImageDownloadUrl = async (image: ProductImageData) => {
   const downloadEntry = productImageUrl(image, 'download')
   if (!downloadEntry) return ''
@@ -110,6 +122,21 @@ export const downloadImagesAsZip = async (
   onImageFetched?: (image: ProductImageData, blob: Blob) => void | Promise<void>
 ) => {
   if (!images.length) return
+
+  const controlledIds = resolveControlledDownloadIds(images)
+  if (controlledIds.length === images.length) {
+    const response = await pcApi.downloadOriginalZip(controlledIds, filename)
+    const blob = await response.blob()
+    onProgress?.(images.length, images.length)
+    const headerName = filenameFromContentDisposition(response.headers.get('content-disposition'))
+    const objectUrl = URL.createObjectURL(blob)
+    try {
+      downloadUrl(objectUrl, headerName || filename)
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+    }
+    return
+  }
 
   const { default: JSZip } = await import('jszip')
   const zip = new JSZip()

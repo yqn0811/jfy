@@ -471,6 +471,11 @@ export const pcApi = {
     apiBlobRequest('user/download/original', {
       params: { pic_id: picId, stream: 1, timestamp: Date.now(), ...params },
     }),
+  downloadOriginalZip: (picIds: string[], filename = 'product-images.zip', params: Record<string, any> = {}) =>
+    apiBlobRequest('user/download/original_zip', {
+      method: 'POST',
+      body: { pic_ids: picIds, filename, timestamp: Date.now(), ...params },
+    }),
   getFavorites: (type = 'all', key = '', page = 1) =>
     apiRequest<any>('user/collect/records', { params: { type, key, page, timestamp: Date.now() } }),
   getVisits: (type = 'all', key = '', page = 1) =>

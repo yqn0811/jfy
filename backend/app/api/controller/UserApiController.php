@@ -323,6 +323,223 @@ class UserApiController extends ApiBaseController
         return $map[$ext] ?? 'application/octet-stream';
     }
 
+    public function downloadOriginalZip()
+    {
+        $param = array_merge($this->request->get(), $this->request->post());
+        if (!class_exists('\ZipArchive')) {
+            throwError('服务器暂不支持打包下载');
+        }
+
+        $items = $this->userService->getOriginalZipDownloadItems($param, (int)request()->userID());
+        $workDir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'jfy_zip_' . uniqid('', true);
+        if (!mkdir($workDir, 0700, true) && !is_dir($workDir)) {
+            throwError('打包目录创建失败');
+        }
+        $zipPath = $workDir . DIRECTORY_SEPARATOR . 'images.zip';
+
+        try {
+            $files = $this->fetchOriginalZipFiles($items, $workDir);
+            if (empty($files)) {
+                throwError('原图读取失败');
+            }
+
+            $zip = new \ZipArchive();
+            if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+                throwError('ZIP创建失败');
+            }
+            $usedNames = [];
+            foreach ($files as $file) {
+                $entryName = $this->uniqueZipEntryName($file['file_name'], $usedNames);
+                $zip->addFile($file['path'], $entryName);
+                if (method_exists($zip, 'setCompressionName') && $this->shouldStoreZipEntry($entryName)) {
+                    $zip->setCompressionName($entryName, \ZipArchive::CM_STORE);
+                }
+            }
+            $zip->close();
+
+            foreach ($files as $file) {
+                $this->userService->recordDownloadTraffic([
+                    'pic_id' => (int)$file['pic_id'],
+                    'file_url' => (string)$file['url'],
+                    'file_size' => (int)$file['file_size'],
+                ], (int)request()->userID());
+            }
+
+            $filename = $this->sanitizeDownloadFilename((string)($param['filename'] ?? 'product-images.zip'));
+            if (strtolower(pathinfo($filename, PATHINFO_EXTENSION)) !== 'zip') {
+                $filename .= '.zip';
+            }
+            $this->streamZipFile($zipPath, $filename, $workDir);
+        } catch (\Throwable $e) {
+            $this->cleanupDownloadTempDir($workDir);
+            throw $e;
+        }
+    }
+
+    private function fetchOriginalZipFiles(array $items, $workDir)
+    {
+        $queue = array_values($items);
+        $maxConcurrency = 4;
+        $multi = curl_multi_init();
+        $active = [];
+        $files = [];
+        $failures = [];
+        $index = 0;
+
+        $addHandle = function () use (&$queue, &$active, &$index, $multi, $workDir) {
+            if (empty($queue)) {
+                return false;
+            }
+            $item = array_shift($queue);
+            $index += 1;
+            $path = $workDir . DIRECTORY_SEPARATOR . 'source_' . $index . '.bin';
+            $fp = fopen($path, 'wb');
+            if (!$fp) {
+                throwError('临时文件创建失败');
+            }
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => (string)$item['url'],
+                CURLOPT_FILE => $fp,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT => 120,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_NOSIGNAL => true,
+                CURLOPT_USERAGENT => 'JiafangyunZipDownload/1.0',
+            ]);
+            $key = (int)$ch;
+            $active[$key] = [
+                'handle' => $ch,
+                'fp' => $fp,
+                'path' => $path,
+                'item' => $item,
+            ];
+            curl_multi_add_handle($multi, $ch);
+            return true;
+        };
+
+        while (count($active) < $maxConcurrency && $addHandle()) {
+        }
+
+        do {
+            do {
+                $status = curl_multi_exec($multi, $running);
+            } while ($status === CURLM_CALL_MULTI_PERFORM);
+
+            while ($info = curl_multi_info_read($multi)) {
+                $ch = $info['handle'];
+                $key = (int)$ch;
+                $meta = $active[$key] ?? null;
+                if (!$meta) {
+                    continue;
+                }
+                $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $error = curl_error($ch);
+                curl_multi_remove_handle($multi, $ch);
+                curl_close($ch);
+                fclose($meta['fp']);
+                unset($active[$key]);
+
+                $size = is_file($meta['path']) ? (int)filesize($meta['path']) : 0;
+                if ($info['result'] === CURLE_OK && $httpCode >= 200 && $httpCode < 300 && $size > 0) {
+                    $files[] = [
+                        'pic_id' => (int)$meta['item']['pic_id'],
+                        'url' => (string)$meta['item']['url'],
+                        'file_name' => (string)$meta['item']['file_name'],
+                        'file_size' => $size,
+                        'path' => $meta['path'],
+                    ];
+                } else {
+                    @unlink($meta['path']);
+                    $failures[] = (string)$meta['item']['file_name'] . ($error ? '：' . $error : '');
+                }
+
+                while (count($active) < $maxConcurrency && $addHandle()) {
+                }
+            }
+
+            if (!empty($active)) {
+                $selected = curl_multi_select($multi, 1.0);
+                if ($selected === -1) {
+                    usleep(100000);
+                }
+            }
+        } while (!empty($active));
+
+        curl_multi_close($multi);
+        if (!empty($failures)) {
+            throwError('部分图片下载失败：' . $failures[0]);
+        }
+        return $files;
+    }
+
+    private function uniqueZipEntryName($filename, array &$usedNames)
+    {
+        $filename = $this->sanitizeDownloadFilename((string)$filename);
+        $ext = pathinfo($filename, PATHINFO_EXTENSION);
+        if ($ext === '') {
+            $filename .= '.jpg';
+            $ext = 'jpg';
+        }
+        $base = pathinfo($filename, PATHINFO_FILENAME);
+        $key = strtolower($base . '.' . $ext);
+        $count = (int)($usedNames[$key] ?? 0);
+        $usedNames[$key] = $count + 1;
+        if ($count > 0) {
+            return $base . '-' . ($count + 1) . '.' . $ext;
+        }
+        return $base . '.' . $ext;
+    }
+
+    private function shouldStoreZipEntry($filename)
+    {
+        $ext = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
+        return in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+    }
+
+    private function streamZipFile($zipPath, $filename, $workDir)
+    {
+        if (!is_file($zipPath)) {
+            throwError('ZIP文件生成失败');
+        }
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        $origin = $this->request->header('origin') ?: '*';
+        if (preg_match('/[\r\n]/', $origin)) {
+            $origin = '*';
+        }
+        $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
+        if ($fallbackName === '') {
+            $fallbackName = 'product-images.zip';
+        }
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        header('Content-Type: application/zip');
+        header('Content-Length: ' . filesize($zipPath));
+        header('Content-Disposition: attachment; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
+        header('Cache-Control: private, max-age=0, no-cache');
+        readfile($zipPath);
+        $this->cleanupDownloadTempDir($workDir);
+        exit;
+    }
+
+    private function cleanupDownloadTempDir($dir)
+    {
+        if (!$dir || !is_dir($dir)) {
+            return;
+        }
+        foreach (glob(rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+        @rmdir($dir);
+    }
+
     /**获取指定用户的卡券列表
      * @return void
      * @throws \think\db\exception\DbException

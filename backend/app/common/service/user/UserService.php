@@ -1011,6 +1011,45 @@ class UserService extends BaseService
         ];
     }
 
+    public function getOriginalZipDownloadItems($param, $userId)
+    {
+        $picIds = $param['pic_ids'] ?? ($param['picIds'] ?? []);
+        if (is_string($picIds)) {
+            $decoded = json_decode($picIds, true);
+            if (is_array($decoded)) {
+                $picIds = $decoded;
+            } else {
+                $picIds = explode(',', $picIds);
+            }
+        }
+        if (!is_array($picIds)) {
+            $picIds = [];
+        }
+        $picIds = array_values(array_unique(array_filter(array_map('intval', $picIds))));
+        if (empty($picIds)) {
+            throwError('请选择要下载的图片');
+        }
+        if (count($picIds) > 60) {
+            throwError('单次最多下载60张图片');
+        }
+
+        $items = [];
+        foreach ($picIds as $picId) {
+            $download = $this->getOriginalDownloadUrl(array_merge($param, [
+                'pic_id' => $picId,
+                'record_traffic' => 0,
+            ]), $userId);
+            $items[] = [
+                'pic_id' => (int)$download['pic_id'],
+                'url' => (string)($download['download_url'] ?? ($download['downloadUrl'] ?? ($download['url'] ?? ''))),
+                'file_name' => (string)($download['file_name'] ?? ($download['fileName'] ?? ('图片-' . $picId . '.jpg'))),
+                'file_size' => (int)($download['file_size'] ?? 0),
+            ];
+        }
+
+        return $items;
+    }
+
     private function originalDownloadFilename($pic, $url)
     {
         $name = trim((string)$pic->getData('pic_name'));

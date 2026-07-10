@@ -84,6 +84,7 @@ Route::group('user', function (){
     Route::post('delete/pic', 'UserApiController/userDeleteMyPics'); //用户删除我的照片
     Route::post('add/visit', 'UserApiController/addUserVisitRecord'); //用户访问图片记录
     Route::rule('download/original', 'UserApiController/getOriginalDownloadUrl', 'GET|POST'); //申请原图下载地址
+    Route::rule('download/original_zip', 'UserApiController/downloadOriginalZip', 'GET|POST'); //批量打包原图
     Route::post('download/traffic', 'UserApiController/recordDownloadTraffic'); //记录下载外网流量
     Route::post('del/visit', 'UserApiController/userDeleteVisitRecord'); //用户删除访问图片记录
 
