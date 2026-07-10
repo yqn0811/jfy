@@ -568,6 +568,27 @@ const handleLoginSuccess = () => {
 
 <template>
   <div class="min-h-screen bg-background">
+    <!-- 分类导航区 -->
+    <section
+      v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode"
+      class="sticky top-0 z-40 border-b border-border bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:px-8"
+    >
+      <div class="page-container">
+        <Tabs :model-value="selectedCategoryId || 'all'" @update:model-value="(value) => handleCategoryChange(String(value))" class="w-full">
+          <TabsList class="w-full justify-start overflow-x-auto bg-transparent rounded-none h-auto p-0 gap-1">
+            <TabsTrigger
+              v-for="cat in categoryOptions"
+              :key="cat.id"
+              :value="cat.id"
+              class="shrink-0 px-4 py-4 rounded-none border-b-2 border-transparent text-muted-foreground transition-colors hover:bg-primary/5 hover:text-primary hover:font-semibold data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary"
+            >
+              {{ cat.name }}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+    </section>
+
     <!-- 商户信息区 -->
     <section v-if="isClient && homeProfile" class="page-body border-b border-border">
       <div class="page-container flex gap-8 items-start">
@@ -633,27 +654,6 @@ const handleLoginSuccess = () => {
             分享主页
           </Button>
         </div>
-      </div>
-    </section>
-
-    <!-- 分类导航区 -->
-    <section
-      v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode"
-      class="sticky top-[var(--header-height)] z-40 border-b border-border bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:px-8"
-    >
-      <div class="page-container">
-        <Tabs :model-value="selectedCategoryId || 'all'" @update:model-value="(value) => handleCategoryChange(String(value))" class="w-full">
-          <TabsList class="w-full justify-start overflow-x-auto bg-transparent rounded-none h-auto p-0 gap-1">
-            <TabsTrigger
-              v-for="cat in categoryOptions"
-              :key="cat.id"
-              :value="cat.id"
-              class="shrink-0 px-4 py-4 rounded-none border-b-2 border-transparent text-muted-foreground transition-colors hover:bg-primary/5 hover:text-primary hover:font-semibold data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary"
-            >
-              {{ cat.name }}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
       </div>
     </section>
 
