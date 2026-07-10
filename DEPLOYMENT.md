@@ -1,6 +1,6 @@
 # 部署说明
 
-最后核对时间：2026-07-09
+最后核对时间：2026-07-10
 
 这份文档是 `jfy` 子仓库的部署依据。后续部署必须按这里写明的项目、
 环境、域名、目录和数据库执行。没有被标记为“已确认”的目标，不允许猜测，
@@ -13,6 +13,9 @@
 - 主仓库不在本文档范围内。不要在
   `/Users/mac/Documents/trae_projects/sub2api/ai_jf` 执行部署或 git 操作。
 - 未经用户明确要求，不创建备份目录。
+- 所有前端站点都固定发布到一个已确认目录，直接覆盖该目录内容；不在
+  `/www/wwwroot` 下新建 `releases`、日期目录、备份目录，也不使用 `current`
+  软链切版本。
 - 未经用户明确说“正式环境/生产环境部署”，并确认目标域名和目录，不部署正式环境。
 - `.env` 里的密码、token、密钥不能打印到聊天里，也不能提交到 git。
 
@@ -23,7 +26,7 @@
 | `backend` | `backend/` | ThinkPHP 后端 | 无 | 服务器运行环境是 PHP 7.2 |
 | `album-web` | `album-web/` | Vue/Vite 静态相册前端 | `album-web/dist/` | 这是“相册”项目 |
 | `file-web` | `file-web/` | Vue/Vite 文件传输前端 | `file-web/dist/` | 文件传输项目，不是相册 |
-| `miniapp` | `miniapp/` | UniApp 微信小程序 | `miniapp/dist/build/mp-weixin/` | 当前配置指向正式 API |
+| `miniapp` | `miniapp/` | UniApp 微信小程序 | `miniapp/dist/build/mp-weixin/` | 当前配置指向测试 API |
 
 ## 已确认测试环境
 
@@ -34,9 +37,8 @@
 | --- | --- | --- | --- |
 | 后端 API | `api-test.jfyuntu.com` | `/www/wwwroot/api-test.jfyuntu.com/current/public` | 已确认，是 active nginx root |
 | 后端应用目录 | 无 | `/www/wwwroot/api-test.jfyuntu.com/current` | 已确认 |
-| 相册 `album-web` | `pic-test.jfyuntu.com` | `/www/wwwroot/pic-test.jfyuntu.com/current` | 已确认，是测试相册入口 |
-| 相册发布目录 | 无 | `/www/wwwroot/pic-test.jfyuntu.com/releases/<release-name>` | 已确认，`current` 是指向当前发布目录的软链 |
-| 文件传输 `file-web` | `file-test.jfyuntu.com` | `/www/wwwroot/file-test.jfyuntu.com/current` | 已确认，是测试文件传输入口 |
+| 相册 `album-web` | `pic-test.jfyuntu.com` | `/www/wwwroot/pic-test.jfyuntu.com/current` | 已确认，是固定测试相册入口目录 |
+| 文件传输 `file-web` | `file-test.jfyuntu.com` | `/www/wwwroot/file-test.jfyuntu.com/current` | 已确认，是固定测试文件传输入口目录 |
 
 测试后端数据库，来自 `/www/wwwroot/api-test.jfyuntu.com/current/.env`：
 
@@ -56,8 +58,9 @@
 - `pic-test.jfyuntu.com` 的 nginx root 是 `/www/wwwroot/pic-test.jfyuntu.com/current`。
 - `file-test.jfyuntu.com` 的 nginx root 是 `/www/wwwroot/file-test.jfyuntu.com/current`，
   使用 SPA fallback 回落到 `/index.html`。
-- `/www/wwwroot/pic-test.jfyuntu.com/current` 是软链，当前指向
-  `/www/wwwroot/pic-test.jfyuntu.com/releases/pic-album-20260709152842`。
+- `/www/wwwroot/pic-test.jfyuntu.com/current` 已确认是固定真实目录，不是软链。
+- 前端测试发布只能把构建产物同步到对应固定目录，不能再创建
+  `/www/wwwroot/*/releases/<release-name>`。
 - 文件传输后端接口挂在 `https://api-test.jfyuntu.com/api/file/...`。
 - 文件传输 PostgreSQL 使用 103 服务器 `jf-postgres` 容器里的 `ai_jf` 库，
   账号同 AI 生图服务，业务表统一使用 `ft_` 前缀。
@@ -73,7 +76,7 @@
 | --- | --- | --- | --- |
 | 后端 API | `api.jfyuntu.com`、`api.izhixu.com` | `/www/wwwroot/www.jfyuntu.com/backend/public` | 已确认，是 active nginx root |
 | 后端应用目录 | 无 | `/www/wwwroot/www.jfyuntu.com/backend` | 已确认 |
-| 相册 `album-web` | `pic.jfyuntu.com`、`pic.izhixu.com` | `/www/wwwroot/www.jfyuntu.com/backend/view/pic` | 已确认，是正式相册入口 |
+| 相册 `album-web` | `pic.jfyuntu.com`、`pic.izhixu.com` | `/www/wwwroot/www.jfyuntu.com/backend/view/pic` | 已确认，是固定正式相册入口目录 |
 | 旧上传页 | `pic.jfyuntu.com/assets/page/product-list.html` | `/www/wwwroot/www.jfyuntu.com/backend/view/pc/assets/page/product-list.html` | 已确认可访问 |
 | 官网 | `www.jfyuntu.com`、`www.izhixu.com` | `/www/wwwroot/www_jfyuntu_site` | 独立站点，不是相册部署目标 |
 | 文件传输占位站 | `file.izhixu.com` | `/www/wwwroot/file.izhixu.com` | 已确认 nginx root，但是否作为 `file-web` 部署目标未确认 |
@@ -95,6 +98,8 @@
   MySQL，不是同一台数据库服务。
 - `file.izhixu.com` 不是相册入口，不要把相册部署到这里。
 - `pic.jfyuntu.com` 是正式环境，不允许当测试环境使用。
+- 正式前端发布同样只能覆盖已确认固定目录，不能创建 `releases`、日期目录、
+  备份目录或软链切换目录。
 
 ## 构建命令
 
@@ -104,6 +109,37 @@
 `/share-home`、`/management-workbench`、`/workbench`。部署 nginx 必须配置 SPA
 fallback，把不存在的前端路径回落到 `/index.html`；不要再发布或依赖旧的带后缀
 业务入口。
+
+## 前端发布规范
+
+所有前端项目都使用固定目录覆盖发布：
+
+1. 先在本地构建生成 `dist/`。
+2. 先执行 `rsync --dry-run` 核对同步清单。
+3. 确认无误后执行真实 `rsync --delete` 到已确认固定目录。
+4. 发布后检查目标目录不是软链，并验证域名返回 200。
+
+禁止事项：
+
+- 不要在 `/www/wwwroot` 下创建 `releases`、日期目录或备份目录。
+- 不要把 `current` 做成软链。
+- 不要把前端部署到未在本文档确认的相似目录。
+
+测试相册固定目录发布：
+
+```bash
+cd /Users/mac/Documents/trae_projects/sub2api/ai_jf/tmp/jfy
+rsync -avzn --delete album-web/dist/ root@103.117.120.231:/www/wwwroot/pic-test.jfyuntu.com/current/
+rsync -avz --delete album-web/dist/ root@103.117.120.231:/www/wwwroot/pic-test.jfyuntu.com/current/
+```
+
+测试文件前端固定目录发布：
+
+```bash
+cd /Users/mac/Documents/trae_projects/sub2api/ai_jf/tmp/jfy
+rsync -avzn --delete file-web/dist/ root@103.117.120.231:/www/wwwroot/file-test.jfyuntu.com/current/
+rsync -avz --delete file-web/dist/ root@103.117.120.231:/www/wwwroot/file-test.jfyuntu.com/current/
+```
 
 相册正式构建：
 
@@ -138,7 +174,7 @@ npm run build:mp-weixin
 ```
 
 小程序测试构建前必须先检查 `miniapp/common/config.js`。当前开发和发行配置都指向
-`https://api.jfyuntu.com`，也就是正式 API。
+`https://api-test.jfyuntu.com`，也就是测试 API。
 
 ## 部署前确认门槛
 
@@ -166,9 +202,12 @@ ssh <server> 'hostname; test -d <target-directory> && pwd'
 ssh <server> 'grep -nE "server_name|root |alias " /www/server/panel/vhost/nginx/<site-conf>.conf'
 ```
 
+前端远端目录还必须额外确认不是软链：
+
+```bash
+ssh <server> 'test ! -L <target-directory> && echo fixed-directory'
+```
+
 静态前端部署必须先跑 `rsync --dry-run`。只有用户确认了项目、环境、域名、
-服务器和目标目录后，才能执行真实同步。
-
-## 当前阻塞点
-
-- 小程序当前配置指向正式 API，不能在不改配置的情况下称为“测试构建”。
+服务器和固定目标目录后，才能执行真实同步。真实同步只能同步到固定目标目录，
+不能创建 release 目录或切换软链。
