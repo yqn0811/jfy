@@ -588,6 +588,16 @@ class UserApiController extends ApiBaseController
         $this->result([], 0, '操作成功');
     }
 
+    /**清空用户回收站
+     * @return void
+     * @throws \cores\exception\BaseException
+     */
+    public function clearUserRecycleBin()
+    {
+        $count = $this->userService->clearUserRecycleBin(request()->userID());
+        $this->result(['count' => $count], 0, '操作成功');
+    }
+
     /**获取用户所有收藏照片列表
      * @return void
      * @throws \think\db\exception\DataNotFoundException

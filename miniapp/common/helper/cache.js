@@ -21,7 +21,7 @@ class Cache {
 	 * 读取缓存
 	 */
 	get(key) {
-		let data = uni.getStorageSync(key);
+		let data = uni.getStorageSync(this._buildCacheKey(key));
 		if (data && data instanceof Object) {
 			if (data.hasOwnProperty('expired_time')) {
 				if (getCurrentTimeStamp() > data.expired_time) {
@@ -32,7 +32,8 @@ class Cache {
 			}
 			return data;
 		}
-		return data || null;
+		const legacyData = uni.getStorageSync(key);
+		return legacyData || null;
 	}
 
 	/**
@@ -91,6 +92,7 @@ class Cache {
 	 */
 	remove(key) {
 		uni.removeStorageSync(this._buildCacheKey(key));
+		uni.removeStorageSync(key);
 	}
 }
 

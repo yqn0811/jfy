@@ -3,13 +3,12 @@
 import { ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import TargetShareDialog from '@/components/common/TargetShareDialog.vue'
 import { toast } from 'vue-sonner'
 import { authStore, pcApi } from '@/lib/api'
 import type { CategoryVO } from '@/data/CategoryService'
@@ -29,10 +28,6 @@ const isFavorited = ref(Number((props.category as any).is_collect || (props.cate
 const showLoginDialog = ref(false)
 const showContactDialog = ref(false)
 const showShareDialog = ref(false)
-const shareUrl = ref('')
-const miniCodeUrl = ref('')
-const miniPath = ref('')
-const isLoadingShare = ref(false)
 
 const handleFavorite = async () => {
   if (!isAuthenticated.value) {
@@ -49,33 +44,8 @@ const handleFavorite = async () => {
   }
 }
 
-const buildShareUrl = () => {
-  const params = new URLSearchParams({ categoryId: props.category.id })
-  if (props.shareCode) params.set('code', props.shareCode)
-  else if (props.targetUserId) params.set('uid', props.targetUserId)
-  const basePath = window.location.pathname.replace(/[^/]*$/, '')
-  return `${window.location.origin}${basePath}category?${params.toString()}`
-}
-
-const handleShare = async () => {
-  shareUrl.value = buildShareUrl()
+const handleShare = () => {
   showShareDialog.value = true
-  miniCodeUrl.value = ''
-  miniPath.value = ''
-  if (!props.targetUserId && !props.shareCode) return
-  isLoadingShare.value = true
-  try {
-    const data = await pcApi.getHomeMiniCode({ targetUserId: props.targetUserId || '', shareCode: props.shareCode || '' }, 'category', props.category.id).catch(() => null)
-    miniCodeUrl.value = data?.qrcode || data?.qrcode_url || ''
-    miniPath.value = data?.mini_path || ''
-  } finally {
-    isLoadingShare.value = false
-  }
-}
-
-const copyShareUrl = async () => {
-  await navigator.clipboard.writeText(shareUrl.value || buildShareUrl())
-  toast.success('分类链接已复制')
 }
 
 const handleContact = () => {
@@ -166,41 +136,16 @@ const handleLoginSuccess = () => {
     @login-success="handleLoginSuccess"
   />
 
-  <Dialog :open="showShareDialog" @update:open="showShareDialog = $event">
-    <DialogContent class="max-w-[480px]">
-      <DialogHeader>
-        <DialogTitle>分享分类</DialogTitle>
-      </DialogHeader>
-      <div class="space-y-4 py-2">
-        <div class="space-y-2">
-          <label class="text-sm font-medium">分享链接</label>
-          <div class="flex gap-2">
-            <Input :value="shareUrl" readonly class="flex-1 bg-muted/50 text-xs" />
-            <Button variant="outline" size="sm" @click="copyShareUrl">
-              <SafeIcon name="Copy" :size="16" />
-            </Button>
-          </div>
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">小程序码</label>
-          <div class="flex justify-center p-4 bg-muted/30 rounded-lg">
-            <img
-              v-if="miniCodeUrl"
-              :src="miniCodeUrl"
-              alt="分类小程序码"
-              class="w-40 h-40 border border-border rounded object-contain bg-white"
-            />
-            <SafeIcon v-else-if="isLoadingShare" name="Loader2" :size="28" class="animate-spin text-muted-foreground" />
-            <SafeIcon v-else name="QrCode" :size="36" class="text-muted-foreground" />
-          </div>
-          <p class="text-xs text-muted-foreground text-center break-all">
-            {{ miniPath || '网页链接可直接复制分享' }}
-          </p>
-        </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" @click="showShareDialog = false">关闭</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <TargetShareDialog
+    :open="showShareDialog"
+    type="category"
+    title="分享分类"
+    description="选择分享方式，让更多人查看这个分类"
+    :target-id="category.id"
+    :target-user-id="targetUserId || ''"
+    :share-code="shareCode || ''"
+    web-path="./category"
+    web-param-name="categoryId"
+    @update:open="showShareDialog = $event"
+  />
 </template>

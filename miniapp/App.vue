@@ -1,5 +1,5 @@
 <script>
-import { getMiniCode, getUserInfo } from "@/common/request/api.js";
+import { getMiniCode } from "@/common/request/api.js";
 export default {
   globalData: {
     bottomLift: 0,
@@ -61,10 +61,8 @@ export default {
     // });
   },
   onShow: function () {
-    console.log("App Show");
   },
   onHide: function () {
-    console.log("App Hide");
   },
   methods: {
     checkUpdate() {
@@ -74,7 +72,6 @@ export default {
         // 监听检查更新结果
         updateManager.onCheckForUpdate((res) => {
           if (res.hasUpdate) {
-            console.log("发现新版本，正在下载...");
           }
         });
 

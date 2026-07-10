@@ -81,7 +81,7 @@
                 >花色 {{ variantPictures.length }} 张</text
               >
               <text v-if="detailPictures.length"
-                >细节 {{ detailPictures.length }} 张</text
+                >详情 {{ detailPictures.length }} 张</text
               >
             </view>
           </view>
@@ -102,7 +102,7 @@
           >
             <image
               class="main-picture-image"
-              :src="item.src || '/static/image/pic.png'"
+              :src="getPictureSrc(item)"
               mode="aspectFill"
             ></image>
             <view class="main-picture-label">{{
@@ -127,7 +127,7 @@
           >
             <image
               class="product-image"
-              :src="item.src || '/static/image/pic.png'"
+              :src="getPictureSrc(item)"
               mode="aspectFill"
             ></image>
             <view class="product-name">{{
@@ -175,7 +175,7 @@
 
       <view class="section-card" v-if="detailPictures.length">
         <view class="section-header">
-          <text class="section-title">细节图</text>
+          <text class="section-title">详情图</text>
           <text class="section-count">{{ detailPictures.length }} 张</text>
         </view>
         <view class="detail-picture-list">
@@ -187,7 +187,7 @@
           >
             <image
               class="detail-picture-image"
-              :src="item.src || '/static/image/pic.png'"
+              :src="getPictureSrc(item)"
               mode="aspectFill"
             ></image>
           </view>
@@ -360,9 +360,23 @@ export default {
     getShareImage() {
       return (
         this.orderInfo.share_img ||
-        this.productList[0]?.src ||
+        this.getPictureSrc(this.productList[0]) ||
         this.productList[0]?.image ||
         ""
+      );
+    },
+    getPictureSrc(item = {}) {
+      if (!item) return "/static/image/pic.png";
+      return (
+        item.src ||
+        item.preview_url ||
+        item.picture_url ||
+        item.thumbnail_url ||
+        item.imgurl ||
+        item.url ||
+        (item.image_urls && (item.image_urls.preview || item.image_urls.thumb)) ||
+        (item.imageUrls && (item.imageUrls.preview || item.imageUrls.thumb)) ||
+        "/static/image/pic.png"
       );
     },
     goBack() {

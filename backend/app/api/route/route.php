@@ -77,6 +77,7 @@ Route::group('user', function (){
     Route::post('feedback', 'UserApiController/feedback'); //提交反馈
 
     Route::get('recycle/list', 'UserApiController/getUserAllDeleteProductLists');
+    Route::post('recycle/clear', 'UserApiController/clearUserRecycleBin'); //清空回收站
     Route::post('restore/product', 'UserApiController/userRestoreDeleteProducts'); //还原回收站产品
     Route::post('destroy/product', 'UserApiController/userDestroyDeleteProducts'); //删除回收站产品
 

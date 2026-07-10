@@ -275,6 +275,7 @@
 
 <script>
 import config from '@/common/config'
+import { buildAuthHeader } from '@/common/helper/auth.js';
 import {
 	getMiniCode
 } from '@/common/request/api.js';
@@ -885,7 +886,6 @@ export default {
 
 		/** 单个文件上传 */
 		uploadFile(file, params) {
-			console.log(params, '======')
 			return new Promise((resolve, reject) => {
 				prepareNamedUploadFile(file.path, file.name).then((uploadPath) => {
 					uni.uploadFile({
@@ -894,7 +894,7 @@ export default {
 						name: 'file',
 						header: {
 							'content-type': 'multipart/form-data',
-							'authorization-token': `Bearer ${uni.getStorageSync('token')}`
+							...buildAuthHeader()
 						},
 						formData: {
 							...params,

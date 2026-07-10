@@ -240,8 +240,6 @@ export default {
             uni.navigateBack();
           }, 800);
         } else {
-          // 回退：打印参数，方便联调替换为真实请求
-          console.warn("提交数据：", params);
           uni.showToast({
             title: "已构建请求，请替换为真实接口",
             icon: "none",

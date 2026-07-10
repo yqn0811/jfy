@@ -218,6 +218,7 @@
 <script>
 import config from "@/common/config";
 import AddressPicker from "@/components/address-picker/address-picker.vue";
+import { buildAuthHeader } from "@/common/helper/auth.js";
 import { notifyRefresh } from "@/common/helper/refresh.js";
 export default {
   components: {
@@ -606,7 +607,7 @@ export default {
           name: "file",
           header: {
             "content-type": "multipart/form-data",
-            "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
+            ...buildAuthHeader(),
           },
           formData: {
             ...params,

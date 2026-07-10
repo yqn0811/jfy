@@ -100,7 +100,6 @@ export default {
     async initOpenId() {
       try {
         await getMiniCode(this.inviteCode);
-        console.log("openid 获取成功");
       } catch (error) {
         console.error("获取 openid 失败:", error);
       }

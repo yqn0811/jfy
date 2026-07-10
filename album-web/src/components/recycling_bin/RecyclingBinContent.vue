@@ -22,7 +22,7 @@ const allTrashItems = ref<TrashData[]>([])
 const activeTab = ref<'all' | 'product' | 'category'>('all')
 const searchKeyword = ref('')
 const confirmDialogOpen = ref(false)
-const confirmAction = ref<'restore' | 'delete'>('delete')
+const confirmAction = ref<'restore' | 'delete' | 'clear'>('delete')
 const selectedItem = ref<TrashData | null>(null)
 const selectedIds = ref<Set<string>>(new Set())
 const profile = ref<any>({})
@@ -149,7 +149,29 @@ const handleBatchDelete = () => {
   confirmDialogOpen.value = true
 }
 
+const handleClearTrash = () => {
+  selectedItem.value = null
+  selectedIds.value = new Set()
+  confirmAction.value = 'clear'
+  confirmDialogOpen.value = true
+}
+
 const handleConfirm = async () => {
+  if (confirmAction.value === 'clear') {
+    try {
+      await pcApi.clearRecycleBin()
+      toast.success('已清空回收站')
+      selectedIds.value = new Set()
+      await Promise.all([loadTrash(), loadProfile()])
+    } catch (error: any) {
+      toast.error(error?.message || '操作失败')
+    }
+
+    selectedItem.value = null
+    confirmDialogOpen.value = false
+    return
+  }
+
   const ids = selectedItem.value ? [selectedItem.value.sourceId || selectedItem.value.id] : selectedListIds.value
   if (ids.length === 0) return
 
@@ -178,6 +200,9 @@ const handleCancel = () => {
 }
 
 const confirmDialogDescription = computed(() => {
+  if (confirmAction.value === 'clear') {
+    return '确定要清空回收站吗？所有已删除的产品、分类和图片都会被彻底删除，云端原文件也会同步删除，此操作不可撤销。'
+  }
   if (!selectedItem.value && selectedCount.value > 0) {
     return confirmAction.value === 'restore'
       ? `确定要恢复选中的 ${selectedCount.value} 个项目吗？恢复后将重新显示在相应的列表中。`
@@ -187,6 +212,18 @@ const confirmDialogDescription = computed(() => {
   return confirmAction.value === 'restore'
     ? `确定要恢复 "${name}" 吗？恢复后将重新显示在相应的列表中。`
     : `确定要彻底删除 "${name}" 吗？此操作不可撤销。`
+})
+
+const confirmDialogTitle = computed(() => {
+  if (confirmAction.value === 'restore') return '恢复项目'
+  if (confirmAction.value === 'clear') return '清空回收站'
+  return '彻底删除'
+})
+
+const confirmDialogConfirmText = computed(() => {
+  if (confirmAction.value === 'restore') return '恢复'
+  if (confirmAction.value === 'clear') return '清空'
+  return '删除'
 })
 
 const handleTabChange = (value: string) => {
@@ -276,6 +313,16 @@ const handleBillingUsage = () => {
             @input="handleSearch"
           />
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-10 shrink-0 gap-2 whitespace-nowrap border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+          :disabled="isLoading"
+          @click="handleClearTrash"
+        >
+          <SafeIcon name="Trash2" :size="14" />
+          清空回收站
+        </Button>
       </div>
       </div>
     </div>
@@ -392,11 +439,11 @@ const handleBillingUsage = () => {
     <!-- 确认对话框 -->
     <ConfirmDialog
       :open="confirmDialogOpen"
-      :title="confirmAction === 'restore' ? '恢复项目' : '彻底删除'"
+      :title="confirmDialogTitle"
       :description="confirmDialogDescription"
-      :confirm-text="confirmAction === 'restore' ? '恢复' : '删除'"
+      :confirm-text="confirmDialogConfirmText"
       cancel-text="取消"
-      :variant="confirmAction === 'delete' ? 'destructive' : 'default'"
+      :variant="confirmAction === 'restore' ? 'default' : 'destructive'"
       @update:open="(val) => confirmDialogOpen = val"
       @confirm="handleConfirm"
       @cancel="handleCancel"

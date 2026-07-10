@@ -91,7 +91,6 @@ export default {
   },
   onShow() {
     const token = uni.getStorageSync("token");
-    console.log(token);
     if (token && !this.disableAutoRedirect) {
       uni.redirectTo({ url: "/pages/index/index" });
       return;

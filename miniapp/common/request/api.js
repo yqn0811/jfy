@@ -113,7 +113,6 @@ export const silentLogin = (uid, redirectUrl = "") => {
       }
 
       // 步骤3: 需要手机号授权，跳转到登录页
-      console.log("需要手机号授权，跳转登录页");
       isLoggingIn = false;
       loginPromise = null;
 
@@ -251,7 +250,7 @@ export const login = (code) => {
  * 获取用户信息
  * @returns {Promise<Boolean>}
  */
-const getUserInfo = () => {
+export const getUserInfo = () => {
   return new Promise((resolve) => {
     const querys = {
       timestamp: new Date().getTime(),

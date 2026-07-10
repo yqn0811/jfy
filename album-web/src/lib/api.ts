@@ -345,7 +345,7 @@ export const pcApi = {
       params: { ...buildHomeTargetParams(target), path, timestamp: Date.now() },
       auth: false,
     }),
-  getHomeMiniCode: (target: HomeTargetRef, type: 'home' | 'category' | 'product' = 'home', id = '', path = '') =>
+  getHomeMiniCode: (target: HomeTargetRef, type: 'home' | 'category' | 'product' | 'selection' = 'home', id = '', path = '') =>
     apiRequest<any>('user/home/minicode', {
       params: { ...buildHomeTargetParams(target), type, id, path, timestamp: Date.now() },
       auth: false,
@@ -457,6 +457,8 @@ export const pcApi = {
     apiRequest<any>('user/restore/product', { method: 'POST', body: { product_ids: id, timestamp: Date.now() } }),
   deleteRecycleItem: (id: string) =>
     apiRequest<any>('user/destroy/product', { method: 'POST', body: { product_ids: id, timestamp: Date.now() } }),
+  clearRecycleBin: () =>
+    apiRequest<any>('user/recycle/clear', { method: 'POST', body: { timestamp: Date.now() } }),
 
   createSelection: (body: Record<string, any>) =>
     apiRequest<any>('album/selection/create', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
@@ -464,8 +466,11 @@ export const pcApi = {
     apiRequest<any>('album/selection/my_lists', { method: 'POST', body: { limit: 20, timestamp: Date.now(), ...params } }),
   getCustomerSelections: (params: Record<string, any> = {}) =>
     apiRequest<any>('album/selection/customer_lists', { method: 'POST', body: { limit: 20, timestamp: Date.now(), ...params } }),
-  getSelectionDetail: (selectionId: string) =>
-    apiRequest<any>('album/selection/detail', { method: 'POST', body: { selection_id: selectionId, timestamp: Date.now() } }),
+  getSelectionDetail: (selectionId: string, params: Record<string, any> = {}) =>
+    apiRequest<any>('album/selection/detail', {
+      method: 'POST',
+      body: { selection_id: selectionId, timestamp: Date.now(), ...params },
+    }),
   addSelectionImages: (selectionId: string, picIds: string[]) =>
     apiRequest<any>('album/selection/add_images', {
       method: 'POST',

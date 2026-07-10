@@ -982,7 +982,7 @@ class UserService extends BaseService
         $productId = (int)($param['product_id'] ?? ($param['folder_id'] ?? 0));
         $this->assertPictureDownloadVisible($pic, (int)$userId, $targetUserId, $productId);
 
-        $url = normalizePublicAssetUrl($this->originalDownloadUrlForPicture($pic));
+        $url = \normalizePublicAssetUrl($this->originalDownloadUrlForPicture($pic));
         if ($url === '') {
             throwError('原图暂不可下载');
         }
@@ -2385,9 +2385,228 @@ class UserService extends BaseService
             ->whereNotNull('delete_time')
             ->where('delete_time', '<=', $expireTime)
             ->select();
-        foreach ($products as $product) {
-            $product->force()->delete();
+        $picIds = WdXcxPic::onlyTrashed()
+            ->where('uid', $user_id)
+            ->whereNotNull('delete_time')
+            ->where('delete_time', '<=', $expireTime)
+            ->column('id');
+        if (count($products) === 0 && empty($picIds)) {
+            return 0;
         }
+        Db::startTrans();
+        try{
+            $folders = $this->getRecycleFolderTree($products, $user_id);
+            $folderIds = $this->getRecycleFolderIds($folders);
+            $count = $this->forceDestroyRecycleProducts($folders, $user_id);
+            $count += $this->forceDestroyRecyclePictures($picIds, $user_id, $folderIds);
+            Db::commit();
+            return $count;
+        }catch (\Exception $e){
+            Db::rollback();
+            Log::error('清理过期回收站失败：' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    private function normalizeRecycleIds($raw)
+    {
+        if (is_string($raw)) {
+            $raw = trim($raw);
+            if ($raw === '') {
+                return [];
+            }
+            if (strpos($raw, '[') !== false) {
+                $decoded = json_decode($raw, true);
+                $raw = json_last_error() === JSON_ERROR_NONE ? $decoded : explode(',', $raw);
+            } else {
+                $raw = explode(',', $raw);
+            }
+        }
+        if (!is_array($raw)) {
+            $raw = [$raw];
+        }
+        $ids = [];
+        foreach ($raw as $item) {
+            $id = (int)$item;
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    private function getRecycleFolderTree($products, $user_id)
+    {
+        $folders = [];
+        foreach ($products as $product) {
+            if ($product) {
+                $folders[(int)$product->id] = $product;
+            }
+        }
+        $cursor = array_keys($folders);
+        while (!empty($cursor)) {
+            $children = WdXcxAlbumFolder::onlyTrashed()
+                ->where('uid', $user_id)
+                ->whereIn('pid', $cursor)
+                ->select();
+            $cursor = [];
+            foreach ($children as $child) {
+                $childId = (int)$child->id;
+                if (!isset($folders[$childId])) {
+                    $folders[$childId] = $child;
+                    $cursor[] = $childId;
+                }
+            }
+        }
+        return array_values($folders);
+    }
+
+    private function getRecycleFolderIds($folders)
+    {
+        $ids = [];
+        foreach ($folders as $folder) {
+            if ($folder) {
+                $id = (int)$folder->id;
+                if ($id > 0) {
+                    $ids[] = $id;
+                }
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    private function collectRecycleProductPicIds($product)
+    {
+        if (!$product) {
+            return [];
+        }
+        $ids = array_merge(
+            $this->normalizeRecycleIds($product->pic_ids ?? ''),
+            $this->normalizeRecycleIds($product->detail_pic_ids ?? '')
+        );
+        $relationPicIds = WdXcxUserAlbumPic::withTrashed()
+            ->where('folder_id', (int)$product->id)
+            ->column('pic_id');
+        foreach ($relationPicIds as $picId) {
+            $picId = (int)$picId;
+            if ($picId > 0) {
+                $ids[] = $picId;
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    private function hasRecyclePictureReferenceOutsideFolders($picId, $folderIds, $user_id)
+    {
+        $relationQuery = WdXcxUserAlbumPic::withTrashed()
+            ->where('pic_id', (int)$picId);
+        if (!empty($folderIds)) {
+            $relationQuery->whereNotIn('folder_id', $folderIds);
+        }
+        if ((int)$relationQuery->count() > 0) {
+            return true;
+        }
+
+        $folderQuery = WdXcxAlbumFolder::withTrashed()
+            ->where(function ($query) use ($picId) {
+                $query->whereRaw('(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))', [$picId, $picId]);
+            });
+        if (!empty($folderIds)) {
+            $folderQuery->whereNotIn('id', $folderIds);
+        }
+        return (int)$folderQuery->count() > 0;
+    }
+
+    private function prepareRecyclePicturesForRemoteDestroy($picIds, $folderIds, $user_id)
+    {
+        $deletablePicIds = [];
+        foreach (array_values(array_unique(array_map('intval', $picIds))) as $picId) {
+            if ($picId <= 0 || $this->hasRecyclePictureReferenceOutsideFolders($picId, $folderIds, $user_id)) {
+                continue;
+            }
+            $pic = WdXcxPic::withTrashed()->where('id', $picId)->find();
+            if (!$pic) {
+                continue;
+            }
+            $isTrashed = (int)$pic->getData('delete_time') > 0;
+            if ((int)$pic->uid !== (int)$user_id) {
+                continue;
+            }
+            if (!$isTrashed) {
+                $pic->delete();
+            }
+            $deletablePicIds[] = $picId;
+        }
+        return array_values(array_unique($deletablePicIds));
+    }
+
+    private function deleteRemoteRecyclePictures($picIds)
+    {
+        if (empty($picIds)) {
+            return;
+        }
+        $pics = WdXcxPic::onlyTrashed()
+            ->whereIn('id', $picIds)
+            ->field('id, uniacid')
+            ->select();
+        $groups = [];
+        foreach ($pics as $pic) {
+            $uniacid = (int)$pic->uniacid ?: $this->uniacid;
+            if (!isset($groups[$uniacid])) {
+                $groups[$uniacid] = [];
+            }
+            $groups[$uniacid][] = (int)$pic->id;
+        }
+        $remoteService = new RemoteObjectService($this->app);
+        foreach ($groups as $uniacid => $ids) {
+            if (!empty($ids)) {
+                $remoteService->deleteRemoteObject($uniacid, $ids);
+            }
+        }
+    }
+
+    private function forceDeleteRecycleRelations($folderIds)
+    {
+        if (empty($folderIds)) {
+            return;
+        }
+        $relations = WdXcxUserAlbumPic::withTrashed()
+            ->whereIn('folder_id', $folderIds)
+            ->select();
+        foreach ($relations as $relation) {
+            $relation->force()->delete();
+        }
+    }
+
+    private function forceDestroyRecycleProducts($products, $user_id)
+    {
+        $folders = $this->getRecycleFolderTree($products, $user_id);
+        if (empty($folders)) {
+            return 0;
+        }
+        $folderIds = [];
+        $picIds = [];
+        foreach ($folders as $folder) {
+            $folderIds[] = (int)$folder->id;
+            $picIds = array_merge($picIds, $this->collectRecycleProductPicIds($folder));
+        }
+        $folderIds = array_values(array_unique(array_filter($folderIds)));
+        $deletablePicIds = $this->prepareRecyclePicturesForRemoteDestroy($picIds, $folderIds, $user_id);
+        $this->deleteRemoteRecyclePictures($deletablePicIds);
+        $this->forceDeleteRecycleRelations($folderIds);
+        WdXcxProductCategoryBind::whereIn('category_id', $folderIds)->delete();
+        WdXcxProductCategoryBind::whereIn('product_id', $folderIds)->delete();
+        foreach ($folders as $folder) {
+            $folder->force()->delete();
+        }
+        return count($folderIds);
+    }
+
+    private function forceDestroyRecyclePictures($picIds, $user_id, $ignoreFolderIds = [])
+    {
+        $deletablePicIds = $this->prepareRecyclePicturesForRemoteDestroy($picIds, $ignoreFolderIds, $user_id);
+        $this->deleteRemoteRecyclePictures($deletablePicIds);
+        return count($deletablePicIds);
     }
 
     /**用户还原回收站产品
@@ -2398,14 +2617,7 @@ class UserService extends BaseService
      */
     public function userRestoreDeleteProducts($param, $user_id)
     {
-        $ids = isset($param['product_ids']) && !empty($param['product_ids']) ? $param['product_ids'] : (isset($param['pic_ids']) ? $param['pic_ids'] : []);
-        if(is_string($ids)){
-             if (strpos($ids, '[') !== false) {
-                 $ids = json_decode($ids, true);
-             } else {
-                 $ids = explode(',', $ids);
-             }
-        }
+        $ids = $this->normalizeRecycleIds(isset($param['product_ids']) && !empty($param['product_ids']) ? $param['product_ids'] : (isset($param['pic_ids']) ? $param['pic_ids'] : []));
         if(empty($ids)){
             throwError('请选择要恢复的产品');
         }
@@ -2433,31 +2645,50 @@ class UserService extends BaseService
      */
     public function userDestroyDeleteProducts($param, $user_id)
     {
-        $ids = isset($param['product_ids']) && !empty($param['product_ids']) ? $param['product_ids'] : (isset($param['pic_ids']) ? $param['pic_ids'] : []);
-        if(is_string($ids)){
-             if (strpos($ids, '[') !== false) {
-                 $ids = json_decode($ids, true);
-             } else {
-                 $ids = explode(',', $ids);
-             }
-        }
+        $ids = $this->normalizeRecycleIds(isset($param['product_ids']) && !empty($param['product_ids']) ? $param['product_ids'] : (isset($param['pic_ids']) ? $param['pic_ids'] : []));
         if(empty($ids)){
             throwError('请选择要删除的产品');
         }
 
         Db::startTrans();
         try{
-            foreach ($ids as $id){
-                $product = WdXcxAlbumFolder::onlyTrashed()->where('id', $id)->where('uid', $user_id)->find();
-                if($product){
-                    $product->force()->delete();
-                }
-            }
+            $products = WdXcxAlbumFolder::onlyTrashed()
+                ->where('uid', $user_id)
+                ->whereIn('id', $ids)
+                ->select();
+            $this->forceDestroyRecycleProducts($products, $user_id);
         }catch (\Exception $e){
             Db::rollback();
             throwError($e->getMessage());
         }
         Db::commit();
+    }
+
+    /**清空用户回收站
+     * @param $user_id
+     * @return int
+     * @throws \cores\exception\BaseException
+     */
+    public function clearUserRecycleBin($user_id)
+    {
+        Db::startTrans();
+        try{
+            $products = WdXcxAlbumFolder::onlyTrashed()
+                ->where('uid', $user_id)
+                ->select();
+            $folders = $this->getRecycleFolderTree($products, $user_id);
+            $folderIds = $this->getRecycleFolderIds($folders);
+            $count = $this->forceDestroyRecycleProducts($folders, $user_id);
+            $trashPicIds = WdXcxPic::onlyTrashed()
+                ->where('uid', $user_id)
+                ->column('id');
+            $count += $this->forceDestroyRecyclePictures($trashPicIds, $user_id, $folderIds);
+        }catch (\Exception $e){
+            Db::rollback();
+            throwError($e->getMessage());
+        }
+        Db::commit();
+        return $count;
     }
 
     /**获取用户收藏图片列表

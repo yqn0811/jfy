@@ -66,6 +66,35 @@ class SelectionService extends BaseService
         return $factoryUid;
     }
 
+    private function ensureUserHomeShareCode($uid)
+    {
+        $uid = (int)$uid;
+        if ($uid <= 0) {
+            return '';
+        }
+        static $cache = [];
+        if (array_key_exists($uid, $cache)) {
+            return $cache[$uid];
+        }
+        $user = WdXcxUser::where('id', $uid)->find();
+        $cache[$uid] = $user ? (new WdXcxUser())->ensureHomeShareCodeForUser($user) : '';
+        return $cache[$uid];
+    }
+
+    public function resolveFactoryUidByShareCode($shareCode)
+    {
+        $shareCode = trim((string)$shareCode);
+        if ($shareCode === '') {
+            return 0;
+        }
+        (new WdXcxUser())->ensureHomePreferenceColumns();
+        $user = WdXcxUser::where('home_share_code', $shareCode)->find();
+        if (!$user) {
+            throwError('分享链接无效');
+        }
+        return (int)$user->id;
+    }
+
     private function normalizePicIds($pic_ids)
     {
         if (is_array($pic_ids) && count($pic_ids) === 1 && is_string(reset($pic_ids))) {
@@ -203,8 +232,13 @@ class SelectionService extends BaseService
             return null;
         }
 
-        $truePic = '';
-        if (is_object($pic) && isset($pic->TruePic)) {
+        $rawImageUrls = $getValue($pic, ['image_urls', 'imageUrls', 'urls'], []);
+        $imageUrls = is_array($rawImageUrls) ? $rawImageUrls : [];
+        if (empty($imageUrls) && is_object($pic) && \function_exists('buildPictureImageUrls')) {
+            $imageUrls = \buildPictureImageUrls($pic);
+        }
+        $truePic = (string)($imageUrls['preview'] ?? '');
+        if ($truePic === '' && is_object($pic) && isset($pic->TruePic)) {
             $truePic = (string)$pic->TruePic;
         }
         $src = $truePic ?: (string)$getValue($pic, [
@@ -218,8 +252,11 @@ class SelectionService extends BaseService
             'url',
         ], '');
         $origin = (string)$getValue($pic, ['picture_url_original', 'original_url', 'file_url', 'url'], '');
+        if ($origin === '' && !empty($imageUrls['origin'])) {
+            $origin = (string)$imageUrls['origin'];
+        }
         if ($origin === '' && $truePic !== '') {
-            $origin = function_exists('removePicStyle') ? removePicStyle($truePic) : $truePic;
+            $origin = \function_exists('removePicStyle') ? \removePicStyle($truePic) : $truePic;
         }
         $name = (string)$getValue($pic, ['name', 'pic_name'], '');
         $fileType = (int)$getValue($pic, ['file_type'], 1);
@@ -233,9 +270,11 @@ class SelectionService extends BaseService
             'imgurl' => $src,
             'picture_url' => $src,
             'preview_url' => $src,
-            'thumbnail_url' => $src,
+            'thumbnail_url' => (string)($imageUrls['thumb'] ?? $src),
             'picture_url_original' => $origin ?: $src,
             'file_url' => $origin ?: $src,
+            'image_urls' => $imageUrls,
+            'imageUrls' => $imageUrls,
             'name' => $name,
             'pic_name' => $name,
             'file_type' => $fileType,
@@ -349,7 +388,7 @@ class SelectionService extends BaseService
         return $selection;
     }
 
-    public function getSelectionDetail($selection_id)
+    public function getSelectionDetail($selection_id, $viewerUid = 0, $factoryUidOrShareCode = '')
     {
         $selection = WdXcxAlbumSelection::find($selection_id);
         if (!$selection) {
@@ -413,6 +452,20 @@ class SelectionService extends BaseService
 
         $customerUid = $selection->customer_uid ?: $selection->uid;
         $factoryUid = $selection->factory_uid ?: ($product ? $product->uid : 0);
+        if (!$factoryUid) {
+            $factoryUid = $this->getSelectionFactoryUid($selection);
+        }
+        $expectedFactoryUid = is_numeric($factoryUidOrShareCode)
+            ? (int)$factoryUidOrShareCode
+            : $this->resolveFactoryUidByShareCode($factoryUidOrShareCode);
+        if ($expectedFactoryUid > 0 && $factoryUid > 0 && $expectedFactoryUid !== (int)$factoryUid) {
+            throwError('分享链接无效');
+        }
+        $viewerUid = (int)$viewerUid;
+        if ($viewerUid > 0 && $expectedFactoryUid <= 0 && $viewerUid !== (int)$customerUid && $viewerUid !== (int)$factoryUid) {
+            throwError('无权查看该选款单');
+        }
+        $shareCode = $this->ensureUserHomeShareCode($factoryUid);
         $groupedPictures = $this->buildGroupedPictures($product, $list);
         $shareImage = '';
         if (!empty($groupedPictures['main_pictures'])) {
@@ -433,6 +486,8 @@ class SelectionService extends BaseService
             'list' => $list,
             'cover_img' => $coverImg,
             'share_img' => $shareImage,
+            'share_code' => $shareCode,
+            'code' => $shareCode,
             'grouped_pictures' => $groupedPictures,
             'total_selected' => count($list),
         ];
@@ -456,6 +511,8 @@ class SelectionService extends BaseService
                 $item->customer = $detail['customer'] ?? [];
                 $item->factory = $detail['factory'] ?? [];
                 $item->product = $detail['product_summary'] ?? null;
+                $item->share_code = $detail['share_code'] ?? '';
+                $item->code = $detail['code'] ?? ($detail['share_code'] ?? '');
                 $item->selected_preview = array_slice($pics, 0, 3);
             });
         return $lists;
@@ -479,6 +536,8 @@ class SelectionService extends BaseService
                 $item->customer = $detail['customer'] ?? [];
                 $item->factory = $detail['factory'] ?? [];
                 $item->product = $detail['product_summary'] ?? null;
+                $item->share_code = $detail['share_code'] ?? '';
+                $item->code = $detail['code'] ?? ($detail['share_code'] ?? '');
                 $item->selected_preview = array_slice($pics, 0, 3);
             });
         return $lists;

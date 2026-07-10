@@ -883,6 +883,11 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
       saveState(state)
       return ok({ success: true }) as T
 
+    case 'user/recycle/clear':
+      state.trash = []
+      saveState(state)
+      return ok({ success: true }) as T
+
     default:
       return ok({ success: true, path: cleanPath, params, body }) as T
   }

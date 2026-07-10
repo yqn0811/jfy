@@ -50,13 +50,12 @@ class RemoteObjectService extends BaseService
             }
             if(count($del_qiniu_obj) > 0){
                 $this->doDelQiniuObj($del_qiniu_obj, $config['qiniu']);
-            }else{
-                if(count($del_oss_obj) > 0){
-                    $this->doDelOssObj($del_oss_obj, $config['aliOss']);
-                }
-                if(count($del_cos_obj) > 0){
-                    $this->doDelCosObj($del_cos_obj, $config['cos']);
-                }
+            }
+            if(count($del_oss_obj) > 0){
+                $this->doDelOssObj($del_oss_obj, $config['aliOss']);
+            }
+            if(count($del_cos_obj) > 0){
+                $this->doDelCosObj($del_cos_obj, $config['cos']);
             }
 
         }catch (Exception $exception){
@@ -78,22 +77,22 @@ class RemoteObjectService extends BaseService
         $config = $this->getRemoteConfig($uniacid);
         $remote = $type ? $type : $config['remote'];
         if($remote == 1){
-            $this->doDelLocalObj($path_arr);
+            $this->doDelLocalObj($path_arr, false);
         }
         if($remote == 2){
-            $this->doDelQiniuObj($path_arr, $config['qiniu']);
+            $this->doDelQiniuObj($path_arr, $config['qiniu'], false);
         }
         if($remote == 3){
-            $this->doDelOssObj($path_arr, $config['aliOss']);
+            $this->doDelOssObj($path_arr, $config['aliOss'], false);
         }
         if($remote == 4){
-            $this->doDelCosObj($path_arr, $config['cos']);
+            $this->doDelCosObj($path_arr, $config['cos'], false);
         }
 
     }
 
     //删除本地图片
-    private function doDelLocalObj($del_obj)
+    private function doDelLocalObj($del_obj, $deleteRecord = true)
     {
         foreach ($del_obj as $key => $item){
             $url = trim($item, '/');
@@ -101,12 +100,14 @@ class RemoteObjectService extends BaseService
             if(file_exists($link)){
                 unlink($link);
             }
-            WdXcxPic::destroy($key, true);
+            if($deleteRecord){
+                WdXcxPic::destroy($key, true);
+            }
         }
     }
 
     //删除七牛图片
-    private function doDelQiniuObj($del_obj, $qinu)
+    private function doDelQiniuObj($del_obj, $qinu, $deleteRecord = true)
     {
         vendor('Qiniu.autoload');
         // 需要填写你的 Access Key 和 Secret Key
@@ -133,11 +134,13 @@ class RemoteObjectService extends BaseService
         if($err){
             throw new Exception($err);
         }
-        WdXcxPic::destroy($del_key, true);
+        if($deleteRecord){
+            WdXcxPic::destroy($del_key, true);
+        }
     }
 
     //删除OSS图片
-    private function doDelOssObj($del_obj, $ali_info)
+    private function doDelOssObj($del_obj, $ali_info, $deleteRecord = true)
     {
         require_once root_path().'/vendor/aliyun/autoload.php';
         $accessKeyId = $ali_info['ak'];
@@ -146,18 +149,22 @@ class RemoteObjectService extends BaseService
         $bucket = $ali_info['bucket'];
         try {
             $ossClient = new \OSS\OssClient($accessKeyId, $accessKeySecret, $endpoint);
+            $del_key = [];
             foreach ($del_obj as $key => $item){
                 $item = $ali_info['folder_name'] ? $ali_info['folder_name'] . '/' .$item : $item;
                 $ossClient->deleteObject($bucket, $item);
-//                WdXcxPic::destroy($key, true);
+                $del_key[] = $key;
             }
-        } catch (Exception $e) {
+            if($deleteRecord && !empty($del_key)){
+                WdXcxPic::destroy($del_key, true);
+            }
+        } catch (\Exception $e) {
             throw new Exception($e->getMessage());
         }
     }
 
     //删除腾讯云图片
-    private function doDelCosObj($del_obj, $cos_info)
+    private function doDelCosObj($del_obj, $cos_info, $deleteRecord = true)
     {
         try{
             foreach ($del_obj as $key => $item){
@@ -168,7 +175,9 @@ class RemoteObjectService extends BaseService
                 }
                 $cos = new TencentCOSService($cos_info, $item);
                 $cos->delObject();
-                WdXcxPic::destroy($key, true);
+                if($deleteRecord){
+                    WdXcxPic::destroy($key, true);
+                }
             }
         }catch (Exception $e){
             throw new Exception($e->getMessage());

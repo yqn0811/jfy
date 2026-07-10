@@ -124,6 +124,7 @@
 
 <script>
 	import config from '@/common/config'
+	import { buildAuthHeader } from '@/common/helper/auth.js';
 	import { notifyFolderRefresh } from '@/common/helper/refresh.js';
 	import {
 		buildUploadNameFormData,
@@ -500,13 +501,13 @@
 				return prepareNamedUploadFile(selectedFile.path, selectedFile.name).then((uploadPath) => {
 					return new Promise((resolve, reject) => {
 						uni.uploadFile({
-							url: config.domain + '/api/common/upload',
-							filePath: uploadPath,
-							name: 'file',
-							header: {
-								'content-type': 'multipart/form-data',
-								'authorization-token': `Bearer ${uni.getStorageSync('token')}`
-							},
+								url: config.domain + '/api/common/upload',
+								filePath: uploadPath,
+								name: 'file',
+								header: {
+									'content-type': 'multipart/form-data',
+									...buildAuthHeader()
+								},
 							formData: {
 								...params,
 								...buildUploadNameFormData(selectedFile.name)
@@ -544,12 +545,10 @@
 							collect_flag:1
 						}
 						let params = {
-							...querys,
-							sign: this.$base.getASCII(querys)
-						}
-						console.log(params)
-
-						tempFiles.forEach((file, index) => {
+								...querys,
+								sign: this.$base.getASCII(querys)
+							}
+							tempFiles.forEach((file, index) => {
 							this.uploadSelectedFile(file, params)
 								.then((uploadRes) => {
 									uploadCount++;

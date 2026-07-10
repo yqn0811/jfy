@@ -6,9 +6,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import TargetShareDialog from '@/components/common/TargetShareDialog.vue'
 import SelectionDetailDialog from '@/components/selection/SelectionDetailDialog.vue'
 import SelectionPickerDialog from '@/components/selection/SelectionPickerDialog.vue'
-import { pcApi } from '@/lib/api'
+import { getUrlHomeTarget, pcApi } from '@/lib/api'
 import { mapProduct, mapProductImagesFromDetail, pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
 import { buildSelectionProductImageMap, pickSelectionImageList } from '@/lib/selection-images'
 import { navigateToInternal } from '@/navigation'
@@ -27,6 +28,8 @@ const confirmOpen = ref(false)
 const selectionToDelete = ref<any>(null)
 const detailDialogOpen = ref(false)
 const activeSelection = ref<any>(null)
+const shareDialogOpen = ref(false)
+const sharingSelection = ref<any>(null)
 const brokenPreviewImages = ref<Set<string>>(new Set())
 const selectionPickerOpen = ref(false)
 const editingSelection = ref<any>(null)
@@ -67,6 +70,8 @@ const mergeSelectionDetail = (item: any, detail: any = null) => {
     factory: detail?.factory || item.factory || {},
     product,
     product_summary: detail?.product_summary || item.product_summary || product,
+    share_code: detail?.share_code || detail?.code || item.share_code || item.code || item.factory?.share_code || '',
+    code: detail?.code || detail?.share_code || item.code || item.share_code || item.factory?.share_code || '',
     detail: detail ? { ...detail, list: selectedImages, selected_preview: selectedImages } : detail,
     list: selectedImages,
     selected_preview: selectedImages,
@@ -163,6 +168,16 @@ const getSelectionFactoryUid = (item: any = {}) => String(
     ''
 )
 
+const getSelectionShareCode = (item: any = {}) => String(
+  item.share_code ||
+    item.code ||
+    item.detail?.share_code ||
+    item.detail?.code ||
+    item.factory?.share_code ||
+    item.detail?.factory?.share_code ||
+    ''
+)
+
 const getItemSelectionId = (item: any = {}) => String(item.id || item.info?.id || item.detail?.info?.id || '')
 
 const normalizeProductDetailSource = (raw: any) => {
@@ -205,36 +220,6 @@ const openDetailDialog = (item: any) => {
   detailDialogOpen.value = true
 }
 
-const buildSelectionShareUrl = (item: any) => {
-  const selectionId = getItemSelectionId(item)
-  const productId = getSelectionProductId(item)
-  const factoryUid = getSelectionFactoryUid(item)
-  const url = new URL('./my-selections', window.location.href)
-  if (selectionId) url.searchParams.set('selectionId', selectionId)
-  if (productId) url.searchParams.set('productId', productId)
-  if (factoryUid) url.searchParams.set('uid', factoryUid)
-  return url.toString()
-}
-
-const copyText = async (text: string) => {
-  if (!text) return false
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text)
-    return true
-  }
-
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.setAttribute('readonly', 'true')
-  textarea.style.position = 'fixed'
-  textarea.style.left = '-9999px'
-  document.body.appendChild(textarea)
-  textarea.select()
-  const ok = document.execCommand('copy')
-  document.body.removeChild(textarea)
-  return ok
-}
-
 const handleShareSelection = async (item: any) => {
   const selectionId = getItemSelectionId(item)
   if (!selectionId) {
@@ -242,22 +227,41 @@ const handleShareSelection = async (item: any) => {
     return
   }
 
-  try {
-    await copyText(buildSelectionShareUrl(item))
-    toast.success('选款单链接已复制')
-  } catch (error: any) {
-    toast.error(error?.message || '复制失败，请稍后重试')
+  let targetItem = item
+  if (!getSelectionShareCode(targetItem)) {
+    try {
+      const detail = await pcApi.getSelectionDetail(selectionId)
+      targetItem = mergeSelectionDetail(item, detail)
+      selections.value = selections.value.map(row =>
+        getItemSelectionId(row) === selectionId ? targetItem : row
+      )
+    } catch (error: any) {
+      toast.error(error?.message || '选款单分享信息加载失败')
+      return
+    }
   }
+  if (!getSelectionShareCode(targetItem)) {
+    toast.error('选款单分享码缺失，请刷新后重试')
+    return
+  }
+  sharingSelection.value = targetItem
+  shareDialogOpen.value = true
 }
 
 const openSelectionFromQuery = () => {
   if (!pendingSelectionId.value) return
   const selectionId = pendingSelectionId.value
   const matched = selections.value.find(item => getItemSelectionId(item) === selectionId)
+  const params = new URLSearchParams(window.location.search)
+  const shareTarget = readSelectionShareTargetFromLocation()
   const fallback = {
     id: selectionId,
     title: `选款单 #${selectionId}`,
     name: `选款单 #${selectionId}`,
+    product_id: params.get('productId') || params.get('product_id') || '',
+    share_code: shareTarget.shareCode,
+    code: shareTarget.shareCode,
+    factory_uid: shareTarget.targetUserId,
   }
   openDetailDialog(matched || fallback)
   pendingSelectionId.value = ''
@@ -267,6 +271,14 @@ const readSelectionIdFromLocation = () => {
   if (typeof window === 'undefined') return ''
   const params = new URLSearchParams(window.location.search)
   return params.get('selectionId') || params.get('selection_id') || ''
+}
+
+const readSelectionShareTargetFromLocation = () => {
+  const target = getUrlHomeTarget()
+  return {
+    targetUserId: target.targetUserId,
+    shareCode: target.shareCode,
+  }
 }
 
 const openEditSelectionDialog = async (item: any) => {
@@ -477,7 +489,22 @@ watch(
       :open="detailDialogOpen"
       :selection-id="String(activeSelection?.id || '')"
       :fallback="activeSelection"
+      :share-target="readSelectionShareTargetFromLocation()"
       @update:open="detailDialogOpen = $event"
+    />
+
+    <TargetShareDialog
+      :open="shareDialogOpen"
+      type="selection"
+      title="分享选款单"
+      description="选择分享方式，让客户查看这张选款单"
+      :target-id="getItemSelectionId(sharingSelection)"
+      :target-user-id="getSelectionFactoryUid(sharingSelection)"
+      :share-code="getSelectionShareCode(sharingSelection)"
+      :product-id="getSelectionProductId(sharingSelection)"
+      web-path="./my-selections"
+      web-param-name="selectionId"
+      @update:open="shareDialogOpen = $event"
     />
 
     <SelectionPickerDialog

@@ -331,6 +331,8 @@
 </template>
 
 <script>
+import { buildAuthHeader } from "@/common/helper/auth.js";
+
 export default {
   data() {
     return {
@@ -532,12 +534,11 @@ export default {
         name: "file",
         header: {
           "content-type": "multipart/form-data", // 默认值
-          "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
+          ...buildAuthHeader(),
         },
         success: (uploadRes) => {
           try {
             const data = JSON.parse(uploadRes.data);
-            console.log(data);
             if (data.code === 0) {
               this.shareForm.imageUrl = data.data.url;
               uni.showToast({

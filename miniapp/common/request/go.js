@@ -1,6 +1,7 @@
 import config from "../config";
 
 import { showLoading } from "../helper/base.js";
+import { buildAuthHeader, getAuthToken, normalizeAuthToken } from "../helper/auth.js";
 
 const HEADER = {
   "content-type": "application/json",
@@ -9,19 +10,6 @@ const HEADER = {
 
 const AUTH_ERROR_CODES = [4001, 4100, 403];
 let isRedirectingToLogin = false;
-
-const normalizeAuthToken = (value) => {
-  if (value === null || value === undefined) return "";
-  const token = String(value).replace(/^Bearer\s+/i, "").trim();
-  if (!token || token === "null" || token === "undefined") return "";
-
-  const segments = token.split(".");
-  if (segments.length !== 3 || segments.some((item) => !item)) {
-    return "";
-  }
-
-  return token;
-};
 
 const getSafeErrorMessage = (message) => {
   const text = message === null || message === undefined ? "" : String(message).trim();
@@ -143,11 +131,15 @@ const go = (
   }
   return new Promise((resolve, reject) => {
     const rawToken = uni.getStorageSync("token");
-    const token = normalizeAuthToken(rawToken);
-    const header = { ...HEADER };
+    const token = getAuthToken();
+    const header = { ...HEADER, ...buildAuthHeader(token) };
     if (token) {
-      header["authorization-token"] = `Bearer ${token}`;
-    } else if (rawToken) {
+      const segments = token.split(".");
+      if (segments.length !== 3 || segments.some((item) => !item)) {
+        delete header["authorization-token"];
+        uni.removeStorageSync("token");
+      }
+    } else if (normalizeAuthToken(rawToken)) {
       uni.removeStorageSync("token");
     }
     let url = full_url ? path : `${config.host}/${path}`;

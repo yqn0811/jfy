@@ -167,7 +167,6 @@ export default {
             uni.navigateBack();
           }, 700);
         } else {
-          console.log("submitOrder demo params:", params);
           uni.showToast({ title: "已保存（示例）", icon: "none" });
           setTimeout(() => uni.navigateBack(), 700);
         }

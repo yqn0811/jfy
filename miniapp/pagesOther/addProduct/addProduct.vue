@@ -171,6 +171,7 @@
 <script>
 import UploadPicker from "./components/UploadPicker.vue"; // 根据项目路径调整
 import CategoryMultiSelect from "./components/CategoryMultiSelect.vue";
+import { buildAuthHeader } from "@/common/helper/auth.js";
 import { notifyRefresh } from "@/common/helper/refresh.js";
 import {
   buildUploadNameFormData,
@@ -1008,7 +1009,7 @@ export default {
               name: "file",
               header: {
                 "content-type": "multipart/form-data", // 默认值
-                "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
+                ...buildAuthHeader(),
               },
               formData: {
                 file_type: fileType,

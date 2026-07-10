@@ -1,28 +1,8 @@
-console.log(`环境:${process.env.NODE_ENV}`);
-
-let domain;
-let environment = process.env.NODE_ENV;
+const environment = process.env.NODE_ENV || "development";
 const TEST_API_DOMAIN = "https://api-test.jfyuntu.com";
-console.log(environment);
-if (environment === "development") {
-	//开发域名
-	// domain = 'http://four.fun.com';
-	// domain = 'https://manage.4funinnovate.com';
-	// domain = 'https://yunce.jiumirw.com';
-	// domain = 'http://115.190.245.200';
-	// domain = "https://www.jfyuntu.com";
-	// domain = "http://api.mia-233.cn";
-	// domain = "http://115.190.245.200";
-	domain = TEST_API_DOMAIN;
-} else {
-	//发行域名
-	// domain = 'https://yunce.jiumirw.com';
-	// domain = "https://photo.jfc114.com";
-	// domain = "http://api.mia-233.cn";
-	// domain = "http://115.190.245.200";
-	domain = TEST_API_DOMAIN;
-	// domain = 'https://manage.4funinnovate.com';
-}
+const PROD_API_DOMAIN = "https://api.jfyuntu.com";
+const domain = environment === "production" ? PROD_API_DOMAIN : TEST_API_DOMAIN;
+
 const config = {
 	domain,
 	host: domain + "/api",
