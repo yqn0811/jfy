@@ -10,7 +10,11 @@
         ></view>
         <view class="nav-wrap" :style="{ height: navigationBarHeight + 'px' }">
           <view v-if="!previewMode" class="nav-left">
-            <view class="nav-left-item" @click="onSetting">
+            <view
+              class="nav-left-item"
+              :style="{ height: navButtonHeight + 'px' }"
+              @click="onSetting"
+            >
               <image
                 src="/static/icon/setting-icon.png"
                 class="nav-icon"
@@ -19,7 +23,11 @@
               </image>
               <view class="nav-text">设置</view>
             </view>
-            <view class="nav-left-item" @click="onPreview">
+            <view
+              class="nav-left-item"
+              :style="{ height: navButtonHeight + 'px' }"
+              @click="onPreview"
+            >
               <image
                 src="/static/icon/eye@2x.png"
                 class="nav-icon"
@@ -258,7 +266,8 @@ export default {
       personalVisible: false,
       showSettingPopup: false, // 设置弹窗显示状态
       statusBarHeight: 0,
-      navigationBarHeight: 88, // 显示区域高度（rpx等比转换后按样式处理）
+      navigationBarHeight: 44,
+      navButtonHeight: 32,
       headerHeight: 520, // 头部占用高度（rpx）
       tabbarHeight: 140, // 自定义tabbar高度（rpx）
       safeAreaBottom: 0,
@@ -296,9 +305,7 @@ export default {
       ...(options || {}),
       ...sceneOptions,
     };
-    const sys = this.$base.getSystemInfoCompat();
-    // 在小程序中返回单位为 px，需要转换为 rpx 时通常用样式 rpx；这里只读取状态栏高度 px
-    this.statusBarHeight = sys.statusBarHeight || 0;
+    this.initNavigationMetrics();
     this.safeAreaBottom = 0;
     const userInfo = uni.getStorageSync("userInfo") || {};
     this.homeId = userInfo.id || userInfo.uid || "";
@@ -369,6 +376,25 @@ export default {
     },
   },
   methods: {
+    initNavigationMetrics() {
+      const sys = this.$base.getSystemInfoCompat();
+      const statusBarHeight = sys.statusBarHeight || 0;
+      let navigationBarHeight = 44;
+      let navButtonHeight = 32;
+
+      if (uni.getMenuButtonBoundingClientRect) {
+        const menuButton = uni.getMenuButtonBoundingClientRect();
+        if (menuButton && menuButton.height && menuButton.top >= statusBarHeight) {
+          const verticalGap = menuButton.top - statusBarHeight;
+          navigationBarHeight = menuButton.height + verticalGap * 2;
+          navButtonHeight = menuButton.height;
+        }
+      }
+
+      this.statusBarHeight = statusBarHeight;
+      this.navigationBarHeight = navigationBarHeight;
+      this.navButtonHeight = navButtonHeight;
+    },
     parseSceneOptions(options = {}) {
       if (!options.scene || !this.$parseShareScene) return {};
       return this.$parseShareScene(options.scene);
@@ -777,7 +803,8 @@ export default {
   justify-content: center;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 96rpx;
-  padding: 16rpx 26rpx;
+  box-sizing: border-box;
+  padding: 0 26rpx;
   gap: 10rpx;
 }
 
