@@ -387,17 +387,8 @@ class UserService extends BaseService
         if ($isOwner) {
             return;
         }
-        if ($allowAnonymousPreview || ((int)$owner->visit_no_need_nickname === 1 && (int)$owner->visit_no_need_mobile === 1)) {
-            return;
-        }
         if (!$visitorUid) {
             throwError('请先授权登录');
-        }
-        if ((int)$owner->visit_no_need_mobile === 0) {
-            $visitor = WdXcxUser::find($visitorUid);
-            if (!$visitor || empty($visitor->mobile)) {
-                throwError('请先授权登录');
-            }
         }
     }
 
@@ -661,6 +652,7 @@ class UserService extends BaseService
         }
 
         $isOwner = ($visitorUid === $targetUserId && $visitorUid !== 0);
+        $this->assertHomeVisitRequirement($user, $visitorUid, $isOwner, true);
         $pic = null;
         $product = null;
         $relation = null;
@@ -963,15 +955,11 @@ class UserService extends BaseService
         }
 
         $fileSize = (int)$pic->getData('size');
-        try {
-            $this->recordDownloadTraffic([
-                'pic_id' => $picId,
-                'file_url' => $url,
-                'file_size' => $fileSize,
-            ], $userId);
-        } catch (\Throwable $e) {
-            Log::error('[OriginalDownload] record traffic failed: ' . $e->getMessage());
-        }
+        $traffic = $this->recordDownloadTraffic([
+            'pic_id' => $picId,
+            'file_url' => $url,
+            'file_size' => $fileSize,
+        ], $userId);
 
         return [
             'pic_id' => $picId,
@@ -979,6 +967,7 @@ class UserService extends BaseService
             'download_url' => $url,
             'downloadUrl' => $url,
             'file_size' => $fileSize,
+            'traffic' => $traffic,
             'expires_in' => 600,
         ];
     }
@@ -3059,15 +3048,6 @@ class UserService extends BaseService
         }
         $mediaType = ((int)$pic->getData('file_type') === 2) ? 'video' : 'image';
 
-        try {
-            $base = WdXcxBase::where('uniacid', $this->uniacid)->find();
-            if ($base) {
-                $base->inc('down_count', 1)->update();
-            }
-        } catch (\Throwable $e) {
-            Log::error('[DownloadTraffic] increment down_count failed: ' . $e->getMessage());
-        }
-
         $result = [
             'pic_id' => $picId,
             'owner_uid' => (int)$pic->uid,
@@ -3098,6 +3078,17 @@ class UserService extends BaseService
             $result['used_traffic_bytes'] = (int)($bridgeResp['used_traffic_bytes'] ?? 0);
         } catch (\Throwable $e) {
             Log::error('[DownloadTraffic] bridge sync failed: ' . $e->getMessage());
+            $message = $e->getMessage() ?: '流量扣减失败，请稍后重试';
+            throwError($message);
+        }
+
+        try {
+            $base = WdXcxBase::where('uniacid', $this->uniacid)->find();
+            if ($base) {
+                $base->inc('down_count', 1)->update();
+            }
+        } catch (\Throwable $e) {
+            Log::error('[DownloadTraffic] increment down_count failed: ' . $e->getMessage());
         }
 
         return $result;

@@ -24,9 +24,10 @@ declare global {
 const props = defineProps<Props>()
 const emit = defineEmits(['update:open', 'login-success'])
 
-const status = ref<'loading' | 'ready' | 'error' | 'local'>('loading')
+const status = ref<'loading' | 'ready' | 'error' | 'local' | 'wechat'>('loading')
 const loginError = ref('')
 const authUrl = ref('')
+const wechatAuthUrl = ref('')
 const containerId = `wx-login-${Math.random().toString(36).slice(2)}`
 let scriptPollTimer: number | null = null
 
@@ -40,6 +41,11 @@ const stopWaitingScript = () => {
 const getRedirectUrl = () => {
   if (typeof window === 'undefined') return ''
   return window.location.href
+}
+
+const isWechatBrowser = () => {
+  if (typeof navigator === 'undefined') return false
+  return /micromessenger/i.test(navigator.userAgent || '')
 }
 
 const renderWxLogin = (config: any) => {
@@ -68,6 +74,12 @@ const openAuthUrl = () => {
   window.location.href = authUrl.value
 }
 
+const openWechatAuthUrl = () => {
+  const url = wechatAuthUrl.value || authUrl.value
+  if (!url) return
+  window.location.href = url
+}
+
 const enterLocalMock = async () => {
   try {
     const data = await pcApi.checkLoginStatus('mock_scene')
@@ -91,6 +103,7 @@ const loadOauthLogin = async () => {
   stopWaitingScript()
   loginError.value = ''
   authUrl.value = ''
+  wechatAuthUrl.value = ''
   status.value = 'loading'
 
   if (isMockEnabled()) {
@@ -101,8 +114,15 @@ const loadOauthLogin = async () => {
   try {
     const data = await pcApi.getLoginOauthConfig(getRedirectUrl())
     authUrl.value = data?.auth_url || ''
+    wechatAuthUrl.value = data?.wechat_auth_url || data?.wechatAuthUrl || ''
     if (!data?.appid || !data?.redirect_uri || !data?.state) {
       throw new Error('微信登录配置缺失')
+    }
+
+    if (isWechatBrowser() && (wechatAuthUrl.value || authUrl.value)) {
+      status.value = 'wechat'
+      openWechatAuthUrl()
+      return
     }
 
     await nextTick()
@@ -145,9 +165,9 @@ onBeforeUnmount(stopWaitingScript)
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogContent class="sm:max-w-[430px] gap-6">
       <DialogHeader class="items-center text-center">
-        <DialogTitle class="text-xl">微信扫码登录</DialogTitle>
+        <DialogTitle class="text-xl">{{ status === 'wechat' ? '微信授权登录' : '微信扫码登录' }}</DialogTitle>
         <DialogDescription class="text-sm">
-          使用微信扫码后自动进入
+          {{ status === 'wechat' ? '正在唤起微信授权' : '使用微信扫码后自动进入' }}
         </DialogDescription>
       </DialogHeader>
 
@@ -172,6 +192,18 @@ onBeforeUnmount(stopWaitingScript)
             <p class="mt-1 text-xs text-muted-foreground">微信回调不支持 localhost，可使用本地会话预览页面</p>
             <Button class="mt-4" size="sm" @click="enterLocalMock">
               进入本地预览
+            </Button>
+          </div>
+
+          <div
+            v-else-if="status === 'wechat'"
+            class="absolute inset-0 flex flex-col items-center justify-center bg-white p-6 text-center"
+          >
+            <SafeIcon name="MessagesSquare" :size="34" class="mb-3 text-primary" />
+            <p class="text-sm font-medium text-foreground">正在打开微信授权</p>
+            <p class="mt-1 text-xs text-muted-foreground">授权完成后会自动回到当前分享页</p>
+            <Button class="mt-4" size="sm" @click="openWechatAuthUrl">
+              继续登录
             </Button>
           </div>
 

@@ -119,7 +119,19 @@ const removeAuthCallbackParams = () => {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
   let changed = false
-  ;['token', 'access_token', 'authorization', 'login', 'error'].forEach((key) => {
+  ;[
+    'token',
+    'access_token',
+    'accessToken',
+    'authorization',
+    'auth_token',
+    'authToken',
+    'pc_token',
+    'pcToken',
+    'jwt',
+    'login',
+    'error',
+  ].forEach((key) => {
     if (url.searchParams.has(key)) {
       url.searchParams.delete(key)
       changed = true
@@ -174,7 +186,16 @@ export const authStore = {
     if (typeof window === 'undefined') return ''
     const params = new URLSearchParams(window.location.search)
     const token = normalizeToken(
-      params.get('token') || params.get('access_token') || params.get('authorization') || ''
+      params.get('token') ||
+        params.get('access_token') ||
+        params.get('accessToken') ||
+        params.get('authorization') ||
+        params.get('auth_token') ||
+        params.get('authToken') ||
+        params.get('pc_token') ||
+        params.get('pcToken') ||
+        params.get('jwt') ||
+        ''
     )
     if (token) {
       this.setToken(token)

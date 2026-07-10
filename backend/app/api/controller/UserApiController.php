@@ -1024,6 +1024,13 @@ class UserApiController extends ApiBaseController
             'scope' => 'snsapi_login',
             'state' => $state,
         ]) . '#wechat_redirect';
+        $wechatAuthUrl = 'https://open.weixin.qq.com/connect/oauth2/authorize?' . http_build_query([
+            'appid' => $appid,
+            'redirect_uri' => $callback,
+            'response_type' => 'code',
+            'scope' => 'snsapi_userinfo',
+            'state' => $state,
+        ]) . '#wechat_redirect';
 
         $this->result([
             'appid' => $appid,
@@ -1031,6 +1038,8 @@ class UserApiController extends ApiBaseController
             'redirect_uri' => $callback,
             'state' => $state,
             'auth_url' => $authUrl,
+            'wechat_auth_url' => $wechatAuthUrl,
+            'wechatAuthUrl' => $wechatAuthUrl,
         ]);
     }
 
