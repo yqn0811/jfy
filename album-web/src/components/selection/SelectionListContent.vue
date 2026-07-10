@@ -274,7 +274,7 @@ watch(
                 :key="index"
                 class="overflow-hidden rounded-md border border-border bg-muted"
               >
-                <div class="aspect-square">
+                <div class="relative aspect-square">
                   <img
                     v-if="getPreviewImageSrc(image) && !isPreviewImageBroken(item, image, index)"
                     :src="getPreviewImageSrc(image)"
@@ -285,6 +285,12 @@ watch(
                   <div v-else class="flex h-full w-full items-center justify-center bg-muted">
                     <SafeIcon name="Image" :size="18" class="text-muted-foreground" />
                   </div>
+                  <div
+                    v-if="index === 11 && getPreviewImages(item).length > 12"
+                    class="absolute inset-0 flex items-center justify-center bg-black/45 text-sm font-semibold text-white"
+                  >
+                    +{{ getPreviewImages(item).length - 12 }}
+                  </div>
                 </div>
                 <p class="truncate px-1.5 py-1 text-[11px] text-muted-foreground">
                   {{ getPreviewImageName(image, index) }}
@@ -292,12 +298,6 @@ watch(
               </div>
               <div v-if="getPreviewImages(item).length === 0" class="col-span-full flex h-24 items-center justify-center rounded-md bg-muted">
                 <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
-              </div>
-              <div
-                v-else-if="getPreviewImages(item).length > 12"
-                class="flex aspect-square items-center justify-center rounded-md border border-dashed border-border bg-muted text-xs text-muted-foreground"
-              >
-                +{{ getPreviewImages(item).length - 12 }}
               </div>
             </div>
 
