@@ -178,6 +178,8 @@ const typeLabel = computed(() => {
       >
         放到末尾
       </div>
+
+      <slot name="after" />
     </div>
   </div>
 </template>

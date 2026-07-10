@@ -79,6 +79,10 @@ const handleLoginSuccess = async () => {
   handleNavigate('./management-workbench');
 };
 
+const handleProfileUpdated = (profile: any) => {
+  userInfo.value = profile || {};
+};
+
 const isActive = (href: string) => {
   return props.currentPath?.includes(href.replace("./", ""));
 };
@@ -166,6 +170,7 @@ onMounted(() => {
             :fallback-name="props.userName"
             :fallback-avatar="props.userAvatar"
             logout-redirect="./share-home"
+            @profile-updated="handleProfileUpdated"
           />
         </div>
         <div v-else>

@@ -292,6 +292,18 @@ export const pcApi = {
   getCurrentUser: async () => normalizeCurrentUser(await apiRequest<any>('user/show_info')),
   updatePcSettings: (body: Record<string, any>) =>
     apiRequest<any>('user/update_pc_settings', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
+  uploadCommonImage: (file: File) => {
+    const form = new FormData()
+    form.append('file', file, file.name)
+    form.append('filename', file.name)
+    form.append('file_name', file.name)
+    form.append('original_name', file.name)
+    form.append('name', file.name)
+    form.append('file_size', String(file.size || 0))
+    form.append('size', String(file.size || 0))
+    form.append('file_type', '1')
+    return apiUpload<any>('common/upload', form)
+  },
 
   getHomeInfo: (target: HomeTargetRef = '') =>
     apiRequest<any>('user/home/info', { params: { ...buildHomeTargetParams(target), timestamp: Date.now() } }),

@@ -893,6 +893,19 @@ export async function mockApiUpload<T = any>(path: string, formData: FormData): 
   const state = getState()
   const cleanPath = path.replace(/^\/+/, '').split('?')[0]
   const { file, fid, type } = parseFormUpload(formData)
+
+  if (cleanPath === 'common/upload') {
+    if (!file) throw new Error('上传参数不完整')
+    const image = createImageFromFile(file, 'common', type)
+    return ok({
+      url: image.url,
+      file_url: image.url,
+      id: image.id,
+      size: file.size,
+      file_size: file.size,
+    }) as T
+  }
+
   if (!file || !fid) throw new Error('上传参数不完整')
 
   if (cleanPath === 'album/upload/folder' || cleanPath === 'web/folder/pic/upload') {

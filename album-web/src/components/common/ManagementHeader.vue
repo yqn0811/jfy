@@ -26,6 +26,10 @@ const handlePreview = () => {
   window.location.href = `./share-home?code=${encodeURIComponent(code)}`;
 };
 
+const handleProfileUpdated = (profile: any) => {
+  userInfo.value = profile || {};
+};
+
 const goToWorkbench = () => {
   window.location.href = './management-workbench';
 };
@@ -55,6 +59,7 @@ const goToWorkbench = () => {
         trigger-class="relative h-9 w-9 rounded-full p-0"
         avatar-class="h-9 w-9"
         logout-redirect="./share-home"
+        @profile-updated="handleProfileUpdated"
       />
     </div>
   </header>

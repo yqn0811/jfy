@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import HomeSettingsDialog from '@/components/home_settings/HomeSettingsDialog.vue'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { authStore } from '@/lib/api'
 
@@ -30,6 +31,12 @@ const props = withDefaults(defineProps<Props>(), {
   avatarClass: 'h-10 w-10 border border-border',
   logoutRedirect: './share-home',
 })
+
+const emit = defineEmits<{
+  (e: 'profile-updated', profile: any): void
+}>()
+
+const homeSettingsOpen = ref(false)
 
 const nickname = computed(() => {
   return props.userInfo?.nickname || props.fallbackName || '家纺云用户'
@@ -110,8 +117,16 @@ const goToWorkbench = () => {
   window.location.href = './management-workbench'
 }
 
+const openHomeSettings = () => {
+  homeSettingsOpen.value = true
+}
+
 const handleBilling = () => {
   window.location.href = './billing-usage'
+}
+
+const handleProfileSaved = (profile: any) => {
+  emit('profile-updated', profile)
 }
 
 const handleLogout = () => {
@@ -174,6 +189,10 @@ const handleLogout = () => {
       </DropdownMenuLabel>
       <DropdownMenuSeparator class="m-0" />
       <div class="p-2">
+        <DropdownMenuItem class="cursor-pointer gap-3 px-3 py-2.5 text-sm" @click="openHomeSettings">
+          <SafeIcon name="Store" :size="18" />
+          编辑主页
+        </DropdownMenuItem>
         <DropdownMenuItem class="cursor-pointer gap-3 px-3 py-2.5 text-sm" @click="goToWorkbench">
           <SafeIcon name="LayoutDashboard" :size="18" />
           管理工作台
@@ -192,4 +211,9 @@ const handleLogout = () => {
       </div>
     </DropdownMenuContent>
   </DropdownMenu>
+
+  <HomeSettingsDialog
+    v-model:open="homeSettingsOpen"
+    @saved="handleProfileSaved"
+  />
 </template>

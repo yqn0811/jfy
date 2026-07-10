@@ -21,6 +21,7 @@ import {
 import SafeIcon from '@/components/common/SafeIcon.vue';
 import FavoritesList from '@/components/favorites/FavoritesList.vue';
 import BrowsingHistoryContent from '@/components/browsing_history/BrowsingHistoryContent.vue';
+import HomeSettingsDialog from '@/components/home_settings/HomeSettingsDialog.vue';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -33,7 +34,7 @@ interface MenuItem {
   title: string;
   icon: string;
   url: string;
-  panel?: 'favorites' | 'history';
+  panel?: 'favorites' | 'history' | 'homeSettings';
 }
 
 interface MenuGroup {
@@ -48,13 +49,13 @@ const menuGroups: MenuGroup[] = [
       { title: '工作台概览', icon: 'BarChart4', url: './management-workbench' },
       { title: '产品管理', icon: 'Package', url: './product-management' },
       { title: '分类管理', icon: 'FolderTree', url: './category-management' },
-      { title: '编辑主页', icon: 'Store', url: './home-settings' },
       { title: '客户选款', icon: 'ClipboardList', url: './customer-selections' },
     ],
   },
   {
     label: '个人中心',
     items: [
+      { title: '编辑主页', icon: 'Store', url: './home-settings', panel: 'homeSettings' },
       { title: '我的收藏', icon: 'Heart', url: './favorites', panel: 'favorites' },
       { title: '我的选款', icon: 'ListChecks', url: './my-selections' },
       { title: '浏览足迹', icon: 'History', url: './browsing-history', panel: 'history' },
@@ -71,6 +72,7 @@ const menuGroups: MenuGroup[] = [
 ];
 
 const quickPanel = ref<'favorites' | 'history' | ''>('');
+const homeSettingsOpen = ref(false);
 
 const isActive = (url: string) => {
   if (!props.currentPath) return false;
@@ -80,6 +82,10 @@ const isActive = (url: string) => {
 };
 
 const handleNavigate = (item: MenuItem) => {
+  if (item.panel === 'homeSettings') {
+    homeSettingsOpen.value = true;
+    return;
+  }
   if (item.panel) {
     quickPanel.value = item.panel;
     return;
@@ -148,4 +154,6 @@ const handleNavigate = (item: MenuItem) => {
       </div>
     </DialogScrollContent>
   </Dialog>
+
+  <HomeSettingsDialog v-model:open="homeSettingsOpen" />
 </template>

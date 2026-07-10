@@ -24,6 +24,7 @@ import type { CategoryData } from '@/data/CategoryData'
 import { buildProductImageUrls, type ProductImageData } from '@/data/ProductImageData'
 import ImageUploadZone from './ImageUploadZone.vue'
 import ImageSortable from './ImageSortable.vue'
+import QuickImageUploadTile from './QuickImageUploadTile.vue'
 
 interface FormState {
   id: string
@@ -564,7 +565,15 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               class="mt-2"
               @remove="handleRemoveImage"
               @reorder="handleReorderImages"
-            />
+            >
+              <template #after>
+                <QuickImageUploadTile
+                  type="colorChart"
+                  :upload-handler="handleUploadImage"
+                  @add-images="handleAddImages"
+                />
+              </template>
+            </ImageSortable>
           </div>
 
           <div class="space-y-3">
@@ -607,7 +616,15 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               class="mt-2"
               @remove="handleRemoveImage"
               @reorder="handleReorderImages"
-            />
+            >
+              <template #after>
+                <QuickImageUploadTile
+                  type="detailChart"
+                  :upload-handler="handleUploadImage"
+                  @add-images="handleAddImages"
+                />
+              </template>
+            </ImageSortable>
           </div>
         </section>
       </div>
