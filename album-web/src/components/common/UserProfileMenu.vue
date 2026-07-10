@@ -48,7 +48,18 @@ const companyName = computed(() => {
 })
 
 const avatarUrl = computed(() => {
-  return props.userInfo?.avatar || props.userInfo?.company_logo || props.fallbackAvatar || ''
+  return (
+    props.userInfo?.avatar ||
+    props.userInfo?.avatar_url ||
+    props.userInfo?.avatarUrl ||
+    props.userInfo?.headimgurl ||
+    props.userInfo?.head_img ||
+    props.userInfo?.headImg ||
+    props.userInfo?.company_logo ||
+    props.userInfo?.logo ||
+    props.fallbackAvatar ||
+    ''
+  )
 })
 
 const fallbackInitial = computed(() => {

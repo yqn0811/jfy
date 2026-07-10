@@ -44,6 +44,45 @@ const pageDesc = computed(() => props.mode === 'customer' ? '客户发送给你�
 const emptyTitle = computed(() => props.mode === 'customer' ? '暂无客户选款' : '暂无选款单')
 const emptyDesc = computed(() => props.mode === 'customer' ? '客户从你的主页选款并发送后，会在这里看到记录' : '从商家分享主页选择花色并发送后，会在这里看到记录')
 
+const normalizeText = (value: any) => {
+  if (value === undefined || value === null) return ''
+  const text = String(value).trim()
+  return text && text !== 'null' && text !== 'undefined' ? text : ''
+}
+
+const normalizeRows = (raw: any) => {
+  const rows = unwrapList(raw)
+  if (rows.length) return rows
+  return unwrapList(raw?.data || raw?.list || raw?.lists || raw?.records || raw?.items || raw?.result)
+}
+
+const normalizeUserSummary = (user: any = {}) => {
+  const avatar = pickImage(
+    user.avatar,
+    user.avatar_url,
+    user.avatarUrl,
+    user.headimgurl,
+    user.head_img,
+    user.headImg,
+    user.company_logo,
+    user.logo,
+    user.picture
+  )
+  const nickname =
+    normalizeText(user.company_name) ||
+    normalizeText(user.nickname) ||
+    normalizeText(user.display_name) ||
+    normalizeText(user.name) ||
+    normalizeText(user.mobile) ||
+    '微信用户'
+  return {
+    ...user,
+    avatar,
+    avatar_url: avatar,
+    nickname,
+  }
+}
+
 const mergeSelectionDetail = (item: any, detail: any = null) => {
   const info = detail?.info || {}
   const product = detail?.product_summary || detail?.product || item.product_summary || item.product || {}
@@ -66,8 +105,8 @@ const mergeSelectionDetail = (item: any, detail: any = null) => {
     ...item,
     title: item.title || item.name || info.title || info.name || `选款单 #${item.id || info.id}`,
     name: item.name || item.title || info.name || info.title || `选款单 #${item.id || info.id}`,
-    customer: detail?.customer || item.customer || {},
-    factory: detail?.factory || item.factory || {},
+    customer: normalizeUserSummary(detail?.customer || item.customer || {}),
+    factory: normalizeUserSummary(detail?.factory || item.factory || {}),
     product,
     product_summary: detail?.product_summary || item.product_summary || product,
     share_code: detail?.share_code || detail?.code || item.share_code || item.code || item.factory?.share_code || '',
@@ -89,7 +128,7 @@ const loadSelections = async () => {
     const raw = props.mode === 'customer'
       ? await pcApi.getCustomerSelections({ limit: 50 })
       : await pcApi.getMySelections({ limit: 50 })
-    const rows = unwrapList(raw)
+    const rows = normalizeRows(raw)
     const enrichedRows = await Promise.all(rows.map(async (item: any) => {
       if (!item?.id) return mergeSelectionDetail(item)
       try {

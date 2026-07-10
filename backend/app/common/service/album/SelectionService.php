@@ -137,9 +137,12 @@ class SelectionService extends BaseService
         $default = [
             'id' => (int)$userId,
             'nickname' => '匿名用户',
+            'display_name' => '匿名用户',
             'avatar' => getLocalImage('/image/users/user_default.png'),
+            'avatar_url' => getLocalImage('/image/users/user_default.png'),
             'mobile' => '',
             'company_name' => '',
+            'company_logo' => '',
             'contact_mobile' => '',
             'contact_wechat' => '',
         ];
@@ -154,12 +157,17 @@ class SelectionService extends BaseService
         }
 
         $info = $user->getUserInfoShow($userId);
+        $nickname = $info['nickname'] ?? '匿名用户';
+        $avatar = $info['avatar'] ?? $default['avatar'];
         return [
             'id' => (int)$userId,
-            'nickname' => $info['nickname'] ?? '匿名用户',
-            'avatar' => $info['avatar'] ?? $default['avatar'],
+            'nickname' => $nickname,
+            'display_name' => $nickname,
+            'avatar' => $avatar,
+            'avatar_url' => $avatar,
             'mobile' => $info['mobile'] ?? '',
             'company_name' => $info['company_name'] ?? '',
+            'company_logo' => $info['company_logo'] ?? '',
             'contact_mobile' => $info['contact_mobile'] ?? '',
             'contact_wechat' => $info['contact_wechat'] ?? '',
         ];
@@ -497,7 +505,13 @@ class SelectionService extends BaseService
     {
         $this->ensureSelectionColumns();
         $limit = $param['limit'] ?? 10;
-        $lists = WdXcxAlbumSelection::where('customer_uid', $uid)
+        $uid = (int)$uid;
+        $lists = WdXcxAlbumSelection::where(function ($query) use ($uid) {
+                $query->where('customer_uid', $uid)
+                    ->whereOr(function ($legacyQuery) use ($uid) {
+                        $legacyQuery->where('customer_uid', 0)->where('uid', $uid);
+                    });
+            })
             ->order('id', 'desc')
             ->paginate($limit)
             ->each(function ($item) {
@@ -522,8 +536,17 @@ class SelectionService extends BaseService
     {
         $this->ensureSelectionColumns();
         $limit = $param['limit'] ?? 10;
-        $lists = WdXcxAlbumSelection::where('factory_uid', $uid)
-            ->order('id', 'desc')
+        $uid = (int)$uid;
+        $lists = WdXcxAlbumSelection::alias('s')
+            ->leftJoin('wd_xcx_album_folder f', 'f.id = s.product_id')
+            ->where(function ($query) use ($uid) {
+                $query->where('s.factory_uid', $uid)
+                    ->whereOr(function ($legacyQuery) use ($uid) {
+                        $legacyQuery->where('s.factory_uid', 0)->where('f.uid', $uid);
+                    });
+            })
+            ->field('s.*')
+            ->order('s.id', 'desc')
             ->paginate($limit)
             ->each(function ($item) {
                 $detail = $this->getSelectionDetail($item->id);
