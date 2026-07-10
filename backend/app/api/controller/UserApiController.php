@@ -1002,7 +1002,7 @@ class UserApiController extends ApiBaseController
             ['redirect', ''],
         ]);
 
-        $redirect = trim((string)$params['redirect']);
+        $redirect = html_entity_decode(trim((string)$params['redirect']), ENT_QUOTES, 'UTF-8');
         if (!$redirect) {
             $redirect = ROOT_HOST . '/';
         }
@@ -1099,6 +1099,7 @@ class UserApiController extends ApiBaseController
             
             // 重定向回前端
             $redirectUrl = $state ? base64_decode($state) : '/';
+            $redirectUrl = html_entity_decode((string)$redirectUrl, ENT_QUOTES, 'UTF-8');
             if (empty($redirectUrl)) $redirectUrl = '/';
             
             $separator = (parse_url($redirectUrl, PHP_URL_QUERY) == NULL) ? '?' : '&';
@@ -1113,6 +1114,7 @@ class UserApiController extends ApiBaseController
 
     private function redirectWithError($state, $msg) {
         $redirectUrl = $state ? base64_decode($state) : '/';
+        $redirectUrl = html_entity_decode((string)$redirectUrl, ENT_QUOTES, 'UTF-8');
         if (empty($redirectUrl)) $redirectUrl = '/';
         $separator = (parse_url($redirectUrl, PHP_URL_QUERY) == NULL) ? '?' : '&';
         return redirect($redirectUrl . $separator . 'error=' . urlencode($msg));
