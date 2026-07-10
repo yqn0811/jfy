@@ -231,6 +231,12 @@ const getItemSelectionId = (rawItem: any = {}) => {
   return String(item.id || item.info?.id || item.detail?.info?.id || '')
 }
 
+const actionGridClass = computed(() =>
+  props.mode === 'my'
+    ? 'grid-cols-2 2xl:grid-cols-5'
+    : 'grid-cols-2 xl:grid-cols-3'
+)
+
 const normalizeProductDetailSource = (raw: any) => {
   const detailSource = raw?.folder_info || raw?.product || raw?.data?.folder_info || raw?.data?.product || raw?.data || raw || {}
   return {
@@ -480,12 +486,12 @@ watch(
                 <span>{{ props.mode === 'customer' ? '客户' : '商家' }}：{{ getPeerName(item) }}</span>
                 <span>创建时间：{{ formatTime(item.display_time || item.create_time) || '-' }}</span>
               </div>
-              <div class="mt-4 flex flex-wrap justify-end gap-2">
+              <div class="mt-4 grid gap-2" :class="actionGridClass">
                 <Button
                   v-if="props.mode === 'my'"
                   variant="outline"
                   size="sm"
-                  class="gap-2"
+                  class="w-full justify-center gap-2"
                   :disabled="editLoadingSelectionId === String(item.id)"
                   @click="openEditSelectionDialog(item)"
                 >
@@ -500,21 +506,21 @@ watch(
                   v-if="props.mode === 'my'"
                   variant="outline"
                   size="sm"
-                  class="gap-2"
+                  class="w-full justify-center gap-2"
                   @click="handleShareSelection(item)"
                 >
                   <SafeIcon name="Share2" :size="14" />
                   分享选款单
                 </Button>
-                <Button variant="outline" size="sm" class="gap-2" @click="openDetailDialog(item)">
+                <Button variant="outline" size="sm" class="w-full justify-center gap-2" @click="openDetailDialog(item)">
                   <SafeIcon name="ClipboardList" :size="14" />
                   查看选款单
                 </Button>
-                <Button variant="outline" size="sm" class="gap-2" @click="handleViewProduct(item)">
+                <Button variant="outline" size="sm" class="w-full justify-center gap-2" @click="handleViewProduct(item)">
                   <SafeIcon name="Eye" :size="14" />
                   查看产品
                 </Button>
-                <Button variant="outline" size="sm" class="gap-2 border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive" @click="openDeleteConfirm(item)">
+                <Button variant="outline" size="sm" class="w-full justify-center gap-2 border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive" @click="openDeleteConfirm(item)">
                   <SafeIcon name="Trash2" :size="14" />
                   删除
                 </Button>
