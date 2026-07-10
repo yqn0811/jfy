@@ -189,35 +189,47 @@ const markPreviewImageBroken = (item: any, image: any, index: number) => {
   brokenPreviewImages.value = new Set([...brokenPreviewImages.value, getPreviewImageKey(item, image, index)])
 }
 
-const getSelectionProductId = (item: any = {}) => String(
-  item.product?.id ||
-    item.product_summary?.id ||
-    item.detail?.product_summary?.id ||
-    item.detail?.product?.id ||
-    item.product_id ||
-    item.detail?.info?.product_id ||
-    ''
-)
+const getSelectionProductId = (rawItem: any = {}) => {
+  const item = rawItem || {}
+  return String(
+    item.product?.id ||
+      item.product_summary?.id ||
+      item.detail?.product_summary?.id ||
+      item.detail?.product?.id ||
+      item.product_id ||
+      item.detail?.info?.product_id ||
+      ''
+  )
+}
 
-const getSelectionFactoryUid = (item: any = {}) => String(
-  item.factory?.id ||
-    item.detail?.factory?.id ||
-    item.factory_uid ||
-    item.detail?.info?.factory_uid ||
-    ''
-)
+const getSelectionFactoryUid = (rawItem: any = {}) => {
+  const item = rawItem || {}
+  return String(
+    item.factory?.id ||
+      item.detail?.factory?.id ||
+      item.factory_uid ||
+      item.detail?.info?.factory_uid ||
+      ''
+  )
+}
 
-const getSelectionShareCode = (item: any = {}) => String(
-  item.share_code ||
-    item.code ||
-    item.detail?.share_code ||
-    item.detail?.code ||
-    item.factory?.share_code ||
-    item.detail?.factory?.share_code ||
-    ''
-)
+const getSelectionShareCode = (rawItem: any = {}) => {
+  const item = rawItem || {}
+  return String(
+    item.share_code ||
+      item.code ||
+      item.detail?.share_code ||
+      item.detail?.code ||
+      item.factory?.share_code ||
+      item.detail?.factory?.share_code ||
+      ''
+  )
+}
 
-const getItemSelectionId = (item: any = {}) => String(item.id || item.info?.id || item.detail?.info?.id || '')
+const getItemSelectionId = (rawItem: any = {}) => {
+  const item = rawItem || {}
+  return String(item.id || item.info?.id || item.detail?.info?.id || '')
+}
 
 const normalizeProductDetailSource = (raw: any) => {
   const detailSource = raw?.folder_info || raw?.product || raw?.data?.folder_info || raw?.data?.product || raw?.data || raw || {}
