@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -32,6 +32,7 @@ const editingSelection = ref<any>(null)
 const editingProduct = ref<ProductData | null>(null)
 const editingProductImages = ref<ProductImageData[]>([])
 const editLoadingSelectionId = ref('')
+const pendingSelectionId = ref('')
 let loadSerial = 0
 
 const pageTitle = computed(() => props.mode === 'customer' ? '客户选款' : '我的选款')
@@ -128,6 +129,7 @@ const loadSelections = async () => {
     }))
     if (serial === loadSerial) {
       selections.value = enrichedRows
+      openSelectionFromQuery()
     }
   } catch (error: any) {
     if (serial === loadSerial) {
@@ -190,6 +192,8 @@ const getSelectionFactoryUid = (item: any = {}) => String(
     ''
 )
 
+const getItemSelectionId = (item: any = {}) => String(item.id || item.info?.id || item.detail?.info?.id || '')
+
 const normalizeProductDetailSource = (raw: any) => {
   const detailSource = raw?.folder_info || raw?.product || raw?.data?.folder_info || raw?.data?.product || raw?.data || raw || {}
   return {
@@ -228,6 +232,70 @@ const handleViewProduct = (item: any) => {
 const openDetailDialog = (item: any) => {
   activeSelection.value = item
   detailDialogOpen.value = true
+}
+
+const buildSelectionShareUrl = (item: any) => {
+  const selectionId = getItemSelectionId(item)
+  const productId = getSelectionProductId(item)
+  const factoryUid = getSelectionFactoryUid(item)
+  const url = new URL('./my-selections', window.location.href)
+  if (selectionId) url.searchParams.set('selectionId', selectionId)
+  if (productId) url.searchParams.set('productId', productId)
+  if (factoryUid) url.searchParams.set('uid', factoryUid)
+  return url.toString()
+}
+
+const copyText = async (text: string) => {
+  if (!text) return false
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return true
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  return ok
+}
+
+const handleShareSelection = async (item: any) => {
+  const selectionId = getItemSelectionId(item)
+  if (!selectionId) {
+    toast.error('选款单不存在')
+    return
+  }
+
+  try {
+    await copyText(buildSelectionShareUrl(item))
+    toast.success('选款单链接已复制')
+  } catch (error: any) {
+    toast.error(error?.message || '复制失败，请稍后重试')
+  }
+}
+
+const openSelectionFromQuery = () => {
+  if (!pendingSelectionId.value) return
+  const selectionId = pendingSelectionId.value
+  const matched = selections.value.find(item => getItemSelectionId(item) === selectionId)
+  const fallback = {
+    id: selectionId,
+    title: `选款单 #${selectionId}`,
+    name: `选款单 #${selectionId}`,
+  }
+  openDetailDialog(matched || fallback)
+  pendingSelectionId.value = ''
+}
+
+const readSelectionIdFromLocation = () => {
+  if (typeof window === 'undefined') return ''
+  const params = new URLSearchParams(window.location.search)
+  return params.get('selectionId') || params.get('selection_id') || ''
 }
 
 const openEditSelectionDialog = async (item: any) => {
@@ -301,9 +369,15 @@ watch(
   () => {
     selections.value = []
     brokenPreviewImages.value = new Set()
+    pendingSelectionId.value = readSelectionIdFromLocation()
     loadSelections()
   },
   { immediate: true }
+)
+
+watch(
+  () => selections.value,
+  () => nextTick(openSelectionFromQuery)
 )
 </script>
 
@@ -372,7 +446,7 @@ watch(
                 <span>{{ props.mode === 'customer' ? '客户' : '商家' }}：{{ getPeerName(item) }}</span>
                 <span>创建时间：{{ formatTime(item.display_time || item.create_time) || '-' }}</span>
               </div>
-              <div class="mt-4 flex justify-end gap-2">
+              <div class="mt-4 flex flex-wrap justify-end gap-2">
                 <Button
                   v-if="props.mode === 'my'"
                   variant="outline"
@@ -387,6 +461,16 @@ watch(
                     :class="editLoadingSelectionId === String(item.id) ? 'animate-spin' : ''"
                   />
                   编辑选款单
+                </Button>
+                <Button
+                  v-if="props.mode === 'my'"
+                  variant="outline"
+                  size="sm"
+                  class="gap-2"
+                  @click="handleShareSelection(item)"
+                >
+                  <SafeIcon name="Share2" :size="14" />
+                  分享选款单
                 </Button>
                 <Button variant="outline" size="sm" class="gap-2" @click="openDetailDialog(item)">
                   <SafeIcon name="ClipboardList" :size="14" />

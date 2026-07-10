@@ -18,7 +18,7 @@ import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
 import SelectionPickerDialog from '@/components/selection/SelectionPickerDialog.vue'
 import { authStore, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { isVipMember } from '@/lib/account'
-import { mapProduct, mapProductImagesFromDetail, unwrapList } from '@/lib/jfyuntu-mappers'
+import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
 import { navigateToInternal } from '@/navigation'
@@ -44,8 +44,6 @@ const isProductFavorited = ref(false)
 const showShareDialog = ref(false)
 const showDownloadDialog = ref(false)
 const showSelectionDialog = ref(false)
-const currentSelection = ref<any>(null)
-const isSelectionLoading = ref(false)
 const currentUser = ref<any>({})
 
 const colorImages = computed(() => productImages.value.filter(item => item.type === 'colorChart'))
@@ -74,7 +72,6 @@ const loadProduct = async () => {
     isProductFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
     if (props.isLoggedIn) {
       pcApi.addVisit('product', product.value.id).catch(() => {})
-      loadCurrentProductSelection(product.value.id).catch(() => {})
       if (!isVipMember(currentUser.value)) {
         pcApi.getCurrentUser()
           .then((user) => {
@@ -88,30 +85,6 @@ const loadProduct = async () => {
     toast.error(error?.message || '产品加载失败')
   } finally {
     isLoading.value = false
-  }
-}
-
-const loadCurrentProductSelection = async (productId: string) => {
-  if (!props.isLoggedIn || isOwnerView.value) return null
-  isSelectionLoading.value = true
-  try {
-    const raw = await pcApi.getMySelections({ limit: 100 })
-    const rows = unwrapList(raw)
-    const matched = rows.find((item: any) => String(item.product?.id || item.product_id || item.product?.product_id || '') === String(productId))
-    if (!matched?.id) {
-      currentSelection.value = null
-      return null
-    }
-    const detail = await pcApi.getSelectionDetail(String(matched.id))
-    currentSelection.value = {
-      ...matched,
-      ...detail,
-      id: matched.id,
-      list: detail?.list || matched.selected_preview || [],
-    }
-    return currentSelection.value
-  } finally {
-    isSelectionLoading.value = false
   }
 }
 
@@ -169,14 +142,11 @@ const handleOpenSelectionDialog = async () => {
     toast.warning('自己的主页无需发送选款单')
     return
   }
-  if (!currentSelection.value && !isSelectionLoading.value) {
-    await loadCurrentProductSelection(product.value.id).catch(() => {})
-  }
   showSelectionDialog.value = true
 }
 
 const handleSelectionSaved = (selection: any) => {
-  currentSelection.value = selection || currentSelection.value
+  void selection
 }
 
 const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
@@ -318,7 +288,7 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
           class="h-11"
         >
           <SafeIcon name="CheckSquare" :size="16" class="mr-2" />
-          {{ currentSelection ? '编辑选款' : '选款' }}
+          选款
         </Button>
         <Button
           variant="outline"
@@ -357,7 +327,6 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
     :product="product"
     :images="productImages"
     :factory-uid="product.ownerUserId || shareTarget.targetUserId"
-    :existing-selection="currentSelection"
     @update:open="showSelectionDialog = $event"
     @saved="handleSelectionSaved"
   />

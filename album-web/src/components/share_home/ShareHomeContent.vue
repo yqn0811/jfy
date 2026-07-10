@@ -50,8 +50,6 @@ const isProductFavorited = ref(false)
 const showProductShareDialog = ref(false)
 const showDownloadDialog = ref(false)
 const showSelectionDialog = ref(false)
-const currentSelection = ref<any>(null)
-const isSelectionLoading = ref(false)
 const previewImages = ref<ProductImageData[]>([])
 const previewImageIndex = ref(0)
 const showImagePreviewDialog = ref(false)
@@ -205,13 +203,11 @@ const loadProductDetail = async (productId: string) => {
     }
     selectedProduct.value = mapProduct(detail, homeProfile.value?.id || targetUserId.value)
     selectedProductImages.value = mapProductImagesFromDetail(detail, selectedProduct.value.id)
-    currentSelection.value = null
     selectedProduct.value.colorChartCount = selectedColorImages.value.length
     selectedProduct.value.detailChartCount = shouldShowSelectedDetailImages.value ? selectedDetailImages.value.length : 0
     isProductFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
     if (isLoggedIn.value) {
       pcApi.addVisit('product', selectedProduct.value.id).catch(() => {})
-      loadCurrentProductSelection(productId).catch(() => {})
     }
   } catch (error: any) {
     selectedProductId.value = null
@@ -220,30 +216,6 @@ const loadProductDetail = async (productId: string) => {
     toast.error(error?.message || '产品加载失败')
   } finally {
     isProductDetailLoading.value = false
-  }
-}
-
-const loadCurrentProductSelection = async (productId: string) => {
-  if (!isLoggedIn.value || isOwnerViewingOwnHome.value) return null
-  isSelectionLoading.value = true
-  try {
-    const raw = await pcApi.getMySelections({ limit: 100 })
-    const rows = unwrapList(raw)
-    const matched = rows.find((item: any) => String(item.product?.id || item.product_id || item.product?.product_id || '') === String(productId))
-    if (!matched?.id) {
-      currentSelection.value = null
-      return null
-    }
-    const detail = await pcApi.getSelectionDetail(String(matched.id))
-    currentSelection.value = {
-      ...matched,
-      ...detail,
-      id: matched.id,
-      list: detail?.list || matched.selected_preview || [],
-    }
-    return currentSelection.value
-  } finally {
-    isSelectionLoading.value = false
   }
 }
 
@@ -361,7 +333,6 @@ const resetProductDetailState = () => {
   selectedProductId.value = null
   selectedProduct.value = null
   selectedProductImages.value = []
-  currentSelection.value = null
   showDownloadDialog.value = false
   showImagePreviewDialog.value = false
   showSelectionDialog.value = false
@@ -480,7 +451,6 @@ const handleBackToList = () => {
   selectedProductId.value = null
   selectedProduct.value = null
   selectedProductImages.value = []
-  currentSelection.value = null
   showDownloadDialog.value = false
   showImagePreviewDialog.value = false
   showSelectionDialog.value = false
@@ -521,14 +491,11 @@ const handleOpenSelectionDialog = async () => {
     toast.warning('自己的主页无需发送选款单')
     return
   }
-  if (!currentSelection.value && !isSelectionLoading.value) {
-    await loadCurrentProductSelection(selectedProduct.value.id).catch(() => {})
-  }
   showSelectionDialog.value = true
 }
 
 const handleSelectionSaved = (selection: any) => {
-  currentSelection.value = selection || currentSelection.value
+  void selection
 }
 
 const handleDownloadProduct = () => {
@@ -816,7 +783,7 @@ const handleLoginSuccess = () => {
                 </Button>
                 <Button variant="outline" class="gap-2" @click="handleOpenSelectionDialog">
                   <SafeIcon name="CheckSquare" :size="16" />
-                  {{ currentSelection ? '编辑选款单' : '选款' }}
+                  选款
                 </Button>
                 <Button variant="outline" class="gap-2" @click="handleDownloadProduct">
                   <SafeIcon name="Download" :size="16" />
@@ -958,7 +925,6 @@ const handleLoginSuccess = () => {
       :product="selectedProduct"
       :images="selectedProductImages"
       :factory-uid="homeProfile?.ownerUserId || targetUserId"
-      :existing-selection="currentSelection"
       @update:open="showSelectionDialog = $event"
       @saved="handleSelectionSaved"
     />
