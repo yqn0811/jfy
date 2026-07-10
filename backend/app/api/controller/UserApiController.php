@@ -13,6 +13,7 @@ use app\index\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
 use app\common\model\user\WdXcxUserVisitRecord;
+use think\Response;
 
 class UserApiController extends ApiBaseController
 {
@@ -234,7 +235,92 @@ class UserApiController extends ApiBaseController
     public function getOriginalDownloadUrl()
     {
         $param = array_merge($this->request->get(), $this->request->post());
+        if (!empty($param['stream'])) {
+            return $this->streamOriginalDownload($param, (int)request()->userID());
+        }
         $this->result($this->userService->getOriginalDownloadUrl($param, request()->userID()), 0, '获取成功');
+    }
+
+    private function streamOriginalDownload($param, $userId)
+    {
+        $param['record_traffic'] = 0;
+        $download = $this->userService->getOriginalDownloadUrl($param, $userId);
+        $url = trim((string)($download['download_url'] ?? ($download['downloadUrl'] ?? ($download['url'] ?? ''))));
+        if ($url === '') {
+            throwError('原图暂不可下载');
+        }
+        $content = $this->fetchOriginalDownloadContent($url);
+        $fileSize = strlen($content);
+        $this->userService->recordDownloadTraffic([
+            'pic_id' => (int)($download['pic_id'] ?? ($param['pic_id'] ?? 0)),
+            'file_url' => $url,
+            'file_size' => $fileSize,
+        ], $userId);
+
+        $filename = $this->sanitizeDownloadFilename((string)($download['file_name'] ?? ($download['fileName'] ?? 'image.jpg')));
+        $mime = $this->detectDownloadMime($content, $filename);
+        return Response::create($content, 'html', 200)->header([
+            'Content-Type' => $mime,
+            'Content-Length' => (string)$fileSize,
+            'Content-Disposition' => "inline; filename*=UTF-8''" . rawurlencode($filename),
+            'Cache-Control' => 'private, max-age=300',
+            'Access-Control-Expose-Headers' => 'Content-Disposition, Content-Length, Content-Type',
+        ]);
+    }
+
+    private function fetchOriginalDownloadContent($url)
+    {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_TIMEOUT => 45,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_USERAGENT => 'JiafangyunOriginalDownload/1.0',
+        ]);
+        $content = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        if ($status < 200 || $status >= 300 || $content === false || $content === '') {
+            throwError($error ?: '原图读取失败');
+        }
+        return $content;
+    }
+
+    private function sanitizeDownloadFilename($filename)
+    {
+        $filename = trim($filename);
+        $filename = preg_replace('/[\\\\\/:*?"<>|\r\n]+/', '_', $filename);
+        return $filename ?: 'image.jpg';
+    }
+
+    private function detectDownloadMime($content, $filename)
+    {
+        if (strncmp($content, "\xFF\xD8\xFF", 3) === 0) {
+            return 'image/jpeg';
+        }
+        if (strncmp($content, "\x89PNG\r\n\x1A\n", 8) === 0) {
+            return 'image/png';
+        }
+        if (strncmp($content, 'GIF87a', 6) === 0 || strncmp($content, 'GIF89a', 6) === 0) {
+            return 'image/gif';
+        }
+        if (substr($content, 0, 4) === 'RIFF' && substr($content, 8, 4) === 'WEBP') {
+            return 'image/webp';
+        }
+        $ext = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
+        $map = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+        ];
+        return $map[$ext] ?? 'application/octet-stream';
     }
 
     /**获取指定用户的卡券列表

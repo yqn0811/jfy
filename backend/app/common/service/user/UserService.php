@@ -988,21 +988,43 @@ class UserService extends BaseService
         }
 
         $fileSize = (int)$pic->getData('size');
-        $traffic = $this->recordDownloadTraffic([
-            'pic_id' => $picId,
-            'file_url' => $url,
-            'file_size' => $fileSize,
-        ], $userId);
+        $shouldRecordTraffic = !array_key_exists('record_traffic', $param) || (int)$param['record_traffic'] !== 0;
+        $traffic = null;
+        if ($shouldRecordTraffic) {
+            $traffic = $this->recordDownloadTraffic([
+                'pic_id' => $picId,
+                'file_url' => $url,
+                'file_size' => $fileSize,
+            ], $userId);
+        }
 
         return [
             'pic_id' => $picId,
             'url' => $url,
             'download_url' => $url,
             'downloadUrl' => $url,
+            'file_name' => $this->originalDownloadFilename($pic, $url),
+            'fileName' => $this->originalDownloadFilename($pic, $url),
             'file_size' => $fileSize,
             'traffic' => $traffic,
             'expires_in' => 600,
         ];
+    }
+
+    private function originalDownloadFilename($pic, $url)
+    {
+        $name = trim((string)$pic->getData('pic_name'));
+        if ($name === '') {
+            $name = '图片-' . (int)$pic->id;
+        }
+        if (pathinfo($name, PATHINFO_EXTENSION) === '') {
+            $path = (string)parse_url((string)$url, PHP_URL_PATH);
+            $ext = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
+            if ($ext !== '' && preg_match('/^[a-z0-9]{2,5}$/i', $ext)) {
+                $name .= '.' . $ext;
+            }
+        }
+        return $name;
     }
 
     private function safeString($val)

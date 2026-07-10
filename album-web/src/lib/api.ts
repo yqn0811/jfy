@@ -304,6 +304,47 @@ export async function apiUpload<T = any>(
   return payload.data
 }
 
+export async function apiBlobRequest(
+  path: string,
+  options: {
+    method?: 'GET' | 'POST'
+    params?: Record<string, any>
+    body?: Record<string, any>
+    token?: string
+    auth?: boolean
+  } = {}
+): Promise<Response> {
+  const method = options.method || 'GET'
+  const query = buildQuery(options.params)
+  const url = `${joinUrl(getRuntimeApiBase(), path)}${query ? `?${query}` : ''}`
+  const token = normalizeToken(options.token || (options.auth === false ? '' : authStore.getToken()))
+  const headers: Record<string, string> = {
+    'X-Requested-With': 'XMLHttpRequest',
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const init: RequestInit = { method, headers }
+  if (method !== 'GET') {
+    headers['Content-Type'] = 'application/json'
+    init.body = JSON.stringify(options.body || {})
+  }
+
+  const response = await fetch(url, init)
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    const payload = (await response.json().catch(() => null)) as ApiResponse | null
+    if (!payload) throw new ApiError('接口响应异常', response.status)
+    if (Number(payload.code) !== 0) {
+      throw new ApiError(payload.msg || payload.message || '请求失败', Number(payload.code), payload.data)
+    }
+    throw new ApiError('文件响应异常', response.status)
+  }
+  if (!response.ok) {
+    throw new ApiError('文件下载失败', response.status)
+  }
+  return response
+}
+
 export const pcApi = {
   getLoginOauthConfig: (redirect = '') =>
     apiRequest<any>('user/login/oauth_config', { params: { redirect, timestamp: Date.now() }, auth: false }),
@@ -425,6 +466,10 @@ export const pcApi = {
     apiRequest<any>('user/download/original', {
       method: 'POST',
       body: { pic_id: picId, timestamp: Date.now(), ...params },
+    }),
+  getOriginalDownloadBlob: (picId: string, params: Record<string, any> = {}) =>
+    apiBlobRequest('user/download/original', {
+      params: { pic_id: picId, stream: 1, timestamp: Date.now(), ...params },
     }),
   getFavorites: (type = 'all', key = '', page = 1) =>
     apiRequest<any>('user/collect/records', { params: { type, key, page, timestamp: Date.now() } }),
