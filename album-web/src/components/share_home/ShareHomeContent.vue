@@ -714,7 +714,7 @@ const handleLoginSuccess = () => {
     <!-- 分类导航区 -->
     <section
       v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode"
-      class="border-y border-border bg-muted/20 px-6 py-3 md:px-8"
+      class="sticky top-0 z-40 border-y border-border bg-background/95 px-6 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80 md:px-8"
     >
       <div class="page-container">
         <div class="flex flex-col gap-2 md:flex-row md:items-center">
