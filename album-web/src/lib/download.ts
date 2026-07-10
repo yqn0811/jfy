@@ -59,6 +59,8 @@ export const downloadUrl = (url: string, filename: string) => {
 
 const isControlledDownloadUrl = (url: string) => /\/api\/user\/download\/original(?:\?|$)/.test(url)
 
+const isPersistedPicId = (picId: string) => /^\d+$/.test(picId)
+
 const resolveControlledDownloadPicId = (image: ProductImageData, url: string) => {
   try {
     const parsed = new URL(url, window.location.href)
@@ -72,9 +74,10 @@ const resolveControlledDownloadIds = (images: ProductImageData[]) => {
   const ids: string[] = []
   for (const image of images) {
     const downloadEntry = productImageUrl(image, 'download')
-    if (!downloadEntry || !isControlledDownloadUrl(downloadEntry)) return []
-    const picId = resolveControlledDownloadPicId(image, downloadEntry)
-    if (!picId || /^.+_(colorChart|detailChart)_\d+$/i.test(picId)) return []
+    const picId = downloadEntry && isControlledDownloadUrl(downloadEntry)
+      ? resolveControlledDownloadPicId(image, downloadEntry)
+      : image.id
+    if (!isPersistedPicId(String(picId || ''))) return []
     ids.push(String(picId))
   }
   return ids
@@ -83,8 +86,8 @@ const resolveControlledDownloadIds = (images: ProductImageData[]) => {
 export const resolveProductImageDownloadUrl = async (image: ProductImageData) => {
   const downloadEntry = productImageUrl(image, 'download')
   if (!downloadEntry) return ''
-  if (!isControlledDownloadUrl(downloadEntry)) return downloadEntry
-  const data = await pcApi.getOriginalDownloadUrl(image.id)
+  if (!isControlledDownloadUrl(downloadEntry) && !isPersistedPicId(image.id)) return downloadEntry
+  const data = await pcApi.getOriginalDownloadUrl(resolveControlledDownloadPicId(image, downloadEntry))
   return String(data?.download_url || data?.downloadUrl || data?.url || '')
 }
 
@@ -94,7 +97,7 @@ const fetchProductImageBlobForZip = async (image: ProductImageData) => {
     throw new Error(`图片下载失败: ${image.name || image.id}`)
   }
 
-  if (isControlledDownloadUrl(downloadEntry)) {
+  if (isControlledDownloadUrl(downloadEntry) || isPersistedPicId(image.id)) {
     const response = await pcApi.getOriginalDownloadBlob(resolveControlledDownloadPicId(image, downloadEntry))
     const blob = await response.blob()
     const headerName = filenameFromContentDisposition(response.headers.get('content-disposition'))

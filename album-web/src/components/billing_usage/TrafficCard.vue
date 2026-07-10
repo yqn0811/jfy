@@ -11,6 +11,13 @@ interface Props {
 }
 
 defineProps<Props>()
+
+const formatTraffic = (gb: number): string => {
+  if (gb >= 0.1) return `${gb.toFixed(1)} GB`
+  const mb = gb * 1024
+  if (mb > 0) return `${mb.toFixed(1)} MB`
+  return '0 MB'
+}
 </script>
 
 <template>
@@ -30,7 +37,7 @@ defineProps<Props>()
       <div class="space-y-2">
         <Progress :model-value="percent" class="h-2" />
         <div class="flex justify-between text-xs text-muted-foreground">
-          <span>已使用 {{ used.toFixed(1) }} GB</span>
+          <span>已使用 {{ formatTraffic(used) }}</span>
           <span>月度限额 {{ total }} GB</span>
         </div>
       </div>

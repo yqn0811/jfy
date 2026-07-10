@@ -773,6 +773,16 @@ class UserApiController extends ApiBaseController
             'used_traffic_bytes' => (int)($syncedVipGradeInfo['used_traffic_bytes'] ?? 0),
             'used_traffic_gb' => (float)($syncedVipGradeInfo['used_traffic_gb'] ?? 0),
             'traffic_used_gb' => (float)($syncedVipGradeInfo['traffic_used_gb'] ?? ($syncedVipGradeInfo['used_traffic_gb'] ?? 0)),
+            'traffic_limit_bytes' => (int)($syncedVipGradeInfo['traffic_limit_bytes'] ?? ($syncedVipGradeInfo['monthly_traffic_limit_bytes'] ?? 0)),
+            'traffic_limit_gb' => (float)($syncedVipGradeInfo['traffic_limit_gb'] ?? ($syncedVipGradeInfo['monthly_traffic_limit_gb'] ?? 0)),
+            'traffic_gb' => (float)($syncedVipGradeInfo['monthly_traffic_limit_gb'] ?? ($syncedVipGradeInfo['traffic_limit_gb'] ?? 0)),
+            'monthly_traffic_limit_bytes' => (int)($syncedVipGradeInfo['monthly_traffic_limit_bytes'] ?? ($syncedVipGradeInfo['traffic_limit_bytes'] ?? 0)),
+            'monthly_traffic_limit_gb' => (float)($syncedVipGradeInfo['monthly_traffic_limit_gb'] ?? ($syncedVipGradeInfo['traffic_limit_gb'] ?? 0)),
+            'traffic_remaining_bytes' => (int)($syncedVipGradeInfo['traffic_remaining_bytes'] ?? ($syncedVipGradeInfo['monthly_traffic_remaining_bytes'] ?? 0)),
+            'traffic_remaining_gb' => (float)($syncedVipGradeInfo['traffic_remaining_gb'] ?? ($syncedVipGradeInfo['monthly_traffic_remaining_gb'] ?? 0)),
+            'monthly_traffic_remaining_bytes' => (int)($syncedVipGradeInfo['monthly_traffic_remaining_bytes'] ?? ($syncedVipGradeInfo['traffic_remaining_bytes'] ?? 0)),
+            'monthly_traffic_remaining_gb' => (float)($syncedVipGradeInfo['monthly_traffic_remaining_gb'] ?? ($syncedVipGradeInfo['traffic_remaining_gb'] ?? 0)),
+            'monthly_traffic_exceeded' => (bool)($syncedVipGradeInfo['monthly_traffic_exceeded'] ?? false),
             'concurrency_limit' => (int)($syncedVipGradeInfo['concurrency_limit'] ?? 0),
         ];
         if($vipGradeInfo['space_size'] > 1024 * 1024){

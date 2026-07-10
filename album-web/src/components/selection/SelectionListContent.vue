@@ -233,8 +233,8 @@ const getItemSelectionId = (rawItem: any = {}) => {
 
 const actionGridClass = computed(() =>
   props.mode === 'my'
-    ? 'grid-cols-2 2xl:grid-cols-5'
-    : 'grid-cols-2 xl:grid-cols-3'
+    ? 'grid-cols-1 min-[480px]:grid-cols-2 2xl:grid-cols-3 min-[1840px]:grid-cols-5'
+    : 'grid-cols-1 min-[480px]:grid-cols-2 2xl:grid-cols-3'
 )
 
 const normalizeProductDetailSource = (raw: any) => {

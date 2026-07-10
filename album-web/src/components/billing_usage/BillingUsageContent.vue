@@ -97,6 +97,25 @@ const normalizeFeatures = (item: any) => {
   return Array.isArray(features) ? features.map((feature: any) => String(feature)).filter(Boolean) : []
 }
 
+const bytesToGb = (value: any) => {
+  const bytes = Number(value || 0)
+  return bytes > 0 ? bytes / 1024 / 1024 / 1024 : 0
+}
+
+const normalizeTrafficLimitGb = (profile: any) => {
+  return (
+    Number(profile?.monthly_traffic_limit_gb || profile?.traffic_limit_gb || profile?.traffic_gb || profile?.flow_gb || 0) ||
+    bytesToGb(profile?.monthly_traffic_limit_bytes || profile?.traffic_limit_bytes)
+  )
+}
+
+const normalizeUsedTrafficGb = (profile: any) => {
+  return (
+    Number(profile?.used_traffic_gb || profile?.traffic_used_gb || 0) ||
+    bytesToGb(profile?.used_traffic_bytes)
+  )
+}
+
 const mapPlan = (item: any): PlanPackageData => ({
   id: String(item.id || item.plan_id || item.grade || ''),
   name: item.name || item.title || item.grade_name || '资源包',
@@ -136,8 +155,8 @@ const loadBilling = async () => {
       planName: profile?.grade_name || '',
       totalCapacityMb: totalMb || 50,
       usedCapacityMb: usedMb,
-      monthlyTrafficGb: Number(profile?.traffic_gb || 0),
-      usedTrafficGb: Number(profile?.used_traffic_gb || 0),
+      monthlyTrafficGb: normalizeTrafficLimitGb(profile),
+      usedTrafficGb: normalizeUsedTrafficGb(profile),
       concurrentRights: Number(profile?.concurrent_rights || 0),
       status: percent >= 95 ? 'insufficient' : percent >= 80 ? 'warning' : 'normal',
     }

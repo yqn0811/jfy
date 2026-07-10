@@ -96,7 +96,7 @@ const handleNavigate = (item: MenuItem) => {
 </script>
 
 <template>
-  <Sidebar collapsible="none" variant="sidebar" class="h-full w-72 border-r border-border bg-card">
+  <Sidebar variant="sidebar" class="h-full w-72 border-r border-border bg-card">
     <SidebarContent class="h-full overflow-y-auto px-4 py-6">
       <SidebarGroup v-for="group in menuGroups" :key="group.label">
         <SidebarGroupLabel class="px-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-2">
