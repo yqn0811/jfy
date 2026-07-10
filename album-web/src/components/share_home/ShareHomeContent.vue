@@ -18,6 +18,7 @@ import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { isVipMember } from '@/lib/account'
 import { downloadImagesAsZip, downloadUrl, resolveProductImageDownloadUrl } from '@/lib/download'
 import { mapCategory, mapProduct, mapProductImagesFromDetail, normalizeHomePayload, unwrapList } from '@/lib/jfyuntu-mappers'
+import { currentRouteState } from '@/navigation'
 import type { HomeProfileData } from '@/data/HomeProfileData'
 import type { CategoryData } from '@/data/CategoryData'
 import type { ProductData } from '@/data/ProductData'
@@ -56,6 +57,7 @@ const previewImageIndex = ref(0)
 const showImagePreviewDialog = ref(false)
 
 const isHomeFavorited = ref(false)
+let routeLoadSerial = 0
 
 const isProductDetailMode = computed(() => !!selectedProductId.value)
 const selectedColorImages = computed(() => selectedProductImages.value.filter(item => item.type === 'colorChart'))
@@ -354,29 +356,56 @@ const loadHomeData = async () => {
   }
 }
 
+const resetProductDetailState = () => {
+  selectedProductId.value = null
+  selectedProduct.value = null
+  selectedProductImages.value = []
+  currentSelection.value = null
+  showDownloadDialog.value = false
+  showImagePreviewDialog.value = false
+  showSelectionDialog.value = false
+}
+
+const loadHomeFromCurrentRoute = async () => {
+  const serial = ++routeLoadSerial
+  const params = new URLSearchParams(window.location.search)
+  authStore.consumeCallbackToken()
+  const target = getUrlHomeTarget()
+  const keyword = params.get('keyword') || ''
+  const categoryId = params.get('categoryId') || params.get('cate_id') || 'all'
+  const productId = params.get('productId') || params.get('product_id') || ''
+
+  targetUserId.value = target.targetUserId
+  shareCode.value = target.shareCode
+  searchKeyword.value = keyword
+  selectedCategoryId.value = categoryId
+  resetProductDetailState()
+  isLoggedIn.value = authStore.isLoggedIn()
+  isClient.value = true
+
+  await loadHomeData()
+  if (serial !== routeLoadSerial) return
+  if (productId && isLoggedIn.value) {
+    selectedProductId.value = productId
+    await loadProductDetail(productId)
+  }
+}
+
 onMounted(() => {
   isClient.value = false
   requestAnimationFrame(() => {
-    const params = new URLSearchParams(window.location.search)
-    authStore.consumeCallbackToken()
-    const target = getUrlHomeTarget()
-    targetUserId.value = target.targetUserId
-    shareCode.value = target.shareCode
-    const keyword = params.get('keyword')
-    const categoryId = params.get('categoryId') || params.get('cate_id')
-    const productId = params.get('productId') || params.get('product_id')
-    if (keyword) searchKeyword.value = keyword
-    selectedCategoryId.value = categoryId || 'all'
-    isLoggedIn.value = authStore.isLoggedIn()
-    isClient.value = true
-    loadHomeData().then(() => {
-      if (productId && isLoggedIn.value) {
-        selectedProductId.value = productId
-        loadProductDetail(productId)
-      }
-    })
+    loadHomeFromCurrentRoute()
   })
 })
+
+watch(
+  () => currentRouteState.value,
+  (route) => {
+    if (!isClient.value || route.path !== '/share-home') return
+    loadHomeFromCurrentRoute()
+  },
+  { deep: true }
+)
 
 const handleSearch = () => {
   if (typeof window !== 'undefined' && searchKeyword.value.trim()) {
