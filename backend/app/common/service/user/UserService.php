@@ -3,6 +3,7 @@
 namespace app\common\service\user;
 
 use app\common\model\album\WdXcxAlbumFolder;
+use app\common\model\album\WdXcxProductCategoryBind;
 use app\common\model\album\WdXcxAlbumVisitRecord;
 use app\common\model\album\WdXcxVisitFolderPwd;
 use app\common\model\coupon\WdXcxUserCoupon;
@@ -183,7 +184,7 @@ class UserService extends BaseService
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $targetUserId, $is_owner, $shared_ids, $collected_ids){
-                $item->product_count = 0;
+                $item->product_count = $this->getVisibleCategoryProductCount($item->id, $targetUserId, $is_owner, $shared_ids);
                 $item->child_count = $this->getVisibleCategoryChildCount($item->id, $targetUserId, $is_owner, $shared_ids);
                 $item->son_count = $item->child_count;
                 $item->children = $this->getVisibleCategoryChildren($item->id, $targetUserId, $visitorUid, $is_owner, $shared_ids, $collected_ids);
@@ -315,7 +316,7 @@ class UserService extends BaseService
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $targetUserId, $is_owner, $shared_ids, $collected_ids){
-                $item->product_count = 0;
+                $item->product_count = $this->getVisibleCategoryProductCount($item->id, $targetUserId, $is_owner, $shared_ids);
                 $item->child_count = $this->getVisibleCategoryChildCount($item->id, $targetUserId, $is_owner, $shared_ids);
                 $item->son_count = $item->child_count;
                 $item->children = $this->getVisibleCategoryChildren($item->id, $targetUserId, $visitorUid, $is_owner, $shared_ids, $collected_ids);
@@ -335,7 +336,7 @@ class UserService extends BaseService
                 throwError('分类不存在');
             }
             $this->assertVisibleCategory($fid, $targetUserId, $is_owner, $shared_ids, true);
-            $folderInfo->product_count = 0;
+            $folderInfo->product_count = $this->getVisibleCategoryProductCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids);
             $folderInfo->child_count = $this->getVisibleCategoryChildCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids);
             $folderInfo->son_count = $folderInfo->child_count;
             $folderInfo->level = $folderInfo->FolderLeval;
@@ -425,6 +426,38 @@ class UserService extends BaseService
         return $this->applyVisibleCategoryScope($query, $isOwner, $sharedIds)->count();
     }
 
+    private function getVisibleCategoryProductCount($categoryId, $targetUserId, $isOwner, $sharedIds)
+    {
+        $boundIds = WdXcxProductCategoryBind::where('category_id', (int)$categoryId)
+            ->where('userid', (int)$targetUserId)
+            ->column('product_id');
+        $directIds = WdXcxAlbumFolder::where('uid', (int)$targetUserId)
+            ->where('folder_type', 2)
+            ->where('pid', (int)$categoryId)
+            ->column('id');
+        $productIds = array_values(array_unique(array_filter(array_map('intval', array_merge($boundIds ?: [], $directIds ?: [])))));
+        if (empty($productIds)) {
+            return 0;
+        }
+
+        $query = WdXcxAlbumFolder::where('uid', (int)$targetUserId)
+            ->where('folder_type', 2)
+            ->whereIn('id', $productIds);
+        if ($isOwner) {
+            return $query->count();
+        }
+        return $query->where(function($q) use ($sharedIds){
+            $q->where('private_type', 1)
+              ->whereOr(function($q2) use ($sharedIds){
+                  if (!empty($sharedIds)) {
+                      $q2->where('private_type', 4)->whereIn('id', $sharedIds);
+                  } else {
+                      $q2->whereRaw('0');
+                  }
+              });
+        })->count();
+    }
+
     private function getVisibleCategoryChildren($categoryId, $targetUserId, $visitorUid, $isOwner, $sharedIds, $collectedIds)
     {
         $query = WdXcxAlbumFolder::where('uid', $targetUserId)
@@ -436,7 +469,7 @@ class UserService extends BaseService
         return $this->applyVisibleCategoryScope($query, $isOwner, $sharedIds)
             ->select()
             ->each(function($child) use ($targetUserId, $visitorUid, $isOwner, $sharedIds, $collectedIds){
-                $child->product_count = 0;
+                $child->product_count = $this->getVisibleCategoryProductCount($child->id, $targetUserId, $isOwner, $sharedIds);
                 $child->child_count = $this->getVisibleCategoryChildCount($child->id, $targetUserId, $isOwner, $sharedIds);
                 $child->son_count = $child->child_count;
                 $child->children = $this->getVisibleCategoryChildren($child->id, $targetUserId, $visitorUid, $isOwner, $sharedIds, $collectedIds);
@@ -949,7 +982,7 @@ class UserService extends BaseService
         $productId = (int)($param['product_id'] ?? ($param['folder_id'] ?? 0));
         $this->assertPictureDownloadVisible($pic, (int)$userId, $targetUserId, $productId);
 
-        $url = $this->originalDownloadUrlForPicture($pic);
+        $url = normalizePublicAssetUrl($this->originalDownloadUrlForPicture($pic));
         if ($url === '') {
             throwError('原图暂不可下载');
         }

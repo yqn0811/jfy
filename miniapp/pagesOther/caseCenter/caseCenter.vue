@@ -200,9 +200,13 @@ export default {
 
     // 预览图片
     previewImage(images, current) {
+      const urls = Array.isArray(images) ? images.filter((item) => !!item) : [];
+      if (!urls.length) {
+        return;
+      }
       uni.previewImage({
-        urls: images,
-        current: current,
+        urls,
+        current: urls[current] || urls[0],
       });
     },
 

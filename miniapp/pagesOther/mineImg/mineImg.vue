@@ -154,6 +154,10 @@ import {
 	normalizeSelectedUploadFile,
 	prepareNamedUploadFile,
 } from '@/common/helper/uploadName.js';
+import {
+	buildPictureListForNavigation,
+	setPictureNavigationContext,
+} from '@/common/helper/pictureNavigation.js';
 export default {
 	data() {
 		return {
@@ -223,9 +227,9 @@ export default {
 			}
 		},
 		toPicDetail(pic) {
-			uni.setStorageSync('picInfo', pic)
+			const pictureContext = setPictureNavigationContext(pic, this.picList)
 			uni.navigateTo({
-				url: `/pagesOther/picDetail/picDetail?option_flag=${this.option_flag}&pic_id=${pic.id}&source=mineImg&pic_type=3`
+				url: `/pagesOther/picDetail/picDetail?option_flag=${this.option_flag}&pic_id=${pictureContext.current.pic_id || pic.pic_id || pic.id}&source=mineImg&pic_type=3`
 			})
 		},
 		toVideoDetail(pic) {
@@ -303,7 +307,7 @@ export default {
 			this.$go('user/pic/collect', data, 'get', {
 				show_err: true
 			}).then(res => {
-				uni.setStorageSync('picList', res.data.pictures)
+				uni.setStorageSync('picList', buildPictureListForNavigation(res.data.pictures || []))
 			})
 		},
 

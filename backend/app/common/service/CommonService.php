@@ -57,7 +57,11 @@ class CommonService extends BaseService
                     }
                     $picture = WdXcxPic::where('id', $pic['pid'])->find();
                     if ($picture) {
-                        $bridge->safeSyncPicture($uid, $picture, ['role' => 'upload']);
+                        $bridge->safeSyncPicture($uid, $picture, [
+                            'role' => 'upload',
+                            'file_hash' => strtolower(trim((string)($new_param['file_hash'] ?? ''))),
+                            'content_hash' => strtolower(trim((string)($new_param['content_hash'] ?? ($new_param['file_hash'] ?? '')))),
+                        ]);
                     }
                 }
             }

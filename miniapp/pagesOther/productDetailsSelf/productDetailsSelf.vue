@@ -121,6 +121,7 @@ import {
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
 import { imageUrlFor } from "@/common/helper/imageUrls.js";
+import { setPictureNavigationContext } from "@/common/helper/pictureNavigation.js";
 
 export default {
   components: {
@@ -428,16 +429,18 @@ export default {
         return;
       }
       const item = this.normalizeProductPicture(data);
-      uni.setStorageSync("picInfo", {
-        ...item,
-        pic_id: item.id,
-        picture_url: item.picture_url || item.imgurl,
-        picture_url_original: item.picture_url_original || item.imgurl,
-        image_urls: item.image_urls,
-        imageUrls: item.imageUrls,
-      });
+      const pictureContext = setPictureNavigationContext(
+        item,
+        [...this.product.images, ...this.product.detailImages],
+        {
+          product_id: this.pid,
+          folder_id: this.pid,
+        },
+      );
       uni.navigateTo({
-        url: "/pagesOther/picDetail/picDetail?pic_id=" + item.id,
+        url:
+          "/pagesOther/picDetail/picDetail?pic_id=" +
+          (pictureContext.current.pic_id || item.id),
       });
     },
 

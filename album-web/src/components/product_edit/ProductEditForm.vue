@@ -106,6 +106,33 @@ const visibilityOptions = [
 
 const isCategorySelected = (categoryId: string) => formState.value.categoryIds.includes(categoryId)
 
+const imageListForType = (type: ProductImageType) =>
+  type === 'colorChart' ? formState.value.colorChartImages : formState.value.detailChartImages
+
+const setImageListForType = (type: ProductImageType, images: ProductImageData[]) => {
+  if (type === 'colorChart') {
+    formState.value.colorChartImages = images
+  } else {
+    formState.value.detailChartImages = images
+  }
+}
+
+const isPersistedImage = (image: ProductImageData) =>
+  !String(image.id || '').startsWith('upload_') &&
+  !String(image.id || '').startsWith('quick_upload_') &&
+  image.uploadStatus !== 'uploading' &&
+  image.uploadStatus !== 'error'
+
+const imageIdsForSave = (images: ProductImageData[]) =>
+  images.filter(isPersistedImage).map(item => item.id)
+
+const fileToSha256 = async (file: File) => {
+  if (!crypto?.subtle) return ''
+  const buffer = await file.arrayBuffer()
+  const hash = await crypto.subtle.digest('SHA-256', buffer)
+  return Array.from(new Uint8Array(hash)).map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
 const toggleCategory = (categoryId: string) => {
   if (isCategorySelected(categoryId)) {
     formState.value.categoryIds = formState.value.categoryIds.filter(id => id !== categoryId)
@@ -123,7 +150,7 @@ const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: s
   const url = pickImage(imageUrls.origin, imageUrls.edit, imageUrls.preview, imageUrls.thumb, item.original_url, item.file_url, item.fileUrl, item.picture_url_original, item.url, item, imageUrls.download)
   const thumbnailUrl = pickImage(imageUrls.thumb, item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
   return {
-    id: String(item.pid || item.pic_id || item.resource_id || item.id || `resource_${Date.now()}`),
+    id: String(item.pid || item.pic_id || item.id || item.local_pic_id || item.picture_id || item.resource_id || `resource_${Date.now()}`),
     productId: productIdValue,
     type,
     name: item.name || item.pic_name || item.file_name || `${type === 'colorChart' ? '花色图' : '详情图'}`,
@@ -135,6 +162,9 @@ const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: s
     sortOrder: type === 'colorChart' ? formState.value.colorChartImages.length : formState.value.detailChartImages.length,
     isOriginalLarge: Number(item.sizeBytes || item.size || 0) > 3 * 1024 * 1024,
     createdAt: item.create_time || item.created_at || new Date().toLocaleString('zh-CN'),
+    uploadStatus: 'reused',
+    resourceId: item.resource_id || item.id,
+    fileHash: item.file_hash || item.content_hash || item.source_hash || item?.metadata?.file_hash || '',
   }
 }
 
@@ -296,9 +326,9 @@ const buildSavePayload = () => ({
   category_ids: formState.value.categoryIds,
   private_type: formState.value.visibility === 'private' ? 2 : formState.value.visibility === 'shared' ? 4 : 1,
   hide_detail_pictures: formState.value.hideDetailImage ? 1 : 0,
-  pic_ids: formState.value.colorChartImages.map(item => item.id),
-  detail_pic_ids: formState.value.detailChartImages.map(item => item.id),
-  new_thumb: formState.value.colorChartImages[0]?.url || '',
+  pic_ids: imageIdsForSave(formState.value.colorChartImages),
+  detail_pic_ids: imageIdsForSave(formState.value.detailChartImages),
+  new_thumb: formState.value.colorChartImages.find(isPersistedImage)?.url || '',
 })
 
 const handleSave = async () => {
@@ -340,32 +370,46 @@ const handleSave = async () => {
 }
 
 const handleAddImages = (images: ProductImageData[], type: ProductImageType) => {
-  if (type === 'colorChart') {
-    formState.value.colorChartImages.push(...images)
-  } else {
-    formState.value.detailChartImages.push(...images)
+  const existingKeys = new Set(
+    imageListForType(type)
+      .map(item => item.fileHash ? `hash:${item.fileHash}` : `id:${item.id}`)
+      .filter(Boolean)
+  )
+  const nextImages = images.filter((image) => {
+    const key = image.fileHash ? `hash:${image.fileHash}` : `id:${image.id}`
+    if (existingKeys.has(key)) return false
+    existingKeys.add(key)
+    return true
+  })
+  setImageListForType(type, [...imageListForType(type), ...nextImages])
+}
+
+const handleUpdateImage = (clientId: string, image: ProductImageData, type: ProductImageType) => {
+  const list = imageListForType(type)
+  const index = list.findIndex(item => item.clientId === clientId || item.id === clientId)
+  if (index < 0) return
+  const next = [...list]
+  const duplicateIndex =
+    image.fileHash && image.uploadStatus !== 'error'
+      ? next.findIndex((item, itemIndex) => itemIndex !== index && item.fileHash === image.fileHash && isPersistedImage(item))
+      : -1
+  if (duplicateIndex >= 0) {
+    next.splice(index, 1)
+    setImageListForType(type, next.map((item, sortOrder) => ({ ...item, sortOrder })))
+    toast.info('重复图片已使用已有资源')
+    return
   }
+  next[index] = { ...image, sortOrder: index }
+  setImageListForType(type, next)
 }
 
 const handleRemoveImage = (id: string, type: ProductImageType) => {
-  if (type === 'colorChart') {
-    formState.value.colorChartImages = formState.value.colorChartImages.filter(
-      (img) => img.id !== id
-    )
-  } else {
-    formState.value.detailChartImages = formState.value.detailChartImages.filter(
-      (img) => img.id !== id
-    )
-  }
+  setImageListForType(type, imageListForType(type).filter((img) => img.id !== id && img.clientId !== id))
   toast.success('已删除')
 }
 
 const handleReorderImages = (images: ProductImageData[], type: ProductImageType) => {
-  if (type === 'colorChart') {
-    formState.value.colorChartImages = images
-  } else {
-    formState.value.detailChartImages = images
-  }
+  setImageListForType(type, images)
 }
 
 const ensureProductDraft = async () => {
@@ -390,9 +434,49 @@ const ensureProductDraft = async () => {
   return newId
 }
 
-const handleUploadImage = async (file: File, type: ProductImageType): Promise<ProductImageData> => {
+const handleUploadImage = async (file: File, type: ProductImageType, placeholder: ProductImageData): Promise<ProductImageData> => {
   const fid = await ensureProductDraft()
-  const data = await pcApi.uploadProductImage(fid, file, type)
+  const fileHash = await fileToSha256(file).catch(() => '')
+  if (fileHash) {
+    const localDuplicate = imageListForType(type).find(image =>
+      image.fileHash === fileHash && isPersistedImage(image)
+    )
+    if (localDuplicate) {
+      return {
+        ...localDuplicate,
+        clientId: placeholder.clientId,
+        sortOrder: placeholder.sortOrder,
+        uploadStatus: 'reused',
+        uploadProgress: 100,
+      }
+    }
+
+    const duplicate = await pcApi.findAiResourceDuplicate({
+      file_hash: fileHash,
+      content_hash: fileHash,
+      file_size: file.size || 0,
+      name: file.name,
+    }).catch(() => null)
+    const duplicateResourceId = String(duplicate?.resource_id || duplicate?.id || duplicate?.resource?.id || '')
+    if (duplicateResourceId) {
+      const role = type === 'detailChart' ? 'detail' : 'cover'
+      const imported = await pcApi.importAiResource(duplicateResourceId, role, fid)
+      const rows = unwrapList(imported)
+      const importedItem = rows[0] || (imported && typeof imported === 'object' ? imported : null) || duplicate
+      return {
+        ...mapResourceToImage(importedItem, type, fid),
+        clientId: placeholder.clientId,
+        fileHash,
+        uploadStatus: 'reused',
+        uploadProgress: 100,
+      }
+    }
+  }
+
+  const data = await pcApi.uploadProductImage(fid, file, type, {
+    file_hash: fileHash,
+    content_hash: fileHash,
+  })
   const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
   const item = rows[0] || {}
   const imageUrls = normalizeProductImageUrls(item)
@@ -412,6 +496,10 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
     sortOrder: type === 'colorChart' ? formState.value.colorChartImages.length : formState.value.detailChartImages.length,
     isOriginalLarge: file.size > 3 * 1024 * 1024,
     createdAt: new Date().toLocaleString('zh-CN'),
+    clientId: placeholder.clientId,
+    fileHash,
+    uploadStatus: 'done',
+    uploadProgress: 100,
   }
 }
 </script>
@@ -556,7 +644,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               compact
               class="min-h-[118px]"
               @add-images="handleAddImages"
-              @remove-image="handleRemoveImage"
+              @update-image="handleUpdateImage"
             />
 
             <div class="mt-2">
@@ -572,6 +660,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
                     type="colorChart"
                     :upload-handler="handleUploadImage"
                     @add-images="handleAddImages"
+                    @update-image="handleUpdateImage"
                   />
                 </template>
               </ImageSortable>
@@ -584,6 +673,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
                   type="colorChart"
                   :upload-handler="handleUploadImage"
                   @add-images="handleAddImages"
+                  @update-image="handleUpdateImage"
                 />
               </div>
             </div>
@@ -619,7 +709,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               compact
               class="min-h-[118px]"
               @add-images="handleAddImages"
-              @remove-image="handleRemoveImage"
+              @update-image="handleUpdateImage"
             />
 
             <div class="mt-2">
@@ -635,6 +725,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
                     type="detailChart"
                     :upload-handler="handleUploadImage"
                     @add-images="handleAddImages"
+                    @update-image="handleUpdateImage"
                   />
                 </template>
               </ImageSortable>
@@ -647,6 +738,7 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
                   type="detailChart"
                   :upload-handler="handleUploadImage"
                   @add-images="handleAddImages"
+                  @update-image="handleUpdateImage"
                 />
               </div>
             </div>

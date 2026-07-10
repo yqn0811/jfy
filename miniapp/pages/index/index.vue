@@ -185,6 +185,7 @@
     </view>
     <category-popup
       :uid="uid || ''"
+      :categories="categories"
       :visible="showCategory"
       @update:visible="(val) => (showCategory = val)"
       @select="onCategorySelected"

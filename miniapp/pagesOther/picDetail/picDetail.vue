@@ -293,6 +293,10 @@ import { notifyFolderRefresh } from "@/common/helper/refresh.js";
 import { notifyRefresh } from "@/common/helper/refresh.js";
 import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 import { imageUrlFor, resolveImageDownloadUrl } from "@/common/helper/imageUrls.js";
+import {
+  buildPictureListForNavigation,
+  normalizePictureForNavigation,
+} from "@/common/helper/pictureNavigation.js";
 
 export default {
   data() {
@@ -436,7 +440,7 @@ export default {
     this.source = options.source || "";
     console.log(this.option_flag, "this.option_flag");
 
-    this.picList = this.isVisitorMode() ? [] : uni.getStorageSync("picList");
+    this.picList = uni.getStorageSync("picList");
     if (!Array.isArray(this.picList)) {
       this.picList = [];
     }
@@ -483,21 +487,19 @@ export default {
       return text;
     },
     normalizePictureItem(item = {}) {
-      const id = item.pic_id || item.id || this.picId || "";
-      const pictureUrl = imageUrlFor(item, "preview") || this.currentImageUrl || "";
-      const originalUrl = imageUrlFor(item, "origin") || pictureUrl;
+      const normalized = normalizePictureForNavigation(item, {
+        pic_id: this.picId,
+      });
       return {
-        ...item,
-        id,
-        pic_id: id,
-        picture_url: pictureUrl,
-        picture_url_original: originalUrl,
-        image_urls: item.image_urls || item.imageUrls || item.urls || {},
-        imageUrls: item.imageUrls || item.image_urls || item.urls || {},
-        pic_beizhu: item.pic_beizhu || item.pic_name || item.name || "",
-        pic_name: item.pic_name || item.pic_beizhu || item.name || "",
-        file_size: Number(item.file_size || item.size_bytes || item.size || 0),
-        size: Number(item.size || item.file_size || item.size_bytes || 0),
+        ...normalized,
+        pic_id: normalized.pic_id || this.picId || "",
+        id: normalized.id || normalized.pic_id || this.picId || "",
+        picture_url: normalized.picture_url || this.currentImageUrl || "",
+        picture_url_original:
+          normalized.picture_url_original ||
+          normalized.picture_url ||
+          this.currentImageUrl ||
+          "",
       };
     },
     getCurrentPictureId() {
@@ -589,18 +591,73 @@ export default {
         );
         if (res && res.code === 0 && res.data) {
           const item = this.normalizePictureItem(res.data);
-          this.picList = [item];
-          this.currentIndex = 0;
+          const existingList = buildPictureListForNavigation(this.picList, {
+            product_id: item.product_id || item.folder_id,
+            folder_id: item.product_id || item.folder_id,
+          });
+          if (existingList.length) {
+            this.picList = existingList;
+            const foundIndex = existingList.findIndex(
+              (picture) => String(picture.pic_id) === String(item.pic_id),
+            );
+            this.currentIndex = foundIndex >= 0 ? foundIndex : 0;
+          } else {
+            this.picList = [item];
+            this.currentIndex = 0;
+          }
           this.currentItem = item;
           this.imageInfo = { ...this.imageInfo, ...item };
           this.picId = item.pic_id || item.id;
           this.currentImageUrl = item.picture_url;
           this.remark = item.pic_beizhu || item.pic_name || "";
+          await this.loadSharedPictureContext(item);
         }
       } catch (err) {
         console.error("加载分享图片失败:", err);
       } finally {
         this.remotePictureLoading = false;
+      }
+    },
+    async loadSharedPictureContext(item = {}) {
+      const productId = item.product_id || item.folder_id;
+      if (!this.isVisitorMode() || !this.uid || !productId) return;
+      if (this.picList.length > 1) return;
+      try {
+        const res = await this.$go(
+          "user/home/products/detail",
+          {
+            target_user_id: this.uid,
+            product_id: productId,
+          },
+          "get",
+          { show_err: false, loading: false },
+        );
+        const detail = res && res.code === 0 && res.data ? res.data : {};
+        const coverPictures = Array.isArray(detail.pic_list) ? detail.pic_list : [];
+        const detailPictures = Array.isArray(detail.detail_pic_list)
+          ? detail.detail_pic_list
+          : [];
+        const pictures = buildPictureListForNavigation(
+          [...coverPictures, ...detailPictures],
+          {
+            product_id: productId,
+            folder_id: productId,
+          },
+        );
+        if (!pictures.length) return;
+        const foundIndex = pictures.findIndex(
+          (picture) => String(picture.pic_id) === String(this.picId),
+        );
+        this.picList = pictures;
+        this.currentIndex = foundIndex >= 0 ? foundIndex : 0;
+        this.currentItem = this.normalizePictureItem(this.picList[this.currentIndex]);
+        this.imageInfo = { ...this.imageInfo, ...this.currentItem };
+        this.picId = this.currentItem.pic_id || this.currentItem.id || this.picId;
+        this.currentImageUrl = this.currentItem.picture_url;
+        this.remark = this.imageInfo.pic_beizhu || this.imageInfo.pic_name || "";
+        uni.setStorageSync("picList", this.picList);
+      } catch (err) {
+        console.error("加载分享图片上下文失败:", err);
       }
     },
     ensureCurrentPicture() {

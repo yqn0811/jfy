@@ -12,6 +12,7 @@ export interface ProductImageUrls {
 
 export interface ProductImageData {
   id: string
+  clientId?: string
   productId: string
   type: ProductImageType
   name: string
@@ -29,6 +30,11 @@ export interface ProductImageData {
   sortOrder: number
   isOriginalLarge: boolean
   createdAt: string
+  uploadStatus?: 'uploading' | 'done' | 'error' | 'reused'
+  uploadProgress?: number
+  uploadError?: string
+  fileHash?: string
+  resourceId?: string | number
 }
 
 const firstUrl = (...values: Array<string | undefined | null>) => {

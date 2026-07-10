@@ -131,6 +131,7 @@ import {
 } from "@/common/helper/refresh.js";
 import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 import { imageUrlFor } from "@/common/helper/imageUrls.js";
+import { setPictureNavigationContext } from "@/common/helper/pictureNavigation.js";
 
 export default {
   components: { UserCard, ImageGrid, SharePopup, PersonalDetails },
@@ -413,22 +414,18 @@ export default {
     handleImageClick(data) {
       const uidQuery = this.uid ? "&uid=" + this.uid + "&source=share" : "";
       const item = this.normalizeProductPicture(data);
-      uni.setStorageSync("picInfo", {
-        ...item,
-        pic_id: item.id,
-        picture_url: item.picture_url || item.imageField,
-        picture_url_original: item.picture_url_original || item.imageField,
-        image_urls: item.image_urls,
-        imageUrls: item.imageUrls,
-        product_id: this.productId,
-        folder_id: this.productId,
-        file_size: item.file_size || item.size || 0,
-        size: item.size || item.file_size || 0,
-      });
+      const pictureContext = setPictureNavigationContext(
+        item,
+        [...this.images, ...this.imagesDetails],
+        {
+          product_id: this.productId,
+          folder_id: this.productId,
+        },
+      );
       uni.navigateTo({
         url:
           "/pagesOther/picDetail/picDetail?pic_id=" +
-          item.id +
+          (pictureContext.current.pic_id || item.id) +
           uidQuery,
       });
     },

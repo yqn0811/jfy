@@ -198,6 +198,7 @@ Route::group('album', function (){
     Route::post('product/add_categories', 'AlbumApiController/addProductToCategories'); //产品添加到多个分类
     Route::post('product/update_status', 'AlbumApiController/updateProductStatus'); //产品状态设置（热门等）
     Route::get('ai/resources', 'AlbumApiController/listAiResources'); // 我的资源库图片列表
+    Route::get('ai/find_duplicate', 'AlbumApiController/findDuplicateAiResource'); // 我的资源库图片查重
     Route::post('ai/import_resource', 'AlbumApiController/importAiResource'); // 我的资源库图片导入产品
     Route::get('batch_link', 'AlbumApiController/getBatchUploadLink'); //获取大批量上传链接
     Route::post('reset_batch_link', 'AlbumApiController/resetBatchUploadLink'); //重置大批量上传链接

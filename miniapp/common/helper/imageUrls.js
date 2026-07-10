@@ -2,6 +2,12 @@ const normalizeText = (value) => {
   if (value === null || value === undefined) return "";
   const text = String(value).trim();
   if (!text || text === "null" || text === "undefined") return "";
+  if (text.indexOf("//") === 0) {
+    return `https:${text}`;
+  }
+  if (/^http:\/\//i.test(text)) {
+    return text.replace(/^http:\/\//i, "https://");
+  }
   return text;
 };
 

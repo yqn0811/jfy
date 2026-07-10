@@ -11,7 +11,7 @@ interface Props {
   type: ProductImageType
   images: ProductImageData[]
   compact?: boolean
-  uploadHandler?: (file: File, type: ProductImageType) => Promise<ProductImageData>
+  uploadHandler?: (file: File, type: ProductImageType, placeholder: ProductImageData) => Promise<ProductImageData>
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -20,6 +20,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'add-images', images: ProductImageData[], type: ProductImageType): void
+  (e: 'update-image', clientId: string, image: ProductImageData, type: ProductImageType): void
 }>()
 
 const isDragging = ref(false)
@@ -51,6 +52,29 @@ const handleFileSelect = (e: Event) => {
   }
 }
 
+const formatSize = (size: number) => `${(size / 1024 / 1024).toFixed(1)} MB`
+
+const createPlaceholder = (file: File, index: number): ProductImageData => {
+  const previewUrl = URL.createObjectURL(file)
+  const clientId = `upload_${Date.now()}_${index}_${Math.random().toString(36).slice(2)}`
+  return {
+    id: clientId,
+    clientId,
+    productId: '',
+    type: props.type,
+    name: file.name,
+    url: previewUrl,
+    thumbnailUrl: previewUrl,
+    sizeLabel: formatSize(file.size),
+    sizeBytes: file.size,
+    sortOrder: props.images.length + index,
+    isOriginalLarge: file.size > 3 * 1024 * 1024,
+    createdAt: new Date().toLocaleString('zh-CN'),
+    uploadStatus: 'uploading',
+    uploadProgress: 8,
+  }
+}
+
 const processFiles = async (files: FileList) => {
   const imageFiles = Array.from(files).filter((file) =>
     file.type.startsWith('image/')
@@ -61,32 +85,33 @@ const processFiles = async (files: FileList) => {
     return
   }
 
-  const newImages: ProductImageData[] = []
+  const placeholders = imageFiles.map((file, index) => createPlaceholder(file, index))
+  emit('add-images', placeholders, props.type)
+
   for (let index = 0; index < imageFiles.length; index += 1) {
     const file = imageFiles[index]
-    if (props.uploadHandler) {
-      const uploaded = await props.uploadHandler(file, props.type)
-      newImages.push(uploaded)
-    } else {
-      const previewUrl = URL.createObjectURL(file)
-      newImages.push({
-        id: `img_${Date.now()}_${index}`,
-        productId: '',
-        type: props.type,
-        name: file.name,
-        url: previewUrl,
-        thumbnailUrl: previewUrl,
-        sizeLabel: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-        sizeBytes: file.size,
-        sortOrder: props.images.length + index,
-        isOriginalLarge: file.size > 3 * 1024 * 1024,
-        createdAt: new Date().toLocaleString('zh-CN'),
-      })
+    const placeholder = placeholders[index]
+    try {
+      const uploaded = props.uploadHandler
+        ? await props.uploadHandler(file, props.type, placeholder)
+        : { ...placeholder, uploadStatus: 'done' as const, uploadProgress: 100 }
+      emit('update-image', placeholder.clientId || placeholder.id, {
+        ...uploaded,
+        clientId: placeholder.clientId,
+        uploadStatus: uploaded.uploadStatus || 'done',
+        uploadProgress: 100,
+      }, props.type)
+    } catch (error: any) {
+      emit('update-image', placeholder.clientId || placeholder.id, {
+        ...placeholder,
+        uploadStatus: 'error',
+        uploadProgress: 0,
+        uploadError: error?.message || '上传失败',
+      }, props.type)
     }
   }
 
-  emit('add-images', newImages, props.type)
-  toast.success(`已添加 ${newImages.length} 张图片`)
+  toast.success(`已添加 ${imageFiles.length} 张图片`)
   if (fileInput.value) fileInput.value.value = ''
 }
 

@@ -44,17 +44,8 @@ function remote($uniacid, $url, $type)
         $back_url = str_replace('?x-oss-process=image/resize,m_fixed,w_480/quality,Q_75', '', $back_url);
     }
 
-    if($type == 1){
-        if(isset($_SERVER['HTTP_REFERER'])){
-            $http_referer = $_SERVER['HTTP_REFERER'];
-            if(strpos($http_referer, 'https') === false){
-                $back_url = str_replace('https', 'http', $back_url);
-            }
-        }
-    }
-
     $back_url = str_replace('//upimages', '/upimages', $back_url);
-    return $back_url;
+    return normalizePublicAssetUrl($back_url);
 }
 
 //远程图片链接处理
@@ -328,6 +319,87 @@ function removePicStyle($url)
     return $url;
 }
 
+function normalizePublicAssetUrl($url)
+{
+    $url = trim((string)$url);
+    if ($url === '') {
+        return '';
+    }
+    if (strpos($url, '//') === 0) {
+        $url = 'https:' . $url;
+    }
+    if (preg_match('/^http:\/\//i', $url)) {
+        $url = preg_replace('/^http:\/\//i', 'https://', $url);
+    }
+    return rewritePublicAssetHost($url);
+}
+
+function publicAssetHostRewriteMap()
+{
+    $map = [];
+    $raw = (string)env(
+        'PUBLIC_ASSET_HOST_REWRITE_MAP',
+        getenv('PUBLIC_ASSET_HOST_REWRITE_MAP') ?: ''
+    );
+    if ($raw === '') {
+        return $map;
+    }
+    foreach (explode(',', str_replace(['，', ';'], ',', $raw)) as $item) {
+        $item = trim($item);
+        if ($item === '') {
+            continue;
+        }
+        $delimiter = strpos($item, '=>') !== false ? '=>' : '=';
+        $parts = explode($delimiter, $item, 2);
+        if (count($parts) !== 2) {
+            continue;
+        }
+        $from = normalizePublicAssetHost($parts[0]);
+        $to = normalizePublicAssetHost($parts[1]);
+        if ($from !== '' && $to !== '') {
+            $map[strtolower($from)] = $to;
+        }
+    }
+    return $map;
+}
+
+function normalizePublicAssetHost($host)
+{
+    $host = trim((string)$host);
+    if ($host === '') {
+        return '';
+    }
+    if (strpos($host, '//') === 0) {
+        $host = 'https:' . $host;
+    }
+    if (strpos($host, '://') === false) {
+        $host = 'https://' . $host;
+    }
+    $parsed = parse_url($host);
+    return strtolower((string)($parsed['host'] ?? ''));
+}
+
+function rewritePublicAssetHost($url)
+{
+    if (!preg_match('/^https?:\/\//i', $url)) {
+        return $url;
+    }
+    $parsed = parse_url($url);
+    $host = strtolower((string)($parsed['host'] ?? ''));
+    if ($host === '') {
+        return $url;
+    }
+    $map = publicAssetHostRewriteMap();
+    if (!isset($map[$host])) {
+        return $url;
+    }
+    $scheme = strtolower((string)($parsed['scheme'] ?? 'https')) === 'http' ? 'https' : (string)$parsed['scheme'];
+    $path = (string)($parsed['path'] ?? '');
+    $query = isset($parsed['query']) ? '?' . $parsed['query'] : '';
+    $fragment = isset($parsed['fragment']) ? '#' . $parsed['fragment'] : '';
+    return $scheme . '://' . $map[$host] . $path . $query . $fragment;
+}
+
 function isProxyableExternalImageUrl($url)
 {
     $url = trim((string)$url);
@@ -482,7 +554,8 @@ function buildPictureImageUrls($pictureOrUrl, $previewUrl = '')
     if ($previewUrl !== '') {
         $displayUrl = trim((string)$previewUrl);
     }
-    $originalUrl = removePicStyle($displayUrl);
+    $displayUrl = normalizePublicAssetUrl($displayUrl);
+    $originalUrl = normalizePublicAssetUrl(removePicStyle($displayUrl));
 
     return [
         'thumb' => $displayUrl,

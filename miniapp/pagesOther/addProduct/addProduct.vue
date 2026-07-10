@@ -267,7 +267,7 @@ export default {
             uploadedUrl: "",
             uploading: true,
           }) - 1;
-        this.uploadSingleFile(tempPath, 1, "", 0)
+        this.uploadSingleFile(tempPath, 1, "", 0, "cover")
           .then((res) => {
             if (this.coverImages[idx]) {
               this.$set(this.coverImages, idx, {
@@ -493,7 +493,7 @@ export default {
                 uploadedUrl: "",
                 uploading: true,
               }) - 1;
-            this.uploadSingleFile(tempPath, 2, selectedFile.name, selectedFile.size)
+            this.uploadSingleFile(tempPath, 2, selectedFile.name, selectedFile.size, "cover")
               .then((res) => {
                 this.$set(this.coverImages, idx, {
                   src: res.url,
@@ -517,7 +517,7 @@ export default {
                 uploadedUrl: "",
                 uploading: true,
               }) - 1;
-            this.uploadSingleFile(tempPath, 2, selectedFile.name, selectedFile.size)
+            this.uploadSingleFile(tempPath, 2, selectedFile.name, selectedFile.size, "detail")
               .then((res) => {
                 this.$set(this.detailImages, idx, {
                   src: res.url,
@@ -559,7 +559,7 @@ export default {
                   uploadedUrl: "",
                   uploading: true,
                 }) - 1;
-              this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size)
+              this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size, "cover")
                 .then((res) => {
                   this.$set(this.coverImages, idx, {
                     src: res.url,
@@ -583,7 +583,7 @@ export default {
                   uploadedUrl: "",
                   uploading: true,
                 }) - 1;
-              this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size)
+              this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size, "detail")
                 .then((res) => {
                   this.$set(this.detailImages, idx, {
                     src: res.url,
@@ -629,7 +629,7 @@ export default {
                 uploadedUrl: "",
                 uploading: true,
               }) - 1;
-            this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size)
+            this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size, "cover")
               .then((res) => {
                 console.log(res);
                 if (this.coverImages[idx]) {
@@ -686,7 +686,7 @@ export default {
                 uploading: true,
               }) - 1;
             // 立即上传每张图片
-            this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size)
+            this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size, "detail")
               .then((res) => {
                 if (this.detailImages[idx]) {
                   this.$set(this.detailImages, idx, {
@@ -900,6 +900,27 @@ export default {
         });
       });
     },
+    getLocalFileHash(filePath) {
+      return new Promise((resolve) => {
+        if (!filePath) {
+          resolve("");
+          return;
+        }
+        const getter =
+          (typeof uni !== "undefined" && uni.getFileInfo) ||
+          (typeof wx !== "undefined" && wx.getFileInfo);
+        if (!getter) {
+          resolve("");
+          return;
+        }
+        getter({
+          filePath,
+          digestAlgorithm: "sha256",
+          success: (res) => resolve(String(res.digest || res.hash || "").toLowerCase()),
+          fail: () => resolve(""),
+        });
+      });
+    },
     compressImageWhenSizeMissing(filePath, fileType = 1) {
       return new Promise((resolve) => {
         if (Number(fileType) !== 1 || !uni.compressImage) {
@@ -924,44 +945,91 @@ export default {
         uploadPath = await this.compressImageWhenSizeMissing(uploadPath, fileType);
         size = await this.getLocalFileSize(uploadPath);
       }
+      const hash = Number(fileType) === 1 ? await this.getLocalFileHash(uploadPath) : "";
       return {
         path: uploadPath,
         size,
+        hash,
       };
     },
+    async importDuplicateResource(sourceFile, role = "cover") {
+      if (!this.$go || !sourceFile || !sourceFile.hash || Number(sourceFile.size || 0) <= 0) {
+        return null;
+      }
+      const duplicateRes = await this.$go(
+        "album/ai/find_duplicate",
+        {
+          file_hash: sourceFile.hash,
+          content_hash: sourceFile.hash,
+          file_size: Number(sourceFile.size || 0),
+        },
+        "get",
+        { show_err: false, loading: false }
+      );
+      const duplicate = (duplicateRes && duplicateRes.data) || {};
+      const resourceId =
+        duplicate.resource_id ||
+        duplicate.id ||
+        (duplicate.resource && duplicate.resource.id) ||
+        "";
+      if (!resourceId) {
+        return null;
+      }
+      const imported = await this.$go(
+        "album/ai/import_resource",
+        {
+          resource_id: resourceId,
+          role,
+        },
+        "post",
+        { show_err: false, loading: false }
+      );
+      if (imported && imported.code === 0 && imported.data) {
+        return this.normalizeUploadResult(imported);
+      }
+      return null;
+    },
     // 上传单文件并返回线上访问地址
-    uploadSingleFile(filePath, fileType = 1, originalName = "", fileSize = 0) {
+    uploadSingleFile(filePath, fileType = 1, originalName = "", fileSize = 0, role = "") {
       const that = this;
       return new Promise((resolve, reject) => {
-        that.prepareUploadSource(filePath, fileType, fileSize).then((sourceFile) => {
-        const uploadName = that.buildUploadFileName(sourceFile.path, fileType, originalName);
-        that.prepareUploadFilePath(sourceFile.path, uploadName).then((uploadPath) => {
-          uni.uploadFile({
-            url: that.$config.domain + that.uploadEndpoint,
-            filePath: uploadPath,
-            name: "file",
-            header: {
-              "content-type": "multipart/form-data", // 默认值
-              "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
-            },
-            formData: {
-              file_type: fileType,
-              file_size: Number(sourceFile.size || 0),
-              size: Number(sourceFile.size || 0),
-              ...buildUploadNameFormData(uploadName),
-            },
-            success: (uploadRes) => {
-              try {
-                resolve(that.normalizeUploadResult(uploadRes.data));
-              } catch (e) {
+        that.prepareUploadSource(filePath, fileType, fileSize).then(async (sourceFile) => {
+          const imageRole = role || (that.uploadTarget === "detail" ? "detail" : "cover");
+          const duplicate = await that.importDuplicateResource(sourceFile, imageRole).catch(() => null);
+          if (duplicate) {
+            resolve(duplicate);
+            return;
+          }
+          const uploadName = that.buildUploadFileName(sourceFile.path, fileType, originalName);
+          that.prepareUploadFilePath(sourceFile.path, uploadName).then((uploadPath) => {
+            uni.uploadFile({
+              url: that.$config.domain + that.uploadEndpoint,
+              filePath: uploadPath,
+              name: "file",
+              header: {
+                "content-type": "multipart/form-data", // 默认值
+                "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
+              },
+              formData: {
+                file_type: fileType,
+                file_size: Number(sourceFile.size || 0),
+                size: Number(sourceFile.size || 0),
+                file_hash: sourceFile.hash || "",
+                content_hash: sourceFile.hash || "",
+                ...buildUploadNameFormData(uploadName),
+              },
+              success: (uploadRes) => {
+                try {
+                  resolve(that.normalizeUploadResult(uploadRes.data));
+                } catch (e) {
+                  reject(e);
+                }
+              },
+              fail: (e) => {
                 reject(e);
-              }
-            },
-            fail: (e) => {
-              reject(e);
-            },
+              },
+            });
           });
-        });
         }).catch(reject);
       });
     },

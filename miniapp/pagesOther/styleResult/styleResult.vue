@@ -273,6 +273,7 @@
 <script>
 import SharePopup from "@/components/SharePopup/index.vue";
 import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
+import { setPictureNavigationContext } from "@/common/helper/pictureNavigation.js";
 
 export default {
   components: {
@@ -389,10 +390,18 @@ export default {
     },
 
     toProductDetail(data) {
+      const pictureContext = setPictureNavigationContext(
+        data,
+        [...this.mainPictures, ...this.variantPictures, ...this.detailPictures],
+        {
+          product_id: this.orderInfo.product_id,
+          folder_id: this.orderInfo.product_id,
+        },
+      );
       uni.navigateTo({
         url:
           "/pagesOther/picDetail/picDetail?pic_id=" +
-          data.id +
+          (pictureContext.current.pic_id || data.pic_id || data.id) +
           "&uid=" +
           this.uid +
           "&fromPage=styleResult",

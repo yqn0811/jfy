@@ -365,7 +365,7 @@ export const pcApi = {
     apiRequest<any>('album/product/update_status', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
   deleteProductOrFolder: (fid: string, delType = 1) =>
     apiRequest<any>('album/delete/folder', { method: 'POST', body: { fid, del_type: delType, timestamp: Date.now() } }),
-  uploadProductImage: (fid: string, file: File, type: 'colorChart' | 'detailChart') => {
+  uploadProductImage: (fid: string, file: File, type: 'colorChart' | 'detailChart', extra: Record<string, any> = {}) => {
     const form = new FormData()
     form.append('pid', fid)
     form.append('files', file, file.name)
@@ -376,6 +376,11 @@ export const pcApi = {
     form.append('file_size', String(file.size || 0))
     form.append('size', String(file.size || 0))
     form.append('file_type', type === 'detailChart' ? '2' : '1')
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        form.append(key, String(value))
+      }
+    })
     return apiUpload<any>('album/upload/folder', form)
   },
 
@@ -438,6 +443,8 @@ export const pcApi = {
 
   getAiResources: (params: Record<string, any> = {}) =>
     apiRequest<any>('album/ai/resources', { params: { page: 1, page_size: 30, timestamp: Date.now(), ...params } }),
+  findAiResourceDuplicate: (params: Record<string, any> = {}) =>
+    apiRequest<any>('album/ai/find_duplicate', { params: { timestamp: Date.now(), ...params } }),
   importAiResource: (resourceId: string, role: 'cover' | 'detail' = 'cover', productId = '') =>
     apiRequest<any>('album/ai/import_resource', {
       method: 'POST',

@@ -69,7 +69,7 @@
 						</view>
 
 						<view class="img-box" :class="folderInfo.pic_layout == 1 ? 'layout-three' : 'layout-two'"
-							v-for="(pic, idx) in " :key="idx" @longpress="state = 1">
+							v-for="(pic, idx) in item.pictures" :key="idx" @longpress="state = 1">
 							<!-- 视频缩略图 -->
 							<image v-if="pic.file_type === 2" class="pic" @click="toVideoDetail(pic)"
 								:src="pic.picture_url + '?x-oss-process=video/snapshot,t_0,f_jpg,w_180,h_360'"
@@ -284,6 +284,10 @@ import {
 	normalizeSelectedUploadFile,
 	prepareNamedUploadFile,
 } from '@/common/helper/uploadName.js';
+import {
+	buildPictureListForNavigation,
+	setPictureNavigationContext,
+} from '@/common/helper/pictureNavigation.js';
 
 export default {
 	data() {
@@ -397,7 +401,7 @@ export default {
 			this.$go('album/all/pics', data, 'post', {
 				show_err: true
 			}).then(res => {
-				uni.setStorageSync('picList', res.data.lists)
+				uni.setStorageSync('picList', buildPictureListForNavigation(res.data.lists || []))
 			})
 		},
 
@@ -475,10 +479,10 @@ export default {
 		/** 跳转到图片详情 */
 		toPicDetail(pic) {
 			if (this.state == 0) {
-				uni.setStorageSync('picInfo', pic)
+				const pictureContext = setPictureNavigationContext(pic, this.picList)
 				// 传递当前点击的图片ID
 				uni.navigateTo({
-					url: `/pagesOther/picDetail/picDetail?option_flag=${this.option_flag}&pic_id=${pic.pic_id}`
+					url: `/pagesOther/picDetail/picDetail?option_flag=${this.option_flag}&pic_id=${pictureContext.current.pic_id || pic.pic_id || pic.id}`
 				})
 			}
 		},

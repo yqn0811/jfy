@@ -1037,27 +1037,28 @@ class AlbumService extends BaseService
             return;
         }
         $bridge = new AiResourceBridgeService($this->app);
+        $newCoverIds = isset($param['pic_ids']) ? $this->normalizeIdList($param['pic_ids']) : $oldCoverIds;
+        $newDetailIds = isset($param['detail_pic_ids']) ? $this->normalizeIdList($param['detail_pic_ids']) : $oldDetailIds;
+        $newProductIds = array_values(array_unique(array_merge($newCoverIds, $newDetailIds)));
         if (isset($param['pic_ids'])) {
-            $newCoverIds = $this->normalizeIdList($param['pic_ids']);
             foreach (array_diff($oldCoverIds, $newCoverIds) as $removedPicId) {
                 $bridge->safeMarkPictureDeleted($uid, $removedPicId, [
                     'b_folder_id' => (int)$folder->id,
                     'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$removedPicId, 'cover'),
                     'external_product_id' => (string)$folder->id,
                     'role' => 'cover',
-                    'delete_resource' => false,
+                    'delete_resource' => !in_array((int)$removedPicId, $newProductIds, true),
                 ]);
             }
         }
         if (isset($param['detail_pic_ids'])) {
-            $newDetailIds = $this->normalizeIdList($param['detail_pic_ids']);
             foreach (array_diff($oldDetailIds, $newDetailIds) as $removedPicId) {
                 $bridge->safeMarkPictureDeleted($uid, $removedPicId, [
                     'b_folder_id' => (int)$folder->id,
                     'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$removedPicId, 'detail'),
                     'external_product_id' => (string)$folder->id,
                     'role' => 'detail',
-                    'delete_resource' => false,
+                    'delete_resource' => !in_array((int)$removedPicId, $newProductIds, true),
                 ]);
             }
         }
@@ -2400,7 +2401,10 @@ class AlbumService extends BaseService
         if (!empty($createdRelations)) {
             $bridge = new AiResourceBridgeService($this->app);
             foreach ($createdRelations as $relation) {
-                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, 'album');
+                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, 'album', [
+                    'file_hash' => (string)($params['file_hash'] ?? ''),
+                    'content_hash' => (string)($params['content_hash'] ?? ($params['file_hash'] ?? '')),
+                ]);
             }
         }
         foreach ($data as $index => $item) {
@@ -2422,6 +2426,8 @@ class AlbumService extends BaseService
             $data[$index]['file_url'] = $imageUrls['origin'];
             $data[$index]['image_urls'] = $imageUrls;
             $data[$index]['imageUrls'] = $imageUrls;
+            $data[$index]['file_hash'] = (string)($params['file_hash'] ?? '');
+            $data[$index]['content_hash'] = (string)($params['content_hash'] ?? ($params['file_hash'] ?? ''));
         }
         return [
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',

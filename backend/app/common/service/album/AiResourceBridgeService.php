@@ -56,6 +56,40 @@ class AiResourceBridgeService extends BaseService
         return $this->dedupeResourceResponse($resp);
     }
 
+    public function findDuplicateResource($uid, $params)
+    {
+        $hash = strtolower(trim((string)($params['file_hash'] ?? ($params['content_hash'] ?? ($params['source_hash'] ?? '')))));
+        if ($hash === '') {
+            return [];
+        }
+        $this->assertBridgeAllowed($uid);
+        $user = $this->getBridgeUser($uid);
+        $query = [
+            'b_user_id' => $user->id,
+            'mini_openid' => $user->openid,
+            'unionid' => $user->unionid ?: '',
+            'page' => 1,
+            'page_size' => 1,
+            'status' => 'active',
+            'file_hash' => $hash,
+            'content_hash' => $hash,
+            'source_hash' => $hash,
+        ];
+        if (!empty($params['file_size'])) {
+            $query['file_size'] = (int)$params['file_size'];
+        }
+        $resp = $this->dedupeResourceResponse(
+            $this->requestAiResource('GET', '/jiafangyun/bridge/resources?' . http_build_query($query), null)
+        );
+        $resources = [];
+        if (isset($resp['resources']) && is_array($resp['resources'])) {
+            $resources = $resp['resources'];
+        } elseif (isset($resp['list']) && is_array($resp['list'])) {
+            $resources = $resp['list'];
+        }
+        return $resources[0] ?? [];
+    }
+
     public function importResource($uid, $resourceId, $role = 'cover')
     {
         $this->assertBridgeAllowed($uid);
@@ -157,8 +191,14 @@ class AiResourceBridgeService extends BaseService
                 'external_product_id' => (string)($options['external_product_id'] ?? ''),
                 'role' => (string)($options['role'] ?? 'detail'),
                 'source' => 'jiafangyun',
+                'file_hash' => (string)($options['file_hash'] ?? ''),
+                'content_hash' => (string)($options['content_hash'] ?? ($options['file_hash'] ?? '')),
             ],
         ]);
+        if (!empty($options['file_hash'])) {
+            $payload['file_hash'] = (string)$options['file_hash'];
+            $payload['content_hash'] = (string)($options['content_hash'] ?? $options['file_hash']);
+        }
         return $this->requestAiResource('POST', '/jiafangyun/bridge/resources/sync', $payload);
     }
 
@@ -171,18 +211,18 @@ class AiResourceBridgeService extends BaseService
         $this->syncProductPictureIds($uid, $product, $product->detail_pic_ids ?? '', 'detail');
     }
 
-    public function syncAlbumRelation($uid, $relation, $role = 'album')
+    public function syncAlbumRelation($uid, $relation, $role = 'album', $options = [])
     {
         if (!$relation || !$relation->picture) {
             return null;
         }
-        return $this->syncPicture($uid, $relation->picture, [
+        return $this->syncPicture($uid, $relation->picture, array_merge([
             'b_folder_id' => (int)$relation->folder_id,
             'b_relation_id' => (int)$relation->id,
             'external_product_id' => (string)$relation->folder_id,
             'role' => $role,
             'sort_order' => (int)$relation->sort,
-        ]);
+        ], $options));
     }
 
     public function markPictureDeleted($uid, $picId, $options = [])
@@ -221,10 +261,10 @@ class AiResourceBridgeService extends BaseService
         }
     }
 
-    public function safeSyncAlbumRelation($uid, $relation, $role = 'album')
+    public function safeSyncAlbumRelation($uid, $relation, $role = 'album', $options = [])
     {
         try {
-            return $this->syncAlbumRelation($uid, $relation, $role);
+            return $this->syncAlbumRelation($uid, $relation, $role, $options);
         } catch (\Throwable $e) {
             Log::error('[AiResourceBridge] sync album relation failed: ' . $e->getMessage());
             return null;
