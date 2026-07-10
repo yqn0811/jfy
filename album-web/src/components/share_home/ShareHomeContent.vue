@@ -714,9 +714,10 @@ const handleLoginSuccess = () => {
     <!-- 分类导航区 -->
     <section
       v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode"
-      class="sticky top-0 z-40 mx-8 border-y border-border bg-background/95 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80"
+      class="sticky top-0 z-40 border-y border-border bg-background/95 px-6 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80 md:px-8"
     >
-      <div class="flex flex-col gap-2 md:flex-row md:items-center">
+      <div class="page-container">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center">
           <nav class="flex min-w-0 shrink-0 flex-wrap items-center gap-1 text-sm" aria-label="分类层级">
             <template v-for="(crumb, index) in categoryBreadcrumbs" :key="crumb.id">
               <button
@@ -767,6 +768,7 @@ const handleLoginSuccess = () => {
               </Button>
             </div>
           </div>
+        </div>
       </div>
     </section>
 
