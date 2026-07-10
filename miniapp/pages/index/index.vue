@@ -788,11 +788,11 @@ export default {
 }
 
 .nav-wrap {
-  height: 88px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 30rpx;
+  padding: 0;
   color: #333;
   position: relative;
 }
