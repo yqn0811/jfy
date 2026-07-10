@@ -135,7 +135,7 @@
           </scroll-view>
         </view>
         <!-- 内容区：图片网格 -->
-        <view class="content" scroll-y="true">
+        <view class="content">
           <ImageGrid
             :list="albumList"
             nameField="folder_name"
@@ -146,8 +146,8 @@
           >
           </ImageGrid>
 
-          <view class="loading-more" v-if="loadingMore">加载中...</view>
-          <view class="no-more" v-if="!loadingMore && albumList.length === 0"
+          <view class="loading-more" v-if="isAlbumLoading">加载中...</view>
+          <view class="no-more" v-if="!isAlbumLoading && albumList.length === 0"
             >暂无内容</view
           >
         </view>
@@ -260,7 +260,6 @@ export default {
   data() {
     return {
       columns: 2,
-      showCreatePopup: false,
       previewMode: false,
       showCategory: false,
       personalVisible: false,
@@ -271,13 +270,11 @@ export default {
       headerHeight: 520, // 头部占用高度（rpx）
       tabbarHeight: 140, // 自定义tabbar高度（rpx）
       safeAreaBottom: 0,
-      page: 1,
-      last_page: 1,
       total_num: 0,
       albumList: [],
       categories: [],
-      loadingMore: false,
-      showCreatePopup: false,
+      isAlbumLoading: false,
+      albumRequestSeq: 0,
       userInfo: {},
       isFollow: false,
       shareVisible: false,
@@ -309,7 +306,6 @@ export default {
     this.safeAreaBottom = 0;
     const userInfo = uni.getStorageSync("userInfo") || {};
     this.homeId = userInfo.id || userInfo.uid || "";
-    console.log(options);
     const optionUid = this.normalizeShareParam(options.uid);
     const inviteCode = this.normalizeShareParam(options.invite_code);
     if (inviteCode) {
@@ -540,11 +536,9 @@ export default {
     handleShareAction(event) {
       // event.type: 'share'|'copy'|'preview-mini'|'poster'|'open-settings'|'open-help'
       // event.payload 包含对应数据
-      console.log("share action:", event);
       // 按需处理（多数情况父组件不必处理）
     },
     handleImageClick(item, index) {
-      console.log(this.previewMode);
       if (this.previewMode) {
         uni.navigateTo({
           url: this.$buildPublicSharePath
@@ -601,7 +595,6 @@ export default {
       this.columns = !item.id
         ? this.getSavedHomeColumns()
         : this.getCategoryColumns(item);
-      console.log(this.curCategoryId);
       this.getAlbumList();
     },
     formatCategoryName(item) {
@@ -687,6 +680,9 @@ export default {
     },
     // 获取产品列表
     getAlbumList() {
+      const requestSeq = this.albumRequestSeq + 1;
+      this.albumRequestSeq = requestSeq;
+      this.isAlbumLoading = true;
       const data = {
         folder_type: 2,
         fid: this.curCategoryId,
@@ -701,6 +697,7 @@ export default {
         show_err: true,
       })
         .then((res) => {
+          if (requestSeq !== this.albumRequestSeq) return;
           if (res.code === 0 && res.data) {
             const dataList = this.uid
               ? Array.isArray(res.data)
@@ -720,11 +717,17 @@ export default {
                 folder_count: count,
               };
             });
-            console.log(this.albumList);
           }
         })
         .catch((err) => {
+          if (requestSeq !== this.albumRequestSeq) return;
+          this.albumList = [];
           console.error("获取商户信息失败:", err);
+        })
+        .finally(() => {
+          if (requestSeq === this.albumRequestSeq) {
+            this.isAlbumLoading = false;
+          }
         });
     },
     // 获取所有分类
