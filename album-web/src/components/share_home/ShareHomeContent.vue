@@ -14,6 +14,7 @@ import ShareDialog from '@/components/share_home/ShareDialog.vue'
 import ContactDialog from '@/components/share_home/ContactDialog.vue'
 import ProductShareDialog from '@/components/product_detail/ShareDialog.vue'
 import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
+import SelectionPickerDialog from '@/components/selection/SelectionPickerDialog.vue'
 import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { isVipMember } from '@/lib/account'
 import { downloadImagesAsZip, downloadUrl, resolveProductImageDownloadUrl } from '@/lib/download'
@@ -48,19 +49,18 @@ const isProductDetailLoading = ref(false)
 const isProductFavorited = ref(false)
 const showProductShareDialog = ref(false)
 const showDownloadDialog = ref(false)
+const showSelectionDialog = ref(false)
+const currentSelection = ref<any>(null)
+const isSelectionLoading = ref(false)
 const previewImages = ref<ProductImageData[]>([])
 const previewImageIndex = ref(0)
 const showImagePreviewDialog = ref(false)
-const isSelectingImages = ref(false)
-const selectedSelectionPicIds = ref<Set<string>>(new Set())
-const isSendingSelection = ref(false)
 
 const isHomeFavorited = ref(false)
 
 const isProductDetailMode = computed(() => !!selectedProductId.value)
 const selectedColorImages = computed(() => selectedProductImages.value.filter(item => item.type === 'colorChart'))
 const selectedDetailImages = computed(() => selectedProductImages.value.filter(item => item.type === 'detailChart'))
-const selectedSelectionCount = computed(() => selectedSelectionPicIds.value.size)
 const shouldShowSelectedDetailImages = computed(() => !!selectedProduct.value && (!selectedProduct.value.hideDetailImage || isOwnerViewingOwnHome.value))
 const visibleSelectedDetailImages = computed(() => shouldShowSelectedDetailImages.value ? selectedDetailImages.value : [])
 const downloadableImages = computed(() => {
@@ -197,13 +197,13 @@ const loadProductDetail = async (productId: string) => {
     }
     selectedProduct.value = mapProduct(detail, homeProfile.value?.id || targetUserId.value)
     selectedProductImages.value = mapProductImagesFromDetail(detail, selectedProduct.value.id)
-    isSelectingImages.value = false
-    selectedSelectionPicIds.value = new Set()
+    currentSelection.value = null
     selectedProduct.value.colorChartCount = selectedColorImages.value.length
     selectedProduct.value.detailChartCount = shouldShowSelectedDetailImages.value ? selectedDetailImages.value.length : 0
     isProductFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
     if (isLoggedIn.value) {
       pcApi.addVisit('product', selectedProduct.value.id).catch(() => {})
+      loadCurrentProductSelection(productId).catch(() => {})
     }
   } catch (error: any) {
     selectedProductId.value = null
@@ -212,6 +212,30 @@ const loadProductDetail = async (productId: string) => {
     toast.error(error?.message || '产品加载失败')
   } finally {
     isProductDetailLoading.value = false
+  }
+}
+
+const loadCurrentProductSelection = async (productId: string) => {
+  if (!isLoggedIn.value || isOwnerViewingOwnHome.value) return null
+  isSelectionLoading.value = true
+  try {
+    const raw = await pcApi.getMySelections({ limit: 100 })
+    const rows = unwrapList(raw)
+    const matched = rows.find((item: any) => String(item.product?.id || item.product_id || item.product?.product_id || '') === String(productId))
+    if (!matched?.id) {
+      currentSelection.value = null
+      return null
+    }
+    const detail = await pcApi.getSelectionDetail(String(matched.id))
+    currentSelection.value = {
+      ...matched,
+      ...detail,
+      id: matched.id,
+      list: detail?.list || matched.selected_preview || [],
+    }
+    return currentSelection.value
+  } finally {
+    isSelectionLoading.value = false
   }
 }
 
@@ -381,10 +405,10 @@ const handleBackToList = () => {
   selectedProductId.value = null
   selectedProduct.value = null
   selectedProductImages.value = []
-  isSelectingImages.value = false
-  selectedSelectionPicIds.value = new Set()
+  currentSelection.value = null
   showDownloadDialog.value = false
   showImagePreviewDialog.value = false
+  showSelectionDialog.value = false
   if (typeof window !== 'undefined') {
     const params = buildHomeSearchParams()
     if (selectedCategoryId.value && selectedCategoryId.value !== 'all') params.set('categoryId', selectedCategoryId.value)
@@ -412,52 +436,24 @@ const handleShareProduct = () => {
   showProductShareDialog.value = true
 }
 
-const toggleSelectionMode = () => {
+const handleOpenSelectionDialog = async () => {
   if (!isLoggedIn.value) {
     showLoginDialog.value = true
     return
   }
-  isSelectingImages.value = !isSelectingImages.value
-  if (!isSelectingImages.value) {
-    selectedSelectionPicIds.value = new Set()
-  }
-}
-
-const isImageSelectedForSelection = (image: ProductImageData) => selectedSelectionPicIds.value.has(String(image.id))
-
-const toggleSelectionImage = (image: ProductImageData) => {
-  const id = String(image.id)
-  const next = new Set(selectedSelectionPicIds.value)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  selectedSelectionPicIds.value = next
-}
-
-const handleSendSelection = async () => {
-  if (!selectedProduct.value || !homeProfile.value) return
-  if (selectedSelectionCount.value === 0) {
-    toast.error('请先选择花色图')
-    return
-  }
+  if (!selectedProduct.value) return
   if (isOwnerViewingOwnHome.value) {
     toast.warning('自己的主页无需发送选款单')
     return
   }
-  isSendingSelection.value = true
-  try {
-    await pcApi.createSelection({
-      product_id: selectedProduct.value.id,
-      pic_ids: [...selectedSelectionPicIds.value],
-      factory_uid: homeProfile.value.ownerUserId || targetUserId.value,
-    })
-    toast.success('选款单已发送给商家')
-    isSelectingImages.value = false
-    selectedSelectionPicIds.value = new Set()
-  } catch (error: any) {
-    toast.error(error?.message || '选款单发送失败')
-  } finally {
-    isSendingSelection.value = false
+  if (!currentSelection.value && !isSelectionLoading.value) {
+    await loadCurrentProductSelection(selectedProduct.value.id).catch(() => {})
   }
+  showSelectionDialog.value = true
+}
+
+const handleSelectionSaved = (selection: any) => {
+  currentSelection.value = selection || currentSelection.value
 }
 
 const handleDownloadProduct = () => {
@@ -641,7 +637,10 @@ const handleLoginSuccess = () => {
     </section>
 
     <!-- 分类导航区 -->
-    <section v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode" class="border-b border-border bg-background px-6 md:px-8">
+    <section
+      v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode"
+      class="sticky top-[var(--header-height)] z-40 border-b border-border bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:px-8"
+    >
       <div class="page-container">
         <Tabs :model-value="selectedCategoryId || 'all'" @update:model-value="(value) => handleCategoryChange(String(value))" class="w-full">
           <TabsList class="w-full justify-start overflow-x-auto bg-transparent rounded-none h-auto p-0 gap-1">
@@ -700,27 +699,13 @@ const handleLoginSuccess = () => {
                   <SafeIcon name="Share2" :size="16" />
                   分享
                 </Button>
-                <Button :variant="isSelectingImages ? 'default' : 'outline'" class="gap-2" @click="toggleSelectionMode">
+                <Button variant="outline" class="gap-2" @click="handleOpenSelectionDialog">
                   <SafeIcon name="CheckSquare" :size="16" />
-                  选款
+                  {{ currentSelection ? '编辑选款单' : '选款' }}
                 </Button>
                 <Button variant="outline" class="gap-2" @click="handleDownloadProduct">
                   <SafeIcon name="Download" :size="16" />
                   {{ canDownloadProductImages ? '下载 ZIP' : '下载' }}
-                </Button>
-              </div>
-            </div>
-
-            <div v-if="isSelectingImages" class="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p class="text-sm font-semibold text-primary">已选择 {{ selectedSelectionCount }} 张花色图</p>
-                <p class="text-xs text-muted-foreground">勾选客户喜欢的花色后，可一键发送给商家</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <Button variant="outline" size="sm" @click="toggleSelectionMode">取消</Button>
-                <Button size="sm" class="gap-2" :disabled="selectedSelectionCount === 0 || isSendingSelection" @click="handleSendSelection">
-                  <SafeIcon :name="isSendingSelection ? 'Loader2' : 'Send'" :size="14" :class="isSendingSelection ? 'animate-spin' : ''" />
-                  发送给商家
                 </Button>
               </div>
             </div>
@@ -736,17 +721,9 @@ const handleLoginSuccess = () => {
                   :key="image.id"
                   type="button"
                   class="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted text-left transition hover:border-primary"
-                  :class="isImageSelectedForSelection(image) ? 'border-primary ring-2 ring-primary' : ''"
                   @click="handleViewImage(index, 'colorChart')"
                 >
                   <img :src="productImageUrl(image, 'thumb')" :alt="image.name" class="h-full w-full object-cover transition group-hover:scale-[1.02]" />
-                  <span
-                    v-if="isSelectingImages"
-                    class="absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/70 bg-background/95 shadow"
-                    @click.stop="toggleSelectionImage(image)"
-                  >
-                    <SafeIcon v-if="isImageSelectedForSelection(image)" name="Check" :size="16" class="text-primary" />
-                  </span>
                   <span class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-8 text-sm font-medium text-white opacity-100">
                     <span class="block truncate">{{ image.name || '未命名图片' }}</span>
                   </span>
@@ -858,6 +835,17 @@ const handleLoginSuccess = () => {
       :product-id="selectedProduct.id"
       :images="downloadableImages"
       @update:open="showDownloadDialog = $event"
+    />
+
+    <SelectionPickerDialog
+      v-if="isClient && selectedProduct"
+      :open="showSelectionDialog"
+      :product="selectedProduct"
+      :images="selectedProductImages"
+      :factory-uid="homeProfile?.ownerUserId || targetUserId"
+      :existing-selection="currentSelection"
+      @update:open="showSelectionDialog = $event"
+      @saved="handleSelectionSaved"
     />
 
     <Dialog :open="showImagePreviewDialog" @update:open="showImagePreviewDialog = $event">

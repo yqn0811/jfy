@@ -170,15 +170,12 @@ const handleLogout = () => {
               <div class="bg-amber-500" :style="{ width: `${trashPercent}%` }" />
               <div class="bg-muted" :style="{ width: `${remainingPercent}%` }" />
             </div>
-            <div class="mt-3 grid gap-1.5 text-xs text-muted-foreground">
-              <span class="flex items-center gap-2">
+            <div class="mt-3 grid grid-cols-2 gap-3 text-xs text-muted-foreground">
+              <span class="flex min-w-0 items-center gap-2 whitespace-nowrap">
                 <i class="h-2 w-2 rounded-full bg-primary" />正常资源 {{ formatBytes(normalBytes) }}
               </span>
-              <span class="flex items-center gap-2">
+              <span class="flex min-w-0 items-center gap-2 whitespace-nowrap">
                 <i class="h-2 w-2 rounded-full bg-amber-500" />回收站 {{ formatBytes(trashBytes) }}
-              </span>
-              <span class="flex items-center gap-2">
-                <i class="h-2 w-2 rounded-full bg-muted-foreground/30" />剩余额度 {{ formatBytes(remainingBytes) }}
               </span>
             </div>
             <Button variant="outline" size="sm" class="mt-3 h-8 w-full gap-2 text-xs" @click.stop="handleBilling">

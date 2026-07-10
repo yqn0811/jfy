@@ -438,6 +438,16 @@ export const pcApi = {
     apiRequest<any>('album/selection/customer_lists', { method: 'POST', body: { limit: 20, timestamp: Date.now(), ...params } }),
   getSelectionDetail: (selectionId: string) =>
     apiRequest<any>('album/selection/detail', { method: 'POST', body: { selection_id: selectionId, timestamp: Date.now() } }),
+  addSelectionImages: (selectionId: string, picIds: string[]) =>
+    apiRequest<any>('album/selection/add_images', {
+      method: 'POST',
+      body: { selection_id: selectionId, pic_ids: picIds, timestamp: Date.now() },
+    }),
+  removeSelectionImages: (selectionId: string, picIds: string[]) =>
+    apiRequest<any>('album/selection/remove_images', {
+      method: 'POST',
+      body: { selection_id: selectionId, pic_ids: picIds, timestamp: Date.now() },
+    }),
   deleteSelection: (selectionId: string) =>
     apiRequest<any>('album/selection/delete', { method: 'POST', body: { selection_id: selectionId, timestamp: Date.now() } }),
 }

@@ -7,10 +7,10 @@ const props = defineProps<ToasterProps>()
 
 <template>
   <Sonner
+    v-bind="props"
     class="toaster group"
     position="top-center"
     rich-colors
-    v-bind="props"
     :toast-options="{
       duration: 2800,
       classes: {

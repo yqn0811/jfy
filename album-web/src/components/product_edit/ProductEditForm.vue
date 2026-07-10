@@ -559,22 +559,34 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               @remove-image="handleRemoveImage"
             />
 
-            <ImageSortable
-              v-if="formState.colorChartImages.length > 0"
-              :images="formState.colorChartImages"
-              type="colorChart"
-              class="mt-2"
-              @remove="handleRemoveImage"
-              @reorder="handleReorderImages"
-            >
-              <template #after>
+            <div class="mt-2">
+              <ImageSortable
+                v-if="formState.colorChartImages.length > 0"
+                :images="formState.colorChartImages"
+                type="colorChart"
+                @remove="handleRemoveImage"
+                @reorder="handleReorderImages"
+              >
+                <template #after>
+                  <QuickImageUploadTile
+                    type="colorChart"
+                    :upload-handler="handleUploadImage"
+                    @add-images="handleAddImages"
+                  />
+                </template>
+              </ImageSortable>
+
+              <div v-else>
+                <p class="mb-2 text-sm font-medium text-muted-foreground">
+                  已上传 0 张花色图（可拖拽排序）
+                </p>
                 <QuickImageUploadTile
                   type="colorChart"
                   :upload-handler="handleUploadImage"
                   @add-images="handleAddImages"
                 />
-              </template>
-            </ImageSortable>
+              </div>
+            </div>
           </div>
 
           <div class="space-y-3">
@@ -610,22 +622,34 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               @remove-image="handleRemoveImage"
             />
 
-            <ImageSortable
-              v-if="formState.detailChartImages.length > 0"
-              :images="formState.detailChartImages"
-              type="detailChart"
-              class="mt-2"
-              @remove="handleRemoveImage"
-              @reorder="handleReorderImages"
-            >
-              <template #after>
+            <div class="mt-2">
+              <ImageSortable
+                v-if="formState.detailChartImages.length > 0"
+                :images="formState.detailChartImages"
+                type="detailChart"
+                @remove="handleRemoveImage"
+                @reorder="handleReorderImages"
+              >
+                <template #after>
+                  <QuickImageUploadTile
+                    type="detailChart"
+                    :upload-handler="handleUploadImage"
+                    @add-images="handleAddImages"
+                  />
+                </template>
+              </ImageSortable>
+
+              <div v-else>
+                <p class="mb-2 text-sm font-medium text-muted-foreground">
+                  已上传 0 张详情图（可拖拽排序）
+                </p>
                 <QuickImageUploadTile
                   type="detailChart"
                   :upload-handler="handleUploadImage"
                   @add-images="handleAddImages"
                 />
-              </template>
-            </ImageSortable>
+              </div>
+            </div>
           </div>
         </section>
       </div>

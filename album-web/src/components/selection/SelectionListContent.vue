@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import SelectionDetailDialog from '@/components/selection/SelectionDetailDialog.vue'
 import { pcApi } from '@/lib/api'
 import { unwrapList } from '@/lib/jfyuntu-mappers'
 import { navigateToInternal } from '@/navigation'
@@ -20,6 +21,8 @@ const isLoading = ref(false)
 const selections = ref<any[]>([])
 const confirmOpen = ref(false)
 const selectionToDelete = ref<any>(null)
+const detailDialogOpen = ref(false)
+const activeSelection = ref<any>(null)
 const brokenPreviewImages = ref<Set<string>>(new Set())
 
 const pageTitle = computed(() => props.mode === 'customer' ? '客户选款' : '我的选款')
@@ -33,7 +36,24 @@ const loadSelections = async () => {
     const raw = props.mode === 'customer'
       ? await pcApi.getCustomerSelections({ limit: 50 })
       : await pcApi.getMySelections({ limit: 50 })
-    selections.value = unwrapList(raw)
+    const rows = unwrapList(raw)
+    if (props.mode === 'customer') {
+      selections.value = await Promise.all(rows.map(async (item: any) => {
+        try {
+          const detail = await pcApi.getSelectionDetail(String(item.id))
+          return {
+            ...item,
+            detail,
+            list: detail?.list || item.list || [],
+            selected_preview: detail?.list || item.selected_preview || [],
+          }
+        } catch {
+          return item
+        }
+      }))
+      return
+    }
+    selections.value = rows
   } catch (error: any) {
     toast.error(error?.message || '选款单加载失败')
   } finally {
@@ -88,6 +108,11 @@ const handleViewProduct = (item: any) => {
   navigateToInternal(`./share-home?${params.toString()}`)
 }
 
+const openDetailDialog = (item: any) => {
+  activeSelection.value = item
+  detailDialogOpen.value = true
+}
+
 const openDeleteConfirm = (item: any) => {
   selectionToDelete.value = item
   confirmOpen.value = true
@@ -134,43 +159,58 @@ onMounted(loadSelections)
     <div v-else class="grid gap-4 xl:grid-cols-2">
       <Card v-for="item in selections" :key="item.id" class="overflow-hidden">
         <CardContent class="p-5">
-          <div class="flex gap-4">
-            <div class="grid h-24 w-24 shrink-0 grid-cols-2 gap-1 overflow-hidden rounded-lg bg-muted">
+          <div class="space-y-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <h2 class="truncate text-base font-semibold">{{ getTitle(item) }}</h2>
+                <p class="mt-1 truncate text-sm text-muted-foreground">{{ getProductName(item) }}</p>
+              </div>
+              <span class="rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                {{ item.product_count || item.total_selected || getPreviewImages(item).length || 0 }} 款
+              </span>
+            </div>
+
+            <div
+              :class="props.mode === 'customer'
+                ? 'grid grid-cols-3 gap-2 md:grid-cols-5'
+                : 'grid h-24 w-24 grid-cols-2 gap-1 overflow-hidden rounded-lg bg-muted'"
+            >
               <div
-                v-for="(image, index) in getPreviewImages(item).slice(0, 4)"
+                v-for="(image, index) in getPreviewImages(item).slice(0, props.mode === 'customer' ? 10 : 4)"
                 :key="index"
-                class="h-full w-full overflow-hidden"
+                :class="props.mode === 'customer' ? 'overflow-hidden rounded-md border border-border bg-muted' : 'h-full w-full overflow-hidden'"
               >
-                <img
-                  v-if="getPreviewImageSrc(image) && !isPreviewImageBroken(item, image, index)"
-                  :src="getPreviewImageSrc(image)"
-                  alt=""
-                  class="h-full w-full object-cover"
-                  @error="markPreviewImageBroken(item, image, index)"
-                />
-                <div v-else class="flex h-full w-full items-center justify-center bg-muted">
-                  <SafeIcon name="Image" :size="18" class="text-muted-foreground" />
+                <div :class="props.mode === 'customer' ? 'aspect-square' : 'h-full w-full'">
+                  <img
+                    v-if="getPreviewImageSrc(image) && !isPreviewImageBroken(item, image, index)"
+                    :src="getPreviewImageSrc(image)"
+                    alt=""
+                    class="h-full w-full object-cover"
+                    @error="markPreviewImageBroken(item, image, index)"
+                  />
+                  <div v-else class="flex h-full w-full items-center justify-center bg-muted">
+                    <SafeIcon name="Image" :size="18" class="text-muted-foreground" />
+                  </div>
                 </div>
+                <p v-if="props.mode === 'customer'" class="truncate px-1.5 py-1 text-[11px] text-muted-foreground">
+                  {{ image?.pic_name || image?.name || '未命名花色' }}
+                </p>
               </div>
               <div v-if="getPreviewImages(item).length === 0" class="col-span-2 flex h-24 items-center justify-center">
                 <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
               </div>
             </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <h2 class="truncate text-base font-semibold">{{ getTitle(item) }}</h2>
-                  <p class="mt-1 truncate text-sm text-muted-foreground">{{ getProductName(item) }}</p>
-                </div>
-                <span class="rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                  {{ item.product_count || item.total_selected || 0 }} 款
-                </span>
-              </div>
-              <div class="mt-3 grid gap-1 text-xs text-muted-foreground">
+
+            <div>
+              <div class="grid gap-1 text-xs text-muted-foreground">
                 <span>{{ props.mode === 'customer' ? '客户' : '商家' }}：{{ getPeerName(item) }}</span>
                 <span>创建时间：{{ formatTime(item.display_time || item.create_time) || '-' }}</span>
               </div>
               <div class="mt-4 flex justify-end gap-2">
+                <Button variant="outline" size="sm" class="gap-2" @click="openDetailDialog(item)">
+                  <SafeIcon name="ClipboardList" :size="14" />
+                  查看选款单
+                </Button>
                 <Button variant="outline" size="sm" class="gap-2" @click="handleViewProduct(item)">
                   <SafeIcon name="Eye" :size="14" />
                   查看产品
@@ -195,6 +235,13 @@ onMounted(loadSelections)
       variant="destructive"
       @update:open="confirmOpen = $event"
       @confirm="handleDelete"
+    />
+
+    <SelectionDetailDialog
+      :open="detailDialogOpen"
+      :selection-id="String(activeSelection?.id || '')"
+      :fallback="activeSelection"
+      @update:open="detailDialogOpen = $event"
     />
   </div>
 </template>

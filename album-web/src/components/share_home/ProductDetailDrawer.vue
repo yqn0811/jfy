@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import ShareDialog from '@/components/product_detail/ShareDialog.vue'
 import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
+import SelectionPickerDialog from '@/components/selection/SelectionPickerDialog.vue'
 import { authStore, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { isVipMember } from '@/lib/account'
 import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
@@ -42,6 +43,9 @@ const isLoading = ref(false)
 const isProductFavorited = ref(false)
 const showShareDialog = ref(false)
 const showDownloadDialog = ref(false)
+const showSelectionDialog = ref(false)
+const currentSelection = ref<any>(null)
+const isSelectionLoading = ref(false)
 const currentUser = ref<any>({})
 
 const colorImages = computed(() => productImages.value.filter(item => item.type === 'colorChart'))
@@ -70,6 +74,7 @@ const loadProduct = async () => {
     isProductFavorited.value = Number(detail?.is_collect || detail?.isCollect || 0) === 1
     if (props.isLoggedIn) {
       pcApi.addVisit('product', product.value.id).catch(() => {})
+      loadCurrentProductSelection(product.value.id).catch(() => {})
       if (!isVipMember(currentUser.value)) {
         pcApi.getCurrentUser()
           .then((user) => {
@@ -83,6 +88,30 @@ const loadProduct = async () => {
     toast.error(error?.message || '产品加载失败')
   } finally {
     isLoading.value = false
+  }
+}
+
+const loadCurrentProductSelection = async (productId: string) => {
+  if (!props.isLoggedIn || isOwnerView.value) return null
+  isSelectionLoading.value = true
+  try {
+    const raw = await pcApi.getMySelections({ limit: 100 })
+    const rows = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.list) ? raw.list : Array.isArray(raw) ? raw : []
+    const matched = rows.find((item: any) => String(item.product?.id || item.product_id || item.product?.product_id || '') === String(productId))
+    if (!matched?.id) {
+      currentSelection.value = null
+      return null
+    }
+    const detail = await pcApi.getSelectionDetail(String(matched.id))
+    currentSelection.value = {
+      ...matched,
+      ...detail,
+      id: matched.id,
+      list: detail?.list || matched.selected_preview || [],
+    }
+    return currentSelection.value
+  } finally {
+    isSelectionLoading.value = false
   }
 }
 
@@ -128,6 +157,26 @@ const handleDownload = () => {
     return
   }
   showDownloadDialog.value = true
+}
+
+const handleOpenSelectionDialog = async () => {
+  if (!props.isLoggedIn) {
+    emit('login-required')
+    return
+  }
+  if (!product.value) return
+  if (isOwnerView.value) {
+    toast.warning('自己的主页无需发送选款单')
+    return
+  }
+  if (!currentSelection.value && !isSelectionLoading.value) {
+    await loadCurrentProductSelection(product.value.id).catch(() => {})
+  }
+  showSelectionDialog.value = true
+}
+
+const handleSelectionSaved = (selection: any) => {
+  currentSelection.value = selection || currentSelection.value
 }
 
 const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
@@ -243,7 +292,7 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
 
       <!-- 操作栏 -->
       <DialogFooter class="flex-shrink-0 border-t border-border px-6 py-4 sm:justify-stretch">
-        <div class="grid w-full grid-cols-3 gap-3">
+        <div class="grid w-full grid-cols-4 gap-3">
         <Button
           :variant="isProductFavorited ? 'default' : 'outline'"
           size="sm"
@@ -261,6 +310,15 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
         >
           <SafeIcon name="Share2" :size="16" class="mr-2" />
           分享
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          @click="handleOpenSelectionDialog"
+          class="h-11"
+        >
+          <SafeIcon name="CheckSquare" :size="16" class="mr-2" />
+          {{ currentSelection ? '编辑选款' : '选款' }}
         </Button>
         <Button
           variant="outline"
@@ -292,5 +350,15 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
     :images="downloadableImages"
     :can-download="canDownload"
     @update:open="showDownloadDialog = $event"
+  />
+  <SelectionPickerDialog
+    v-if="product"
+    :open="showSelectionDialog"
+    :product="product"
+    :images="productImages"
+    :factory-uid="product.ownerUserId || shareTarget.targetUserId"
+    :existing-selection="currentSelection"
+    @update:open="showSelectionDialog = $event"
+    @saved="handleSelectionSaved"
   />
 </template>

@@ -89,9 +89,11 @@ const emptyForm = (): HomeSettingsForm => ({
 
 const isLoading = ref(false)
 const isSaving = ref(false)
+const isUploadingLogo = ref(false)
 const isUploadingShareImage = ref(false)
 const profile = ref<any>({})
 const form = ref<HomeSettingsForm>(emptyForm())
+const logoInput = ref<HTMLInputElement | null>(null)
 const shareImageInput = ref<HTMLInputElement | null>(null)
 const hasLoaded = ref(false)
 const regionList = ref<ChinaRegion[]>([])
@@ -276,6 +278,36 @@ const handleChooseShareImage = () => {
   shareImageInput.value?.click()
 }
 
+const handleChooseLogo = () => {
+  logoInput.value?.click()
+}
+
+const pickUploadedImageUrl = (data: any) => data?.url || data?.file_url || data?.imgurl || data?.path || ''
+
+const handleLogoSelected = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    toast.error('请选择图片文件')
+    target.value = ''
+    return
+  }
+  isUploadingLogo.value = true
+  try {
+    const data = await pcApi.uploadCommonImage(file)
+    const url = pickUploadedImageUrl(data)
+    if (!url) throw new Error('上传响应缺少图片地址')
+    form.value.company_logo = url
+    toast.success('Logo 已上传')
+  } catch (error: any) {
+    toast.error(error?.message || '上传失败，请稍后重试')
+  } finally {
+    isUploadingLogo.value = false
+    target.value = ''
+  }
+}
+
 const handleShareImageSelected = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
@@ -288,7 +320,7 @@ const handleShareImageSelected = async (event: Event) => {
   isUploadingShareImage.value = true
   try {
     const data = await pcApi.uploadCommonImage(file)
-    const url = data?.url || data?.file_url || data?.imgurl || data?.path || ''
+    const url = pickUploadedImageUrl(data)
     if (!url) throw new Error('上传响应缺少图片地址')
     form.value.home_share_image = url
     toast.success('分享封面已上传')
@@ -476,8 +508,33 @@ const handleShareImageSelected = async (event: Event) => {
               </div>
 
               <div class="space-y-2">
-                <Label for="company_logo">Logo 地址</Label>
-                <Input id="company_logo" v-model="form.company_logo" class="h-9" placeholder="https://..." />
+                <Label>Logo 图片</Label>
+                <input
+                  ref="logoInput"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="handleLogoSelected"
+                />
+                <button
+                  type="button"
+                  class="group relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-muted/30 transition-colors hover:border-primary"
+                  @click="handleChooseLogo"
+                >
+                  <img
+                    v-if="form.company_logo"
+                    :src="form.company_logo"
+                    alt=""
+                    class="h-full w-full object-cover"
+                  />
+                  <div
+                    class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/0 text-muted-foreground transition-colors group-hover:bg-black/35 group-hover:text-white"
+                    :class="!form.company_logo && 'bg-transparent'"
+                  >
+                    <SafeIcon :name="isUploadingLogo ? 'Loader2' : 'UploadCloud'" :size="24" :class="isUploadingLogo ? 'animate-spin' : ''" />
+                    <span class="text-sm font-medium">{{ form.company_logo ? '更换 Logo' : '上传 Logo' }}</span>
+                  </div>
+                </button>
               </div>
 
               <div class="rounded-lg border border-border bg-muted/20 p-3">
