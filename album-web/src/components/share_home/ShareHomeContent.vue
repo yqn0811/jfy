@@ -642,51 +642,6 @@ const handleLoginSuccess = () => {
 
 <template>
   <div class="min-h-screen bg-background">
-    <!-- 分类导航区 -->
-    <section
-      v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode"
-      class="sticky top-0 z-40 border-b border-border bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:px-8"
-    >
-      <div class="page-container space-y-3">
-        <nav class="flex min-w-0 flex-wrap items-center gap-1 text-sm" aria-label="分类层级">
-          <template v-for="(crumb, index) in categoryBreadcrumbs" :key="crumb.id">
-            <button
-              type="button"
-              class="rounded px-1.5 py-1 font-medium text-muted-foreground transition-colors hover:bg-primary/5 hover:text-primary"
-              :class="index === categoryBreadcrumbs.length - 1 ? 'text-foreground' : ''"
-              @click="handleCategoryChange(crumb.id)"
-            >
-              {{ crumb.name }}
-            </button>
-            <SafeIcon
-              v-if="index < categoryBreadcrumbs.length - 1"
-              name="ChevronRight"
-              :size="14"
-              class="text-muted-foreground/70"
-            />
-          </template>
-        </nav>
-
-        <div class="flex min-w-0 items-center gap-2">
-          <span class="shrink-0 text-xs font-medium text-muted-foreground">{{ currentCategoryName }}</span>
-          <div v-if="childCategoryOptions.length > 0" class="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5">
-            <Button
-              v-for="cat in childCategoryOptions"
-              :key="cat.id"
-              type="button"
-              variant="outline"
-              size="sm"
-              class="shrink-0 rounded-md border-border bg-card px-3 font-medium hover:border-primary hover:bg-primary/5 hover:text-primary"
-              @click="handleCategoryChange(cat.id)"
-            >
-              {{ cat.name }}
-            </Button>
-          </div>
-          <span v-else class="text-xs text-muted-foreground">当前分类暂无下级分类</span>
-        </div>
-      </div>
-    </section>
-
     <!-- 商户信息区 -->
     <section v-if="isClient && homeProfile" class="page-body border-b border-border">
       <div class="page-container flex gap-8 items-start">
@@ -751,6 +706,51 @@ const handleLoginSuccess = () => {
             <SafeIcon name="Share2" :size="16" class="mr-2" />
             分享主页
           </Button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 分类导航区 -->
+    <section
+      v-if="isClient && isLoggedIn && homeProfile && categoryOptions.length > 0 && !isProductDetailMode"
+      class="border-b border-border bg-background px-6 py-4 md:px-8"
+    >
+      <div class="page-container space-y-3">
+        <nav class="flex min-w-0 flex-wrap items-center gap-1 text-sm" aria-label="分类层级">
+          <template v-for="(crumb, index) in categoryBreadcrumbs" :key="crumb.id">
+            <button
+              type="button"
+              class="rounded px-1.5 py-1 font-medium text-muted-foreground transition-colors hover:bg-primary/5 hover:text-primary"
+              :class="index === categoryBreadcrumbs.length - 1 ? 'text-foreground' : ''"
+              @click="handleCategoryChange(crumb.id)"
+            >
+              {{ crumb.name }}
+            </button>
+            <SafeIcon
+              v-if="index < categoryBreadcrumbs.length - 1"
+              name="ChevronRight"
+              :size="14"
+              class="text-muted-foreground/70"
+            />
+          </template>
+        </nav>
+
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="shrink-0 text-xs font-medium text-muted-foreground">{{ currentCategoryName }}</span>
+          <div v-if="childCategoryOptions.length > 0" class="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5">
+            <Button
+              v-for="cat in childCategoryOptions"
+              :key="cat.id"
+              type="button"
+              variant="outline"
+              size="sm"
+              class="shrink-0 rounded-md border-border bg-card px-3 font-medium hover:border-primary hover:bg-primary/5 hover:text-primary"
+              @click="handleCategoryChange(cat.id)"
+            >
+              {{ cat.name }}
+            </Button>
+          </div>
+          <span v-else class="text-xs text-muted-foreground">当前分类暂无下级分类</span>
         </div>
       </div>
     </section>
