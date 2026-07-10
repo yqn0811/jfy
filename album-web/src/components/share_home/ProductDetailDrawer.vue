@@ -18,7 +18,7 @@ import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
 import SelectionPickerDialog from '@/components/selection/SelectionPickerDialog.vue'
 import { authStore, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { isVipMember } from '@/lib/account'
-import { mapProduct, mapProductImagesFromDetail } from '@/lib/jfyuntu-mappers'
+import { mapProduct, mapProductImagesFromDetail, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { ProductData } from '@/data/ProductData'
 import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
 import { navigateToInternal } from '@/navigation'
@@ -96,7 +96,7 @@ const loadCurrentProductSelection = async (productId: string) => {
   isSelectionLoading.value = true
   try {
     const raw = await pcApi.getMySelections({ limit: 100 })
-    const rows = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.list) ? raw.list : Array.isArray(raw) ? raw : []
+    const rows = unwrapList(raw)
     const matched = rows.find((item: any) => String(item.product?.id || item.product_id || item.product?.product_id || '') === String(productId))
     if (!matched?.id) {
       currentSelection.value = null

@@ -7,9 +7,12 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import SelectionDetailDialog from '@/components/selection/SelectionDetailDialog.vue'
+import SelectionPickerDialog from '@/components/selection/SelectionPickerDialog.vue'
 import { pcApi } from '@/lib/api'
-import { pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
+import { mapProduct, mapProductImagesFromDetail, pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
 import { navigateToInternal } from '@/navigation'
+import type { ProductData } from '@/data/ProductData'
+import type { ProductImageData } from '@/data/ProductImageData'
 
 type SelectionMode = 'my' | 'customer'
 
@@ -24,6 +27,11 @@ const selectionToDelete = ref<any>(null)
 const detailDialogOpen = ref(false)
 const activeSelection = ref<any>(null)
 const brokenPreviewImages = ref<Set<string>>(new Set())
+const selectionPickerOpen = ref(false)
+const editingSelection = ref<any>(null)
+const editingProduct = ref<ProductData | null>(null)
+const editingProductImages = ref<ProductImageData[]>([])
+const editLoadingSelectionId = ref('')
 let loadSerial = 0
 
 const pageTitle = computed(() => props.mode === 'customer' ? '客户选款' : '我的选款')
@@ -164,6 +172,36 @@ const markPreviewImageBroken = (item: any, image: any, index: number) => {
   brokenPreviewImages.value = new Set([...brokenPreviewImages.value, getPreviewImageKey(item, image, index)])
 }
 
+const getSelectionProductId = (item: any = {}) => String(
+  item.product?.id ||
+    item.product_summary?.id ||
+    item.detail?.product_summary?.id ||
+    item.detail?.product?.id ||
+    item.product_id ||
+    item.detail?.info?.product_id ||
+    ''
+)
+
+const getSelectionFactoryUid = (item: any = {}) => String(
+  item.factory?.id ||
+    item.detail?.factory?.id ||
+    item.factory_uid ||
+    item.detail?.info?.factory_uid ||
+    ''
+)
+
+const normalizeProductDetailSource = (raw: any) => {
+  const detailSource = raw?.folder_info || raw?.product || raw?.data?.folder_info || raw?.data?.product || raw?.data || raw || {}
+  return {
+    ...detailSource,
+    pictures: detailSource?.pictures ?? raw?.pictures,
+    pic_list: detailSource?.pic_list ?? raw?.pic_list,
+    pic_ids_arr: detailSource?.pic_ids_arr ?? raw?.pic_ids_arr,
+    detail_pic_list: detailSource?.detail_pic_list ?? raw?.detail_pic_list,
+    detail_pic_ids_arr: detailSource?.detail_pic_ids_arr ?? raw?.detail_pic_ids_arr,
+  }
+}
+
 const formatTime = (value: any) => {
   if (!value) return ''
   if (typeof value === 'string' && /[年/-]/.test(value)) return value
@@ -176,19 +214,8 @@ const formatTime = (value: any) => {
 }
 
 const handleViewProduct = (item: any) => {
-  const productId =
-    item.product?.id ||
-    item.product_summary?.id ||
-    item.detail?.product_summary?.id ||
-    item.detail?.product?.id ||
-    item.product_id ||
-    item.detail?.info?.product_id
-  const targetUserId =
-    item.factory?.id ||
-    item.detail?.factory?.id ||
-    item.factory_uid ||
-    item.detail?.info?.factory_uid ||
-    ''
+  const productId = getSelectionProductId(item)
+  const targetUserId = getSelectionFactoryUid(item)
   if (!productId) {
     toast.error('关联产品不存在')
     return
@@ -201,6 +228,54 @@ const handleViewProduct = (item: any) => {
 const openDetailDialog = (item: any) => {
   activeSelection.value = item
   detailDialogOpen.value = true
+}
+
+const openEditSelectionDialog = async (item: any) => {
+  const productId = getSelectionProductId(item)
+  const factoryUid = getSelectionFactoryUid(item)
+  const selectionId = String(item.id || item.info?.id || '')
+  if (!selectionId) {
+    toast.error('选款单不存在')
+    return
+  }
+  if (!productId) {
+    toast.error('关联产品不存在')
+    return
+  }
+  if (!factoryUid) {
+    toast.error('缺少商家信息')
+    return
+  }
+
+  editLoadingSelectionId.value = selectionId
+  try {
+    const [selectionDetail, productRaw] = await Promise.all([
+      pcApi.getSelectionDetail(selectionId).catch(() => item.detail || null),
+      pcApi.getHomeProductDetail({ targetUserId: factoryUid }, productId),
+    ])
+    const productDetail = normalizeProductDetailSource(productRaw)
+    const product = {
+      ...mapProduct({ ...productDetail, id: productDetail.id || productDetail.fid || productId, uid: productDetail.uid || factoryUid }, factoryUid),
+      id: String(productDetail.id || productDetail.fid || productId),
+      ownerUserId: String(productDetail.uid || productDetail.owner_uid || factoryUid),
+    }
+    const images = mapProductImagesFromDetail(productDetail, product.id)
+    editingSelection.value = mergeSelectionDetail(item, selectionDetail)
+    editingProduct.value = product
+    editingProductImages.value = images
+    selectionPickerOpen.value = true
+  } catch (error: any) {
+    toast.error(error?.message || '选款产品加载失败')
+  } finally {
+    editLoadingSelectionId.value = ''
+  }
+}
+
+const handleSelectionSaved = async (selection: any) => {
+  if (selection && editingSelection.value?.id) {
+    editingSelection.value = mergeSelectionDetail(editingSelection.value, selection)
+  }
+  await loadSelections()
 }
 
 const openDeleteConfirm = (item: any) => {
@@ -268,13 +343,13 @@ watch(
               </span>
             </div>
 
-            <div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
+            <div class="grid grid-cols-4 gap-2">
               <div
-                v-for="(image, index) in getPreviewImages(item).slice(0, 12)"
+                v-for="(image, index) in getPreviewImages(item).slice(0, 4)"
                 :key="index"
                 class="overflow-hidden rounded-md border border-border bg-muted"
               >
-                <div class="relative aspect-square">
+                <div class="aspect-square">
                   <img
                     v-if="getPreviewImageSrc(image) && !isPreviewImageBroken(item, image, index)"
                     :src="getPreviewImageSrc(image)"
@@ -285,16 +360,7 @@ watch(
                   <div v-else class="flex h-full w-full items-center justify-center bg-muted">
                     <SafeIcon name="Image" :size="18" class="text-muted-foreground" />
                   </div>
-                  <div
-                    v-if="index === 11 && getPreviewImages(item).length > 12"
-                    class="absolute inset-0 flex items-center justify-center bg-black/45 text-sm font-semibold text-white"
-                  >
-                    +{{ getPreviewImages(item).length - 12 }}
-                  </div>
                 </div>
-                <p class="truncate px-1.5 py-1 text-[11px] text-muted-foreground">
-                  {{ getPreviewImageName(image, index) }}
-                </p>
               </div>
               <div v-if="getPreviewImages(item).length === 0" class="col-span-full flex h-24 items-center justify-center rounded-md bg-muted">
                 <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
@@ -307,6 +373,21 @@ watch(
                 <span>创建时间：{{ formatTime(item.display_time || item.create_time) || '-' }}</span>
               </div>
               <div class="mt-4 flex justify-end gap-2">
+                <Button
+                  v-if="props.mode === 'my'"
+                  variant="outline"
+                  size="sm"
+                  class="gap-2"
+                  :disabled="editLoadingSelectionId === String(item.id)"
+                  @click="openEditSelectionDialog(item)"
+                >
+                  <SafeIcon
+                    :name="editLoadingSelectionId === String(item.id) ? 'Loader2' : 'CheckSquare'"
+                    :size="14"
+                    :class="editLoadingSelectionId === String(item.id) ? 'animate-spin' : ''"
+                  />
+                  编辑选款单
+                </Button>
                 <Button variant="outline" size="sm" class="gap-2" @click="openDetailDialog(item)">
                   <SafeIcon name="ClipboardList" :size="14" />
                   查看选款单
@@ -342,6 +423,17 @@ watch(
       :selection-id="String(activeSelection?.id || '')"
       :fallback="activeSelection"
       @update:open="detailDialogOpen = $event"
+    />
+
+    <SelectionPickerDialog
+      v-if="editingProduct"
+      :open="selectionPickerOpen"
+      :product="editingProduct"
+      :images="editingProductImages"
+      :factory-uid="getSelectionFactoryUid(editingSelection)"
+      :existing-selection="editingSelection"
+      @update:open="selectionPickerOpen = $event"
+      @saved="handleSelectionSaved"
     />
   </div>
 </template>

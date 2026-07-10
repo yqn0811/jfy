@@ -65,7 +65,8 @@ watch(
     if (!open) return
     selectedPicIds.value = new Set(getExistingPicIds())
     brokenImageIds.value = new Set()
-  }
+  },
+  { immediate: true }
 )
 
 watch(
