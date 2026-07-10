@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { pcApi } from '@/lib/api'
+import { pickImage } from '@/lib/jfyuntu-mappers'
 
 interface Props {
   open: boolean
@@ -30,14 +31,29 @@ const detail = ref<any>(null)
 const brokenImages = ref<Set<string>>(new Set())
 
 const info = computed(() => detail.value?.info || detail.value || props.fallback || {})
-const product = computed(() => detail.value?.product_summary || detail.value?.product || props.fallback?.product || {})
+const product = computed(() =>
+  detail.value?.product_summary ||
+  detail.value?.product ||
+  props.fallback?.product_summary ||
+  props.fallback?.product ||
+  props.fallback?.detail?.product_summary ||
+  props.fallback?.detail?.product ||
+  {}
+)
 const pictures = computed(() => {
-  const list = detail.value?.list || props.fallback?.selected_preview || props.fallback?.list || []
+  const list =
+    detail.value?.list ||
+    props.fallback?.selected_preview ||
+    props.fallback?.list ||
+    props.fallback?.detail?.list ||
+    props.fallback?.detail?.grouped_pictures?.variant_pictures ||
+    props.fallback?.cover_img ||
+    []
   return Array.isArray(list) ? list : []
 })
 const title = computed(() => info.value?.title || info.value?.name || props.fallback?.title || props.fallback?.name || '选款单')
 
-const getImageSrc = (image: any) => image?.src || image?.imgurl || image?.url || image?.thumbnail_url || image?.thumbnailUrl || ''
+const getImageSrc = (image: any) => pickImage(image)
 const getImageName = (image: any) => image?.pic_name || image?.name || '未命名花色'
 const getImageKey = (image: any, index: number) => `${image?.id || image?.pic_id || index}:${getImageSrc(image)}`
 const isBroken = (image: any, index: number) => brokenImages.value.has(getImageKey(image, index))

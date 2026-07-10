@@ -25,6 +25,10 @@ const props = withDefaults(defineProps<Props>(), {
   embedded: false,
 })
 
+const emit = defineEmits<{
+  (e: 'navigate'): void
+}>()
+
 const isClient = ref(true)
 const isLoading = ref(false)
 const activeTab = ref<FavoriteType>('all')
@@ -128,6 +132,7 @@ const handleSearch = () => {
 }
 
 const handleView = (fav: any) => {
+  emit('navigate')
   navigateToInternal(buildPcTargetUrl(fav.targetType, fav.targetId, fav.targetUserId, fav.targetShareCode))
 }
 
@@ -156,6 +161,7 @@ const handleRemoveFavorite = async () => {
 }
 
 const handleGoToBrowse = () => {
+  emit('navigate')
   navigateToInternal('./share-home')
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -8,7 +8,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import SelectionDetailDialog from '@/components/selection/SelectionDetailDialog.vue'
 import { pcApi } from '@/lib/api'
-import { unwrapList } from '@/lib/jfyuntu-mappers'
+import { pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
 import { navigateToInternal } from '@/navigation'
 
 type SelectionMode = 'my' | 'customer'
@@ -24,59 +24,140 @@ const selectionToDelete = ref<any>(null)
 const detailDialogOpen = ref(false)
 const activeSelection = ref<any>(null)
 const brokenPreviewImages = ref<Set<string>>(new Set())
+let loadSerial = 0
 
 const pageTitle = computed(() => props.mode === 'customer' ? '客户选款' : '我的选款')
 const pageDesc = computed(() => props.mode === 'customer' ? '客户发送给你的选款单会展示在这里' : '你发送给商家的选款单会展示在这里')
 const emptyTitle = computed(() => props.mode === 'customer' ? '暂无客户选款' : '暂无选款单')
 const emptyDesc = computed(() => props.mode === 'customer' ? '客户从你的主页选款并发送后，会在这里看到记录' : '从商家分享主页选择花色并发送后，会在这里看到记录')
 
+const toImageList = (value: any) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item, index) => {
+        if (!item) return null
+        if (typeof item === 'string') {
+          return { src: item, imgurl: item, name: `花色${index + 1}`, pic_name: `花色${index + 1}` }
+        }
+        return item
+      })
+      .filter(Boolean)
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(',')
+      .map((src, index) => ({
+        src: src.trim(),
+        imgurl: src.trim(),
+        name: `花色${index + 1}`,
+        pic_name: `花色${index + 1}`,
+      }))
+      .filter(item => item.src)
+  }
+  return []
+}
+
+const pickImageList = (...values: any[]) => {
+  for (const value of values) {
+    const list = toImageList(value)
+    if (list.length) return list
+  }
+  return []
+}
+
+const getDetailSelectedImages = (detail: any) => pickImageList(
+  detail?.list,
+  detail?.selected_preview,
+  detail?.grouped_pictures?.variant_pictures,
+  detail?.grouped_pictures?.color_pictures,
+  detail?.grouped_pictures?.pictures,
+  detail?.cover_img
+)
+
+const mergeSelectionDetail = (item: any, detail: any = null) => {
+  const info = detail?.info || {}
+  const product = detail?.product_summary || detail?.product || item.product_summary || item.product || {}
+  const detailImages = getDetailSelectedImages(detail)
+  const fallbackImages = pickImageList(item.selected_preview, item.list, item.cover_img)
+  const selectedImages = detailImages.length ? detailImages : fallbackImages
+  const totalSelected = Number(detail?.total_selected || item.total_selected || item.product_count || selectedImages.length || 0)
+
+  return {
+    ...info,
+    ...item,
+    title: item.title || item.name || info.title || info.name || `选款单 #${item.id || info.id}`,
+    name: item.name || item.title || info.name || info.title || `选款单 #${item.id || info.id}`,
+    customer: detail?.customer || item.customer || {},
+    factory: detail?.factory || item.factory || {},
+    product,
+    product_summary: detail?.product_summary || item.product_summary || product,
+    detail,
+    list: selectedImages,
+    selected_preview: selectedImages,
+    cover_img: detail?.cover_img || item.cover_img || [],
+    share_img: detail?.share_img || item.share_img || product.share_img || product.cover_img || '',
+    product_count: totalSelected,
+    total_selected: totalSelected,
+  }
+}
+
 const loadSelections = async () => {
+  const serial = ++loadSerial
   isLoading.value = true
   try {
     const raw = props.mode === 'customer'
       ? await pcApi.getCustomerSelections({ limit: 50 })
       : await pcApi.getMySelections({ limit: 50 })
     const rows = unwrapList(raw)
-    if (props.mode === 'customer') {
-      selections.value = await Promise.all(rows.map(async (item: any) => {
-        try {
-          const detail = await pcApi.getSelectionDetail(String(item.id))
-          return {
-            ...item,
-            detail,
-            list: detail?.list || item.list || [],
-            selected_preview: detail?.list || item.selected_preview || [],
-          }
-        } catch {
-          return item
-        }
-      }))
-      return
+    const enrichedRows = await Promise.all(rows.map(async (item: any) => {
+      if (!item?.id) return mergeSelectionDetail(item)
+      try {
+        const detail = await pcApi.getSelectionDetail(String(item.id))
+        return mergeSelectionDetail(item, detail)
+      } catch {
+        return mergeSelectionDetail(item)
+      }
+    }))
+    if (serial === loadSerial) {
+      selections.value = enrichedRows
     }
-    selections.value = rows
   } catch (error: any) {
-    toast.error(error?.message || '选款单加载失败')
+    if (serial === loadSerial) {
+      toast.error(error?.message || '选款单加载失败')
+      selections.value = []
+    }
   } finally {
-    isLoading.value = false
+    if (serial === loadSerial) {
+      isLoading.value = false
+    }
   }
 }
 
-const getTitle = (item: any) => item.title || item.name || `选款单 #${item.id}`
-const getProductName = (item: any) => item.product?.name || item.product?.folder_name || '关联产品'
+const getTitle = (item: any) => item.title || item.name || item.detail?.info?.title || item.detail?.info?.name || `选款单 #${item.id}`
+const getProductName = (item: any) => {
+  const product = item.product || item.product_summary || item.detail?.product_summary || item.detail?.product || {}
+  return product.name || product.folder_name || item.product_name || item.detail?.info?.product_name || '关联产品'
+}
 const getPeerName = (item: any) => {
-  const peer = props.mode === 'customer' ? item.customer : item.factory
-  return peer?.company_name || peer?.nickname || '未知用户'
+  const peer = props.mode === 'customer'
+    ? (item.customer || item.detail?.customer)
+    : (item.factory || item.detail?.factory)
+  return peer?.company_name || peer?.nickname || peer?.mobile || '未知用户'
 }
-const getPreviewImages = (item: any) => {
-  const preview = item.selected_preview || item.preview || []
-  if (Array.isArray(preview) && preview.length) return preview
-  const covers = item.cover_img || []
-  return Array.isArray(covers) ? covers.map((src: any) => typeof src === 'string' ? { src, imgurl: src } : src) : []
-}
-const getPreviewImageSrc = (image: any) =>
-  image?.src || image?.imgurl || image?.url || image?.thumbnail_url || image?.thumbnailUrl || ''
+const getPreviewImages = (item: any) => pickImageList(
+  item.selected_preview,
+  item.list,
+  item.detail?.list,
+  item.detail?.selected_preview,
+  item.detail?.grouped_pictures?.variant_pictures,
+  item.cover_img,
+  item.detail?.cover_img
+)
+const getPreviewImageSrc = (image: any) => pickImage(image)
+const getPreviewImageName = (image: any, index: number) =>
+  image?.pic_name || image?.name || image?.title || `花色${index + 1}`
 const getPreviewImageKey = (item: any, image: any, index: number) =>
-  `${item.id || 'selection'}:${index}:${getPreviewImageSrc(image)}`
+  `${item.id || 'selection'}:${image?.id || image?.pic_id || index}:${getPreviewImageSrc(image)}`
 const isPreviewImageBroken = (item: any, image: any, index: number) =>
   brokenPreviewImages.value.has(getPreviewImageKey(item, image, index))
 const markPreviewImageBroken = (item: any, image: any, index: number) => {
@@ -95,10 +176,19 @@ const formatTime = (value: any) => {
 }
 
 const handleViewProduct = (item: any) => {
-  const productId = item.product?.id || item.product_id
-  const targetUserId = props.mode === 'customer'
-    ? ''
-    : (item.factory?.id || item.factory_uid || '')
+  const productId =
+    item.product?.id ||
+    item.product_summary?.id ||
+    item.detail?.product_summary?.id ||
+    item.detail?.product?.id ||
+    item.product_id ||
+    item.detail?.info?.product_id
+  const targetUserId =
+    item.factory?.id ||
+    item.detail?.factory?.id ||
+    item.factory_uid ||
+    item.detail?.info?.factory_uid ||
+    ''
   if (!productId) {
     toast.error('关联产品不存在')
     return
@@ -131,7 +221,15 @@ const handleDelete = async () => {
   }
 }
 
-onMounted(loadSelections)
+watch(
+  () => props.mode,
+  () => {
+    selections.value = []
+    brokenPreviewImages.value = new Set()
+    loadSelections()
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -170,21 +268,17 @@ onMounted(loadSelections)
               </span>
             </div>
 
-            <div
-              :class="props.mode === 'customer'
-                ? 'grid grid-cols-3 gap-2 md:grid-cols-5'
-                : 'grid h-24 w-24 grid-cols-2 gap-1 overflow-hidden rounded-lg bg-muted'"
-            >
+            <div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
               <div
-                v-for="(image, index) in getPreviewImages(item).slice(0, props.mode === 'customer' ? 10 : 4)"
+                v-for="(image, index) in getPreviewImages(item).slice(0, 12)"
                 :key="index"
-                :class="props.mode === 'customer' ? 'overflow-hidden rounded-md border border-border bg-muted' : 'h-full w-full overflow-hidden'"
+                class="overflow-hidden rounded-md border border-border bg-muted"
               >
-                <div :class="props.mode === 'customer' ? 'aspect-square' : 'h-full w-full'">
+                <div class="aspect-square">
                   <img
                     v-if="getPreviewImageSrc(image) && !isPreviewImageBroken(item, image, index)"
                     :src="getPreviewImageSrc(image)"
-                    alt=""
+                    :alt="getPreviewImageName(image, index)"
                     class="h-full w-full object-cover"
                     @error="markPreviewImageBroken(item, image, index)"
                   />
@@ -192,12 +286,18 @@ onMounted(loadSelections)
                     <SafeIcon name="Image" :size="18" class="text-muted-foreground" />
                   </div>
                 </div>
-                <p v-if="props.mode === 'customer'" class="truncate px-1.5 py-1 text-[11px] text-muted-foreground">
-                  {{ image?.pic_name || image?.name || '未命名花色' }}
+                <p class="truncate px-1.5 py-1 text-[11px] text-muted-foreground">
+                  {{ getPreviewImageName(image, index) }}
                 </p>
               </div>
-              <div v-if="getPreviewImages(item).length === 0" class="col-span-2 flex h-24 items-center justify-center">
+              <div v-if="getPreviewImages(item).length === 0" class="col-span-full flex h-24 items-center justify-center rounded-md bg-muted">
                 <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
+              </div>
+              <div
+                v-else-if="getPreviewImages(item).length > 12"
+                class="flex aspect-square items-center justify-center rounded-md border border-dashed border-border bg-muted text-xs text-muted-foreground"
+              >
+                +{{ getPreviewImages(item).length - 12 }}
               </div>
             </div>
 

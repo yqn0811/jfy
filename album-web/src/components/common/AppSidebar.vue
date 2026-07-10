@@ -136,7 +136,7 @@ const handleNavigate = (item: MenuItem) => {
           <DialogDescription>查看你收藏的主页、分类和产品</DialogDescription>
         </DialogHeader>
         <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <FavoritesList v-if="quickPanel === 'favorites'" embedded />
+          <FavoritesList v-if="quickPanel === 'favorites'" embedded @navigate="quickPanel = ''" />
         </div>
       </div>
     </DialogScrollContent>
@@ -150,7 +150,7 @@ const handleNavigate = (item: MenuItem) => {
           <DialogDescription>查看你浏览过的主页、分类和产品</DialogDescription>
         </DialogHeader>
         <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <BrowsingHistoryContent v-if="quickPanel === 'history'" embedded />
+          <BrowsingHistoryContent v-if="quickPanel === 'history'" embedded @navigate="quickPanel = ''" />
         </div>
       </div>
     </DialogScrollContent>

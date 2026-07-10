@@ -8,6 +8,9 @@ const fallbackImage = 'https://api.jfyuntu.com/image/static/footer/jfyuntu.png'
 export const toArray = (value: any): any[] => {
   if (!value) return []
   if (Array.isArray(value)) return value
+  if (Array.isArray(value?.data?.data)) return value.data.data
+  if (Array.isArray(value?.data?.list)) return value.data.list
+  if (Array.isArray(value?.data?.lists)) return value.data.lists
   if (Array.isArray(value.data)) return value.data
   if (Array.isArray(value.list)) return value.list
   if (Array.isArray(value?.list?.data)) return value.list.data
@@ -20,6 +23,9 @@ export const toArray = (value: any): any[] => {
 
 export const unwrapList = (value: any): any[] => {
   if (Array.isArray(value)) return value
+  if (Array.isArray(value?.data?.data)) return value.data.data
+  if (Array.isArray(value?.data?.list)) return value.data.list
+  if (Array.isArray(value?.data?.lists)) return value.data.lists
   if (Array.isArray(value?.data)) return value.data
   if (Array.isArray(value?.list)) return value.list
   if (Array.isArray(value?.list?.data)) return value.list.data

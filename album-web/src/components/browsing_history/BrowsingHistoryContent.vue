@@ -26,6 +26,10 @@ const props = withDefaults(defineProps<Props>(), {
   embedded: false,
 })
 
+const emit = defineEmits<{
+  (e: 'navigate'): void
+}>()
+
 const isClient = ref(true)
 const activeTab = ref<TabType>('all')
 const keyword = ref('')
@@ -93,6 +97,7 @@ const handleKeywordInput = (event: Event) => {
 }
 
 const handleView = (record: PcRecordItem) => {
+  emit('navigate')
   navigateToInternal(buildPcTargetUrl(record.targetType, record.targetId, record.targetUserId, record.targetShareCode))
 }
 
@@ -132,6 +137,7 @@ const handleConfirmDelete = async () => {
 }
 
 const handleGoToBrowse = () => {
+  emit('navigate')
   navigateToInternal('./share-home')
 }
 
