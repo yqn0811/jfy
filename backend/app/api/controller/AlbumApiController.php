@@ -133,8 +133,8 @@ class AlbumApiController extends ApiBaseController
             ['fid', 0], // Changed from cate_id to fid to match frontend
             ['product_ids', []],
         ]);
-        $this->album_service->addProductsToCategory($param['fid'], $param['product_ids'], request()->userID());
-        $this->result([], 0, '操作成功');
+        $result = $this->album_service->addProductsToCategory($param['fid'], $param['product_ids'], request()->userID());
+        $this->result($result, 0, '操作成功');
     }
 
     public function addProductToCategories()

@@ -180,7 +180,11 @@
 import UploadPicker from "./components/UploadPicker.vue"; // 根据项目路径调整
 import CategoryMultiSelect from "./components/CategoryMultiSelect.vue";
 import Upload from "@/common/request/upload.js";
-import { notifyRefresh } from "@/common/helper/refresh.js";
+import {
+  createRefreshMarker,
+  emitRefreshEvents,
+  markRefresh,
+} from "@/common/helper/refresh.js";
 import { imageUrlFor } from "@/common/helper/imageUrls.js";
 import {
   buildUploadNameFormData,
@@ -232,7 +236,7 @@ export default {
       initialCategoryName: "",
     };
   },
-    async onLoad(options) {
+    async onLoad(options = {}) {
     this.pid = options.id;
     this.fromPage = options.fromPage || "";
     this.initialCategoryId = options.category_id || options.fid || "";
@@ -825,16 +829,15 @@ export default {
             this.finishIntegralTask("upload_product");
           }
           uni.showToast({ title: "提交成功", icon: "none" });
-          this.notifyProductChanged();
+          const marker = this.notifyProductChanged();
           setTimeout(() => {
             const targetCategoryId = this.getReturnCategoryId();
             if (this.fromPage === "categoryPreview" && targetCategoryId) {
-              this.openCategoryDetail(targetCategoryId);
+              this.openCategoryDetail(targetCategoryId, marker);
               return;
             }
             if (this.fromPage === "classDetail") {
-              uni.$emit("refreshClassDetailData");
-              this.openCategoryDetail(targetCategoryId);
+              this.returnToPreviousCategoryDetail(targetCategoryId, marker);
               return;
             }
             uni.navigateBack();
@@ -945,12 +948,53 @@ export default {
       const initialCategoryIds = this.normalizeCategoryIds(this.initialCategoryId);
       return selectedCategoryIds[0] || initialCategoryIds[0] || "";
     },
-    openCategoryDetail(categoryId) {
+    refreshPreviousCategoryDetail(categoryId, marker) {
+      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+      const previousPage = pages && pages[pages.length - 2];
+      const previousVm = previousPage && previousPage.$vm;
+      if (
+        previousVm &&
+        previousVm.categoryId &&
+        String(previousVm.categoryId) === String(categoryId) &&
+        typeof previousVm.handleRefreshData === "function"
+      ) {
+        previousVm.handleRefreshData(marker);
+        return true;
+      }
+      uni.$emit("refreshClassDetailData", marker);
+      return false;
+    },
+    returnToPreviousCategoryDetail(categoryId, marker) {
       if (!categoryId) {
         uni.navigateBack();
         return;
       }
-      const detailUrl = `/pagesOther/classDetail/classDetail?id=${encodeURIComponent(categoryId)}`;
+      const refreshed = this.refreshPreviousCategoryDetail(categoryId, marker);
+      uni.navigateBack({
+        fail: () => {
+          if (!refreshed) {
+            this.openCategoryDetail(categoryId, marker);
+          }
+        },
+      });
+    },
+    openCategoryDetail(categoryId, marker = "") {
+      if (!categoryId) {
+        uni.navigateBack();
+        return;
+      }
+      const query = [
+        `id=${encodeURIComponent(categoryId)}`,
+        "refresh=1",
+        `ts=${Date.now()}`,
+      ];
+      if (marker) {
+        query.push(`marker=${encodeURIComponent(marker)}`);
+      }
+      if (this.initialCategoryName) {
+        query.push(`name=${encodeURIComponent(this.initialCategoryName)}`);
+      }
+      const detailUrl = `/pagesOther/classDetail/classDetail?${query.join("&")}`;
       uni.redirectTo({ url: detailUrl });
     },
     notifyProductChanged() {
@@ -958,7 +1002,14 @@ export default {
       if (this.fromPage === "classDetail" || this.fromPage === "categoryPreview") {
         types.push("category");
       }
-      notifyRefresh(types);
+      const marker = createRefreshMarker();
+      markRefresh(types, marker);
+      if (this.fromPage === "classDetail" || this.fromPage === "categoryPreview") {
+        emitRefreshEvents(["product", "home"], marker);
+      } else {
+        emitRefreshEvents(types, marker);
+      }
+      return marker;
     },
     finishIntegralTask(taskKey) {
       if (!this.$go || !taskKey) {

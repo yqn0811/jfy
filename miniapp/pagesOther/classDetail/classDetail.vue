@@ -332,6 +332,7 @@ export default {
     if (options && options.id) this.categoryId = options.id;
     this.uid = this.resolveOwnerUid(options);
     this.createdPreview = !this.uid && String(options.created_preview || "") === "1";
+    this.applyRouteCategoryOptions(options);
     if (!this.categoryId) {
       this.setPageError("分类信息缺失，请返回后重试");
       return;
@@ -427,6 +428,37 @@ export default {
       } catch (e) {
         return text;
       }
+    },
+    applyRouteCategoryOptions(options = {}) {
+      const routeName = this.safeDecodeRouteValue(
+        options.category_name || options.name || options.title || "",
+      );
+      const routeDesc = this.safeDecodeRouteValue(
+        options.category_desc || options.desc || "",
+      );
+      if (routeName) {
+        this.category.title = routeName;
+      }
+      if (routeDesc) {
+        this.category.desc = routeDesc;
+      }
+      if (options.private_type !== undefined && options.private_type !== null) {
+        this.category.private_type = this.normalizePrivateType(options.private_type);
+      }
+      if (options.parent_id !== undefined || options.pid !== undefined) {
+        this.category.pid = Number(options.parent_id || options.pid || 0);
+        this.category.level = this.category.pid > 0 ? 2 : 1;
+      }
+      const layoutValue =
+        options.layout_type !== undefined &&
+        options.layout_type !== null &&
+        options.layout_type !== ""
+          ? options.layout_type
+          : options.pic_layout;
+      if (layoutValue !== undefined && layoutValue !== null && layoutValue !== "") {
+        this.columns = this.normalizeColumns(layoutValue);
+      }
+      this.updateShareMeta();
     },
     applyCreatedPreviewOptions(options = {}) {
       this.category.title =
