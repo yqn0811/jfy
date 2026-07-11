@@ -7,6 +7,7 @@
         :avatar="user.avatar"
         :name="user.name"
         :subtitle="user.subtitle"
+        :show-contact="shouldShowContactButton"
         @contact="contactOwner"
       />
 
@@ -117,7 +118,7 @@
 
       <!-- 底部固定操作栏 -->
       <view v-if="!pageError" class="bottom-bar">
-        <view v-if="uid" class="action-btn" @tap="contactOwner">
+        <view v-if="shouldShowContactButton" class="action-btn" @tap="contactOwner">
           <image
             src="/static/icon/user.png"
             class="action-icon"
@@ -139,7 +140,7 @@
           <text class="action-text">{{ isFavorited ? "已收藏" : "收藏" }}</text>
         </view>
 
-        <view class="action-btn" @tap="openShare">
+        <view v-if="canShareCategory" class="action-btn" @tap="openShare">
           <image
             src="/static/icon/24＊24@2x(4).png"
             class="action-icon"
@@ -214,6 +215,10 @@ export default {
         pid: 0,
         level: 1,
         private_type: 1,
+        show_connect: 1,
+        other_share: 0,
+        set_top: 0,
+        share_version: 0,
       },
       children: [],
       products: [],
@@ -228,6 +233,7 @@ export default {
       minShowCount: 1, // 控制“没有更多了~”显示逻辑
       columns: 2,
       uid: "", // 用户分享的用户ID
+      routeShareVersion: "",
       shareOwnerId: "",
       lastCategoryRefreshAt: "",
       createdPreview: false,
@@ -309,6 +315,14 @@ export default {
     serviceActionLabel() {
       return this.normalizeText(this.user.serviceName) || "服务";
     },
+    shouldShowContactButton() {
+      return !!this.uid && Number(this.category.show_connect) !== 0;
+    },
+    canShareCategory() {
+      if (Number(this.category.private_type) === 2) return false;
+      if (this.uid && Number(this.category.other_share) === 1) return false;
+      return true;
+    },
     shareCoverUrl() {
       const product = this.products.find((item) => this.normalizeText(item.new_thumb));
       const child = this.children.find((item) => {
@@ -331,6 +345,7 @@ export default {
     // 支持通过 options 传入分类 id
     if (options && options.id) this.categoryId = options.id;
     this.uid = this.resolveOwnerUid(options);
+    this.routeShareVersion = this.normalizeShareParam(options.share_v || options.sv || "");
     this.createdPreview = !this.uid && String(options.created_preview || "") === "1";
     this.applyRouteCategoryOptions(options);
     if (!this.categoryId) {
@@ -364,6 +379,10 @@ export default {
             classDetailData.class_desc ||
             classDetailData.desc ||
             "";
+          if (classDetailData.private_type !== undefined && classDetailData.private_type !== null) {
+            this.category.private_type = this.normalizePrivateType(classDetailData.private_type);
+          }
+          this.applyCategorySwitchOptions(classDetailData);
           this.applyCategoryLevel(classDetailData);
           this.columns = this.normalizeColumns(
             classDetailData.layout_type || classDetailData.pic_layout || 2
@@ -386,12 +405,21 @@ export default {
   },
   onShow() {
     if (this.createdPreview) return;
+    this.syncShareMenu();
     this.consumeCategoryRefreshMarker();
   },
   onUnload() {
     uni.$off("refreshClassDetailData", this.handleRefreshData);
   },
   onShareAppMessage() {
+    if (!this.canShareCategory) {
+      uni.showToast({ title: "该分类不允许分享", icon: "none" });
+      return {
+        title: this.shareTitle || this.buildCategoryShareTitle(),
+        path: this.shareUrl || this.buildShareUrl(),
+        imageUrl: this.shareCoverUrl,
+      };
+    }
     this.updateShareMeta();
     return {
       title: this.shareTitle || this.buildCategoryShareTitle(),
@@ -445,6 +473,7 @@ export default {
       if (options.private_type !== undefined && options.private_type !== null) {
         this.category.private_type = this.normalizePrivateType(options.private_type);
       }
+      this.applyCategorySwitchOptions(options);
       if (options.parent_id !== undefined || options.pid !== undefined) {
         this.category.pid = Number(options.parent_id || options.pid || 0);
         this.category.level = this.category.pid > 0 ? 2 : 1;
@@ -468,6 +497,7 @@ export default {
       if (options.private_type !== undefined && options.private_type !== null) {
         this.category.private_type = this.normalizePrivateType(options.private_type);
       }
+      this.applyCategorySwitchOptions(options);
       this.category.pid = Number(options.parent_id || options.pid || 0);
       this.category.level = this.category.pid > 0 ? 2 : 1;
       if (options.layout_type !== undefined && options.layout_type !== null) {
@@ -557,6 +587,31 @@ export default {
       this.shareTitle = this.buildCategoryShareTitle();
       this.shareUrl = this.buildShareUrl();
     },
+    applyCategorySwitchOptions(info = {}) {
+      if (info.show_connect !== undefined && info.show_connect !== null && info.show_connect !== "") {
+        this.category.show_connect = Number(info.show_connect) === 0 ? 0 : 1;
+      }
+      if (info.other_share !== undefined && info.other_share !== null && info.other_share !== "") {
+        this.category.other_share = Number(info.other_share) === 1 ? 1 : 0;
+      }
+      if (info.set_top !== undefined && info.set_top !== null && info.set_top !== "") {
+        this.category.set_top = Number(info.set_top) === 1 ? 1 : 0;
+      }
+      if (info.share_version !== undefined && info.share_version !== null && info.share_version !== "") {
+        this.category.share_version = Number(info.share_version) || 0;
+      }
+      this.syncShareMenu();
+    },
+    syncShareMenu() {
+      if (typeof wx === "undefined") return;
+      try {
+        if (this.canShareCategory) {
+          wx.showShareMenu && wx.showShareMenu({ withShareTicket: true });
+        } else {
+          wx.hideShareMenu && wx.hideShareMenu();
+        }
+      } catch (e) {}
+    },
     loadOwnerInfo() {
       if (this.uid) {
         this.shareOwnerId = this.uid;
@@ -600,9 +655,11 @@ export default {
       }
       const ownerId =
         this.getShareOwnerId();
+      const shareVersion = Number(this.category.share_version || 0);
+      const shareVersionQuery = shareVersion ? `&share_v=${encodeURIComponent(shareVersion)}` : "";
       return this.$buildPublicSharePath
-        ? this.$buildPublicSharePath("category", this.categoryId, ownerId)
-        : `/pagesOther/classDetail/classDetail?id=${this.categoryId}${ownerId ? `&uid=${ownerId}` : ""}`;
+        ? `${this.$buildPublicSharePath("category", this.categoryId, ownerId)}${shareVersionQuery}`
+        : `/pagesOther/classDetail/classDetail?id=${this.categoryId}${ownerId ? `&uid=${ownerId}` : ""}${shareVersionQuery}`;
     },
     getShareOwnerId() {
       return (
@@ -656,7 +713,7 @@ export default {
       try {
         const res = await this.$go(
           "user/home/categories",
-          { target_user_id: this.uid, fid: this.categoryId, include_current: 1 },
+          { target_user_id: this.uid, fid: this.categoryId, include_current: 1, share_v: this.routeShareVersion },
           "get",
           { show_err: false }
         );
@@ -719,6 +776,7 @@ export default {
       if (info.private_type !== undefined && info.private_type !== null) {
         this.category.private_type = this.normalizePrivateType(info.private_type);
       }
+      this.applyCategorySwitchOptions(info);
       this.applyCategoryLevel(info);
       const layoutValue =
         info.layout_type !== undefined &&
@@ -1047,9 +1105,9 @@ export default {
         layout_type: this.columns === 1 ? 2 : 1,
         pic_layout: this.columns === 1 ? 2 : 1,
         uid: this.shareOwnerId || (uni.getStorageSync("userInfo") || {}).id || "",
-        show_connect: 1,
-        set_top: 0,
-        other_share: 0,
+        show_connect: this.category.show_connect,
+        set_top: this.category.set_top,
+        other_share: this.category.other_share,
         show_upload_date: 0,
         show_search: 0,
         upload_field: [],
@@ -1091,6 +1149,10 @@ export default {
       }
     },
     openShare() {
+      if (!this.canShareCategory) {
+        uni.showToast({ title: "该分类不允许分享", icon: "none" });
+        return;
+      }
       if (!this.uid && !this.$checkLoginStatus()) {
         uni.showModal({
           title: "未登录，是否立即登录？",

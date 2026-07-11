@@ -1331,6 +1331,8 @@ class UserApiController extends ApiBaseController
             ['invite_code', ''],
             ['fid', 0],
             ['include_current', 0],
+            ['share_v', null],
+            ['sv', null],
         ]);
         $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $visitorUid = 0;
@@ -1338,7 +1340,8 @@ class UserApiController extends ApiBaseController
             $visitorUid = request()->userID();
         } catch (\Exception $e) {
         }
-        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid, $params['fid'], (int)$params['include_current']));
+        $shareVersion = $params['share_v'] !== null && $params['share_v'] !== '' ? $params['share_v'] : $params['sv'];
+        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid, $params['fid'], (int)$params['include_current'], $shareVersion));
     }
 
     public function getHomeProducts()

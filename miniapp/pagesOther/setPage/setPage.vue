@@ -201,6 +201,8 @@
 </template>
 
 <script>
+import { notifyFolderRefresh, notifyRefresh } from '@/common/helper/refresh.js';
+
 export default {
 	data() {
 		return {
@@ -245,12 +247,33 @@ export default {
 				title: '请再次确认',
 				content: '重置后，将无法使用之前的邀请链接或二维码加入编辑分类。已加入的用户不受影响',
 				showCancel: true,
-				success: function (res) {
+				success: (res) => {
 					if (res.confirm) {
+						this.resetShareLink()
 					} else if (res.cancel) {
 					}
 				}
 			})
+		},
+		resetShareLink() {
+			const params = this.buildApiParams({
+				fid: this.folderInfo.id
+			});
+			this.$go('album/reset/share', params, 'post', {
+				show_err: true
+			})
+				.then(res => {
+					if (res.code !== 0) return
+					if (res.data && res.data.share_version !== undefined) {
+						this.folderInfo.share_version = res.data.share_version
+					}
+					uni.showToast({
+						title: res.msg || '重置成功',
+						icon: 'none'
+					});
+					this.markFolderChanged()
+				})
+				.catch(err => { });
 		},
 
 		buildApiParams(params) {
@@ -322,6 +345,9 @@ export default {
 
 		selectTab(e) {
 			this.folderInfo.pic_layout = e.name === '小图' ? 1 : 2
+			this.folderInfo.layout_type = this.folderInfo.pic_layout === 1 ? 1 : 2
+			this.submitForm()
+			this.addShow = false
 		},
 
 		// 隐藏分类
@@ -377,6 +403,7 @@ export default {
 				editer_delete: this.folderInfo.editer_delete,
 				editer_delete_pic: this.folderInfo.editer_delete_pic,
 				private_type: this.folderInfo.private_type,
+				layout_type: this.folderInfo.layout_type,
 				pic_layout: this.folderInfo.pic_layout,
 				sort_type: '',
 				fid: this.folderInfo.id
@@ -398,8 +425,16 @@ export default {
 						title: res.msg || '设置成功',
 						icon: 'none'
 					});
+					this.markFolderChanged()
 				})
 				.catch(err => { });
+		},
+		markFolderChanged() {
+			uni.setStorageSync('folderInfo', this.folderInfo)
+			notifyFolderRefresh(this.folderInfo.folder_type)
+			if (Number(this.folderInfo.folder_type) === 1) {
+				notifyRefresh(['category', 'home'])
+			}
 		},
 
 		// 查看示例分类

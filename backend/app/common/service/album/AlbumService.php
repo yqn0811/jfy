@@ -129,6 +129,28 @@ class AlbumService extends BaseService
             || stripos($message, 'Column already exists') !== false;
     }
 
+    public static function getFolderShareVersion($fid)
+    {
+        $fid = (int)$fid;
+        if ($fid <= 0) {
+            return 0;
+        }
+        $redis = new Redis(GetRedisConf());
+        return (int)$redis->get('share_album_version_'.$fid);
+    }
+
+    public static function bumpFolderShareVersion($fid)
+    {
+        $fid = (int)$fid;
+        if ($fid <= 0) {
+            return 0;
+        }
+        $version = time();
+        $redis = new Redis(GetRedisConf());
+        $redis->set('share_album_version_'.$fid, $version);
+        return $version;
+    }
+
     private function ensureBindTable()
     {
         $tables = Db::query("SHOW TABLES LIKE 'wd_xcx_product_category_bind'");
@@ -1197,6 +1219,7 @@ class AlbumService extends BaseService
                     $need_pwd = 1;
                 }
             }
+            $folder_info->share_version = self::getFolderShareVersion($fid);
             $user_pwd = WdXcxUser::where('id', $folder_info->uid)->value('upload_pwd');
             $folder_info->upload_field = $folder_info->upload_field ? $folder_info->upload_field : [];
 
@@ -2916,11 +2939,26 @@ class AlbumService extends BaseService
 
     public function userResetShareLink($param, $uid)
     {
-        $fid = $param['fid'];
+        $fid = (int)$param['fid'];
+        if (empty($fid)) {
+            throwError('请选择文件夹');
+        }
+        $folder = WdXcxAlbumFolder::where('id', $fid)->find();
+        if (!$folder) {
+            throwError('文件夹不存在');
+        }
+        if ((int)$folder->uid !== (int)$uid) {
+            throwError('您没有权限操作此文件夹');
+        }
         $redis = new Redis(GetRedisConf());
         $share_str = $redis->get('share_album_'.$fid);
-        $redis->delete($share_str);
+        if ($share_str) {
+            $redis->delete($share_str);
+        }
         $redis->delete('share_album_'.$fid);
+        return [
+            'share_version' => self::bumpFolderShareVersion($fid),
+        ];
     }
 
     /**修改文件夹密码

@@ -433,7 +433,12 @@ export default {
           : this.$buildPublicSharePath
             ? this.$buildPublicSharePath(type, id, uid)
             : `/pages/index/index?uid=${encodeURIComponent(uid)}`;
-      uni.redirectTo({ url: path });
+      const shareVersion = this.normalizeShareParam(options.share_v || options.sv || "");
+      const targetPath =
+        type === "category" && shareVersion
+          ? `${path}${path.indexOf("?") === -1 ? "?" : "&"}share_v=${encodeURIComponent(shareVersion)}`
+          : path;
+      uni.redirectTo({ url: targetPath });
       return true;
     },
     safeText(value) {

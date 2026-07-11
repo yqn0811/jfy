@@ -587,8 +587,7 @@ class AlbumApiController extends ApiBaseController
         $param = $this->request->postMore([
             ['fid', 0],
         ]);
-        $this->album_service->userResetShareLink($param, request()->userID());
-        $this->result([], 0, '操作成功');
+        $this->result($this->album_service->userResetShareLink($param, request()->userID()), 0, '操作成功');
     }
 
     /**修改密码

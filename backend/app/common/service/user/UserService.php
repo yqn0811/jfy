@@ -185,7 +185,7 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout')
+            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,private_type,show_connect,other_share,set_top')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $targetUserId, $is_owner, $shared_ids, $collected_ids){
@@ -278,7 +278,7 @@ class UserService extends BaseService
         return $codes[$uid];
     }
 
-    public function getHomeCategories($targetUserId, $visitorUid = 0, $fid = 0, $includeCurrent = 0)
+    public function getHomeCategories($targetUserId, $visitorUid = 0, $fid = 0, $includeCurrent = 0, $shareVersion = null)
     {
         $user = WdXcxUser::find($targetUserId);
         if (!$user || !$user->is_show_home) {
@@ -317,7 +317,7 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type')
+            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type,show_connect,other_share,set_top')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $targetUserId, $is_owner, $shared_ids, $collected_ids){
@@ -335,17 +335,21 @@ class UserService extends BaseService
             $folderInfo = WdXcxAlbumFolder::where('id', (int)$fid)
                 ->where('uid', $targetUserId)
                 ->where('folder_type', 1)
-                ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type')
+                ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type,show_connect,other_share,set_top')
                 ->find();
             if (!$folderInfo) {
                 throwError('分类不存在');
             }
             $this->assertVisibleCategory($fid, $targetUserId, $is_owner, $shared_ids, true);
+            if ($shareVersion !== null && $shareVersion !== '' && (int)$shareVersion !== AlbumService::getFolderShareVersion($fid)) {
+                throwError('分享链接已失效，请让分享者重新发送');
+            }
             $folderInfo->product_count = $this->getVisibleCategoryProductCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids);
             $folderInfo->child_count = $this->getVisibleCategoryChildCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids);
             $folderInfo->son_count = $folderInfo->child_count;
             $folderInfo->level = $folderInfo->FolderLeval;
             $folderInfo->is_collect = in_array($folderInfo->id, $collected_ids) ? 1 : 0;
+            $folderInfo->share_version = AlbumService::getFolderShareVersion($folderInfo->id);
             return [
                 'lists' => $categories,
                 'folder_info' => $folderInfo,
@@ -468,7 +472,7 @@ class UserService extends BaseService
         $query = WdXcxAlbumFolder::where('uid', $targetUserId)
             ->where('folder_type', 1)
             ->where('pid', $categoryId)
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type')
+            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type,show_connect,other_share,set_top')
             ->order('sort desc, set_top desc, set_top_time desc, id desc');
 
         return $this->applyVisibleCategoryScope($query, $isOwner, $sharedIds)
@@ -1253,12 +1257,24 @@ class UserService extends BaseService
         if ($type !== 'home' && $id) {
             $params['type'] = (string)$type;
             $params['id'] = (string)$id;
+            if ($type === 'category') {
+                $params['share_v'] = (string)AlbumService::getFolderShareVersion($id);
+            }
         }
 
         $query = http_build_query($params);
-        $sceneParams = ['uid' => (string)$targetUserId];
+        $sceneParams = ['u' => (string)$targetUserId];
         if ($type !== 'home' && $id) {
-            $sceneParams['id'] = (string)$id;
+            $sceneParams['i'] = (string)$id;
+            $sceneTypeMap = [
+                'category' => 'c',
+                'product' => 'p',
+                'selection' => 's',
+            ];
+            $sceneParams['t'] = $sceneTypeMap[$type] ?? (string)$type;
+            if ($type === 'category') {
+                $sceneParams['v'] = (string)AlbumService::getFolderShareVersion($id);
+            }
         }
         if ($type === 'home' && $inviteCode) {
             $inviteScene = http_build_query($sceneParams + ['invite_code' => (string)$inviteCode]);
