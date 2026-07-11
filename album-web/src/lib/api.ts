@@ -1,4 +1,6 @@
 const DEFAULT_API_BASE = 'https://api.jfyuntu.com/api'
+const TEST_API_BASE = 'https://api-test.jfyuntu.com/api'
+const TEST_ALBUM_HOSTS = new Set(['pic-test.jfyuntu.com'])
 
 export interface ApiResponse<T = any> {
   code: number
@@ -30,10 +32,16 @@ const SHOULD_BUNDLE_MOCK =
   import.meta.env.PUBLIC_JFYUNTU_MOCK === '1' ||
   import.meta.env.PUBLIC_JFYUNTU_MOCK === 'true'
 
+const getHostApiBase = () => {
+  if (typeof window === 'undefined') return ''
+  const hostname = window.location.hostname
+  return TEST_ALBUM_HOSTS.has(hostname) || hostname.endsWith('.pic-test.jfyuntu.com') ? TEST_API_BASE : ''
+}
+
 const getRuntimeApiBase = () => {
-  if (typeof window === 'undefined') return DEFAULT_API_BASE
+  if (typeof window === 'undefined') return import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
   const injected = (window as any).__JFYUNTU_API_BASE__
-  return injected || import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
+  return injected || getHostApiBase() || import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
 }
 
 const joinUrl = (base: string, path: string) => {
