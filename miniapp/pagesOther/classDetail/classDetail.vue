@@ -90,7 +90,7 @@
               src="/static/icon/add-yellow-icon.png"
               mode="scaleToFill"
             />
-            <text class="btn-text">添加产品</text>
+            <text class="btn-text">新建产品</text>
           </view>
           <view class="btn secondary" @tap="selectExistingProducts">
             <image
@@ -98,14 +98,14 @@
               src="/static/icon/image-3@2x(2).png"
               mode="scaleToFill"
             />
-            <text class="btn-text">选入已有</text>
+            <text class="btn-text">添加产品</text>
           </view>
         </view>
       </view>
 
       <!-- 底部固定操作栏 -->
       <view v-if="!pageError" class="bottom-bar">
-        <view class="action-btn" @tap="contactOwner">
+        <view v-if="uid" class="action-btn" @tap="contactOwner">
           <image
             src="/static/icon/user.png"
             class="action-icon"
@@ -134,6 +134,15 @@
             mode="widthFix"
           />
           <text class="action-text">分享</text>
+        </view>
+
+        <view v-if="!uid" class="action-btn" @tap="openCategorySettings">
+          <image
+            src="/static/icon/Frame.png"
+            class="action-icon"
+            mode="widthFix"
+          />
+          <text class="action-text">设置</text>
         </view>
       </view>
     </view>
@@ -209,6 +218,7 @@ export default {
       uid: "", // 用户分享的用户ID
       shareOwnerId: "",
       lastCategoryRefreshAt: "",
+      createdPreview: false,
     };
   },
   computed: {
@@ -309,6 +319,10 @@ export default {
     // 支持通过 options 传入分类 id
     if (options && options.id) this.categoryId = options.id;
     this.uid = this.resolveOwnerUid(options);
+    this.createdPreview = !this.uid && String(options.created_preview || "") === "1";
+    if (this.createdPreview) {
+      this.applyCreatedPreviewOptions(options);
+    }
     this.shareOwnerId = this.uid;
     this.shareUrl = this.buildShareUrl();
     if (this.uid && !ensureSharedPageLogin("pagesOther/classDetail/classDetail", options, this.uid)) {
@@ -342,16 +356,19 @@ export default {
       });
     }
 
-    this.loadOwnerInfo();
-    this.loadInitialData();
+    if (!this.createdPreview) {
+      this.loadOwnerInfo();
+      this.loadInitialData();
+    }
     const token = uni.getStorageSync("token");
-    if (token) {
+    if (token && !this.createdPreview) {
       this.$addVisit({ id: options.id, type: "category" });
     }
     // 监听分类更新事件
     uni.$on("refreshClassDetailData", this.handleRefreshData);
   },
   onShow() {
+    if (this.createdPreview) return;
     this.consumeCategoryRefreshMarker();
   },
   onUnload() {
@@ -385,6 +402,33 @@ export default {
         this.normalizeText(err && err.message) ||
         fallback
       );
+    },
+    safeDecodeRouteValue(value) {
+      const text = this.normalizeText(value);
+      if (!text) return "";
+      try {
+        return decodeURIComponent(text);
+      } catch (e) {
+        return text;
+      }
+    },
+    applyCreatedPreviewOptions(options = {}) {
+      this.category.title =
+        this.safeDecodeRouteValue(options.name) || this.category.title;
+      this.category.desc =
+        this.safeDecodeRouteValue(options.desc) || this.category.desc;
+      if (options.private_type !== undefined && options.private_type !== null) {
+        this.category.private_type = this.normalizePrivateType(options.private_type);
+      }
+      this.category.pid = Number(options.parent_id || options.pid || 0);
+      this.category.level = this.category.pid > 0 ? 2 : 1;
+      if (options.layout_type !== undefined && options.layout_type !== null) {
+        this.columns = this.normalizeColumns(options.layout_type);
+      }
+      this.children = [];
+      this.products = [];
+      this.clearPageError();
+      this.updateShareMeta();
     },
     setPageError(message) {
       this.pageError = this.normalizeText(message) || "该分类暂不可访问";
@@ -596,10 +640,11 @@ export default {
     },
     handleRefreshData(marker) {
       this.markCategoryRefreshConsumed(marker);
+      this.createdPreview = false;
       this.loadInitialData();
     },
     consumeCategoryRefreshMarker() {
-      if (this.uid) return;
+      if (this.uid || this.createdPreview) return;
       const marker = consumeRefreshMarker(
         "category",
         "categoryListNeedsRefreshDetailConsumed",
@@ -940,6 +985,32 @@ export default {
       });
       uni.navigateTo({
         url: `/pagesOther/productSelect/productSelect?${query}`,
+      });
+    },
+    openCategorySettings() {
+      if (this.uid || !this.categoryId) return;
+      uni.setStorageSync("folderInfo", {
+        id: this.categoryId,
+        folder_type: 1,
+        folder_name: this.displayCategoryTitle,
+        folder_desc: this.category.desc || "",
+        pid: this.category.pid || 0,
+        private_type: this.category.private_type || 1,
+        layout_type: this.columns === 1 ? 2 : 1,
+        pic_layout: this.columns === 1 ? 2 : 1,
+        uid: this.shareOwnerId || (uni.getStorageSync("userInfo") || {}).id || "",
+        show_connect: 1,
+        set_top: 0,
+        other_share: 0,
+        show_upload_date: 0,
+        show_search: 0,
+        upload_field: [],
+        editer_create: 1,
+        editer_delete: 1,
+        editer_delete_pic: 1,
+      });
+      uni.navigateTo({
+        url: "/pagesOther/setPage/setPage",
       });
     },
     contactOwner() {

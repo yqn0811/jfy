@@ -5,10 +5,12 @@ namespace app\api\controller;
 use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserCollectPics;
 use app\common\service\bridge\JiafangyunEntitlementSyncService;
+use app\common\service\bridge\JiafangyunBridgeClient;
 use app\common\service\user\UserService;
 use app\common\service\WxService;
 use think\facade\Cache;
 use think\facade\Config;
+use think\facade\Log;
 use app\index\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
@@ -1788,14 +1790,46 @@ class UserApiController extends ApiBaseController
         }
 
         $this->ensureFeedbackTable();
-        Db::name('wd_xcx_album_feedback')->insert([
+        $createTime = time();
+        $feedbackId = Db::name('wd_xcx_album_feedback')->insertGetId([
             'uid' => request()->userID(),
             'type' => $param['type'],
             'content' => $param['content'],
             'images' => $images,
             'contact' => $param['contact'],
-            'create_time' => time(),
+            'create_time' => $createTime,
         ]);
+        $this->syncFeedbackToAiAdmin($feedbackId, $param, $images, $createTime);
         $this->result([], 0, '提交成功');
+    }
+
+    private function syncFeedbackToAiAdmin($feedbackId, $param, $images, $createTime)
+    {
+        try {
+            $bridgeClient = new JiafangyunBridgeClient($this->app);
+            $user = $bridgeClient->getUser(request()->userID());
+            $imageList = [];
+            if (is_array($param['images'])) {
+                $imageList = $param['images'];
+            } elseif (is_string($images) && $images !== '') {
+                $decoded = json_decode($images, true);
+                if (is_array($decoded)) {
+                    $imageList = $decoded;
+                }
+            }
+            $payload = array_merge($bridgeClient->userPayload($user), [
+                'source_feedback_id' => (int)$feedbackId,
+                'feedback_type' => (int)$param['type'],
+                'type' => (int)$param['type'],
+                'content' => (string)$param['content'],
+                'images' => $imageList,
+                'contact' => (string)$param['contact'],
+                'created_at' => (int)$createTime,
+                'source' => 'miniapp',
+            ]);
+            $bridgeClient->post('/jiafangyun/bridge/feedbacks', $payload);
+        } catch (\Throwable $e) {
+            Log::error('[JiafangyunFeedbackBridge] sync failed: feedback_id=' . (int)$feedbackId . ' error=' . $e->getMessage());
+        }
     }
 }

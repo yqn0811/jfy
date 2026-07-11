@@ -287,6 +287,14 @@
           }
         },
         {
+          "path": "categoryPreview/categoryPreview",
+          "style": {
+            "navigationBarTitleText": "产品预览",
+            "navigationBarBackgroundColor": "#f5f5f5",
+            "navigationBarTextStyle": "black"
+          }
+        },
+        {
           "path": "productManage/productManage",
           "style": {
             "navigationBarTitleText": "产品管理",

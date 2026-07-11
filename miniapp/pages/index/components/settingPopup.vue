@@ -253,7 +253,7 @@ export default {
 
     // 新增分类
     addCategory() {
-      uni.navigateTo({ url: "/pagesOther/addClass/addClass?fromPage=index&next=addProduct" });
+      uni.navigateTo({ url: "/pagesOther/addClass/addClass?fromPage=index" });
       this.close();
     },
 

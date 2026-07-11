@@ -125,7 +125,6 @@ export default {
       editCategoryId: 0,
       parentCategoryId: 0,
       fromPage:'',
-      nextAction: "",
     };
   },
   onLoad(options) {
@@ -137,7 +136,6 @@ export default {
       this.parentCategoryId = Number(options.parent_id || 0);
     }
     this.fromPage = options.fromPage || "";
-    this.nextAction = options.next || "";
     this.nameLength = this.form.folder_name.length;
     this.introLength = this.form.folder_desc.length;
   },
@@ -232,17 +230,19 @@ export default {
             show_err: true,
           });
           uni.showToast({ title: "保存成功", icon: "none" });
-          this.notifyCategoryChanged();
+          this.notifyCategoryChanged({
+            includeCategory: !!this.editCategoryId || !!this.parentCategoryId,
+          });
           setTimeout(() => {
             if (this.editCategoryId) {
               uni.navigateBack();
               return;
             }
-            if (this.shouldGoToNewProduct()) {
-              this.goToNewProduct(res && res.data);
+            if (this.parentCategoryId) {
+              uni.navigateBack();
               return;
             }
-            uni.navigateBack();
+            this.goToCategoryPreview(res && res.data);
           }, 800);
         } else {
           uni.showToast({
@@ -257,47 +257,53 @@ export default {
         uni.hideLoading();
       }
     },
-    notifyCategoryChanged() {
-      notifyRefresh(["category", "home"]);
-    },
-    shouldGoToNewProduct() {
-      if (this.editCategoryId || this.parentCategoryId) {
-        return false;
-      }
-      return this.nextAction === "addProduct";
+    notifyCategoryChanged({ includeCategory = true } = {}) {
+      notifyRefresh(includeCategory ? ["category", "home"] : ["home"]);
     },
     resolveCreatedCategoryId(data) {
-      const source =
-        data &&
-        (data.folder_info ||
-          data.category ||
-          data.info ||
-          data.data ||
-          data);
+      const source = this.resolveCreatedCategoryData(data);
       return source && (source.id || source.fid || source.folder_id || source.category_id);
     },
     resolveCreatedCategoryName(data) {
-      const source =
-        data &&
-        (data.folder_info ||
-          data.category ||
-          data.info ||
-          data.data ||
-          data);
+      const source = this.resolveCreatedCategoryData(data);
       return source && (source.folder_name || source.name || this.form.folder_name);
     },
-    goToNewProduct(data) {
+    resolveCreatedCategoryData(data) {
+      if (!data) return null;
+      const source = data.data || data.folder_info || data.category || data.info || data;
+      return (
+        source.folder_info ||
+        source.category ||
+        source.info ||
+        source.data ||
+        source
+      );
+    },
+    goToCategoryPreview(data) {
       const categoryId = this.resolveCreatedCategoryId(data);
-      const categoryName = this.resolveCreatedCategoryName(data);
-      const query = ["fromPage=addClass"];
-      if (categoryId) {
-        query.push(`category_id=${encodeURIComponent(categoryId)}`);
+      if (!categoryId) {
+        uni.navigateBack();
+        return;
       }
+      const query = [
+        `id=${encodeURIComponent(categoryId)}`,
+        "created_preview=1",
+      ];
+      const categoryName = this.resolveCreatedCategoryName(data);
       if (categoryName) {
-        query.push(`category_name=${encodeURIComponent(categoryName)}`);
+        query.push(`name=${encodeURIComponent(categoryName)}`);
+      }
+      if (this.form.folder_desc) {
+        query.push(`desc=${encodeURIComponent(this.form.folder_desc)}`);
+      }
+      if (this.form.private_type) {
+        query.push(`private_type=${encodeURIComponent(this.form.private_type)}`);
+      }
+      if (this.form.layout_type) {
+        query.push(`layout_type=${encodeURIComponent(this.form.layout_type)}`);
       }
       uni.redirectTo({
-        url: `/pagesOther/addProduct/addProduct?${query.join("&")}`,
+        url: `/pagesOther/categoryPreview/categoryPreview?${query.join("&")}`,
       });
     },
   },

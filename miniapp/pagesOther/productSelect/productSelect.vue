@@ -238,6 +238,14 @@ export default {
           });
           // 返回上一页并携带结果（通过页面栈更新或直接 navigateBack）
           setTimeout(() => {
+            if (this.fromPage === "categoryPreview") {
+              uni.setStorageSync(
+                "categoryPreviewRedirectToDetail",
+                String(this.albumId),
+              );
+              uni.navigateBack();
+              return;
+            }
             if (this.fromPage === "classDetail") {
               uni.$emit("refreshClassDetailData");
             } else {

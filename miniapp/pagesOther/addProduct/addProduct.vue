@@ -817,6 +817,17 @@ export default {
           uni.showToast({ title: "提交成功", icon: "none" });
           this.notifyProductChanged();
           setTimeout(() => {
+            if (this.fromPage === "categoryPreview" && this.initialCategoryId) {
+              uni.setStorageSync(
+                "categoryPreviewRedirectToDetail",
+                String(this.initialCategoryId),
+              );
+              uni.navigateBack();
+              return;
+            }
+            if (this.fromPage === "classDetail") {
+              uni.$emit("refreshClassDetailData");
+            }
             uni.navigateBack();
           }, 1000);
         } else {
@@ -921,7 +932,11 @@ export default {
       });
     },
     notifyProductChanged() {
-      notifyRefresh(["product", "home"]);
+      const types = ["product", "home"];
+      if (this.fromPage === "classDetail" || this.fromPage === "categoryPreview") {
+        types.push("category");
+      }
+      notifyRefresh(types);
     },
     finishIntegralTask(taskKey) {
       if (!this.$go || !taskKey) {

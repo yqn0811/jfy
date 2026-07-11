@@ -275,16 +275,6 @@
       <view class="section other-section">
         <view class="section-title">其他功能</view>
         <view class="functions-grid">
-          <view class="function-item" @click="toWeb(baseInfo.news_link)">
-            <view class="function-icon outline">
-              <image
-                class="icon-img"
-                src="/static/icon/slices/Frame@2x.png"
-                mode="aspectFit"
-              ></image>
-            </view>
-            <text class="function-label">关注公众号</text>
-          </view>
           <button
             class="function-item function-button"
             open-type="share"
@@ -316,32 +306,14 @@
             </view>
             <text class="function-label">建议反馈</text>
           </view>
-          <view class="function-item" @click="openAgreement('rules')">
+          <view class="function-item" @click="openAgreementGroup">
             <view class="function-icon outline">
               <image class="icon-img"
                 src="/static/icon/slices/24＊24@2x(10).png"
                 mode="aspectFit"
               ></image>
             </view>
-            <text class="function-label">用户规则</text>
-          </view>
-          <view class="function-item" @click="openAgreement('user')">
-            <view class="function-icon outline">
-              <image class="icon-img"
-                src="/static/icon/slices/Frame@2x.png"
-                mode="aspectFit"
-              ></image>
-            </view>
-            <text class="function-label">用户协议</text>
-          </view>
-          <view class="function-item" @click="openAgreement('privacy')">
-            <view class="function-icon outline">
-              <image class="icon-img"
-                src="/static/icon/slices/Frame@2x.png"
-                mode="aspectFit"
-              ></image>
-            </view>
-            <text class="function-label">隐私政策</text>
+            <text class="function-label">协议规则</text>
           </view>
         </view>
       </view>
@@ -829,6 +801,19 @@ export default {
     openAgreement(type) {
       uni.navigateTo({
         url: `/pagesOther/agreement/agreement?type=${type}`,
+      });
+    },
+    openAgreementGroup() {
+      const itemList = ["用户规则", "用户协议", "隐私政策"];
+      const typeList = ["rules", "user", "privacy"];
+      uni.showActionSheet({
+        itemList,
+        success: (res) => {
+          const type = typeList[res.tapIndex];
+          if (type) {
+            this.openAgreement(type);
+          }
+        },
       });
     },
     handleService() {
