@@ -63,7 +63,7 @@ const isPersistedPicId = (picId: string) => /^\d+$/.test(picId)
 
 export const ORIGINAL_ZIP_MIN_IMAGE_COUNT = 5
 
-export const shouldDownloadImagesAsZip = (count: number) => count >= ORIGINAL_ZIP_MIN_IMAGE_COUNT
+export const shouldDownloadImagesAsZip = (count: number) => count > ORIGINAL_ZIP_MIN_IMAGE_COUNT
 
 const resolveControlledDownloadPicId = (image: ProductImageData, url: string) => {
   try {

@@ -464,8 +464,8 @@ class UserApiController extends ApiBaseController
             $param['pic_id'] = $picIds[0];
             return $this->streamOriginalDownload($param, (int)request()->userID());
         }
-        if (count($picIds) > 1 && count($picIds) < self::ORIGINAL_ZIP_MIN_PICTURE_COUNT) {
-            throwError('少于5张请逐张下载');
+        if (count($picIds) > 1 && count($picIds) <= self::ORIGINAL_ZIP_MIN_PICTURE_COUNT) {
+            throwError('5张以内请逐张下载');
         }
         if (!class_exists('\ZipArchive')) {
             throwError('服务器暂不支持打包下载');

@@ -60,11 +60,11 @@
               </view>
             </view>
           </view>
+          <text class="desc" v-if="displayCompanyDesc">{{
+            displayCompanyDesc
+          }}</text>
           <view class="stats-row">
             <view class="stats-row-inner">
-              <text class="desc" v-if="displayCompanyDesc">{{
-                displayCompanyDesc
-              }}</text>
               <view class="stat">
                 <text class="stat-number">{{ total_num || 0 }}</text>
                 <text class="stat-label">产品</text>
@@ -242,7 +242,6 @@ import {
   getRefreshMarker,
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
-import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
 
 import { getMiniCode, setPendingInviteCode } from "@/common/request/api.js";
@@ -319,9 +318,6 @@ export default {
       this.previewMode = true;
     }
     this.shareUrl = this.buildHomeSharePath();
-    if (this.uid && !ensureSharedPageLogin("pages/index/index", options, this.uid)) {
-      return;
-    }
     if (this.redirectSceneTarget(options)) {
       return;
     }
@@ -947,9 +943,11 @@ export default {
 
 .desc {
   display: -webkit-box;
+  width: 100%;
+  box-sizing: border-box;
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.9);
-  margin-top: 10rpx;
+  margin-top: 28rpx;
   line-height: 1.45;
   max-height: 104rpx;
   overflow: hidden;
@@ -962,17 +960,15 @@ export default {
 /* 统计与按钮 */
 .stats-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  margin-top: 40rpx;
+  margin-top: 24rpx;
   gap: 20rpx;
 
   .stats-row-inner {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16rpx;
+    align-items: center;
+    justify-content: flex-start;
     flex: 1;
     min-width: 0;
   }
@@ -982,6 +978,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 10rpx;
+  min-height: 64rpx;
 }
 
 .stat-number {
@@ -1001,7 +998,7 @@ export default {
   align-items: center;
   gap: 16rpx;
   flex: 0 0 auto;
-  align-self: flex-end;
+  align-self: center;
 
   .actions-inner {
     display: flex;

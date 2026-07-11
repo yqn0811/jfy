@@ -206,6 +206,9 @@ class JiafangyunEntitlementSyncService extends BaseService
         if ($gradeLevel <= 0) {
             return '普通用户';
         }
+        if ($hasResourceMembership) {
+            return '标准会员';
+        }
         $name = trim((string)($plan['name'] ?? ''));
         if ($name !== '') {
             return preg_replace('/(月卡|季卡|年卡|7天体验版)$/u', '', $name) ?: $name;
@@ -216,9 +219,6 @@ class JiafangyunEntitlementSyncService extends BaseService
             'standard' => '标准版',
             'premium' => '专业版',
         ];
-        if ($hasResourceMembership) {
-            return '资源会员';
-        }
         return $map[$level] ?? ('会员' . $gradeLevel);
     }
 

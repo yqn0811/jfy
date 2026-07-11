@@ -11,6 +11,19 @@ const HEADER = {
 const AUTH_ERROR_CODES = [4001, 4100, 403];
 let isRedirectingToLogin = false;
 
+const OPTIONAL_AUTH_PATHS = [
+  "user/home/info",
+  "user/home/categories",
+  "user/home/products",
+  "user/home/products/detail",
+  "user/home/products/details",
+  "user/home/picture/detail",
+  "user/home/minicode",
+  "user/home/minicode_image",
+  "user/home/share_link",
+  "user/home/share_poster",
+];
+
 const getSafeErrorMessage = (message) => {
   const text = message === null || message === undefined ? "" : String(message).trim();
   const lowerText = text.toLowerCase();
@@ -108,6 +121,11 @@ const redirectToLogin = () => {
   });
 };
 
+const isOptionalAuthRequest = (path = "") => {
+  const text = String(path || "").replace(/^https?:\/\/[^/]+\/api\//i, "").replace(/^\//, "");
+  return OPTIONAL_AUTH_PATHS.some((item) => text === item || text.indexOf(`${item}?`) === 0);
+};
+
 const go = (
   path,
   data = {},
@@ -151,7 +169,7 @@ const go = (
       success: (res) => {
         if (_loading) uni.hideLoading();
         const responseData = res.data || {};
-        if (isAuthError(responseData)) {
+        if (isAuthError(responseData) && !isOptionalAuthRequest(path)) {
           redirectToLogin();
           return resolve(responseData);
         }

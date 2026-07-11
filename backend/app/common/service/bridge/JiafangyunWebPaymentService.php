@@ -41,9 +41,12 @@ class JiafangyunWebPaymentService extends BaseService
         if ($planId <= 0) {
             throwError('请选择会员套餐');
         }
+        $packageType = strtolower(trim((string)($param['package_type'] ?? '')));
         return $this->createNativeOrder($user, [
             'scene' => 'membership_open',
             'membership_plan_id' => $planId,
+            'plan_id' => $planId,
+            'package_type' => $packageType,
             'coupon_code' => $this->normalizeCouponCode($param['coupon_code'] ?? ''),
         ], 'b-web-vip');
     }

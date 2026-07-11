@@ -125,7 +125,7 @@ const handleDownload = () => {
     if (!canUseOriginalImage.value) {
       toast.warning('开通会员后可下载原图')
     } else {
-      toast.error('商户未开放保存权限')
+      toast.error('该用户未开放下载')
     }
     return
   }

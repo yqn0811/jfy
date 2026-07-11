@@ -1040,7 +1040,7 @@ export default {
         }
         if (!this.isOwnerSaveAllowed()) {
           uni.showToast({
-            title: "商户未开放保存权限",
+            title: "该用户未开放下载",
             icon: "none",
           });
           return;

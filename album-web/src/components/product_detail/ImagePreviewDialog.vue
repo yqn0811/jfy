@@ -47,7 +47,7 @@ const handleDownload = async () => {
     return
   }
   if (!props.canDownload) {
-    toast.error('商户未开放保存权限')
+    toast.error('该用户未开放下载')
     return
   }
   if (!currentImage.value) {

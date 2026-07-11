@@ -141,10 +141,7 @@
 import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
 import {
   buildOriginalDownloadRequest,
-  buildOriginalZipDownloadRequest,
 } from "@/common/helper/imageUrls.js";
-
-const ZIP_DOWNLOAD_MIN_COUNT = 5;
 
 export default {
   data() {
@@ -406,6 +403,16 @@ export default {
     },
     closeTranspondPopup() {
       this.showTranspondPopup = false;
+      uni.navigateBack({
+        fail: () => {
+          this.imageList.forEach((item) => {
+            if (!item.disabled) {
+              item.selected = false;
+            }
+          });
+          this.$forceUpdate();
+        },
+      });
     },
 
     // 确认生成选品清单
@@ -431,6 +438,12 @@ export default {
         show_err: true,
       });
       if (res.code === 0) {
+        this.imageList.forEach((item) => {
+          if (!item.disabled) {
+            item.selected = false;
+          }
+        });
+        this.$forceUpdate();
         this.showTranspondPopup = true;
         this.styleId = res.data.id;
       }
@@ -458,14 +471,72 @@ export default {
           header: request.header || {},
           success: (res) => {
             if (res.statusCode === 200 && res.tempFilePath) {
+              const contentType = this.getDownloadContentType(res);
+              if (contentType.indexOf("application/json") !== -1 || contentType.indexOf("text/") !== -1) {
+                this.readDownloadErrorFile(res.tempFilePath)
+                  .then((message) => reject(new Error(message || "下载失败")))
+                  .catch(() => reject(new Error("下载失败")));
+                return;
+              }
               resolve(res.tempFilePath);
               return;
             }
-            reject(new Error("下载失败"));
+            reject(new Error(this.extractDownloadErrorMessage(res)));
           },
           fail: reject,
         });
       });
+    },
+    getDownloadContentType(res = {}) {
+      const header = res.header || res.headers || {};
+      return String(
+        header["Content-Type"] ||
+          header["content-type"] ||
+          header["CONTENT-TYPE"] ||
+          "",
+      ).toLowerCase();
+    },
+    readDownloadErrorFile(filePath) {
+      return new Promise((resolve, reject) => {
+        const fs = typeof wx !== "undefined" && wx.getFileSystemManager
+          ? wx.getFileSystemManager()
+          : null;
+        if (!fs || !filePath) {
+          reject(new Error("无法读取错误内容"));
+          return;
+        }
+        fs.readFile({
+          filePath,
+          encoding: "utf8",
+          success: (result) => {
+            resolve(this.extractDownloadErrorMessage({ data: result.data }));
+          },
+          fail: reject,
+        });
+      });
+    },
+    extractDownloadErrorMessage(res = {}) {
+      const defaultMessage = "下载失败";
+      const candidates = [
+        res.errMsg,
+        res.data && res.data.msg,
+        res.data && res.data.message,
+      ];
+      if (typeof res.data === "string") {
+        try {
+          const payload = JSON.parse(res.data);
+          candidates.push(payload.msg, payload.message);
+        } catch (e) {
+          candidates.push(res.data);
+        }
+      }
+      for (const value of candidates) {
+        const text = value === null || value === undefined ? "" : String(value).trim();
+        if (text && text !== "downloadFile:ok") {
+          return text;
+        }
+      }
+      return defaultMessage;
     },
     saveImageFile(filePath) {
       return new Promise((resolve, reject) => {
@@ -490,25 +561,6 @@ export default {
         successCount += 1;
       }
       return successCount;
-    },
-    async downloadZipImages(items) {
-      const filePath = await this.downloadFile(
-        buildOriginalZipDownloadRequest(items, {
-          target_user_id: this.uid,
-          product_id: this.productId,
-          filename: `product-${this.productId || "images"}.zip`,
-        }),
-      );
-      uni.openDocument({
-        filePath,
-        showMenu: true,
-        fail: () => {
-          uni.showToast({
-            title: "压缩包已下载，请在文件中查看",
-            icon: "none",
-          });
-        },
-      });
     },
     // 下载
     async handleDownload() {
@@ -536,18 +588,9 @@ export default {
       }
 
       uni.showLoading({
-        title: validItems.length >= ZIP_DOWNLOAD_MIN_COUNT ? "打包中..." : "保存中...",
+        title: "保存中...",
       });
       try {
-        if (validItems.length >= ZIP_DOWNLOAD_MIN_COUNT) {
-          await this.downloadZipImages(validItems);
-          uni.hideLoading();
-          uni.showToast({
-            title: "压缩包下载成功",
-            icon: "success",
-          });
-          return;
-        }
         const successCount = await this.downloadSingleImages(validItems);
         uni.hideLoading();
         uni.showToast({
@@ -556,9 +599,10 @@ export default {
         });
       } catch (err) {
         uni.hideLoading();
-        const message = err && err.errMsg && err.errMsg.includes("auth")
+        const rawMessage = (err && (err.message || err.errMsg)) || "";
+        const message = rawMessage.includes("auth")
           ? "请授权保存到相册"
-          : "下载失败";
+          : rawMessage || "下载失败";
         uni.showToast({
           title: message,
           icon: "none",

@@ -10,7 +10,7 @@
 							<image class="backIcon" src="../../static/icon/back2.png" mode=""></image>
 						</view>
 						<view class="info-box">
-							<view class="title">资源包</view>
+							<view class="title">资源与流量包</view>
 						</view>
 					</view>
 				</view>
@@ -25,7 +25,7 @@
 			<view class="resource-summary">
 				<view>
 					<view class="summary-title">资源包</view>
-					<view class="summary-subtitle">单独扩容我的资源库</view>
+					<view class="summary-subtitle">资源包计入容量权益，流量包补充月度流量</view>
 				</view>
 				<view class="current-space" v-if="currentSpaceText">
 					当前空间：<text>{{ currentSpaceText }}</text>
@@ -50,7 +50,7 @@
 						<view class="price-line">
 							<text class="price-symbol">¥</text>
 							<text class="price-value">{{ level.annual_fee }}</text>
-							<text class="price-unit">/年</text>
+							<text class="price-unit">{{ getPlanPriceUnit(level) }}</text>
 						</view>
 						<view class="market-price" v-if="level.market_annual_fee">原价 ¥{{ level.market_annual_fee }}</view>
 						<view class="feature-list">
@@ -65,7 +65,7 @@
 
 			<view class="benefits-section">
 				<view class="section-header">
-					<text class="section-title">资源包权益</text>
+					<text class="section-title">{{ currentBenefitTitle }}</text>
 				</view>
 				<view class="benefits-content">
 					<view class="vip-tab" v-for="(benefit, index) in resourceBenefits" :key="index">
@@ -87,7 +87,7 @@
 		<view class="ios-modal" v-if="showIOSModal" @click="closeIOSModal">
 			<view class="modal-content" @click.stop>
 				<view class="modal-text">
-					资源包购买请在电脑浏览器完成<br/>
+					套餐购买请在电脑浏览器完成<br/>
 					完成后回到小程序，权益会自动同步
 				</view>
 				<view class="modal-tip">{{ upgradeGuideDescription }}</view>
@@ -176,7 +176,7 @@
 				}
 				if (!this.levelInfo || !this.levelInfo.grade_level) {
 					uni.showToast({
-						title: '请选择资源包',
+						title: '请选择套餐',
 						icon: 'none'
 					});
 					return;
@@ -265,11 +265,27 @@
 				if (features.length) {
 					return features.slice(0, 3);
 				}
+				if (this.isTrafficPackage(level)) {
+					return [
+						`月度流量 ${level.traffic_size_str || '按套餐配置'}`,
+						'适合访客预览和下载',
+						'每月按套餐周期生效'
+					];
+				}
 				return [
 					`资源库存储空间 ${level.cloud_size_str || ''}`.trim(),
 					'适合商品素材沉淀',
 					'按实际上传文件大小计算容量'
 				];
+			},
+			isTrafficPackage(level = {}) {
+				const type = String(level.package_type || level.plan_category || '').toLowerCase();
+				const name = String(level.grade_name || '').toLowerCase();
+				return type.indexOf('traffic') !== -1 || name.indexOf('流量') !== -1;
+			},
+			getPlanPriceUnit(level = {}) {
+				if (level.display_unit) return level.display_unit;
+				return this.isTrafficPackage(level) ? '/月' : '/年';
 			},
 		}
 		,
@@ -280,7 +296,18 @@
 			selectedPackageName() {
 				return this.levelInfo && this.levelInfo.grade_name ? this.levelInfo.grade_name : '资源包';
 			},
+			currentBenefitTitle() {
+				return this.isTrafficPackage(this.levelInfo) ? '流量包权益' : '资源包权益';
+			},
 			resourceBenefits() {
+				if (this.isTrafficPackage(this.levelInfo)) {
+					return [
+						{ title: `月度流量${this.levelInfo.traffic_size_str || ''}`, desc: '用于访客浏览、预览和下载' },
+						{ title: '电脑端购买', desc: '小程序内复制地址后前往电脑浏览器开通' },
+						{ title: '自动同步', desc: '购买完成后回到小程序自动刷新权益' },
+						{ title: '月度生效', desc: '按套餐周期补充月度流量' }
+					];
+				}
 				const storageText = this.levelInfo.cloud_size_str || '';
 				return [
 					{ title: `资源库空间${storageText}`, desc: '按实际上传文件大小计算容量' },
@@ -294,15 +321,15 @@
 				];
 			},
 			upgradeGuideDescription() {
-				const gradeName = this.levelInfo?.grade_name || '资源包';
+				const gradeName = this.levelInfo?.grade_name || '套餐';
 				const price = this.levelInfo?.annual_fee || '';
-				return `${gradeName}${price ? ` ¥${price}/年` : ''}，请复制地址后在电脑浏览器打开`;
+				return `${gradeName}${price ? ` ¥${price}${this.getPlanPriceUnit(this.levelInfo)}` : ''}，请复制地址后在电脑浏览器打开`;
 			},
 			vipH5Link() {
 				const gradeLevel = this.levelInfo?.grade_level || 0;
-				const planId = this.levelInfo?.annual_plan_id || gradeLevel;
+				const planId = this.levelInfo?.annual_plan_id || this.levelInfo?.month_plan_id || gradeLevel;
 				const separator = this.upgradeUrl.indexOf('?') === -1 ? '?' : '&';
-				return `${this.upgradeUrl}${separator}grade=${gradeLevel}&plan_id=${planId}`;
+				return `${this.upgradeUrl}${separator}grade=${gradeLevel}&plan_id=${planId}&package_type=${this.levelInfo?.package_type || ''}`;
 			}
 		}
 	};

@@ -84,6 +84,7 @@
             <image src="/static/image/empty-folder.png" class="empty-img" />
             <text class="empty-text">暂无分类</text>
           </view>
+          <view class="list-bottom-spacer"></view>
         </block>
       </scroll-view>
 
@@ -159,8 +160,9 @@ export default {
   },
   onLoad(options = {}) {
     const sys = this.$base.getSystemInfoCompat();
-    // 计算列表高度：屏高 - 顶部搜索 - 底部按钮（估算）
-    this.listHeight = sys.windowHeight - 120 - 44;
+    const safeBottom = (sys.safeAreaInsets && sys.safeAreaInsets.bottom) || 0;
+    // 计算列表高度：屏高 - 页面上下内边距 - 搜索区 - 底部固定栏和安全区。
+    this.listHeight = Math.max(240, sys.windowHeight - 106 - 96 - safeBottom);
     this.parentId = Number(options.fid || 0);
     if (this.parentId) {
       this.parentInfo = {
@@ -431,8 +433,12 @@ export default {
 
 .list {
   margin-top: 8rpx;
-  padding-bottom: 140rpx;
+  padding-bottom: 220rpx;
   box-sizing: border-box;
+}
+
+.list-bottom-spacer {
+  height: calc(env(safe-area-inset-bottom) + 180rpx);
 }
 
 .category-card {

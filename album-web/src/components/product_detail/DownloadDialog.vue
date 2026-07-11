@@ -112,7 +112,7 @@ watch(productImages, (images) => {
 
 const handleDownload = async () => {
   if (!props.canDownload) {
-    toast.error('商户未开放保存权限')
+    toast.error('该用户未开放下载')
     return
   }
   if (selectedImageList.value.length === 0) {
@@ -150,14 +150,14 @@ const handleDownload = async () => {
       <DialogHeader class="flex-shrink-0">
         <DialogTitle>下载图片</DialogTitle>
         <DialogDescription>
-          选择要下载的图片，5 张及以上会打包为 ZIP 文件
+          选择要下载的图片，超过 5 张会打包为 ZIP 文件
         </DialogDescription>
       </DialogHeader>
 
       <!-- Scrollable content -->
       <div class="flex-1 overflow-y-auto min-h-0 space-y-4 py-4">
         <div v-if="!canDownload" class="mx-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          商户未开放保存权限，当前产品图片不可下载
+          该用户未开放下载，当前产品图片不可下载
         </div>
 
         <div v-else-if="productImages.length === 0" class="mx-6 rounded-lg border border-dashed border-border py-10 text-center text-muted-foreground">

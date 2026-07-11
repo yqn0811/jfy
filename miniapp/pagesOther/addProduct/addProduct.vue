@@ -96,9 +96,15 @@
         <view class="form-item">
           <view class="label-row">
             <text class="label">上传详情图</text>
-            <text class="hide-detail-toggle" @tap="hideDetailPictures = !hideDetailPictures">
-              {{ hideDetailPictures ? "展示详情页模块" : "关闭详情页模块" }}
-            </text>
+            <view class="hide-detail-switch">
+              <text class="hide-detail-label">隐藏详情图</text>
+              <u-switch
+                v-model="hideDetailPictures"
+                activeColor="#333"
+                inactiveColor="#e4e4e4"
+                @change="handleHideDetailPicturesChange"
+              ></u-switch>
+            </view>
           </view>
           <view class="detail-uploads">
             <view
@@ -673,6 +679,17 @@ export default {
       this.coverImageIds = this.getImageIds("cover");
       this.detailImageIds = this.getImageIds("detail");
     },
+    handleHideDetailPicturesChange(e) {
+      if (typeof e === "boolean") {
+        this.hideDetailPictures = e;
+      } else if (e && typeof e.value === "boolean") {
+        this.hideDetailPictures = e.value;
+      } else if (e && e.detail && typeof e.detail.value === "boolean") {
+        this.hideDetailPictures = e.detail.value;
+      } else {
+        this.hideDetailPictures = !!e;
+      }
+    },
     // 删除花色图
     removeCover(idx) {
       const image = this.coverImages[idx] || {};
@@ -1134,18 +1151,29 @@ export default {
     .label-row {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 24rpx;
       margin-bottom: 12rpx;
 
       .label {
         margin-bottom: 0;
+        flex: 1;
       }
     }
 
-    .hide-detail-toggle {
+    .hide-detail-switch {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 14rpx;
+      flex: 0 0 auto;
+    }
+
+    .hide-detail-label {
       font-size: 26rpx;
-      color: #ff3b30;
+      color: #333333;
       line-height: 1.4;
+      white-space: nowrap;
     }
 
     .select-box {

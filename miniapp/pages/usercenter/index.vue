@@ -445,11 +445,10 @@ export default {
       return this.userInfo.display_avatar || "/static/image/headurl.jpg";
     },
     memberName() {
-      const gradeName = this.safeText(this.userInfo.grade_name);
-      const planName = this.safeText(this.userInfo.membership_plan_name);
       if (this.hasActiveMembership()) {
-        return this.isFreeMemberName(gradeName) ? (planName || "会员") : (gradeName || planName || "会员");
+        return "标准会员";
       }
+      const gradeName = this.safeText(this.userInfo.grade_name);
       return this.isFreeMemberName(gradeName) ? "免费版" : (gradeName || "免费版");
     },
     memberStatusType() {

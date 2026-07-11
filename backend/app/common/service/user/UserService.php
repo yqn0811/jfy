@@ -897,7 +897,7 @@ class UserService extends BaseService
             if (!$isOwner) {
                 $owner = WdXcxUser::find($ownerUid);
                 if (!$owner || (int)$owner->visit_allow_save_pic !== 1) {
-                    throwError('商户未开放保存权限');
+                    throwError('该用户未开放下载');
                 }
             }
             if (!$isOwner && (int)$product->hide_detail_pictures === 1 && $this->isPictureInProductField($product, (int)$pic->id, 'detail_pic_ids')) {
@@ -917,7 +917,7 @@ class UserService extends BaseService
             }
             $this->assertHomeVisitRequirement($owner, $viewerUid, $isOwner, false);
             if (!$isOwner && (int)$owner->visit_allow_save_pic !== 1) {
-                throwError('商户未开放保存权限');
+                throwError('该用户未开放下载');
             }
             $product = $this->findVisibleHomeProductByPicture($ownerUid, (int)$pic->id, $viewerUid, $isOwner);
             if (!$product) {

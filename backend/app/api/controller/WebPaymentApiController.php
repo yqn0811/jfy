@@ -32,6 +32,7 @@ class WebPaymentApiController extends ApiBaseController
             ['plan_id', 0],
             ['grade', 0],
             ['buy_time', 0],
+            ['package_type', ''],
             ['coupon_code', ''],
         ]);
         $this->result($this->webPaymentService->createMembershipOrder(request()->userID(), $param), 0, '下单成功');
