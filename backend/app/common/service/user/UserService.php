@@ -53,7 +53,7 @@ class UserService extends BaseService
         return getJiafangyunPcBaseUrl();
     }
 
-    private function buildHomeWebShareUrl($shareCode, $params = [])
+    private function buildHomeWebShareUrl($shareCode, $params = [], $path = 'share-home')
     {
         $query = ['code' => (string)$shareCode];
         foreach ($params as $key => $value) {
@@ -62,7 +62,11 @@ class UserService extends BaseService
             }
             $query[$key] = (string)$value;
         }
-        return $this->getHomeWebBaseUrl() . 'share-home?' . http_build_query($query);
+        $pagePath = trim((string)$path, '/');
+        if ($pagePath === '') {
+            $pagePath = 'share-home';
+        }
+        return $this->getHomeWebBaseUrl() . $pagePath . '?' . http_build_query($query);
     }
 
     private function ensureHomeShareCode($user)
@@ -1131,33 +1135,53 @@ class UserService extends BaseService
      * 获取主页分享链接信息
      * @param $targetUserId
      * @param string $path
+     * @param string $type
+     * @param int $id
      * @return array
      */
-    public function getHomeShareLink($targetUserId, $path = '')
+    public function getHomeShareLink($targetUserId, $path = '', $type = 'home', $id = 0)
     {
         $user = WdXcxUser::find($targetUserId);
-        if (!$user || !$user->is_show_home) {
+        if (!$user || ($type !== 'selection' && !$user->is_show_home)) {
             throwError('该用户未公开主页');
         }
         $homeShareCode = $this->ensureHomeShareCode($user);
         $inviteCode = $this->ensureInviteCode($user);
-        $title = ($user->company_name ?: $user->nickname) . '的主页';
-        $miniPath = $this->normalizeMiniProgramPath($path ?: 'pages/index/index');
-        $pagePath = $miniPath['path'];
-        $params = $miniPath['params'];
-        $params['uid'] = (string)$targetUserId;
-        if ($inviteCode) {
-            $params['invite_code'] = (string)$inviteCode;
+        $sharePayload = $this->buildMiniProgramSharePayload($targetUserId, $path, $type, $id, $inviteCode);
+        $pagePath = $sharePayload['page_path'];
+        $query = $sharePayload['query'];
+        $mini_path = $sharePayload['mini_path'];
+        $displayMeta = $this->getShareDisplayMeta($user, $type, $id);
+        $title = $displayMeta['show_name'] ?: (($user->company_name ?: $user->nickname) . '的主页');
+        $pcParams = [];
+        $pcPath = 'share-home';
+        if ($type === 'product' && $id) {
+            $pcParams['productId'] = (string)$id;
+        } elseif ($type === 'category' && $id) {
+            $pcParams['categoryId'] = (string)$id;
+        } elseif ($type === 'selection' && $id) {
+            $pcPath = 'my-selections';
+            $pcParams['selectionId'] = (string)$id;
+            $selection = \app\common\model\album\WdXcxAlbumSelection::find($id);
+            if ($selection && $selection->product_id) {
+                $pcParams['productId'] = (string)$selection->product_id;
+            }
         }
-
-        $query = http_build_query($params);
-        $mini_path = $query ? ($pagePath . '?' . $query) : $pagePath;
-        $pcLink = $this->buildHomeWebShareUrl($homeShareCode);
+        $pcLink = $this->buildHomeWebShareUrl($homeShareCode, $pcParams, $pcPath);
 
         try {
             $share_link = (new WxService())->generateUrlLink($pagePath, $query);
         } catch (\Throwable $e) {
-            $share_link = (new WxService())->generateShortLink('/' . $mini_path, $title, false);
+            Log::warning('getHomeShareLink generateUrlLink fallback: ' . $e->getMessage());
+            try {
+                $share_link = (new WxService())->generateShortLink('/' . $mini_path, $title, false);
+            } catch (\Throwable $fallbackException) {
+                Log::error('getHomeShareLink generateShortLink fallback failed: ' . $fallbackException->getMessage());
+                $share_link = $pcLink;
+            }
+        }
+        if (!$share_link) {
+            $share_link = $pcLink;
         }
 
         $scene = $query ?: ('uid=' . $targetUserId);
@@ -1165,6 +1189,7 @@ class UserService extends BaseService
             'share_link' => $share_link,
             'link' => $share_link,
             'url_link' => $share_link,
+            'mobile_link' => $share_link,
             'pc_link' => $pcLink,
             'web_link' => $pcLink,
             'web_url' => $pcLink,
@@ -2445,7 +2470,7 @@ class UserService extends BaseService
             $query->where('folder_name', 'like', "%{$key}%");
         }
 
-        $lists = $query->order('id desc')
+        $lists = $query->order('delete_time desc, id desc')
             ->field('id, folder_name, folder_type, new_thumb, pic_ids, detail_pic_ids, create_time, delete_time')
             ->paginate($limit)->each(function ($item){
                 $thumb = $item->NewThumb;

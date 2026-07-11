@@ -390,8 +390,7 @@ const handleLogin = () => {
     toast.success('当前已登录')
     return
   }
-  isLoggedIn.value = true
-  toast.success('已模拟登录，可在线预览')
+  toast.info('登录入口暂未接入')
 }
 
 const handleSupport = () => {

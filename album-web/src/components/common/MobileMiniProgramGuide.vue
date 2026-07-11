@@ -19,9 +19,9 @@ const props = withDefaults(defineProps<{
 })
 
 const miniCodeUrl = ref('')
-const miniPath = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
+const imageLoadFailed = ref(false)
 
 const targetLabel = computed(() => {
   if (props.type === 'category') return '分类'
@@ -33,11 +33,19 @@ const targetLabel = computed(() => {
 const canLoadMiniCode = computed(() => !!props.shareCode || !!props.targetUserId)
 
 const loadMiniCode = async () => {
-  miniCodeUrl.value = ''
-  miniPath.value = ''
+  const directImageUrl = pcApi.getHomeMiniCodeImageUrl(
+    { targetUserId: props.targetUserId, shareCode: props.shareCode },
+    props.type,
+    props.targetId,
+    '',
+    { t: Date.now() }
+  )
+  miniCodeUrl.value = directImageUrl
   errorMessage.value = ''
+  imageLoadFailed.value = false
 
   if (!canLoadMiniCode.value) {
+    miniCodeUrl.value = ''
     errorMessage.value = '当前链接缺少分享信息，请联系分享者重新发送。'
     return
   }
@@ -49,15 +57,24 @@ const loadMiniCode = async () => {
       props.type,
       props.targetId,
     )
-    miniCodeUrl.value = data?.qrcode || data?.qrcode_url || ''
-    miniPath.value = data?.mini_path || ''
+    miniCodeUrl.value = data?.qrcode || data?.qrcode_url || directImageUrl
     if (!miniCodeUrl.value) {
       errorMessage.value = '小程序码生成中，请稍后重试。'
     }
   } catch (error: any) {
-    errorMessage.value = error?.message || '小程序码加载失败，请稍后重试。'
+    const message = error?.message || ''
+    errorMessage.value = message && message !== 'Load failed' && message !== 'Failed to fetch'
+      ? message
+      : '小程序码加载失败，请稍后重试。'
   } finally {
     isLoading.value = false
+  }
+}
+
+const handleImageError = () => {
+  imageLoadFailed.value = true
+  if (!errorMessage.value) {
+    errorMessage.value = '小程序码图片加载失败，请点击重新加载。'
   }
 }
 
@@ -85,26 +102,26 @@ watch(
 
         <div class="rounded-lg border border-border bg-card p-5 shadow-sm">
           <div class="mx-auto flex h-56 w-56 items-center justify-center overflow-hidden rounded-md border border-border bg-white">
-            <SafeIcon
-              v-if="isLoading"
-              name="Loader2"
-              :size="32"
-              class="animate-spin text-muted-foreground"
-            />
             <img
-              v-else-if="miniCodeUrl"
+              v-if="miniCodeUrl && !imageLoadFailed"
               :src="miniCodeUrl"
               :alt="`${targetLabel}小程序码`"
               class="h-full w-full object-contain"
+              @error="handleImageError"
+            />
+            <SafeIcon
+              v-else-if="isLoading"
+              name="Loader2"
+              :size="32"
+              class="animate-spin text-muted-foreground"
             />
             <SafeIcon v-else name="QrCode" :size="44" class="text-muted-foreground" />
           </div>
 
           <div class="mt-4 space-y-2">
             <p class="text-sm font-medium">长按识别小程序码</p>
-            <p v-if="miniPath" class="break-all text-xs leading-5 text-muted-foreground">{{ miniPath }}</p>
-            <p v-else-if="errorMessage" class="text-xs leading-5 text-destructive">{{ errorMessage }}</p>
-            <p v-else class="text-xs leading-5 text-muted-foreground">正在生成小程序码...</p>
+            <p v-if="errorMessage" class="text-xs leading-5 text-destructive">{{ errorMessage }}</p>
+            <p v-else class="text-xs leading-5 text-muted-foreground">无法识别时，请让分享者重新发送手机版链接。</p>
           </div>
 
           <Button

@@ -27,6 +27,25 @@ const selectedItem = ref<TrashData | null>(null)
 const selectedIds = ref<Set<string>>(new Set())
 const profile = ref<any>({})
 
+const padDatePart = (value: number) => String(value).padStart(2, '0')
+
+const formatRecycleDeletedAt = (value: unknown) => {
+  if (value === null || value === undefined) return ''
+  const raw = String(value).trim()
+  if (!raw) return ''
+  if (!/^\d+$/.test(raw)) return raw
+  const timestamp = Number(raw)
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return ''
+  const milliseconds = timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000
+  const date = new Date(milliseconds)
+  if (Number.isNaN(date.getTime())) return raw
+  return [
+    date.getFullYear(),
+    padDatePart(date.getMonth() + 1),
+    padDatePart(date.getDate()),
+  ].join('/') + ` ${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}`
+}
+
 onMounted(() => {
   isClient.value = false
   requestAnimationFrame(() => {
@@ -46,7 +65,7 @@ const mapTrashItem = (item: any): TrashData => ({
   sourceId: String(item.id || item.fid || ''),
   name: item.folder_name || item.pic_name || item.name || '未命名项目',
   coverUrl: pickImage(item.imgurl, item.new_thumb, item.coverUrl),
-  deletedAt: item.delete_time || item.delete_time_str || item.create_time_str || item.update_time || '',
+  deletedAt: formatRecycleDeletedAt(item.delete_time_str || item.deletedAt || item.delete_time || item.create_time_str || item.update_time || ''),
   canRestore: true,
 })
 

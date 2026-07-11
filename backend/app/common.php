@@ -554,7 +554,10 @@ function getJiafangyunPcBaseUrl()
 {
     $base = trim((string)env('JIAFANGYUN_PC_BASE_URL', getenv('JIAFANGYUN_PC_BASE_URL') ?: ''));
     if ($base === '') {
-        $base = 'https://pic.jfyuntu.com/';
+        $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+        $base = strpos($host, 'api-test.jfyuntu.com') !== false
+            ? 'https://pic-test.jfyuntu.com/'
+            : 'https://pic.jfyuntu.com/';
     }
     return rtrim($base, '/') . '/';
 }

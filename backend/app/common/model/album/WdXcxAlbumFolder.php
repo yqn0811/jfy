@@ -14,6 +14,7 @@ class WdXcxAlbumFolder extends Model
     protected $pk = 'id';
     protected $name = 'wd_xcx_album_folder';
     protected $autoWriteTimestamp = true;
+    protected $deleteTime = 'delete_time';
 
     protected $type = [
         'upload_field' => 'array',

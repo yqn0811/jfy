@@ -4,16 +4,21 @@ import { ref, computed, onMounted } from 'vue'
 import { TaskService } from '@/data/TaskService'
 import { WorkspaceService } from '@/data/WorkspaceService'
 import type { TaskData } from '@/data/TaskData'
+import { FileTransferApi, collectionTaskToTaskData, shareToTaskData } from '@/data/FileTransferApi'
 import ActionCard from '@/components/workbench/ActionCard.vue'
 import RecentTasksTable from '@/components/workbench/RecentTasksTable.vue'
 import TodoSidebar from '@/components/workbench/TodoSidebar.vue'
 import { Button } from '@/components/ui/button'
 import { navigateTo } from '@/navigation'
+import { authStore, getApiErrorMessage } from '@/lib/apiClient'
+import { toast } from 'vue-sonner'
 
 const isClient = ref(true)
 
 const tasks = ref<TaskData[]>(TaskService.getAll())
 const workspaceOverview = ref(WorkspaceService.getOverview())
+const isLoadingTasks = ref(false)
+const loadError = ref('')
 
 const searchKeyword = ref('')
 const statusFilter = ref<string>('')
@@ -26,7 +31,7 @@ const filteredTasks = computed(() => {
     result = result.filter((task) => task.name.toLowerCase().includes(keyword))
   }
 
-  if (statusFilter.value) {
+  if (statusFilter.value && statusFilter.value !== 'all') {
     result = result.filter((task) => task.status === statusFilter.value)
   }
 
@@ -40,17 +45,42 @@ onMounted(() => {
   requestAnimationFrame(() => {
     isClient.value = true
   })
+  loadRemoteTasks()
 })
 
-const handleTaskDeleted = (taskId: string) => {
-  tasks.value = tasks.value.filter((t) => t.id !== taskId)
+const loadRemoteTasks = async () => {
+  if (!authStore.hasToken()) return
+
+  isLoadingTasks.value = true
+  loadError.value = ''
+
+  try {
+    const [shares, collectionTasks] = await Promise.all([
+      FileTransferApi.listShares({ limit: 50 }),
+      FileTransferApi.listCollectionTasks({ limit: 50 }),
+    ])
+
+    const remoteTasks = [
+      ...shares.items.map(shareToTaskData),
+      ...collectionTasks.items.map((detail) => collectionTaskToTaskData(detail.task, detail.raw)),
+    ]
+
+    if (remoteTasks.length > 0) {
+      tasks.value = remoteTasks
+    }
+  } catch (error) {
+    loadError.value = getApiErrorMessage(error, '任务列表加载失败')
+  } finally {
+    isLoadingTasks.value = false
+  }
 }
 
-const handleTaskArchived = (taskId: string) => {
-  const task = tasks.value.find((t) => t.id === taskId)
-  if (task) {
-    task.status = 'archived'
-  }
+const handleTaskDeleted = () => {
+  toast.info('删除任务接口暂未开放')
+}
+
+const handleTaskArchived = () => {
+  toast.info('归档任务接口暂未开放')
 }
 </script>
 
@@ -66,6 +96,9 @@ const handleTaskArchived = (taskId: string) => {
             <h1 class="text-page-title mb-1">工作台</h1>
             <p class="text-caption">{{ workspaceOverview.teamName }}</p>
           </div>
+          <Button v-if="authStore.hasToken()" variant="outline" size="sm" :disabled="isLoadingTasks" @click="loadRemoteTasks">
+            {{ isLoadingTasks ? '刷新中...' : '刷新' }}
+          </Button>
         </div>
 
         <!-- Action Cards -->
@@ -88,6 +121,7 @@ const handleTaskArchived = (taskId: string) => {
       <!-- Recent Tasks Section -->
       <div class="mb-8">
         <h2 class="text-section-title mb-4">最近任务</h2>
+        <p v-if="loadError" class="mb-3 text-sm text-muted-foreground">{{ loadError }}，已显示本地预览记录。</p>
 
         <!-- Empty State -->
         <div v-if="hasNoTasks && (isClient || !isClient)" class="surface-base card-padding text-center py-16">

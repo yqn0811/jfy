@@ -3,6 +3,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { DeliveryRecordService } from '@/data/DeliveryRecordService'
 import type { DeliveryRecordVO } from '@/data/DeliveryRecordData'
+import {
+  FileTransferApi,
+  collectionTaskToDeliveryRecord,
+  shareToDeliveryRecord,
+} from '@/data/FileTransferApi'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -15,10 +20,13 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'
 import { navigateTo } from '@/navigation'
 import { cn } from '@/lib/utils'
+import { authStore, getApiErrorMessage } from '@/lib/apiClient'
 
 const isClient = ref(true)
 
 const records = ref<DeliveryRecordVO[]>(DeliveryRecordService.getRecordVOList())
+const isLoadingRecords = ref(false)
+const loadError = ref('')
 
 const searchKeyword = ref('')
 const selectedType = ref<string>('all')
@@ -46,32 +54,15 @@ const statusOptions = [
 ]
 
 const filteredRecords = computed(() => {
-  const filter: Record<string, string | string[]> = {}
-
-  if (selectedType.value !== 'all') {
-    filter.type = selectedType.value
-  }
-
-  if (selectedStatus.value !== 'all') {
-    filter.status = selectedStatus.value
-  }
-
-  return DeliveryRecordService.query({
-    keyword: searchKeyword.value,
-    filter,
-    sortKey: 'createdAt',
-    sortDirection: 'desc'
-  }).map((item) => ({
-    id: item.id,
-    name: item.name,
-    type: item.type,
-    status: item.status,
-    fileCount: item.fileCount,
-    storageSizeMb: item.storageSizeMb,
-    createdAt: item.createdAt,
-    expiresAt: item.expiresAt,
-    lastActorName: item.lastActorName
-  }))
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  return records.value
+    .filter((record) => {
+      const matchKeyword = !keyword || record.name.toLowerCase().includes(keyword)
+      const matchType = selectedType.value === 'all' || record.type === selectedType.value
+      const matchStatus = selectedStatus.value === 'all' || record.status === selectedStatus.value
+      return matchKeyword && matchType && matchStatus
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 })
 
 const paginatedRecords = computed(() => {
@@ -103,15 +94,46 @@ const formatStorageSize = (mb: number) => {
 }
 
 const handleRecordClick = (recordId: string) => {
+  const record = records.value.find((item) => item.id === recordId)
+  if (record?.type === 'sent') {
+    navigateTo(recordId.startsWith('share-') ? `/share-result?shareId=${recordId}` : `/share-result?shareCode=${recordId}`)
+    return
+  }
   navigateTo(`/task-details?taskId=${recordId}`)
 }
 
 const handleExport = () => {
-  toast.success('导出成功，文件已下载')
+  if (filteredRecords.value.length === 0) {
+    toast.info('没有可导出的记录')
+    return
+  }
+
+  const headers = ['记录名称', '类型', '状态', '文件数', '存储大小(MB)', '创建时间', '过期时间', '最后操作人']
+  const rows = filteredRecords.value.map((record) => [
+    record.name,
+    record.type,
+    record.status,
+    String(record.fileCount),
+    String(record.storageSizeMb),
+    record.createdAt,
+    record.expiresAt,
+    record.lastActorName,
+  ])
+  const csv = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `交付记录-${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+  toast.success('清单已导出')
 }
 
 const handleBatchDownload = () => {
-  toast.success('下载已启动，请稍候')
+  toast.info('批量下载接口暂未开放')
 }
 
 const handlePageChange = (page: number) => {
@@ -135,7 +157,44 @@ onMounted(() => {
 
     isClient.value = true
   })
+  loadRemoteRecords()
 })
+
+const loadRemoteRecords = async () => {
+  if (!authStore.hasToken()) return
+
+  isLoadingRecords.value = true
+  loadError.value = ''
+
+  try {
+    const [shares, collectionTasks] = await Promise.all([
+      FileTransferApi.listShares({ limit: 100 }),
+      FileTransferApi.listCollectionTasks({ limit: 100 }),
+    ])
+    const remoteRecords = [
+      ...shares.items.map(shareToDeliveryRecord),
+      ...collectionTasks.items.map(collectionTaskToDeliveryRecord),
+    ].map((item) => ({
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      status: item.status,
+      fileCount: item.fileCount,
+      storageSizeMb: item.storageSizeMb,
+      createdAt: item.createdAt,
+      expiresAt: item.expiresAt,
+      lastActorName: item.lastActorName,
+    }))
+
+    if (remoteRecords.length > 0) {
+      records.value = remoteRecords
+    }
+  } catch (error) {
+    loadError.value = getApiErrorMessage(error, '交付记录加载失败')
+  } finally {
+    isLoadingRecords.value = false
+  }
+}
 </script>
 
 <template>
@@ -143,8 +202,14 @@ onMounted(() => {
     <!-- 页面标题 -->
     <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <h1 class="text-page-title">交付记录</h1>
-      <p class="text-caption sm:text-right">查看和管理所有已发送和已收集的任务记录</p>
+      <div class="flex flex-col gap-2 sm:items-end">
+        <p class="text-caption sm:text-right">查看和管理所有已发送和已收集的任务记录</p>
+        <Button v-if="authStore.hasToken()" variant="outline" size="sm" :disabled="isLoadingRecords" @click="loadRemoteRecords">
+          {{ isLoadingRecords ? '刷新中...' : '刷新记录' }}
+        </Button>
+      </div>
     </div>
+    <p v-if="loadError" class="text-sm text-muted-foreground">{{ loadError }}，已显示本地预览记录。</p>
 
     <!-- 筛选栏 -->
     <FilterBar>

@@ -90,6 +90,13 @@ export const buildHomeTargetParams = (target: HomeTargetRef = {}) => {
   return value.shareCode ? { code: value.shareCode } : { target_user_id: value.targetUserId }
 }
 
+export type MiniProgramShareType = 'home' | 'category' | 'product' | 'selection'
+
+const buildApiUrl = (path: string, params?: Record<string, any>) => {
+  const query = buildQuery(params)
+  return `${joinUrl(getRuntimeApiBase(), path)}${query ? `?${query}` : ''}`
+}
+
 export const isMockEnabled = () => {
   if (!SHOULD_BUNDLE_MOCK) return false
   const envValue = import.meta.env.PUBLIC_ENABLE_MOCK || import.meta.env.PUBLIC_JFYUNTU_MOCK
@@ -259,12 +266,11 @@ export async function apiRequest<T = any>(
   }
 
   const method = options.method || 'GET'
-  const query = buildQuery(options.params)
-  const url = `${joinUrl(getRuntimeApiBase(), path)}${query ? `?${query}` : ''}`
+  const url = buildApiUrl(path, options.params)
   const token = normalizeToken(options.token || (options.auth === false ? '' : authStore.getToken()))
-  const headers: Record<string, string> = {
-    'X-Requested-With': 'XMLHttpRequest',
-  }
+  const headers: Record<string, string> = {}
+  const isPublicSimpleGet = method === 'GET' && options.auth === false && !token
+  if (!isPublicSimpleGet) headers['X-Requested-With'] = 'XMLHttpRequest'
   if (token) headers.Authorization = `Bearer ${token}`
 
   const init: RequestInit = { method, headers }
@@ -396,15 +402,23 @@ export const pcApi = {
     apiRequest<any>('user/home/products/detail', {
       params: { ...buildHomeTargetParams(target), product_id: productId, timestamp: Date.now() },
     }),
-  getHomeShareLink: (target: HomeTargetRef, path = '') =>
+  getHomeShareLink: (target: HomeTargetRef, type: MiniProgramShareType = 'home', id = '') =>
     apiRequest<any>('user/home/share_link', {
-      params: { ...buildHomeTargetParams(target), path, timestamp: Date.now() },
+      params: { ...buildHomeTargetParams(target), type, id, timestamp: Date.now() },
       auth: false,
     }),
-  getHomeMiniCode: (target: HomeTargetRef, type: 'home' | 'category' | 'product' | 'selection' = 'home', id = '', path = '') =>
+  getHomeMiniCode: (target: HomeTargetRef, type: MiniProgramShareType = 'home', id = '', path = '') =>
     apiRequest<any>('user/home/minicode', {
       params: { ...buildHomeTargetParams(target), type, id, path, timestamp: Date.now() },
       auth: false,
+    }),
+  getHomeMiniCodeImageUrl: (target: HomeTargetRef, type: MiniProgramShareType = 'home', id = '', path = '', extra: Record<string, any> = {}) =>
+    buildApiUrl('user/home/minicode_image', {
+      ...buildHomeTargetParams(target),
+      type,
+      id,
+      path,
+      ...extra,
     }),
 
   getManagementCategories: (params: Record<string, any>) =>

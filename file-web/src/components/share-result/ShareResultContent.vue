@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { FileShareService, type FileShareVO } from '@/data/FileShareService'
-import { FileTransferApi, getRememberedSharePassword } from '@/data/FileTransferApi'
+import { FileTransferApi, getRememberedSharePassword, type FileTransferShareVO } from '@/data/FileTransferApi'
 import { authStore, getApiErrorMessage } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,9 @@ const allShares = ref(FileShareService.getAll())
 const currentShare = ref<FileShareVO | null>(null)
 const shareId = ref<string>('')
 const isLoadingShare = ref(true)
+const shareCode = ref('')
+const accessPassword = ref('')
+const isVerifyingPassword = ref(false)
 
 onMounted(async () => {
   const params = new URLSearchParams(window.location.search)
@@ -27,7 +30,9 @@ onMounted(async () => {
   
   try {
     if (paramShareCode) {
+      shareCode.value = paramShareCode
       const rememberedPassword = getRememberedSharePassword(paramShareCode)
+      accessPassword.value = rememberedPassword
       const share = authStore.hasToken()
         ? await FileTransferApi.getOwnerShare(paramShareCode)
         : await FileTransferApi.getPublicShare(paramShareCode, rememberedPassword)
@@ -78,6 +83,13 @@ const expiresInDays = computed(() => {
   return Math.max(0, diffDays)
 })
 
+const remoteShare = computed(() => currentShare.value as FileTransferShareVO | null)
+
+const needsPassword = computed(() => {
+  const share = remoteShare.value
+  return Boolean(shareCode.value && share?.hasPassword && !share.passwordVerified)
+})
+
 const formatFileSize = (mb: number) => {
   if (mb >= 1024) {
     return (mb / 1024).toFixed(2) + ' GB'
@@ -86,7 +98,9 @@ const formatFileSize = (mb: number) => {
 }
 
 const formatDate = (dateString: string) => {
+  if (!dateString) return '-'
   const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) return '-'
   return date.toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -94,6 +108,38 @@ const formatDate = (dateString: string) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+const handleVerifyPassword = async () => {
+  if (!shareCode.value) return
+  const password = accessPassword.value.trim()
+  if (!password) {
+    toast.error('请输入访问密码')
+    return
+  }
+
+  isVerifyingPassword.value = true
+  try {
+    const share = await FileTransferApi.verifySharePassword(shareCode.value, password)
+    currentShare.value = share
+    accessPassword.value = password
+    toast.success('密码验证通过')
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '访问密码不正确'))
+  } finally {
+    isVerifyingPassword.value = false
+  }
+}
+
+const getFileDownloadUrl = (fileId: string) => {
+  if (shareCode.value) {
+    return FileTransferApi.getSharedDownloadUrl(fileId, shareCode.value, accessPassword.value || getRememberedSharePassword(shareCode.value))
+  }
+  return FileTransferApi.getOwnerDownloadUrl(fileId)
+}
+
+const handleDownloadFile = (fileId: string) => {
+  window.open(getFileDownloadUrl(fileId), '_blank')
 }
 
 const handleCopyLink = async () => {
@@ -127,11 +173,11 @@ const handleCopyQRCode = async () => {
 }
 
 const handleRegenerateQRCode = () => {
-  toast.success('二维码已重新生成')
+  toast.info('二维码重新生成接口暂未开放')
 }
 
 const handleExtendExpiry = () => {
-  toast.success('有效期已延长至 30 天')
+  toast.info('延长有效期接口暂未开放')
 }
 
 const handleViewDownloadRecords = () => {
@@ -180,8 +226,28 @@ const handleBack = () => {
           </CardHeader>
         </Card>
 
+        <Card v-if="needsPassword">
+          <CardHeader>
+            <CardTitle class="text-base">需要访问密码</CardTitle>
+            <CardDescription>请输入分享者提供的访问密码后查看文件。</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form class="flex flex-col gap-2 sm:flex-row" @submit.prevent="handleVerifyPassword">
+              <Input
+                v-model="accessPassword"
+                type="password"
+                placeholder="请输入访问密码"
+                autocomplete="current-password"
+              />
+              <Button type="submit" :disabled="isVerifyingPassword">
+                {{ isVerifyingPassword ? '验证中...' : '验证' }}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
         <!-- Main Content Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <!-- Left Column: Link & Settings -->
           <div class="lg:col-span-2 space-y-6">
             <!-- Share Link Section -->
@@ -213,14 +279,16 @@ const handleBack = () => {
 
                 <div class="space-y-2">
                   <label class="text-sm font-medium text-foreground">访问密码</label>
-                  <div class="flex flex-col gap-2 sm:flex-row">
+                  <form class="flex flex-col gap-2 sm:flex-row" @submit.prevent>
                     <Input
                       :value="currentShare.password"
                       readonly
                       type="password"
+                      autocomplete="off"
                       class="bg-muted/50 text-sm font-mono"
                     />
                     <Button
+                      type="button"
                       variant="outline"
                       size="icon"
                       class="shrink-0 max-sm:w-full"
@@ -228,7 +296,7 @@ const handleBack = () => {
                     >
                       <SafeIcon name="Copy" :size="18" />
                     </Button>
-                  </div>
+                  </form>
                 </div>
               </CardContent>
             </Card>
@@ -280,6 +348,31 @@ const handleBack = () => {
                 <div class="flex items-center justify-between">
                   <span class="text-sm text-muted-foreground">生成时间</span>
                   <span class="text-sm font-medium">{{ formatDate(currentShare.expiresAt) }}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card v-if="remoteShare?.files?.length">
+            <CardHeader>
+              <CardTitle class="text-base">文件清单</CardTitle>
+              <CardDescription class="text-xs">点击下载可保存单个文件</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="divide-y divide-border">
+                <div
+                  v-for="file in remoteShare.files"
+                  :key="file.id"
+                  class="flex items-center justify-between gap-3 py-3"
+                >
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium">{{ file.fileName }}</p>
+                    <p class="text-xs text-muted-foreground">{{ formatFileSize(file.fileSizeMb) }}</p>
+                  </div>
+                  <Button variant="outline" size="sm" @click="handleDownloadFile(file.id)">
+                    <SafeIcon name="Download" :size="15" class="mr-1" />
+                    下载
+                  </Button>
                 </div>
               </div>
             </CardContent>

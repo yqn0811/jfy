@@ -44,8 +44,8 @@ const emit = defineEmits<{
 }>()
 
 const shareUrl = ref('')
+const mobileShareUrl = ref('')
 const miniCodeUrl = ref('')
-const miniPath = ref('')
 const isLoadingShare = ref(false)
 
 const typeLabel = computed(() => {
@@ -77,20 +77,25 @@ const buildShareUrl = () => {
   return url.toString()
 }
 
+const pickMobileShareLink = (data: any) => data?.share_link || data?.url_link || data?.link || data?.mobile_link || ''
+
 const loadShareData = async () => {
   shareUrl.value = buildShareUrl()
+  mobileShareUrl.value = ''
   miniCodeUrl.value = ''
-  miniPath.value = ''
   if ((!props.targetUserId && !props.shareCode) || !props.targetId) return
   isLoadingShare.value = true
   try {
-    const codeData = await pcApi.getHomeMiniCode(
-      targetRef.value,
-      props.type,
-      props.targetId,
-    ).catch(() => null)
+    const [linkData, codeData] = await Promise.all([
+      pcApi.getHomeShareLink(targetRef.value, props.type, props.targetId).catch(() => null),
+      pcApi.getHomeMiniCode(
+        targetRef.value,
+        props.type,
+        props.targetId,
+      ).catch(() => null),
+    ])
+    mobileShareUrl.value = pickMobileShareLink(linkData)
     miniCodeUrl.value = codeData?.qrcode || codeData?.qrcode_url || ''
-    miniPath.value = codeData?.mini_path || ''
   } finally {
     isLoadingShare.value = false
   }
@@ -132,29 +137,22 @@ const copyText = async (text: string) => {
 
 const handleCopyLink = async () => {
   const ok = await copyText(shareUrl.value)
-  if (ok) toast.success(`${typeLabel.value}链接已复制`)
+  if (ok) toast.success(`${typeLabel.value}网页链接已复制`)
+}
+
+const handleCopyMobileLink = async () => {
+  const ok = await copyText(mobileShareUrl.value)
+  if (ok) toast.success(`${typeLabel.value}手机版链接已复制`)
 }
 
 const handleCopyWithTitle = async () => {
-  const rows = [dialogTitle.value, shareUrl.value].filter(Boolean)
+  const rows = [
+    dialogTitle.value,
+    mobileShareUrl.value ? `手机版：${mobileShareUrl.value}` : '',
+    shareUrl.value ? `网页版：${shareUrl.value}` : '',
+  ].filter(Boolean)
   const ok = await copyText(rows.join('\n'))
   if (ok) toast.success('已复制')
-}
-
-const handleShare = (platform: string) => {
-  const encodedUrl = encodeURIComponent(shareUrl.value)
-  const encodedTitle = encodeURIComponent(dialogTitle.value)
-  if (platform === 'wechat') {
-    toast.success('可复制链接或使用小程序码分享')
-    return
-  }
-  if (platform === 'qq') {
-    window.open(`https://connect.qq.com/widget/shareqq/index.html?url=${encodedUrl}&title=${encodedTitle}`, '_blank')
-    return
-  }
-  if (platform === 'weibo') {
-    window.open(`https://service.weibo.com/share/share.php?url=${encodedUrl}&title=${encodedTitle}`, '_blank')
-  }
 }
 </script>
 
@@ -169,8 +167,29 @@ const handleShare = (platform: string) => {
 
         <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
           <div class="space-y-2">
+            <label class="text-sm font-medium">手机版</label>
+            <div class="flex gap-2">
+              <Input
+                :model-value="mobileShareUrl || (isLoadingShare ? '生成中...' : '暂无手机版链接')"
+                readonly
+                class="min-w-0 flex-1 bg-muted/50 text-xs"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                class="shrink-0 gap-2"
+                @click="handleCopyMobileLink"
+                :disabled="!mobileShareUrl"
+              >
+                <SafeIcon name="Copy" :size="16" />
+                复制
+              </Button>
+            </div>
+          </div>
+
+          <div class="space-y-2">
             <div class="flex items-center justify-between gap-3">
-              <label class="text-sm font-medium">分享链接</label>
+              <label class="text-sm font-medium">网页版</label>
               <span class="text-xs text-muted-foreground">请在PC电脑端打开，手机端只能支持小程序</span>
             </div>
             <div class="flex gap-2">
@@ -207,8 +226,8 @@ const handleShare = (platform: string) => {
               </div>
               <div class="min-w-0 flex-1 space-y-2">
                 <p class="text-sm font-medium">微信扫一扫打开小程序</p>
-                <p class="break-all text-xs text-muted-foreground">
-                  {{ miniPath || '小程序码生成中，网页链接可直接复制分享' }}
+                <p class="text-xs leading-5 text-muted-foreground">
+                  手机用户可长按识别，也可以复制手机版链接分享。
                 </p>
               </div>
             </div>
@@ -225,24 +244,6 @@ const handleShare = (platform: string) => {
               <SafeIcon name="Copy" :size="16" />
               复制文案和链接
             </Button>
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-sm font-medium">分享到社交平台</label>
-            <div class="grid grid-cols-3 gap-2">
-              <Button variant="outline" class="h-12 gap-2" @click="handleShare('wechat')">
-                <SafeIcon name="MessageCircle" :size="18" />
-                微信
-              </Button>
-              <Button variant="outline" class="h-12 gap-2" @click="handleShare('qq')">
-                <SafeIcon name="Share2" :size="18" />
-                QQ
-              </Button>
-              <Button variant="outline" class="h-12 gap-2" @click="handleShare('weibo')">
-                <SafeIcon name="Share2" :size="18" />
-                微博
-              </Button>
-            </div>
           </div>
         </div>
 

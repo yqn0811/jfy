@@ -37,9 +37,7 @@
             <view class="file-name">{{
               item.folder_name || "IMG_" + item.create_time
             }}</view>
-            <view class="file-info">{{
-              formatDate(item.create_time || "2021/05/27 13:57")
-            }}</view>
+            <view class="file-info">{{ item.deletedAt }}</view>
           </view>
           <view class="action-container">
             <view
@@ -132,9 +130,18 @@ export default {
     parseDate(dateStr) {
       if (!dateStr) return null;
       if (dateStr instanceof Date) return dateStr;
-      if (typeof dateStr === "number") return new Date(dateStr);
+      if (typeof dateStr === "number") {
+        const milliseconds = dateStr > 1000000000000 ? dateStr : dateStr * 1000;
+        return new Date(milliseconds);
+      }
 
       const text = String(dateStr).trim();
+      if (/^\d+$/.test(text)) {
+        const timestamp = Number(text);
+        if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+        const milliseconds = timestamp > 1000000000000 ? timestamp : timestamp * 1000;
+        return new Date(milliseconds);
+      }
       const normalizedText = text.includes(" ")
         ? text.replace(/-/g, "/")
         : text;
@@ -306,6 +313,15 @@ export default {
         // 确保每个项目都有isChecked属性
         const newData = res.data.data.map((item) => ({
           ...item,
+          deletedAt: this.formatDate(
+            item.delete_time_str ||
+              item.deletedAt ||
+              item.delete_time ||
+              item.create_time_str ||
+              item.update_time ||
+              item.create_time ||
+              ""
+          ),
           imgurl:
             item.imgurl ||
             item.new_thumb ||

@@ -666,16 +666,20 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
       const uid = String(params.target_user_id || ownerUid)
       const code = String(params.code || params.share_code || state.user.home_share_code || state.user.share_code || `HFY${ownerUid}`)
       const mobileLink = `https://wxmpurl.cn/${encodeURIComponent(uid).slice(0, 8)}`
+      const pcParams = new URLSearchParams({ code })
+      if (params.type === 'product' && params.id) pcParams.set('productId', String(params.id))
+      if (params.type === 'category' && params.id) pcParams.set('categoryId', String(params.id))
+      if (params.type === 'selection' && params.id) pcParams.set('selectionId', String(params.id))
       return ok({
         share_link: mobileLink,
         link: mobileLink,
         url_link: mobileLink,
-        pc_link: `${currentOrigin()}/share-home?code=${encodeURIComponent(code)}`,
-        web_link: `${currentOrigin()}/share-home?code=${encodeURIComponent(code)}`,
+        mobile_link: mobileLink,
+        pc_link: `${currentOrigin()}/share-home?${pcParams.toString()}`,
+        web_link: `${currentOrigin()}/share-home?${pcParams.toString()}`,
         share_code: code,
         code,
         invite_code: state.user.invite_code,
-        mini_path: `/pages/index/index?uid=${encodeURIComponent(uid)}`,
       }) as T
     }
 
@@ -683,16 +687,10 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
       const uid = String(params.target_user_id || ownerUid)
       const type = String(params.type || 'home')
       const id = String(params.id || '')
-      const miniPath =
-        type === 'product'
-          ? `/pages/product/detail?uid=${uid}&productId=${id}`
-          : type === 'category'
-            ? `/pages/category/index?uid=${uid}&categoryId=${id}`
-            : `/pages/index/index?uid=${uid}`
+      const qrPayload = `jfyuntu-mini:${type}:${uid}:${id}`
       return ok({
-        qrcode: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(miniPath)}`,
-        qrcode_url: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(miniPath)}`,
-        mini_path: miniPath,
+        qrcode: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrPayload)}`,
+        qrcode_url: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrPayload)}`,
       }) as T
     }
 

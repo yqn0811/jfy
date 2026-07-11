@@ -61,9 +61,7 @@ const formatDate = (dateStr: string) => {
 const handleApprove = () => {
   if (!submission.value) return
   
-  toast.success('已标记为通过')
-  emit('submission-updated')
-  emit('close')
+  toast.info('审核接口暂未开放')
 }
 
 const handleRejectClick = () => {
@@ -76,20 +74,17 @@ const handleConfirmReject = () => {
     return
   }
 
-  toast.success('已发送退回提醒')
+  toast.info('退回提醒接口暂未开放')
   showRejectDialog.value = false
   rejectReason.value = ''
-  emit('submission-updated')
-  emit('close')
 }
 
 const handleDownloadFile = (fileName: string) => {
-  toast.success(`已下载 ${fileName}`)
+  toast.info(`文件下载接口暂未开放: ${fileName}`)
 }
 
 const handlePreviewFile = (fileName: string) => {
-  window.open(`#preview-${fileName}`, '_blank')
-  toast.info(`正在预览 ${fileName}`)
+  toast.info(`文件预览接口暂未开放: ${fileName}`)
 }
 </script>
 

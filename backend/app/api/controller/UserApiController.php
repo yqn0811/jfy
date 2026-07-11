@@ -12,6 +12,7 @@ use think\facade\Config;
 use app\index\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
+use think\Response;
 use app\common\model\user\WdXcxUserVisitRecord;
 
 class UserApiController extends ApiBaseController
@@ -53,6 +54,15 @@ class UserApiController extends ApiBaseController
         } catch (\Throwable $e) {
             return 0;
         }
+    }
+
+    private function hideHomeMiniProgramInternalFields($data)
+    {
+        if (!is_array($data)) {
+            return $data;
+        }
+        unset($data['mini_path'], $data['qrcode_path'], $data['scene']);
+        return $data;
     }
 
     /**微信用户获取openid
@@ -1405,6 +1415,7 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['uid', 0],
             ['code', ''],
             ['share_code', ''],
             ['invite_code', ''],
@@ -1413,20 +1424,53 @@ class UserApiController extends ApiBaseController
             ['id', 0],
         ]);
         $targetUserId = $this->resolveHomeTargetUserId($params);
-        $this->result($this->userService->getHomeMiniProgramCode($targetUserId, $params['path'], $params['type'], $params['id']));
+        $data = $this->userService->getHomeMiniProgramCode($targetUserId, $params['path'], $params['type'], $params['id']);
+        $this->result($this->hideHomeMiniProgramInternalFields($data));
+    }
+
+    public function getHomeMiniProgramCodeImage()
+    {
+        $params = $this->request->getMore([
+            ['target_user_id', 0],
+            ['uid', 0],
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
+            ['path', ''],
+            ['type', 'home'],
+            ['id', 0],
+        ]);
+        $targetUserId = $this->resolveHomeTargetUserId($params);
+        $code = $this->userService->getHomeMiniProgramCode($targetUserId, $params['path'], $params['type'], $params['id']);
+        $path = $code['qrcode_path'] ?? '';
+        if (!$path || !is_file($path) || !is_readable($path)) {
+            throwError('小程序码生成失败');
+        }
+        $content = file_get_contents($path);
+        if ($content === false) {
+            throwError('小程序码生成失败');
+        }
+        return Response::create($content, 'html', 200)->header([
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'public, max-age=300',
+        ]);
     }
 
     public function getHomeShareLink()
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['uid', 0],
             ['code', ''],
             ['share_code', ''],
             ['invite_code', ''],
             ['path', ''],
+            ['type', 'home'],
+            ['id', 0],
         ]);
         $targetUserId = $this->resolveHomeTargetUserId($params);
-        $this->result($this->userService->getHomeShareLink($targetUserId, $params['path']));
+        $data = $this->userService->getHomeShareLink($targetUserId, $params['path'], $params['type'], $params['id']);
+        $this->result($this->hideHomeMiniProgramInternalFields($data));
     }
 
     public function getHomeSharePoster()

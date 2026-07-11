@@ -3,10 +3,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import type { CollectionTaskData } from '@/data/CollectionTaskData'
 import type { SubmissionData } from '@/data/SubmissionData'
-import { CollectionTaskService } from '@/data/CollectionTaskService'
 import { SubmissionService } from '@/data/SubmissionService'
 import { toast } from 'vue-sonner'
-import { navigateTo } from '@/navigation'
 import TaskDetailsHeader from '@/components/task-details/TaskDetailsHeader.vue'
 import StatCardsRow from '@/components/task-details/StatCardsRow.vue'
 import SubmissionTable from '@/components/task-details/SubmissionTable.vue'
@@ -67,28 +65,11 @@ const stats = computed(() => {
 })
 
 const handleBatchRemind = () => {
-  const targetCount = filteredSubmissions.value.filter(s => 
-    s.status === 'pending_review' || s.status === 'need_resubmission'
-  ).length
-
-  if (targetCount === 0) {
-    toast.info('没有需要提醒的提交记录')
-    return
-  }
-
-  toast.success(`已向 ${targetCount} 人发送提醒`)
+  toast.info('提醒接口暂未开放')
 }
 
 const handleBatchDownload = () => {
-  if (filteredSubmissions.value.length === 0) {
-    toast.info('没有可下载的提交记录')
-    return
-  }
-
-  toast.loading('正在打包文件...')
-  setTimeout(() => {
-    toast.success(`已打包 ${filteredSubmissions.value.length} 份提交材料`)
-  }, 1500)
+  toast.info('批量下载接口暂未开放')
 }
 
 const handleExportList = () => {
@@ -101,15 +82,7 @@ const handleExportList = () => {
 }
 
 const handleArchiveTask = () => {
-  if (!currentTask.value) return
-  
-  CollectionTaskService.archiveTask(currentTask.value.id)
-  currentTask.value.status = 'archived'
-  
-  toast.success('任务已归档')
-  setTimeout(() => {
-    navigateTo('/space-archive')
-  }, 800)
+  toast.info('归档任务接口暂未开放')
 }
 
 const handleCopyLink = () => {
@@ -126,7 +99,7 @@ const handlePreviewSubmission = () => {
 }
 
 const handleShowQRCode = () => {
-  toast.info('二维码已显示（模拟）')
+  toast.info('二维码接口暂未开放')
 }
 
 watch(

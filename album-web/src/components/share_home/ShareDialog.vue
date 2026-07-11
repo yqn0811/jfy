@@ -29,7 +29,6 @@ const emit = defineEmits<{
 const mobileShareUrl = ref('')
 const webShareUrl = ref('')
 const miniCodeUrl = ref('')
-const miniPath = ref('')
 const isLoadingShare = ref(false)
 const shareTitle = ref(props.homeProfile.shareTitle || `${props.homeProfile.companyName}的产品主页`)
 const shareDescription = ref(props.homeProfile.shareDescription || props.homeProfile.intro)
@@ -50,18 +49,16 @@ const loadShareData = async () => {
   webShareUrl.value = buildPcShareUrl()
   mobileShareUrl.value = ''
   miniCodeUrl.value = ''
-  miniPath.value = ''
   if (!props.homeProfile?.id) return
   isLoadingShare.value = true
   try {
     const [linkData, codeData] = await Promise.all([
-      pcApi.getHomeShareLink({ targetUserId: props.homeProfile.ownerUserId || props.homeProfile.id, shareCode: props.homeProfile.shareCode || '' }).catch(() => null),
+      pcApi.getHomeShareLink({ targetUserId: props.homeProfile.ownerUserId || props.homeProfile.id, shareCode: props.homeProfile.shareCode || '' }, 'home').catch(() => null),
       pcApi.getHomeMiniCode({ targetUserId: props.homeProfile.ownerUserId || props.homeProfile.id, shareCode: props.homeProfile.shareCode || '' }, 'home').catch(() => null),
     ])
     mobileShareUrl.value = pickMobileShareLink(linkData)
     webShareUrl.value = pickWebShareLink(linkData) || webShareUrl.value
     miniCodeUrl.value = codeData?.qrcode || codeData?.qrcode_url || ''
-    miniPath.value = codeData?.mini_path || linkData?.mini_path || ''
   } finally {
     isLoadingShare.value = false
   }
@@ -90,26 +87,6 @@ const handleCopyWithTitle = () => {
   const text = rows.join('\n')
   navigator.clipboard.writeText(text)
   toast.success('已复制')
-}
-
-const handleShare = (platform: string) => {
-  const encodedUrl = encodeURIComponent(webShareUrl.value)
-  const encodedTitle = encodeURIComponent(shareTitle.value)
-  let shareLink = ''
-
-  switch (platform) {
-    case 'wechat':
-      toast.success('可复制手机版链接或小程序码分享')
-      break
-    case 'qq':
-      shareLink = `https://connect.qq.com/widget/shareqq/index.html?url=${encodedUrl}&title=${encodedTitle}`
-      window.open(shareLink, '_blank')
-      break
-    case 'weibo':
-      shareLink = `https://service.weibo.com/share/share.php?url=${encodedUrl}&title=${encodedTitle}`
-      window.open(shareLink, '_blank')
-      break
-  }
 }
 </script>
 
@@ -186,8 +163,8 @@ const handleShare = (platform: string) => {
             </div>
             <div class="flex-1 min-w-0 space-y-2">
               <p class="text-sm font-medium">微信扫一扫打开小程序</p>
-              <p class="text-xs text-muted-foreground break-all">
-                {{ miniPath || '小程序码生成中，手机版和网页版链接可直接复制分享' }}
+              <p class="text-xs leading-5 text-muted-foreground">
+                手机用户可长按识别，也可以复制手机版链接分享。
               </p>
             </div>
           </div>
@@ -210,40 +187,6 @@ const handleShare = (platform: string) => {
             <SafeIcon name="Copy" :size="16" class="mr-2" />
             复制文案和链接
           </Button>
-        </div>
-
-        <!-- 社交分享 -->
-        <div class="space-y-2">
-          <label class="text-sm font-medium">分享到社交平台</label>
-          <div class="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              @click="handleShare('wechat')"
-              class="flex-1"
-            >
-              <SafeIcon name="MessageCircle" :size="16" class="mr-2" />
-              微信
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              @click="handleShare('qq')"
-              class="flex-1"
-            >
-              <SafeIcon name="Share2" :size="16" class="mr-2" />
-              QQ
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              @click="handleShare('weibo')"
-              class="flex-1"
-            >
-              <SafeIcon name="Share2" :size="16" class="mr-2" />
-              微博
-            </Button>
-          </div>
         </div>
       </div>
 

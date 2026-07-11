@@ -39,6 +39,10 @@ const orders = ref<OrderData[]>([])
 const isLoading = ref(false)
 const isCreatingOrder = ref(false)
 const paymentDialogOpen = ref(false)
+const paymentDialogMode = ref<'confirm' | 'pay'>('confirm')
+const pendingPlan = ref<PlanPackageData | null>(null)
+const couponCode = ref('')
+const couponError = ref('')
 const activePayment = ref<any>(null)
 let paymentTimer: number | null = null
 
@@ -202,6 +206,20 @@ const paymentAmount = computed(() => {
   return cents > 0 ? (cents / 100).toFixed(2) : '0.00'
 })
 
+const paymentOriginalAmount = computed(() => {
+  const order = activePayment.value || {}
+  const cents = Number(order.original_amount || order.original_amount_cents || 0)
+  if (cents > Number(order.amount_cents || 0)) {
+    return (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)
+  }
+  return ''
+})
+
+const paymentDiscountAmount = computed(() => {
+  const cents = Number(activePayment.value?.discount_cents || 0)
+  return cents > 0 ? (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2) : ''
+})
+
 const paymentOrderNo = computed(() => {
   const order = activePayment.value || {}
   return order.order_no || order.order_id || ''
@@ -216,6 +234,10 @@ const stopPaymentPolling = () => {
 
 const closePaymentDialog = () => {
   paymentDialogOpen.value = false
+  pendingPlan.value = null
+  activePayment.value = null
+  couponCode.value = ''
+  couponError.value = ''
   stopPaymentPolling()
 }
 
@@ -247,16 +269,35 @@ const pollPaymentStatus = (orderNo: string) => {
 const handleUpgrade = async (planId: string) => {
   const plan = plans.value.find(p => p.id === planId)
   if (!plan) return
+  stopPaymentPolling()
+  pendingPlan.value = plan
+  activePayment.value = null
+  couponCode.value = ''
+  couponError.value = ''
+  paymentDialogMode.value = 'confirm'
+  paymentDialogOpen.value = true
+}
 
+const normalizeCouponCode = (value: string) => value.trim().toUpperCase()
+
+const submitPaymentOrder = async () => {
+  const plan = pendingPlan.value
+  if (!plan || isCreatingOrder.value) return
   isCreatingOrder.value = true
+  couponError.value = ''
   try {
-    const order = await pcApi.createMembershipOrder({ membership_plan_id: plan.id, plan_id: plan.id })
+    const normalizedCouponCode = normalizeCouponCode(couponCode.value)
+    const order = await pcApi.createMembershipOrder({
+      membership_plan_id: plan.id,
+      plan_id: plan.id,
+      ...(normalizedCouponCode ? { coupon_code: normalizedCouponCode } : {}),
+    })
     activePayment.value = { ...order, plan_name: plan.name }
-    paymentDialogOpen.value = true
+    paymentDialogMode.value = 'pay'
     toast.success('订单已创建，请使用微信扫码支付')
     pollPaymentStatus(order?.order_no || order?.order_id || '')
   } catch (error: any) {
-    toast.error(error?.message || '下单失败')
+    couponError.value = error?.message || '下单失败'
   } finally {
     isCreatingOrder.value = false
   }
@@ -392,11 +433,38 @@ const handleBackToWorkbench = () => {
     <Dialog :open="paymentDialogOpen" @update:open="(val) => val ? (paymentDialogOpen = val) : closePaymentDialog()">
       <DialogContent class="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>微信扫码支付</DialogTitle>
-          <DialogDescription>订单创建成功，请使用微信扫描二维码完成支付</DialogDescription>
+          <DialogTitle>{{ paymentDialogMode === 'confirm' ? '确认订单' : '微信扫码支付' }}</DialogTitle>
+          <DialogDescription>
+            {{ paymentDialogMode === 'confirm' ? '可填写优惠券码后生成支付二维码' : '订单创建成功，请使用微信扫描二维码完成支付' }}
+          </DialogDescription>
         </DialogHeader>
 
-        <div class="grid gap-5 py-2 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
+        <form v-if="paymentDialogMode === 'confirm'" class="space-y-5 py-2" @submit.prevent="submitPaymentOrder">
+          <div class="rounded-lg border border-border bg-muted/30 p-4">
+            <p class="text-sm text-muted-foreground">购买套餐</p>
+            <h3 class="mt-1 text-lg font-semibold text-foreground">{{ pendingPlan?.name || '资源包' }}</h3>
+            <p class="mt-3 text-3xl font-bold text-primary">{{ pendingPlan?.price || '¥0' }}</p>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-foreground" for="album-payment-coupon">优惠券码</label>
+            <input
+              id="album-payment-coupon"
+              v-model="couponCode"
+              type="text"
+              autocomplete="off"
+              class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm uppercase tracking-wide outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              placeholder="请输入优惠券码"
+              :disabled="isCreatingOrder"
+              @input="couponCode = normalizeCouponCode(couponCode)"
+            />
+            <p v-if="couponError" class="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {{ couponError }}
+            </p>
+          </div>
+        </form>
+
+        <div v-else class="grid gap-5 py-2 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
           <div class="mx-auto flex h-56 w-56 items-center justify-center rounded-lg border border-border bg-white p-3">
             <img
               v-if="paymentQrImage"
@@ -413,7 +481,13 @@ const handleBackToWorkbench = () => {
           <div class="min-w-0 text-center sm:text-left">
             <p class="text-sm text-muted-foreground">购买套餐</p>
             <h3 class="mt-1 text-lg font-semibold text-foreground">{{ activePayment?.plan_name || '资源包' }}</h3>
-            <p class="mt-4 text-3xl font-bold text-primary">¥{{ paymentAmount }}</p>
+            <div class="mt-4 flex flex-wrap items-end justify-center gap-2 sm:justify-start">
+              <p class="text-3xl font-bold text-primary">¥{{ paymentAmount }}</p>
+              <p v-if="paymentOriginalAmount" class="pb-1 text-sm text-muted-foreground line-through">¥{{ paymentOriginalAmount }}</p>
+              <p v-if="paymentDiscountAmount" class="mb-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                已优惠 ¥{{ paymentDiscountAmount }}
+              </p>
+            </div>
             <p class="mt-3 break-all text-xs text-muted-foreground">订单号：{{ paymentOrderNo || '-' }}</p>
             <p class="mt-4 inline-flex items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm text-primary">
               <SafeIcon name="Loader2" :size="14" class="animate-spin" />
@@ -424,6 +498,10 @@ const handleBackToWorkbench = () => {
 
         <DialogFooter class="sm:justify-between">
           <Button variant="outline" @click="closePaymentDialog">稍后支付</Button>
+          <Button v-if="paymentDialogMode === 'confirm'" :disabled="isCreatingOrder" @click="submitPaymentOrder">
+            <SafeIcon name="QrCode" :size="14" class="mr-2" />
+            {{ isCreatingOrder ? '正在创建订单' : '生成支付二维码' }}
+          </Button>
           <Button v-if="paymentUrl" as-child>
             <a :href="paymentUrl" target="_blank" rel="noopener noreferrer">
               <SafeIcon name="ExternalLink" :size="14" class="mr-2" />

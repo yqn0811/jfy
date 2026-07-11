@@ -1,7 +1,9 @@
 import type { CollectionTaskData, TaskFieldConfigData, TaskMaterialItemData, TaskRuleConfigData } from './CollectionTaskData'
+import type { DeliveryRecordData } from './DeliveryRecordData'
 import type { FileShareData } from './FileShareData'
 import type { FileShareVO } from './FileShareService'
-import { apiRequest, apiUpload } from '@/lib/apiClient'
+import type { TaskData } from './TaskData'
+import { apiRequest, apiUpload, buildApiUrl } from '@/lib/apiClient'
 
 export interface UploadedFileResult {
   id: string
@@ -36,6 +38,10 @@ export interface CreateCollectionTaskPayload {
 
 export interface FileTransferShareVO extends FileShareVO {
   shareCode: string
+  hasPassword: boolean
+  passwordVerified: boolean
+  files: UploadedFileResult[]
+  createdAt: string
 }
 
 export interface CollectionTaskDetailVO {
@@ -44,6 +50,13 @@ export interface CollectionTaskDetailVO {
   materials: TaskMaterialItemData[]
   ruleConfig: TaskRuleConfigData
   raw: any
+}
+
+export interface FileTransferListResult<T> {
+  items: T[]
+  total: number
+  page: number
+  limit: number
 }
 
 const isBlank = (value: unknown) => value === undefined || value === null || value === ''
@@ -124,6 +137,7 @@ export const normalizeUploadedFile = (raw: any): UploadedFileResult => {
 export const normalizeShareVO = (raw: any, password = ''): FileTransferShareVO => {
   const shareCode = toStringValue(pick(raw, ['shareCode', 'share_code']))
   const id = toStringValue(pick(raw, ['id', 'shareId', 'share_id'], shareCode || `share-${Date.now()}`))
+  const files = Array.isArray(raw?.files) ? raw.files.map(normalizeUploadedFile) : []
   return {
     id,
     shareCode,
@@ -139,6 +153,10 @@ export const normalizeShareVO = (raw: any, password = ''): FileTransferShareVO =
     totalSizeMb: toNumber(pick(raw, ['totalSizeMb', 'total_size_mb'], toNumber(pick(raw, ['totalSizeBytes', 'total_size_bytes'], 0)) / 1024 / 1024)),
     downloadCount: toNumber(pick(raw, ['downloadCount', 'download_count'], 0)),
     recentLogs: [],
+    hasPassword: toBoolean(pick(raw, ['hasPassword', 'has_password'], Boolean(password)), Boolean(password)),
+    passwordVerified: toBoolean(pick(raw, ['passwordVerified', 'password_verified'], true), true),
+    files,
+    createdAt: toIsoLike(pick(raw, ['createdAt', 'created_at'], new Date().toISOString())),
   }
 }
 
@@ -166,6 +184,15 @@ const normalizeTaskStatus = (raw: any): CollectionTaskData['status'] => {
   const status = toStringValue(raw, 'collecting')
   if (status === 'active') return 'collecting'
   return status as CollectionTaskData['status']
+}
+
+const normalizeShareRecordStatus = (raw: any): DeliveryRecordData['status'] => {
+  const status = toStringValue(raw, 'active')
+  if (status === 'active') return 'approved'
+  if (status === 'generating') return 'pending_review'
+  if (status === 'draft') return 'draft'
+  if (status === 'expired') return 'expired'
+  return 'approved'
 }
 
 const normalizeField = (raw: any, taskId: string): TaskFieldConfigData => ({
@@ -237,6 +264,97 @@ export const normalizeCollectionTaskDetail = (raw: any): CollectionTaskDetailVO 
   }
 }
 
+const normalizeListResult = <T>(raw: any, mapper: (item: any) => T): FileTransferListResult<T> => {
+  const items = Array.isArray(raw?.items) ? raw.items : Array.isArray(raw) ? raw : []
+  return {
+    items: items.map(mapper),
+    total: toNumber(pick(raw, ['total'], items.length), items.length),
+    page: toNumber(pick(raw, ['page'], 1), 1),
+    limit: toNumber(pick(raw, ['limit'], items.length || 20), items.length || 20),
+  }
+}
+
+export const collectionTaskToTaskData = (task: CollectionTaskData, raw: any = {}): TaskData => {
+  const totalSizeBytes = toNumber(pick(raw, ['totalSizeBytes', 'total_size_bytes'], 0))
+  const fileCount = toNumber(pick(raw, ['fileCount', 'file_count'], 0))
+  const submitCount = toNumber(pick(raw, ['submitCount', 'submit_count'], 0))
+  const progress = submitCount > 0 || fileCount > 0 ? Math.min(1, Math.max(0, submitCount / Math.max(submitCount, fileCount, 1))) : 0
+  const dueTime = task.dueAt ? new Date(task.dueAt).getTime() : 0
+  const hoursUntilDue = dueTime ? (dueTime - Date.now()) / 36e5 : Number.POSITIVE_INFINITY
+
+  return {
+    id: task.id,
+    teamId: task.teamId,
+    templateId: task.templateId,
+    name: task.name,
+    type: 'collection',
+    status: task.status,
+    submitProgress: progress,
+    storageUsedGb: totalSizeBytes / 1024 / 1024 / 1024,
+    storageLimitGb: 0,
+    dueAt: task.dueAt,
+    lastUpdatedAt: task.updatedAt || task.createdAt,
+    createdAt: task.createdAt,
+    ownerId: task.ownerId,
+    overdueLevel: hoursUntilDue < 0 ? 'critical' : hoursUntilDue < 24 ? 'warning' : 'normal',
+    isArchived: task.status === 'archived' || Boolean(task.archivedAt),
+  }
+}
+
+export const shareToTaskData = (share: FileTransferShareVO | FileShareData): TaskData => {
+  const expiresTime = share.expiresAt ? new Date(share.expiresAt).getTime() : 0
+  const hoursUntilDue = expiresTime ? (expiresTime - Date.now()) / 36e5 : Number.POSITIVE_INFINITY
+  const status = share.status === 'expired' || (expiresTime > 0 && expiresTime < Date.now()) ? 'expired' : 'approved'
+  const id = 'shareCode' in share && share.shareCode ? share.shareCode : share.id
+
+  return {
+    id,
+    teamId: '',
+    templateId: null,
+    name: share.title,
+    type: 'send',
+    status,
+    submitProgress: 1,
+    storageUsedGb: share.totalSizeMb / 1024,
+    storageLimitGb: 0,
+    dueAt: share.expiresAt,
+    lastUpdatedAt: 'updatedAt' in share ? share.updatedAt : share.createdAt,
+    createdAt: 'createdAt' in share ? share.createdAt : new Date().toISOString(),
+    ownerId: '',
+    overdueLevel: hoursUntilDue < 0 ? 'critical' : hoursUntilDue < 24 ? 'warning' : 'normal',
+    isArchived: false,
+  }
+}
+
+export const shareToDeliveryRecord = (share: FileTransferShareVO | FileShareData): DeliveryRecordData => ({
+  id: 'shareCode' in share && share.shareCode ? share.shareCode : share.id,
+  name: share.title,
+  type: 'sent',
+  status: share.status === 'expired' ? 'expired' : normalizeShareRecordStatus(share.status),
+  fileCount: share.fileCount,
+  storageSizeMb: share.totalSizeMb,
+  createdAt: 'createdAt' in share ? share.createdAt : new Date().toISOString(),
+  expiresAt: share.expiresAt,
+  lastActorName: '我',
+  isArchived: false,
+})
+
+export const collectionTaskToDeliveryRecord = (detail: CollectionTaskDetailVO): DeliveryRecordData => {
+  const raw = detail.raw || {}
+  return {
+    id: detail.task.id,
+    name: detail.task.name,
+    type: detail.task.status === 'archived' ? 'archived' : 'collected',
+    status: detail.task.status,
+    fileCount: toNumber(pick(raw, ['fileCount', 'file_count'], 0)),
+    storageSizeMb: toNumber(pick(raw, ['totalSizeMb', 'total_size_mb'], toNumber(pick(raw, ['totalSizeBytes', 'total_size_bytes'], 0)) / 1024 / 1024)),
+    createdAt: detail.task.createdAt,
+    expiresAt: detail.task.dueAt,
+    lastActorName: '我',
+    isArchived: detail.task.status === 'archived' || Boolean(detail.task.archivedAt),
+  }
+}
+
 export class FileTransferApi {
   static async uploadFiles(files: File[]): Promise<UploadedFileResult[]> {
     const form = new FormData()
@@ -279,6 +397,29 @@ export class FileTransferApi {
     return normalizeShareVO(data, password || getRememberedSharePassword(shareCode))
   }
 
+  static async verifySharePassword(shareCode: string, password: string): Promise<FileTransferShareVO> {
+    const data = await apiRequest<any>('file/shares/verify_password', {
+      method: 'POST',
+      body: { code: shareCode, password },
+      auth: false,
+    })
+    rememberSharePassword(shareCode, password)
+    return normalizeShareVO(data, password)
+  }
+
+  static async listShares(params: { keyword?: string; status?: string; page?: number; limit?: number } = {}) {
+    const data = await apiRequest<any>('file/shares', { params })
+    return normalizeListResult(data, (item) => normalizeShareVO(item, getRememberedSharePassword(toStringValue(pick(item, ['shareCode', 'share_code'])))))
+  }
+
+  static getSharedDownloadUrl(fileId: string | number, shareCode: string, password = '') {
+    return buildApiUrl('file/shares/download', { file_id: fileId, code: shareCode, password })
+  }
+
+  static getOwnerDownloadUrl(fileId: string | number) {
+    return buildApiUrl('file/files/download', { file_id: fileId })
+  }
+
   static async createCollectionTask(payload: CreateCollectionTaskPayload): Promise<CollectionTaskDetailVO> {
     const data = await apiRequest<any>('file/collection/tasks', {
       method: 'POST',
@@ -317,5 +458,10 @@ export class FileTransferApi {
   static async getCollectionTask(taskId: string | number): Promise<CollectionTaskDetailVO> {
     const data = await apiRequest<any>('file/collection/tasks/detail', { params: { id: taskId } })
     return normalizeCollectionTaskDetail(data)
+  }
+
+  static async listCollectionTasks(params: { keyword?: string; status?: string; page?: number; limit?: number } = {}) {
+    const data = await apiRequest<any>('file/collection/tasks', { params })
+    return normalizeListResult(data, normalizeCollectionTaskDetail)
   }
 }

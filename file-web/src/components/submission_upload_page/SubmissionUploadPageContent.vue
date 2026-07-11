@@ -13,8 +13,6 @@ import ResubmissionNoticeAlert from '@/components/submission_upload_page/Resubmi
 import MissingCheckAlert from '@/components/submission_upload_page/MissingCheckAlert.vue'
 import type { PublicSubmissionTaskVO } from '@/data/PublicSubmissionData'
 import type { TaskFieldConfigData, TaskMaterialItemData } from '@/data/CollectionTaskData'
-import { PublicSubmissionService } from '@/data/PublicSubmissionService'
-import { navigateTo } from '@/navigation'
 
 interface Props {
   taskVOData: PublicSubmissionTaskVO
@@ -96,15 +94,7 @@ const handleSubmit = async () => {
 
   isSubmitting.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    const receipt = PublicSubmissionService.submit(props.taskVOData.taskId)
-    if (receipt) {
-      toast.success('提交成功！')
-      navigateTo(`/submission-success?submissionId=${receipt.submissionId}`)
-    } else {
-      toast.error('提交失败，请重试')
-    }
+    toast.info('提交接口暂未开放，请先保存草稿')
   } catch (error) {
     toast.error('提交出错，请重试')
   } finally {

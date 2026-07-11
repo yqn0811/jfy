@@ -93,27 +93,34 @@ const hoursUntilDue = (dueAt: string) => {
 }
 
 const handleTaskClick = (taskId: string) => {
+  const task = props.tasks.find((item) => item.id === taskId)
+  if (task?.type === 'send') {
+    navigateTo(taskId.startsWith('share-') ? `/share-result?shareId=${taskId}` : `/share-result?shareCode=${taskId}`)
+    return
+  }
   navigateTo(`/task-details?taskId=${taskId}`)
 }
 
 const handleCopyLink = (taskId: string) => {
-  const link = `${window.location.origin}/task/${taskId}`
+  const task = props.tasks.find((item) => item.id === taskId)
+  const link =
+    task?.type === 'send'
+      ? `${window.location.origin}/share-result?${taskId.startsWith('share-') ? 'shareId' : 'shareCode'}=${encodeURIComponent(taskId)}`
+      : `${window.location.origin}/submission-upload?taskId=${encodeURIComponent(taskId)}`
   navigator.clipboard.writeText(link)
   toast.success('链接已复制')
 }
 
-const handleReminder = (taskId: string) => {
-  toast.success('已发送提醒')
+const handleReminder = () => {
+  toast.info('提醒接口暂未开放')
 }
 
 const handleArchive = (taskId: string) => {
   emit('task-archived', taskId)
-  toast.success('任务已归档')
 }
 
 const handleDelete = (taskId: string) => {
   emit('task-deleted', taskId)
-  toast.success('任务已删除')
 }
 </script>
 
@@ -261,7 +268,7 @@ const handleDelete = (taskId: string) => {
                     <SafeIcon name="Copy" :size="14" class="mr-2" />
                     复制链接
                   </DropdownMenuItem>
-                  <DropdownMenuItem @click="handleReminder(task.id)">
+                  <DropdownMenuItem @click="handleReminder">
                     <SafeIcon name="Bell" :size="14" class="mr-2" />
                     提醒
                   </DropdownMenuItem>

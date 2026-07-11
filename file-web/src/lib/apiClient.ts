@@ -32,7 +32,7 @@ interface RequestOptions {
 
 const normalizeToken = (token = '') => token.replace(/^Bearer\s+/i, '').trim()
 
-const getRuntimeApiBase = () => {
+export const getRuntimeApiBase = () => {
   if (typeof window === 'undefined') return DEFAULT_API_BASE
   return (window as any).__JFYUNTU_API_BASE__ || import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
 }
@@ -53,6 +53,11 @@ const buildQuery = (params?: Record<string, any>) => {
     search.set(key, String(value))
   })
   return search.toString()
+}
+
+export const buildApiUrl = (path: string, params?: Record<string, any>) => {
+  const query = buildQuery(params)
+  return `${joinUrl(getRuntimeApiBase(), path)}${query ? `?${query}` : ''}`
 }
 
 export const authStore = {
