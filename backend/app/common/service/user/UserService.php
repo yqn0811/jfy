@@ -1026,7 +1026,9 @@ class UserService extends BaseService
             throwError('原图暂不可下载');
         }
 
-        $fileSize = $this->resolveOriginalDownloadFileSize($pic, $url);
+        $fileSize = !empty($param['skip_remote_size'])
+            ? (int)$pic->getData('size')
+            : $this->resolveOriginalDownloadFileSize($pic, $url);
         $shouldRecordTraffic = !array_key_exists('record_traffic', $param) || (int)$param['record_traffic'] !== 0;
         $traffic = null;
         if ($shouldRecordTraffic) {

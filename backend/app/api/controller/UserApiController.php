@@ -13,7 +13,6 @@ use app\index\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
 use app\common\model\user\WdXcxUserVisitRecord;
-use think\Response;
 
 class UserApiController extends ApiBaseController
 {
@@ -246,74 +245,165 @@ class UserApiController extends ApiBaseController
     private function streamOriginalDownload($param, $userId)
     {
         $param['record_traffic'] = 0;
+        $param['skip_remote_size'] = 1;
         $download = $this->userService->getOriginalDownloadUrl($param, $userId);
         $url = trim((string)($download['download_url'] ?? ($download['downloadUrl'] ?? ($download['url'] ?? ''))));
         if ($url === '') {
             throwError('原图暂不可下载');
         }
-        $content = $this->fetchOriginalDownloadContent($url);
-        $fileSize = strlen($content);
-        $this->userService->recordDownloadTraffic([
-            'pic_id' => (int)($download['pic_id'] ?? ($param['pic_id'] ?? 0)),
-            'file_url' => $url,
-            'file_size' => $fileSize,
-        ], $userId);
-
         $filename = $this->sanitizeDownloadFilename((string)($download['file_name'] ?? ($download['fileName'] ?? 'image.jpg')));
-        $mime = $this->detectDownloadMime($content, $filename);
-        return Response::create($content, 'html', 200)->header([
-            'Content-Type' => $mime,
-            'Content-Length' => (string)$fileSize,
-            'Content-Disposition' => "inline; filename*=UTF-8''" . rawurlencode($filename),
-            'Cache-Control' => 'private, max-age=300',
-            'Access-Control-Expose-Headers' => 'Content-Disposition, Content-Length, Content-Type',
-        ]);
+        $this->streamRemoteOriginalDownload(
+            $url,
+            (int)($download['pic_id'] ?? ($param['pic_id'] ?? 0)),
+            $filename,
+            (int)($download['file_size'] ?? 0),
+            $userId
+        );
     }
 
-    private function fetchOriginalDownloadContent($url)
+    private function streamRemoteOriginalDownload($url, $picId, $filename, $knownFileSize, $userId)
     {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        $contentType = $this->detectDownloadMimeFromFilename($filename);
+        $contentLength = 0;
+        $sourceStatus = 0;
+        $headersSent = false;
+        $streamError = '';
+        $bytesSent = 0;
+
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT => 8,
-            CURLOPT_TIMEOUT => 45,
+            CURLOPT_TIMEOUT => 120,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_NOSIGNAL => true,
             CURLOPT_USERAGENT => 'JiafangyunOriginalDownload/1.0',
+            CURLOPT_HEADERFUNCTION => function ($ch, $headerLine) use (&$sourceStatus, &$contentType, &$contentLength) {
+                $line = trim($headerLine);
+                if ($line === '') {
+                    return strlen($headerLine);
+                }
+                if (stripos($line, 'HTTP/') === 0) {
+                    $parts = preg_split('/\s+/', $line);
+                    $sourceStatus = isset($parts[1]) ? (int)$parts[1] : 0;
+                    return strlen($headerLine);
+                }
+                $separator = strpos($line, ':');
+                if ($separator === false) {
+                    return strlen($headerLine);
+                }
+                $name = strtolower(trim(substr($line, 0, $separator)));
+                $value = trim(substr($line, $separator + 1));
+                if ($name === 'content-type') {
+                    $contentType = $this->normalizeDownloadMime($value, $contentType);
+                } elseif ($name === 'content-length') {
+                    $length = (int)$value;
+                    if ($length > 0) {
+                        $contentLength = $length;
+                    }
+                }
+                return strlen($headerLine);
+            },
+            CURLOPT_WRITEFUNCTION => function ($ch, $chunk) use (
+                $url,
+                $picId,
+                $filename,
+                $knownFileSize,
+                $userId,
+                &$contentType,
+                &$contentLength,
+                &$sourceStatus,
+                &$headersSent,
+                &$streamError,
+                &$bytesSent
+            ) {
+                $length = strlen($chunk);
+                if (!$headersSent) {
+                    if ($sourceStatus > 0 && ($sourceStatus < 200 || $sourceStatus >= 300)) {
+                        $streamError = '原图读取失败';
+                        return 0;
+                    }
+                    $recordSize = $contentLength > 0 ? $contentLength : $knownFileSize;
+                    try {
+                        $this->userService->recordDownloadTraffic([
+                            'pic_id' => $picId,
+                            'file_url' => $url,
+                            'file_size' => $recordSize,
+                        ], $userId);
+                    } catch (\Throwable $e) {
+                        $streamError = $e->getMessage() ?: '流量扣减失败，请稍后重试';
+                        return 0;
+                    }
+                    $this->sendOriginalDownloadHeaders($filename, $contentType, $contentLength);
+                    $headersSent = true;
+                }
+                $bytesSent += $length;
+                echo $chunk;
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+                return $length;
+            },
         ]);
-        $content = curl_exec($ch);
+        $result = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
-        if ($status < 200 || $status >= 300 || $content === false || $content === '') {
-            throwError($error ?: '原图读取失败');
+
+        if (!$headersSent) {
+            if ($streamError !== '') {
+                throwError($streamError);
+            }
+            if ($result === false || $status < 200 || $status >= 300 || $bytesSent <= 0) {
+                throwError($error ?: '原图读取失败');
+            }
         }
-        return $content;
+        exit;
     }
 
-    private function sanitizeDownloadFilename($filename)
+    private function sendOriginalDownloadHeaders($filename, $contentType, $contentLength)
     {
-        $filename = trim($filename);
-        $filename = preg_replace('/[\\\\\/:*?"<>|\r\n]+/', '_', $filename);
-        return $filename ?: 'image.jpg';
+        $origin = $this->request->header('origin') ?: '*';
+        if (preg_match('/[\r\n]/', $origin)) {
+            $origin = '*';
+        }
+        $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
+        if ($fallbackName === '') {
+            $fallbackName = 'image.jpg';
+        }
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        header('X-Accel-Buffering: no');
+        header('Content-Type: ' . $contentType);
+        if ($contentLength > 0) {
+            header('Content-Length: ' . $contentLength);
+        }
+        header('Content-Disposition: inline; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
+        header('Cache-Control: private, max-age=300');
     }
 
-    private function detectDownloadMime($content, $filename)
+    private function normalizeDownloadMime($mime, $fallback = 'application/octet-stream')
     {
-        if (strncmp($content, "\xFF\xD8\xFF", 3) === 0) {
-            return 'image/jpeg';
+        $mime = strtolower(trim(explode(';', (string)$mime)[0]));
+        if (preg_match('/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/', $mime)) {
+            return $mime;
         }
-        if (strncmp($content, "\x89PNG\r\n\x1A\n", 8) === 0) {
-            return 'image/png';
-        }
-        if (strncmp($content, 'GIF87a', 6) === 0 || strncmp($content, 'GIF89a', 6) === 0) {
-            return 'image/gif';
-        }
-        if (substr($content, 0, 4) === 'RIFF' && substr($content, 8, 4) === 'WEBP') {
-            return 'image/webp';
-        }
+        return $fallback;
+    }
+
+    private function detectDownloadMimeFromFilename($filename)
+    {
         $ext = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
         $map = [
             'jpg' => 'image/jpeg',
@@ -323,6 +413,13 @@ class UserApiController extends ApiBaseController
             'webp' => 'image/webp',
         ];
         return $map[$ext] ?? 'application/octet-stream';
+    }
+
+    private function sanitizeDownloadFilename($filename)
+    {
+        $filename = trim($filename);
+        $filename = preg_replace('/[\\\\\/:*?"<>|\r\n]+/', '_', $filename);
+        return $filename ?: 'image.jpg';
     }
 
     public function downloadOriginalZip()
