@@ -29,6 +29,7 @@ const assetFileExtensions = new Set([
 ])
 const pngColorLimit = '48'
 const jpegQuality = '70'
+const imageOptimizeTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'jfy-miniapp-image-opt-'))
 
 if (!fs.existsSync(distRoot)) {
   throw new Error(`Build output not found: ${distRoot}`)
@@ -231,13 +232,17 @@ const replaceWithSmallerImage = (source, args, magickBinary) => {
     return false
   }
 
-  const tmp = `${source}.${process.pid}.tmp${path.extname(source)}`
+  const tmp = path.join(
+    imageOptimizeTempRoot,
+    `${path.basename(source)}.${process.pid}.${Date.now()}${path.extname(source)}`
+  )
   fs.rmSync(tmp, { force: true })
 
   try {
     childProcess.execFileSync(magickBinary, [source, ...args, tmp], { stdio: 'ignore' })
     if (fs.existsSync(tmp) && fs.statSync(tmp).size < fs.statSync(source).size) {
-      fs.renameSync(tmp, source)
+      fs.copyFileSync(tmp, source)
+      fs.rmSync(tmp, { force: true })
       return true
     }
   } catch (error) {
@@ -332,4 +337,5 @@ if (!previewRoot.startsWith(legacyPreviewRoot)) {
   fs.rmSync(legacyPreviewRoot, { recursive: true, force: true })
 }
 copyDir(distRoot, previewRoot)
+fs.rmSync(imageOptimizeTempRoot, { recursive: true, force: true })
 console.log(`[prepare-wechat-project] WeChat preview project: ${previewRoot}`)
