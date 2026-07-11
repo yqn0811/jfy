@@ -1397,8 +1397,10 @@ class AlbumService extends BaseService
                 $item->detail_pic_ids_arr = [];
                 $item->son_count = $this->getCategoryChildCount($item->id);
                 $item->child_count = $item->son_count;
-                $item->product_count = 0;
-                $item->children = $this->getCategoryChildren($item->id, $item->uid);
+                $item->product_count = $this->getCategoryProductCount($item->id, $item->uid, $visitor_uid);
+                $item->product_num = $item->product_count;
+                $item->folder_count = $item->product_count;
+                $item->children = $this->getCategoryChildren($item->id, $item->uid, $visitor_uid);
                 if($item->uid != $visitor_uid){
                     $item->folder_name = '@'.$item->UserInfo['nickname'].$item->folder_name;
                 }
@@ -1449,7 +1451,35 @@ class AlbumService extends BaseService
             ->count();
     }
 
-    private function getCategoryChildren($categoryId, $uid)
+    private function getCategoryProductCount($categoryId, $ownerUid, $visitorUid = 0)
+    {
+        $categoryId = (int)$categoryId;
+        $ownerUid = (int)$ownerUid;
+        $visitorUid = (int)$visitorUid;
+        if ($categoryId <= 0 || $ownerUid <= 0) {
+            return 0;
+        }
+        $boundIds = WdXcxProductCategoryBind::where('category_id', $categoryId)
+            ->where('userid', $ownerUid)
+            ->column('product_id');
+        $directIds = WdXcxAlbumFolder::where('pid', $categoryId)
+            ->where('uid', $ownerUid)
+            ->where('folder_type', 2)
+            ->column('id');
+        $productIds = array_values(array_unique(array_filter(array_map('intval', array_merge($boundIds ?: [], $directIds ?: [])))));
+        if (empty($productIds)) {
+            return 0;
+        }
+        $query = WdXcxAlbumFolder::whereIn('id', $productIds)
+            ->where('uid', $ownerUid)
+            ->where('folder_type', 2);
+        if ($visitorUid > 0 && $visitorUid !== $ownerUid) {
+            $query->where('private_type', '<>', 2);
+        }
+        return (int)$query->count();
+    }
+
+    private function getCategoryChildren($categoryId, $uid, $visitor_uid = 0)
     {
         return WdXcxAlbumFolder::where('folder_type', 1)
             ->where('uid', $uid)
@@ -1457,13 +1487,15 @@ class AlbumService extends BaseService
             ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,share_times,visit_times,uid,set_top,pid')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
-            ->each(function ($child){
+            ->each(function ($child)use($visitor_uid){
                 $child->pic_ids_arr = [];
                 $child->detail_pic_ids_arr = [];
                 $child->son_count = $this->getCategoryChildCount($child->id);
                 $child->child_count = $child->son_count;
-                $child->product_count = 0;
-                $child->children = $this->getCategoryChildren($child->id, $child->uid);
+                $child->product_count = $this->getCategoryProductCount($child->id, $child->uid, $visitor_uid);
+                $child->product_num = $child->product_count;
+                $child->folder_count = $child->product_count;
+                $child->children = $this->getCategoryChildren($child->id, $child->uid, $visitor_uid);
                 $child->level = $child->FolderLeval;
             });
     }
