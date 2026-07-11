@@ -58,8 +58,9 @@
         <view
           class="case-item"
           v-for="(item, index) in caseList"
-          :key="index"
-          @click="toCaseDetail(item)"
+          :key="getCaseKey(item, index)"
+          :data-index="index"
+          @click="toCaseDetail(item, index, $event)"
         >
           <view class="case-header">
             <view class="case-left">
@@ -67,6 +68,7 @@
                 class="case-avatar"
                 :src="item.new_thumb || '/static/image/pic.png'"
                 mode="aspectFill"
+                lazy-load
               ></image>
               <view class="case-info">
                 <view class="case-name">{{ item.folder_name }}</view>
@@ -84,9 +86,10 @@
               <image
                 class="case-img"
                 v-for="(img, imgIndex) in item.images"
-                :key="imgIndex"
+                :key="getCaseImageKey(img, imgIndex)"
                 :src="img || '/static/image/pic.png'"
                 mode="aspectFill"
+                lazy-load
                 @click.stop="previewImage(item.images, imgIndex)"
               ></image>
             </view>
@@ -98,6 +101,13 @@
 </template>
 
 <script>
+import { buildListItemKey } from "@/common/helper/listKey.js";
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
+
 export default {
   data() {
     return {
@@ -179,6 +189,12 @@ export default {
     }
   },
   methods: {
+    getCaseKey(item, index) {
+      return buildListItemKey(item, index, "case");
+    },
+    getCaseImageKey(img, index) {
+      return img ? `case-img-${img}` : `case-img-${index}`;
+    },
     // 返回上一页
     back() {
       uni.navigateBack();
@@ -192,9 +208,15 @@ export default {
     },
 
     // 跳转到案例详情
-    toCaseDetail(item) {
+    toCaseDetail(item, index, event) {
+      const current = resolveClickedListItem(item, index, event, this.caseList);
+      const caseId = getObjectId(current, ["id", "folder_id", "fid"]);
+      if (!caseId) {
+        showInvalidRecordToast();
+        return;
+      }
       uni.navigateTo({
-        url: `/pagesOther/caseDetail/caseDetail?id=${item.id}`,
+        url: `/pagesOther/caseDetail/caseDetail?id=${caseId}`,
       });
     },
 

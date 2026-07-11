@@ -116,12 +116,20 @@ import UserCard from "@/components/UserCard"; // 根据放置路径调整
 import ImageGrid from "@/components/ImageGrid"; // 若放 components 下，路径可能为 '@/components/ImageGrid.vue'
 import PersonalDetails from "@/components/PersonalDetails";
 import SharePopup from "@/components/SharePopup";
+import Upload from "@/common/request/upload.js";
 import {
   consumeRefreshMarker,
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
 import { imageUrlFor } from "@/common/helper/imageUrls.js";
 import { setPictureNavigationContext } from "@/common/helper/pictureNavigation.js";
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
+
+const uploader = new Upload();
 
 export default {
   components: {
@@ -146,7 +154,7 @@ export default {
         images: [],
         detailImages: [],
       },
-      uploadEndpoint: "https://your-upload-endpoint.example.com/upload",
+      uploadEndpoint: "/api/common/upload",
       pid: "",
       uid: "",
       shareOwnerId: "",
@@ -329,7 +337,6 @@ export default {
               images: productItems,
               detailImages: detailItems,
             };
-            console.log(this.product);
           }
         } else {
           // 开发fallback：模拟数据
@@ -400,23 +407,15 @@ export default {
           resolve(filePath);
           return;
         }
-        uni.uploadFile({
-          url: this.uploadEndpoint,
-          filePath,
-          name: "file",
-          success: (uploadRes) => {
-            try {
-              const data = JSON.parse(uploadRes.data);
-              const url =
-                data.url || (data.data && data.data.url) || data.fileUrl || "";
-              if (url) resolve(url);
-              else reject(new Error("返回格式不正确"));
-            } catch (e) {
-              reject(e);
-            }
-          },
-          fail: (e) => reject(e),
-        });
+        uploader.upload(filePath, {
+          endpoint: this.uploadEndpoint,
+          showErrorToast: false,
+        }).then((data) => {
+          const url =
+            data.url || (data.data && data.data.url) || data.fileUrl || "";
+          if (url) resolve(url);
+          else reject(new Error("返回格式不正确"));
+        }).catch(reject);
       });
     },
 
@@ -424,14 +423,22 @@ export default {
       // 你可以在这里实现跳转到聊天/拨号等逻辑
       this.personalVisible = true;
     },
-    handleImageClick(data) {
-      if (!data || !data.id) {
+    handleImageClick(data, index, event) {
+      const sourceList = [...this.product.images, ...this.product.detailImages];
+      const current = resolveClickedListItem(data, index, event, sourceList);
+      const dataObject = current || data;
+      const picId = getObjectId(dataObject, ["pic_id", "id"]);
+      if (!dataObject || !picId) {
+        showInvalidRecordToast();
         return;
       }
-      const item = this.normalizeProductPicture(data);
+      const item = this.normalizeProductPicture(dataObject);
+      if (!item.id) {
+        item.id = picId;
+      }
       const pictureContext = setPictureNavigationContext(
         item,
-        [...this.product.images, ...this.product.detailImages],
+        sourceList,
         {
           product_id: this.pid,
           folder_id: this.pid,
@@ -449,7 +456,6 @@ export default {
       this.shareVisible = true;
     },
     onShareAction(event) {
-      console.log("share action", event);
     },
     onSettings() {
       uni.navigateTo({ url: "/pagesOther/setting/setting?id=" + this.pid });

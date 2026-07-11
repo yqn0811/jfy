@@ -218,8 +218,9 @@
 <script>
 import config from "@/common/config";
 import AddressPicker from "@/components/address-picker/address-picker.vue";
-import { buildAuthHeader } from "@/common/helper/auth.js";
+import Upload from "@/common/request/upload.js";
 import { notifyRefresh } from "@/common/helper/refresh.js";
+const uploader = new Upload();
 export default {
   components: {
     AddressPicker,
@@ -313,7 +314,6 @@ export default {
         });
     },
     confirmAddress(val) {
-      console.log(val);
 
       // val.value 数组: [0]=省份, [1]=城市, [2]=区县
       const [province, city, district] = val.value;
@@ -343,7 +343,6 @@ export default {
 
     // 选择地图位置
     chooseMapLocation() {
-      console.log("打开地图选择位置");
 
       // 构建搜索关键词：优先使用已选择的省市区
       let keyword = "";
@@ -362,12 +361,10 @@ export default {
         keyword = this.companyInfo.detailAddress;
       }
 
-      console.log("搜索关键词:", keyword);
 
       // 配置参数
       const chooseLocationParams = {
         success: (res) => {
-          console.log("选择位置成功:", res);
 
           // 保存经纬度
           this.companyInfo.latitude = res.latitude;
@@ -391,7 +388,6 @@ export default {
 
           if (err.errMsg && err.errMsg.includes("cancel")) {
             // 用户取消选择
-            console.log("用户取消选择位置");
           } else if (err.errMsg && err.errMsg.includes("auth deny")) {
             // 用户拒绝授权
             uni.showModal({
@@ -432,7 +428,6 @@ export default {
 
     // 地址解析：将地址转换为经纬度（可选功能）
     geocodeAddress(address, callback) {
-      console.log("尝试解析地址:", address);
 
       // 这里可以调用腾讯地图或其他地图服务的地理编码API
       // 由于需要API key，这里提供一个简化版本
@@ -601,14 +596,8 @@ export default {
 
       const uploadName = this.buildUploadFileName(filePath);
       this.prepareUploadFilePath(filePath, uploadName).then((uploadPath) => {
-        uni.uploadFile({
-          url: config.domain + "/api/common/upload",
-          filePath: uploadPath,
-          name: "file",
-          header: {
-            "content-type": "multipart/form-data",
-            ...buildAuthHeader(),
-          },
+        uploader.upload(uploadPath, {
+          endpoint: "/api/common/upload",
           formData: {
             ...params,
             filename: uploadName,
@@ -616,10 +605,10 @@ export default {
             original_name: uploadName,
             name: uploadName,
           },
-          success: (uploadRes) => {
+          showErrorToast: false,
+        }).then((res) => {
             uni.hideLoading();
             try {
-              let res = JSON.parse(uploadRes.data);
               if (res.code === 0 || res.code === 200) {
                 if (type === "logo") {
                   this.companyInfo.logo = res.data.url;
@@ -641,16 +630,14 @@ export default {
                 icon: "none",
               });
             }
-          },
-          fail: (err) => {
+          }).catch((err) => {
             uni.hideLoading();
             console.error("上传失败:", err);
             uni.showToast({
               title: "上传失败,请重试",
               icon: "none",
             });
-          },
-        });
+          });
       }).catch((err) => {
           uni.hideLoading();
           console.error("上传失败:", err);
@@ -778,7 +765,6 @@ export default {
         show_err: false,
         loading: false,
       }).catch((err) => {
-        console.log("积分任务完成失败:", err);
       });
     },
   },

@@ -68,12 +68,13 @@
             <view
               class="upload-cell"
               v-for="(img, idx) in coverImages"
-              :key="idx"
+              :key="getUploadImageKey(img, idx)"
             >
               <image
                 :src="img.src"
                 mode="aspectFill"
                 class="upload-preview"
+                lazy-load
                 @click="previewImage(img.src)"
               >
               </image>
@@ -103,12 +104,13 @@
             <view
               class="upload-cell"
               v-for="(img, idx) in detailImages"
-              :key="idx"
+              :key="getUploadImageKey(img, idx)"
             >
               <image
                 :src="img.src"
                 mode="aspectFill"
                 class="upload-preview"
+                lazy-load
                 @click="previewImage(img.src)"
               >
               </image>
@@ -171,7 +173,7 @@
 <script>
 import UploadPicker from "./components/UploadPicker.vue"; // 根据项目路径调整
 import CategoryMultiSelect from "./components/CategoryMultiSelect.vue";
-import { buildAuthHeader } from "@/common/helper/auth.js";
+import Upload from "@/common/request/upload.js";
 import { notifyRefresh } from "@/common/helper/refresh.js";
 import {
   buildUploadNameFormData,
@@ -179,6 +181,8 @@ import {
   normalizeSelectedUploadFile,
   prepareNamedUploadFile,
 } from "@/common/helper/uploadName.js";
+import { buildListItemKey } from "@/common/helper/listKey.js";
+const uploader = new Upload();
 export default {
   components: {
     UploadPicker,
@@ -247,6 +251,9 @@ export default {
     },
   },
   methods: {
+    getUploadImageKey(item, index) {
+      return buildListItemKey(item, index, "upload-img", ["id", "uploadedUrl", "src", "url"]);
+    },
     openUploadPicker(target) {
       this.uploadTarget = target; // 'cover' 或 'detail'
       this.uploadPickerVisible = true;
@@ -350,7 +357,6 @@ export default {
         show_err: true,
       });
       if (res.code === 0) {
-        console.log(res);
         this.productName = res.data.folder_name;
         this.productIntro = res.data.folder_desc;
         this.hideDetailPictures =
@@ -872,7 +878,6 @@ export default {
         show_err: false,
         loading: false,
       }).catch((err) => {
-        console.log("积分任务完成失败:", err);
       });
     },
     buildUploadFileName(filePath, fileType = 1, originalName = "") {
@@ -1003,14 +1008,8 @@ export default {
           }
           const uploadName = that.buildUploadFileName(sourceFile.path, fileType, originalName);
           that.prepareUploadFilePath(sourceFile.path, uploadName).then((uploadPath) => {
-            uni.uploadFile({
-              url: that.$config.domain + that.uploadEndpoint,
-              filePath: uploadPath,
-              name: "file",
-              header: {
-                "content-type": "multipart/form-data", // 默认值
-                ...buildAuthHeader(),
-              },
+            uploader.upload(uploadPath, {
+              endpoint: that.uploadEndpoint,
               formData: {
                 file_type: fileType,
                 file_size: Number(sourceFile.size || 0),
@@ -1019,17 +1018,14 @@ export default {
                 content_hash: sourceFile.hash || "",
                 ...buildUploadNameFormData(uploadName),
               },
-              success: (uploadRes) => {
-                try {
-                  resolve(that.normalizeUploadResult(uploadRes.data));
-                } catch (e) {
-                  reject(e);
-                }
-              },
-              fail: (e) => {
+              showErrorToast: false,
+            }).then((uploadRes) => {
+              try {
+                resolve(that.normalizeUploadResult(uploadRes));
+              } catch (e) {
                 reject(e);
-              },
-            });
+              }
+            }).catch(reject);
           });
         }).catch(reject);
       });

@@ -2,8 +2,9 @@
   "name": "jfyun-new",
   "version": "1.0.0",
   "scripts": {
-    "dev:mp-weixin": "cross-env NODE_ENV=development UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. vue-cli-service uni-build --watch",
-    "build:mp-weixin": "cross-env NODE_OPTIONS=--require=./scripts/node-compat.cjs NODE_ENV=production UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. vue-cli-service uni-build && node ./scripts/prepare-wechat-project.cjs"
+    "dev:mp-weixin": "cross-env NODE_ENV=development VUE_APP_API_ENV=test UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. vue-cli-service uni-build --watch",
+    "build:mp-weixin": "cross-env NODE_OPTIONS=--require=./scripts/node-compat.cjs NODE_ENV=production VUE_APP_API_ENV=test UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. vue-cli-service uni-build && node ./scripts/prepare-wechat-project.cjs",
+    "build:mp-weixin:prod": "cross-env NODE_OPTIONS=--require=./scripts/node-compat.cjs NODE_ENV=production VUE_APP_API_ENV=production UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. vue-cli-service uni-build && node ./scripts/prepare-wechat-project.cjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "^2.0.1-3040420220401001",

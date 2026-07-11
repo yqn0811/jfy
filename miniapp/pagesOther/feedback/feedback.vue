@@ -70,12 +70,13 @@
           <view
             class="upload-item"
             v-for="(img, index) in imageList"
-            :key="index"
+            :key="getImageKey(img, index)"
           >
             <image
               class="upload-img"
               :src="img.url"
               mode="aspectFill"
+              lazy-load
               @click="previewImage(index)"
             ></image>
             <view class="remove-btn" @click="removeImage(index)">
@@ -124,7 +125,10 @@
 </template>
 
 <script>
-import { buildAuthHeader } from "@/common/helper/auth.js";
+import Upload from "@/common/request/upload.js";
+import { buildListItemKey } from "@/common/helper/listKey.js";
+
+const uploader = new Upload();
 
 export default {
   data() {
@@ -157,6 +161,9 @@ export default {
   },
 
   methods: {
+    getImageKey(item, index) {
+      return buildListItemKey(item, index, "feedback-img");
+    },
     // 返回
     back() {
       uni.navigateBack();
@@ -199,17 +206,13 @@ export default {
       this.imageList.push(tempImage);
       const currentIndex = this.imageList.length - 1;
 
-      uni.uploadFile({
-        url: this.$config.domain + "/api/common/upload",
-        filePath: filePath,
-        name: "file",
-        header: {
-          "content-type": "multipart/form-data", // 默认值
-          ...buildAuthHeader(),
-        },
-        success: (uploadRes) => {
+      uploader
+        .upload(filePath, {
+          endpoint: "/api/common/upload",
+          showErrorToast: false,
+        })
+        .then((data) => {
           try {
-            const data = JSON.parse(uploadRes.data);
             if (data.code === 0 && data.data && data.data.url) {
               // 更新为服务器返回的URL
               this.imageList[currentIndex].uploadedUrl = data.data.url;
@@ -230,19 +233,18 @@ export default {
             });
             this.imageList.splice(currentIndex, 1);
           }
-        },
-        fail: (err) => {
+        })
+        .catch((err) => {
           console.error("上传失败:", err);
           uni.showToast({
             title: "上传失败",
             icon: "none",
           });
           this.imageList.splice(currentIndex, 1);
-        },
-        complete: () => {
+        })
+        .finally(() => {
           this.uploading = false;
-        },
-      });
+        });
     },
 
     // 移除图片

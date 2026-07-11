@@ -17,6 +17,8 @@ use think\Response;
 
 class UserApiController extends ApiBaseController
 {
+    const ORIGINAL_ZIP_MIN_PICTURE_COUNT = 5;
+
     private $userService;
 
     public function __construct(App $app)
@@ -326,6 +328,17 @@ class UserApiController extends ApiBaseController
     public function downloadOriginalZip()
     {
         $param = array_merge($this->request->get(), $this->request->post());
+        $picIds = $this->normalizeDownloadPicIds($param['pic_ids'] ?? ($param['picIds'] ?? []));
+        if (empty($picIds) && !empty($param['pic_id'])) {
+            $picIds = $this->normalizeDownloadPicIds([$param['pic_id']]);
+        }
+        if (count($picIds) === 1) {
+            $param['pic_id'] = $picIds[0];
+            return $this->streamOriginalDownload($param, (int)request()->userID());
+        }
+        if (count($picIds) > 1 && count($picIds) < self::ORIGINAL_ZIP_MIN_PICTURE_COUNT) {
+            throwError('少于5张请逐张下载');
+        }
         if (!class_exists('\ZipArchive')) {
             throwError('服务器暂不支持打包下载');
         }
@@ -374,6 +387,22 @@ class UserApiController extends ApiBaseController
             $this->cleanupDownloadTempDir($workDir);
             throw $e;
         }
+    }
+
+    private function normalizeDownloadPicIds($picIds)
+    {
+        if (is_string($picIds)) {
+            $decoded = json_decode($picIds, true);
+            if (is_array($decoded)) {
+                $picIds = $decoded;
+            } else {
+                $picIds = explode(',', $picIds);
+            }
+        }
+        if (!is_array($picIds)) {
+            return [];
+        }
+        return array_values(array_unique(array_filter(array_map('intval', $picIds))));
     }
 
     private function fetchOriginalZipFiles(array $items, $workDir)

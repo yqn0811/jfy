@@ -342,9 +342,7 @@ export default {
 				showCancel: true,
 				success: function (res) {
 					if (res.confirm) {
-						console.log('用户点击确定');
 					} else if (res.cancel) {
-						console.log('用户点击取消');
 					}
 				}
 			})
@@ -424,17 +422,6 @@ export default {
 
 		selectTab(e) {
 			this.folderInfo.pic_layout = e.name === '小图' ? 1 : 2
-			console.log(this.folderInfo)
-			this.addShow = false
-			this.submitForm()
-		},
-
-		// 显示更多选项
-		showMoreOptions() {
-			uni.showToast({
-				title: '显示更多选项',
-				icon: 'none'
-			});
 		},
 
 		// 隐藏相册

@@ -101,7 +101,9 @@
 </template>
 
 <script>
-import { buildAuthHeader } from "@/common/helper/auth.js";
+import Upload from "@/common/request/upload.js";
+
+const uploader = new Upload();
 
 export default {
   data() {
@@ -182,17 +184,13 @@ export default {
     uploadImage(filePath) {
       this.uploading = true;
 
-      uni.uploadFile({
-        url: this.$config.domain + "/api/common/upload",
-        filePath: filePath,
-        name: "file",
-        header: {
-          "content-type": "multipart/form-data", // 默认值
-          ...buildAuthHeader(),
-        },
-        success: (uploadRes) => {
+      uploader
+        .upload(filePath, {
+          endpoint: "/api/common/upload",
+          showErrorToast: false,
+        })
+        .then((data) => {
           try {
-            const data = JSON.parse(uploadRes.data);
             if (data.code === 0) {
               this.newCoverUrl = data.url || (data.data && data.data.url) || "";
               if (!this.newCoverUrl) {
@@ -222,19 +220,18 @@ export default {
             });
             this.newCover = "";
           }
-        },
-        fail: (err) => {
+        })
+        .catch((err) => {
           console.error("上传失败:", err);
           uni.showToast({
             title: "上传失败",
             icon: "none",
           });
           this.newCover = "";
-        },
-        complete: () => {
+        })
+        .finally(() => {
           this.uploading = false;
-        },
-      });
+        });
     },
 
     // 移除新封面

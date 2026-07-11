@@ -93,7 +93,6 @@ export default {
     // 页面加载时先获取 openid
     this.initOpenId();
     this.checkPrivacySetting();
-    console.log(this.$go);
   },
   methods: {
     // 初始化获取 openid

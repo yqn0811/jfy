@@ -152,7 +152,6 @@ export default {
         });
         if (res.code === 0) {
           const data = res.data.folder_info;
-          console.log(res.data);
           this.form.folder_name = data.folder_name;
           this.form.folder_desc = data.folder_desc;
           this.form.private_type = Number(data.private_type || 1);

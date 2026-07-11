@@ -44,8 +44,9 @@
           <view
             class="style-item"
             v-for="(item, index) in styleList"
-            :key="index"
-            @click="toStyleDetail(item)"
+            :key="getStyleKey(item, index)"
+            :data-index="index"
+            @click="toStyleDetail(item, index, $event)"
           >
             <view class="style-header">
               <view class="header-left">
@@ -85,7 +86,7 @@
               <view
                 class="image-box"
                 v-for="(img, imgIndex) in item.images"
-                :key="imgIndex"
+                :key="getStyleImageKey(img, imgIndex)"
               >
                 <image
                   class="item-img"
@@ -112,6 +113,13 @@
 </template>
 
 <script>
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
+import { buildListItemKey } from "@/common/helper/listKey.js";
+
 export default {
   data() {
     return {
@@ -150,6 +158,12 @@ export default {
   },
 
   methods: {
+    getStyleKey(item, index) {
+      return buildListItemKey(item, index, "style");
+    },
+    getStyleImageKey(item, index) {
+      return buildListItemKey(item, index, "style-img");
+    },
     safeText(value) {
       if (value === null || value === undefined) return "";
       const text = String(value).trim();
@@ -396,9 +410,23 @@ export default {
         });
     },
 
-    toStyleDetail(item) {
+    getClickedStyleItem(item, index, event) {
+      return resolveClickedListItem(item, index, event, this.styleList);
+    },
+
+    getStyleId(item) {
+      return getObjectId(item, ["id", "selection_id", "selectionId"]);
+    },
+
+    toStyleDetail(item, index, event) {
+      const detail = this.getClickedStyleItem(item, index, event);
+      const styleId = detail ? this.getStyleId(detail) : "";
+      if (!styleId) {
+        showInvalidRecordToast("选款单数据异常，请刷新后重试");
+        return;
+      }
       uni.navigateTo({
-        url: `/pagesOther/styleResult/styleResult?id=${item.id}&fromPage=${this.fromPage}`,
+        url: `/pagesOther/styleResult/styleResult?id=${styleId}&fromPage=${this.fromPage}`,
       });
     },
   },

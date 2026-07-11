@@ -121,7 +121,7 @@
                 class="chip"
                 :class="{ active: curCategoryId === c.id }"
                 v-for="(c, idx) in categories"
-                :key="idx"
+                :key="getCategoryKey(c, idx)"
                 @click="selectCategory(c)"
               >
                 <image
@@ -243,6 +243,7 @@ import {
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
 import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
+import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
 
 import { getMiniCode, setPendingInviteCode } from "@/common/request/api.js";
 
@@ -372,6 +373,9 @@ export default {
     },
   },
   methods: {
+    getCategoryKey(item, index) {
+      return item && item.id ? `category-${item.id}` : `category-${index}`;
+    },
     initNavigationMetrics() {
       const sys = this.$base.getSystemInfoCompat();
       const statusBarHeight = sys.statusBarHeight || 0;
@@ -538,17 +542,38 @@ export default {
       // event.payload 包含对应数据
       // 按需处理（多数情况父组件不必处理）
     },
+    resolveProductClickItem(item, index) {
+      if (item && item.detail && Array.isArray(item.detail.__args__)) {
+        return item.detail.__args__[0] || null;
+      }
+      if (item && item.detail && item.detail.item) {
+        return item.detail.item;
+      }
+      if (item && typeof item === "object" && !item.currentTarget) {
+        return item;
+      }
+      if (Number.isInteger(index) && this.albumList[index]) {
+        return this.albumList[index];
+      }
+      return null;
+    },
     handleImageClick(item, index) {
+      const current = this.resolveProductClickItem(item, index);
+      const productId = getObjectId(current, ["id", "product_id", "folder_id", "fid"]);
+      if (!current || !productId) {
+        showInvalidRecordToast();
+        return;
+      }
       if (this.previewMode) {
         uni.navigateTo({
           url: this.$buildPublicSharePath
-            ? this.$buildPublicSharePath("product", item.id, this.uid)
-            : "/pagesOther/productDetail/productDetail?id=" + item.id + "&uid=" + this.uid,
+            ? this.$buildPublicSharePath("product", productId, this.uid)
+            : "/pagesOther/productDetail/productDetail?id=" + productId + "&uid=" + this.uid,
         });
       } else {
         uni.navigateTo({
           url:
-            "/pagesOther/productDetailsSelf/productDetailsSelf?id=" + item.id,
+            "/pagesOther/productDetailsSelf/productDetailsSelf?id=" + productId,
         });
       }
     },

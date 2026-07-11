@@ -98,7 +98,8 @@
             class="main-picture-item"
             v-for="(item, index) in mainPictures"
             :key="item.render_key"
-            @click="handleProductClick(item)"
+            :data-index="index"
+            @click="handleProductClick(item, index, $event, 'main')"
           >
             <image
               class="main-picture-image"
@@ -123,7 +124,8 @@
             :class="{ selected: isProductSelected(item.id) }"
             v-for="(item, index) in variantPictures"
             :key="item.render_key"
-            @click="handleProductClick(item)"
+            :data-index="index"
+            @click="handleProductClick(item, index, $event, 'variant')"
           >
             <image
               class="product-image"
@@ -148,7 +150,8 @@
             <view
               v-if="isEditMode"
               class="delete-btn"
-              @click.stop="deleteProduct(item)"
+              :data-index="index"
+              @click.stop="deleteProduct(item, index, $event)"
             >
               <image
                 class="delete-icon"
@@ -183,7 +186,8 @@
             class="detail-picture-item"
             v-for="(item, index) in detailPictures"
             :key="item.render_key"
-            @click="handleProductClick(item)"
+            :data-index="index"
+            @click="handleProductClick(item, index, $event, 'detail')"
           >
             <image
               class="detail-picture-image"
@@ -274,6 +278,11 @@
 import SharePopup from "@/components/SharePopup/index.vue";
 import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 import { setPictureNavigationContext } from "@/common/helper/pictureNavigation.js";
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
 
 export default {
   components: {
@@ -382,6 +391,22 @@ export default {
     goBack() {
       uni.navigateBack();
     },
+    getPictureId(item) {
+      return getObjectId(item, ["pic_id", "id", "selection_item_id"]);
+    },
+    getPictureListByType(type) {
+      if (type === "main") return this.mainPictures;
+      if (type === "detail") return this.detailPictures;
+      return this.variantPictures;
+    },
+    getClickedPicture(item, index, event, type = "variant") {
+      return resolveClickedListItem(
+        item,
+        index,
+        event,
+        this.getPictureListByType(type),
+      );
+    },
 
     showMore() {
       const itemList =
@@ -404,6 +429,11 @@ export default {
     },
 
     toProductDetail(data) {
+      const picId = this.getPictureId(data);
+      if (!picId) {
+        showInvalidRecordToast();
+        return;
+      }
       const pictureContext = setPictureNavigationContext(
         data,
         [...this.mainPictures, ...this.variantPictures, ...this.detailPictures],
@@ -415,19 +445,24 @@ export default {
       uni.navigateTo({
         url:
           "/pagesOther/picDetail/picDetail?pic_id=" +
-          (pictureContext.current.pic_id || data.pic_id || data.id) +
+          (pictureContext.current.pic_id || picId) +
           "&uid=" +
           this.uid +
           "&fromPage=styleResult",
       });
     },
 
-    handleProductClick(item) {
-      if (this.isEditMode) {
-        this.toggleSelectProduct(item);
+    handleProductClick(item, index, event, type = "variant") {
+      const current = this.getClickedPicture(item, index, event, type);
+      if (!current || !this.getPictureId(current)) {
+        showInvalidRecordToast();
         return;
       }
-      this.toProductDetail(item);
+      if (this.isEditMode) {
+        this.toggleSelectProduct(current);
+        return;
+      }
+      this.toProductDetail(current);
     },
 
     enterEditMode() {
@@ -449,13 +484,19 @@ export default {
       });
     },
 
-    deleteProduct(item) {
+    deleteProduct(item, index, event) {
+      const current = this.getClickedPicture(item, index, event, "variant");
+      const picId = this.getPictureId(current);
+      if (!current || !picId) {
+        showInvalidRecordToast();
+        return;
+      }
       uni.showModal({
         title: "提示",
-        content: `确定要删除"${item.pic_name || item.name || "该图片"}"吗？`,
+        content: `确定要删除"${current.pic_name || current.name || "该图片"}"吗？`,
         success: (res) => {
           if (res.confirm) {
-            this.performDeleteSingle(item.id);
+            this.performDeleteSingle(picId);
           }
         },
       });
@@ -466,9 +507,16 @@ export default {
     },
 
     performRemoveImages(productIds) {
+      const validProductIds = (productIds || []).filter(
+        (id) => id !== undefined && id !== null && id !== "",
+      );
+      if (!validProductIds.length) {
+        showInvalidRecordToast("请选择有效图片");
+        return;
+      }
       const querys = {
         selection_id: this.styleId,
-        pic_ids: productIds.join(","),
+        pic_ids: validProductIds.join(","),
         product_id: this.orderInfo.product_id,
         timestamp: new Date().getTime(),
       };
@@ -491,7 +539,7 @@ export default {
               icon: "success",
             });
             this.selectedProducts = this.selectedProducts.filter(
-              (id) => !productIds.includes(id),
+              (id) => !validProductIds.includes(id),
             );
             this.getStyleDetail();
           }
@@ -503,11 +551,16 @@ export default {
     },
 
     toggleSelectProduct(item) {
-      const index = this.selectedProducts.indexOf(item.id);
+      const picId = this.getPictureId(item);
+      if (!picId) {
+        showInvalidRecordToast();
+        return;
+      }
+      const index = this.selectedProducts.indexOf(picId);
       if (index > -1) {
         this.selectedProducts.splice(index, 1);
       } else {
-        this.selectedProducts.push(item.id);
+        this.selectedProducts.push(picId);
       }
     },
 

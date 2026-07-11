@@ -14,10 +14,11 @@
 
       <view class="category-list">
         <view
-          v-for="item in categories"
+          v-for="(item, index) in categories"
           :key="item.id"
           class="category-item"
-          @click="toggleCategory(item)"
+          :data-index="index"
+          @click="toggleCategory(item, index, $event)"
         >
           <text class="category-name">{{ item.display_name || item.folder_name }}</text>
           <view class="checkbox" :class="{ checked: isSelected(item.id) }">
@@ -48,6 +49,12 @@
 </template>
 
 <script>
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
+
 export default {
   name: "CategoryMultiSelect",
   props: {
@@ -91,14 +98,20 @@ export default {
     },
 
     // 切换选中状态
-    toggleCategory(item) {
-      const index = this.selectedIds.indexOf(item.id);
-      if (index > -1) {
+    toggleCategory(item, index, event) {
+      const current = resolveClickedListItem(item, index, event, this.categories);
+      const categoryId = getObjectId(current, ["id", "category_id", "folder_id"]);
+      if (!categoryId) {
+        showInvalidRecordToast();
+        return;
+      }
+      const selectedIndex = this.selectedIds.indexOf(categoryId);
+      if (selectedIndex > -1) {
         // 已选中，取消选中
-        this.selectedIds.splice(index, 1);
+        this.selectedIds.splice(selectedIndex, 1);
       } else {
         // 未选中，添加选中
-        this.selectedIds.push(item.id);
+        this.selectedIds.push(categoryId);
       }
     },
 

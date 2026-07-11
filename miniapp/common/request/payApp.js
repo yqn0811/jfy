@@ -26,7 +26,6 @@ class PayApp {
 					});
 				},
 				fail: (err) => {
-					console.log('支付fail:' + JSON.stringify(err));
 					if ('requestPayment:fail cancel' === err.errMsg) {
 						showToast('您已取消支付');
 						return resolve({

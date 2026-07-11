@@ -27,11 +27,12 @@
       <view v-else-if="!loading && list.length === 0" class="state-text">暂无资源库图片</view>
       <view v-else class="grid">
         <view
-          v-for="item in list"
+          v-for="(item, index) in list"
           :key="item.id"
           class="card"
           :class="{ selected: isSelected(item.id) }"
-          @click="toggle(item)"
+          :data-index="index"
+          @click="toggle(item, index, $event)"
         >
           <image class="thumb" :src="imageUrl(item)" mode="aspectFill"></image>
           <view class="check" :class="{ active: isSelected(item.id) }">
@@ -54,6 +55,12 @@
 </template>
 
 <script>
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
+
 export default {
   data() {
     return {
@@ -102,16 +109,22 @@ export default {
     isSelected(id) {
       return !!this.selected[id];
     },
-    toggle(item) {
-      if (this.isSelected(item.id)) {
-        this.$delete(this.selected, item.id);
+    toggle(item, index, event) {
+      const current = resolveClickedListItem(item, index, event, this.list);
+      const resourceId = getObjectId(current, ["id", "resource_id"]);
+      if (!resourceId) {
+        showInvalidRecordToast();
+        return;
+      }
+      if (this.isSelected(resourceId)) {
+        this.$delete(this.selected, resourceId);
         return;
       }
       if (this.selectedList.length >= this.limit) {
         uni.showToast({ title: "已达到可选上限", icon: "none" });
         return;
       }
-      this.$set(this.selected, item.id, item);
+      this.$set(this.selected, resourceId, current);
     },
     refresh() {
       this.refreshing = true;
@@ -164,10 +177,14 @@ export default {
       try {
         const imported = [];
         for (const item of this.selectedList) {
+          const resourceId = getObjectId(item, ["id", "resource_id"]);
+          if (!resourceId) {
+            continue;
+          }
           const res = await this.$go(
             "album/ai/import_resource",
             {
-              resource_id: item.id,
+              resource_id: resourceId,
               role: this.target,
             },
             "post",

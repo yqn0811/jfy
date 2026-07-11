@@ -138,6 +138,14 @@
 </template>
 
 <script>
+import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
+import {
+  buildOriginalDownloadRequest,
+  buildOriginalZipDownloadRequest,
+} from "@/common/helper/imageUrls.js";
+
+const ZIP_DOWNLOAD_MIN_COUNT = 5;
+
 export default {
   data() {
     return {
@@ -187,7 +195,6 @@ export default {
             data.productList.forEach((product) => {
               this.existingProductIds.push(String(product.id));
             });
-            console.log("已存在的图片ID列表:", this.existingProductIds);
           }
           this.loadProductDetail();
         });
@@ -251,13 +258,6 @@ export default {
       this.bottomBarPaddingBottom = this.safeAreaBottom + 12;
       this.bottomBarHeight = 70 + this.bottomBarPaddingBottom;
 
-      console.log("系统信息:", {
-        statusBarHeight: this.statusBarHeight,
-        navBarHeight: this.navBarHeight,
-        safeAreaBottom: this.safeAreaBottom,
-        bottomBarPaddingBottom: this.bottomBarPaddingBottom,
-        bottomBarHeight: this.bottomBarHeight,
-      });
     },
 
     // 关闭页面
@@ -359,7 +359,11 @@ export default {
       const selectedItems = this.imageList.filter(
         (item) => item.selected && !item.disabled,
       );
-      const pic_ids = selectedItems.map((res) => res.id);
+      const pic_ids = selectedItems.map((res) => getObjectId(res, ["id", "pic_id"])).filter(Boolean);
+      if (!pic_ids.length) {
+        showInvalidRecordToast("请选择有效图片");
+        return;
+      }
       const params = {
         selection_id: this.styleId,
         pic_ids: pic_ids,
@@ -410,7 +414,11 @@ export default {
         (item) => item.selected && !item.disabled,
       );
       console.log(selectedItems);
-      const pic_ids = selectedItems.map((res) => res.id);
+      const pic_ids = selectedItems.map((res) => getObjectId(res, ["id", "pic_id"])).filter(Boolean);
+      if (!pic_ids.length) {
+        showInvalidRecordToast("请选择有效图片");
+        return;
+      }
 
       this.showConfirmPopup = false;
       const data = {
@@ -439,8 +447,71 @@ export default {
       });
     },
 
+    downloadFile(request) {
+      return new Promise((resolve, reject) => {
+        if (!request || !request.url) {
+          reject(new Error("下载地址无效"));
+          return;
+        }
+        uni.downloadFile({
+          url: request.url,
+          header: request.header || {},
+          success: (res) => {
+            if (res.statusCode === 200 && res.tempFilePath) {
+              resolve(res.tempFilePath);
+              return;
+            }
+            reject(new Error("下载失败"));
+          },
+          fail: reject,
+        });
+      });
+    },
+    saveImageFile(filePath) {
+      return new Promise((resolve, reject) => {
+        uni.saveImageToPhotosAlbum({
+          filePath,
+          success: resolve,
+          fail: reject,
+        });
+      });
+    },
+    async downloadSingleImages(items) {
+      let successCount = 0;
+      for (const item of items) {
+        const filePath = await this.downloadFile(
+          buildOriginalDownloadRequest(item, {
+            target_user_id: this.uid,
+            product_id: this.productId,
+            file_size: item.file_size || item.size,
+          }),
+        );
+        await this.saveImageFile(filePath);
+        successCount += 1;
+      }
+      return successCount;
+    },
+    async downloadZipImages(items) {
+      const filePath = await this.downloadFile(
+        buildOriginalZipDownloadRequest(items, {
+          target_user_id: this.uid,
+          product_id: this.productId,
+          filename: `product-${this.productId || "images"}.zip`,
+        }),
+      );
+      uni.openDocument({
+        filePath,
+        showMenu: true,
+        fail: () => {
+          uni.showToast({
+            title: "压缩包已下载，请在文件中查看",
+            icon: "none",
+          });
+        },
+      });
+    },
     // 下载
-    handleDownload() {
+    async handleDownload() {
       const selectedItems = this.imageList.filter(
         (item) => item.selected && !item.disabled,
       );
@@ -451,17 +522,48 @@ export default {
         });
         return;
       }
+      const validItems = selectedItems
+        .map((item) => ({
+          ...item,
+          pic_id: getObjectId(item, ["pic_id", "id"]),
+          product_id: this.productId,
+          folder_id: this.productId,
+        }))
+        .filter((item) => item.pic_id);
+      if (!validItems.length) {
+        showInvalidRecordToast("请选择有效图片");
+        return;
+      }
+
       uni.showLoading({
-        title: "下载中...",
+        title: validItems.length >= ZIP_DOWNLOAD_MIN_COUNT ? "打包中..." : "保存中...",
       });
-      // 这里实现下载逻辑
-      setTimeout(() => {
+      try {
+        if (validItems.length >= ZIP_DOWNLOAD_MIN_COUNT) {
+          await this.downloadZipImages(validItems);
+          uni.hideLoading();
+          uni.showToast({
+            title: "压缩包下载成功",
+            icon: "success",
+          });
+          return;
+        }
+        const successCount = await this.downloadSingleImages(validItems);
         uni.hideLoading();
         uni.showToast({
-          title: "下载成功",
+          title: `已保存${successCount}张`,
           icon: "success",
         });
-      }, 1500);
+      } catch (err) {
+        uni.hideLoading();
+        const message = err && err.errMsg && err.errMsg.includes("auth")
+          ? "请授权保存到相册"
+          : "下载失败";
+        uni.showToast({
+          title: message,
+          icon: "none",
+        });
+      }
     },
   },
 };

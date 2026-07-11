@@ -144,7 +144,6 @@ export default {
       this.currentTime = `${hours}:${minutes}`;
     },
     handleImageError(e) {
-      console.log("图片加载失败:", e);
       // 可以设置默认图片
     },
     handleFollow() {

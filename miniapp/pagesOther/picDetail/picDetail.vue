@@ -59,7 +59,7 @@
       >
         <swiper-item
           v-for="(item, index) in picList"
-          :key="index"
+          :key="getPictureKey(item, index)"
           style="width: 100%; height: 100%; background-color: #333"
         >
           <!-- 视频项 -->
@@ -90,6 +90,7 @@
               :src="item.picture_url"
               mode="aspectFit"
               class="preview-image"
+              lazy-load
             />
             <view v-if="displayWatermarkText" class="watermark-layer">
               <text
@@ -209,11 +210,12 @@
           <view class="add-btn" @click="showCreatePopup">新建</view>
         </view>
         <view class="album-box">
-          <view class="album" v-for="(item, index) in albumList" :key="index">
+          <view class="album" v-for="(item, index) in albumList" :key="getAlbumKey(item, index)">
             <view class="album-img" @click="selectAlbum(item, index)">
               <image
                 :src="item.new_thumb || '/static/image/pic.png'"
                 mode="aspectFill"
+                lazy-load
               ></image>
               <view class="select-box" v-if="item.isChecked">
                 <image src="/static/icon/checked.png" mode=""></image>
@@ -292,11 +294,16 @@
 import { notifyFolderRefresh } from "@/common/helper/refresh.js";
 import { notifyRefresh } from "@/common/helper/refresh.js";
 import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
-import { imageUrlFor, resolveImageDownloadUrl } from "@/common/helper/imageUrls.js";
+import {
+  buildOriginalDownloadRequest,
+  imageUrlFor,
+  resolveImageDownloadUrl,
+} from "@/common/helper/imageUrls.js";
 import {
   buildPictureListForNavigation,
   normalizePictureForNavigation,
 } from "@/common/helper/pictureNavigation.js";
+import { buildListItemKey } from "@/common/helper/listKey.js";
 
 export default {
   data() {
@@ -419,7 +426,6 @@ export default {
     if (optionUid || options.fromPage === "styleResult") {
       this.uid = optionUid;
 
-      console.log(options);
       this.toolList = [
         {
           icon: "/static/icon/down-yuantu.png",
@@ -438,7 +444,6 @@ export default {
     }
     this.option_flag = options.option_flag;
     this.source = options.source || "";
-    console.log(this.option_flag, "this.option_flag");
 
     this.picList = uni.getStorageSync("picList");
     if (!Array.isArray(this.picList)) {
@@ -476,6 +481,12 @@ export default {
   },
 
   methods: {
+    getPictureKey(item, index) {
+      return buildListItemKey(item, index, "pic");
+    },
+    getAlbumKey(item, index) {
+      return buildListItemKey(item, index, "album");
+    },
     parseSceneOptions(options = {}) {
       if (!options.scene || !this.$parseShareScene) return {};
       return this.$parseShareScene(options.scene);
@@ -705,7 +716,6 @@ export default {
     // 显示更多操作
     showMoreActions() {
       // 可以在这里添加更多操作的弹窗
-      console.log("显示更多操作");
     },
 
     // 收藏/取消收藏
@@ -740,7 +750,6 @@ export default {
             `video-player-${this.currentIndex}`,
             this,
           );
-          console.log("视频上下文初始化成功:", this.videoContext);
         } catch (error) {
           console.error("视频上下文初始化失败:", error);
         }
@@ -756,13 +765,11 @@ export default {
 
     // 播放视频
     playVideo() {
-      console.log("尝试播放视频，当前索引:", this.currentIndex);
       if (this.videoContext) {
         this.videoContext.play();
         this.isPlaying = true;
       } else {
         // 如果视频上下文不存在，重新初始化
-        console.log("视频上下文不存在，重新初始化");
         this.$nextTick(() => {
           this.initVideoContext();
           if (this.videoContext) {
@@ -775,12 +782,10 @@ export default {
 
     // 暂停视频
     pauseVideo() {
-      console.log("尝试暂停视频");
       if (this.videoContext) {
         this.videoContext.pause();
         this.isPlaying = false;
       } else {
-        console.log("视频上下文不存在，状态设置为暂停");
         this.isPlaying = false;
       }
     },
@@ -797,7 +802,6 @@ export default {
 
     // 播放/暂停切换
     handlePlay() {
-      console.log("播放/暂停切换，当前状态:", this.isPlaying);
       // 先重新初始化确保视频上下文正确
       this.initVideoContext();
       if (this.isPlaying) {
@@ -1051,12 +1055,12 @@ export default {
         return;
       }
 
-      const fileUrl = await resolveImageDownloadUrl(this.$go, currentItem, {
+      const downloadRequest = buildOriginalDownloadRequest(currentItem, {
         target_user_id: this.uid,
         product_id: currentItem.product_id || currentItem.folder_id,
         file_size: currentItem.file_size || currentItem.size,
       });
-      if (!fileUrl) {
+      if (!downloadRequest.url) {
         uni.showToast({
           title: "媒体地址无效",
           icon: "none",
@@ -1067,7 +1071,8 @@ export default {
       uni.showLoading({ title: "保存中..." });
 
       uni.downloadFile({
-        url: fileUrl,
+        url: downloadRequest.url,
+        header: downloadRequest.header,
         success: (res) => {
           if (res.statusCode === 200) {
             if (isVideo) {

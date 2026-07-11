@@ -1,3 +1,6 @@
+import config from "@/common/config.js";
+import { buildAuthHeader } from "@/common/helper/auth.js";
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return "";
   const text = String(value).trim();
@@ -20,6 +23,16 @@ const pickFirst = (...values) => {
 };
 
 const isControlledDownloadUrl = (value) => normalizeText(value).indexOf("/api/user/download/original") !== -1;
+
+const shouldSendDownloadFileUrl = (value) => {
+  const text = normalizeText(value);
+  return text && !isControlledDownloadUrl(text);
+};
+
+const appendQuery = (params, key, value) => {
+  const text = normalizeText(value);
+  if (text) params.push(`${key}=${encodeURIComponent(text)}`);
+};
 
 const pickDisplayUrl = (...values) => {
   for (const value of values) {
@@ -84,16 +97,22 @@ export const resolveImageDownloadUrl = (request, item = {}, extra = {}) => {
     return Promise.resolve("");
   }
   const entry = imageUrlFor(item, "download");
+  const payload = {
+    pic_id: picId,
+    target_user_id: extra.target_user_id || extra.uid || item.uid || "",
+    product_id: extra.product_id || item.product_id || item.folder_id || "",
+    timestamp: new Date().getTime(),
+  };
+  const fileSize = Number(extra.file_size || item.file_size || item.size || item.size_bytes || 0);
+  if (shouldSendDownloadFileUrl(entry)) {
+    payload.file_url = entry;
+  }
+  if (fileSize > 0) {
+    payload.file_size = fileSize;
+  }
   return request(
     "user/download/original",
-    {
-      pic_id: picId,
-      target_user_id: extra.target_user_id || extra.uid || item.uid || "",
-      product_id: extra.product_id || item.product_id || item.folder_id || "",
-      file_url: entry,
-      file_size: Number(extra.file_size || item.file_size || item.size || item.size_bytes || 0),
-      timestamp: new Date().getTime(),
-    },
+    payload,
     "post",
     { show_err: true, loading: false },
   ).then((res) => {
@@ -102,8 +121,47 @@ export const resolveImageDownloadUrl = (request, item = {}, extra = {}) => {
   });
 };
 
+export const buildOriginalDownloadStreamUrl = (item = {}, extra = {}) => {
+  const picId = item.pic_id || item.id || extra.pic_id || extra.id || "";
+  if (!picId) return "";
+  const params = [];
+  appendQuery(params, "pic_id", picId);
+  appendQuery(params, "target_user_id", extra.target_user_id || extra.uid || item.uid || "");
+  appendQuery(params, "product_id", extra.product_id || item.product_id || item.folder_id || "");
+  appendQuery(params, "stream", 1);
+  appendQuery(params, "timestamp", new Date().getTime());
+  return `${config.host}/user/download/original?${params.join("&")}`;
+};
+
+export const buildOriginalDownloadRequest = (item = {}, extra = {}) => ({
+  url: buildOriginalDownloadStreamUrl(item, extra),
+  header: buildAuthHeader(),
+});
+
+export const buildOriginalZipDownloadRequest = (items = [], extra = {}) => {
+  const picIds = (Array.isArray(items) ? items : [])
+    .map((item) => item && (item.pic_id || item.id))
+    .filter((value) => value !== undefined && value !== null && value !== "");
+  if (!picIds.length) {
+    return { url: "", header: buildAuthHeader() };
+  }
+  const params = [];
+  appendQuery(params, "pic_ids", picIds.join(","));
+  appendQuery(params, "target_user_id", extra.target_user_id || extra.uid || "");
+  appendQuery(params, "product_id", extra.product_id || extra.folder_id || "");
+  appendQuery(params, "filename", extra.filename || "product-images.zip");
+  appendQuery(params, "timestamp", new Date().getTime());
+  return {
+    url: `${config.host}/user/download/original_zip?${params.join("&")}`,
+    header: buildAuthHeader(),
+  };
+};
+
 export default {
   getImageUrls,
   imageUrlFor,
   resolveImageDownloadUrl,
+  buildOriginalDownloadStreamUrl,
+  buildOriginalDownloadRequest,
+  buildOriginalZipDownloadRequest,
 };

@@ -132,6 +132,11 @@ import {
 import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 import { imageUrlFor } from "@/common/helper/imageUrls.js";
 import { setPictureNavigationContext } from "@/common/helper/pictureNavigation.js";
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
 
 export default {
   components: { UserCard, ImageGrid, SharePopup, PersonalDetails },
@@ -173,7 +178,6 @@ export default {
     };
     this.uid = this.normalizeShareParam(options.uid);
     this.shareOwnerId = this.uid;
-    console.log(options);
     if (this.uid && !ensureSharedPageLogin("pagesOther/productDetail/productDetail", options, this.uid)) {
       return;
     }
@@ -411,12 +415,23 @@ export default {
         console.error(e);
       }
     },
-    handleImageClick(data) {
+    handleImageClick(data, index, event) {
+      const sourceList = [...this.images, ...this.imagesDetails];
+      const current = resolveClickedListItem(data, index, event, sourceList);
+      const dataObject = current || data;
+      const resolvedPicId = getObjectId(dataObject, ["pic_id", "id"]);
+      if (!dataObject || !resolvedPicId) {
+        showInvalidRecordToast();
+        return;
+      }
       const uidQuery = this.uid ? "&uid=" + this.uid + "&source=share" : "";
-      const item = this.normalizeProductPicture(data);
+      const item = this.normalizeProductPicture(dataObject);
+      if (!item.id) {
+        item.id = resolvedPicId;
+      }
       const pictureContext = setPictureNavigationContext(
         item,
-        [...this.images, ...this.imagesDetails],
+        sourceList,
         {
           product_id: this.productId,
           folder_id: this.productId,

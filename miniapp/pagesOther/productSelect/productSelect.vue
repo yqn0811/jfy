@@ -12,7 +12,8 @@
         v-for="(item, idx) in productList"
         :key="item.id"
         :class="{ 'is-selected': selectedMap[item.id] }"
-        @tap="toggle(item)"
+        :data-index="idx"
+        @tap="toggle(item, idx, $event)"
       >
         <image class="thumb" :src="item.new_thumb || '/static/image/pic.png'" mode="aspectFill"></image>
 
@@ -59,6 +60,12 @@
 </template>
 
 <script>
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
+
 export default {
   data() {
     return {
@@ -133,12 +140,17 @@ export default {
         ]);
 
         // 提取分类下已有产品的 id 列表
-        this.selectedIds = categoryProducts.map((item) => item.id);
+        this.selectedIds = categoryProducts
+          .map((item) => getObjectId(item, ["id", "product_id", "folder_id"]))
+          .filter(Boolean);
 
         // 构建 selectedMap 对象 { id: true }
         this.selectedMap = {};
         categoryProducts.forEach((item) => {
-          this.$set(this.selectedMap, item.id, true);
+          const id = getObjectId(item, ["id", "product_id", "folder_id"]);
+          if (id) {
+            this.$set(this.selectedMap, id, true);
+          }
         });
 
         // 设置所有产品列表
@@ -155,9 +167,13 @@ export default {
     },
 
     // 切换选中
-    toggle(item) {
-      const id = item.id;
-      if (!id) return;
+    toggle(item, index, event) {
+      const current = resolveClickedListItem(item, index, event, this.productList);
+      const id = getObjectId(current, ["id", "product_id", "folder_id"]);
+      if (!id) {
+        showInvalidRecordToast();
+        return;
+      }
       const isSelected = !!this.selectedMap[id];
       if (isSelected) {
         this.$delete(this.selectedMap, id);

@@ -17,13 +17,13 @@
 		</view>
 		<view class="review-section" :style="{ paddingTop: totalHeight + 'px' }">
 			<view class="category-tags">
-				<text class="category-tag"  @click="selectTag(item)" :class="activeName == item.name ? 'actived' : ''"  v-for="(item,index) in cateList" :key="index">{{item.name}}({{item.count}})</text>
+					<text class="category-tag"  @click="selectTag(item)" :class="activeName == item.name ? 'actived' : ''"  v-for="(item,index) in cateList" :key="getCategoryKey(item, index)">{{item.name}}({{item.count}})</text>
 			</view>
 		
 			<view class="review-list">
-				<view class="review-item" v-for="(item,index) in evaluateList" :key="index">
-					<view class="reviewer-info">
-						<image :src="item.user_info_data.avatar" mode="aspectFill" class="avatar"></image>
+					<view class="review-item" v-for="(item,index) in evaluateList" :key="getReviewKey(item, index)">
+						<view class="reviewer-info">
+							<image :src="item.user_info_data.avatar" lazy-load mode="aspectFill" class="avatar"></image>
 						<view class="info-text">
 							<text class="reviewer-name">{{item.user_info_data.nickname}}</text>
 							<text class="usage-time">已使用{{item.user_info_data.join_days}}天</text>
@@ -43,8 +43,10 @@
 	</view>
 </template>
 
-<script>
-	export default{
+	<script>
+		import { buildListItemKey } from '@/common/helper/listKey.js';
+
+		export default{
 		data(){
 			return{
 				statusBarHeight: '',
@@ -70,8 +72,14 @@
 				this.getList()
 			}
 		},
-		methods:{
-			toWrite(){
+			methods:{
+				getCategoryKey(item, index) {
+					return buildListItemKey(item, index, 'evaluate-cate', ['id', 'name']);
+				},
+				getReviewKey(item, index) {
+					return buildListItemKey(item, index, 'evaluate');
+				},
+				toWrite(){
 				uni.navigateTo({
 					url:'/pagesOther/writePage/writePage'
 				})
