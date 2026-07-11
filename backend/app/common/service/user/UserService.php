@@ -960,6 +960,45 @@ class UserService extends BaseService
         return removePicStyle($pic->TruePic);
     }
 
+    private function resolveOriginalDownloadFileSize($pic, $url = '')
+    {
+        $remoteSize = $this->resolveRemoteContentLength($url);
+        if ($remoteSize > 0) {
+            return $remoteSize;
+        }
+        return (int)$pic->getData('size');
+    }
+
+    private function resolveRemoteContentLength($url)
+    {
+        $url = trim((string)$url);
+        if ($url === '' || !preg_match('/^https?:\/\//i', $url)) {
+            return 0;
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_NOBODY => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 12,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_USERAGENT => 'JiafangyunOriginalDownload/1.0',
+        ]);
+        curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $length = (float)curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+        curl_close($ch);
+
+        if ($status >= 200 && $status < 400 && $length > 0) {
+            return (int)$length;
+        }
+        return 0;
+    }
+
     public function getOriginalDownloadUrl($param, $userId)
     {
         $picId = (int)($param['pic_id'] ?? ($param['id'] ?? 0));
@@ -987,7 +1026,7 @@ class UserService extends BaseService
             throwError('原图暂不可下载');
         }
 
-        $fileSize = (int)$pic->getData('size');
+        $fileSize = $this->resolveOriginalDownloadFileSize($pic, $url);
         $shouldRecordTraffic = !array_key_exists('record_traffic', $param) || (int)$param['record_traffic'] !== 0;
         $traffic = null;
         if ($shouldRecordTraffic) {
@@ -3362,7 +3401,11 @@ class UserService extends BaseService
         }
         $fileSize = (int)($param['file_size'] ?? 0);
         if ($fileSize <= 0) {
-            $fileSize = (int)$pic->getData('size');
+            $fileUrl = trim((string)($param['file_url'] ?? ''));
+            if ($fileUrl === '') {
+                $fileUrl = removePicStyle($pic->TruePic);
+            }
+            $fileSize = $this->resolveOriginalDownloadFileSize($pic, $fileUrl);
         }
         if ($fileSize <= 0) {
             throwError('文件大小为空');
