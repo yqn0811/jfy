@@ -9,8 +9,8 @@
 namespace app\common\service;
 
 
-use app\index\model\WdXcxPic;
-use app\index\service\TencentCOSService;
+use app\common\model\WdXcxPic;
+use app\common\service\TencentCOSService;
 use think\Db;
 use think\Exception;
 use think\Log;

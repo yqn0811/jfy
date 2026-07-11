@@ -9,9 +9,9 @@ use app\common\model\user\WdXcxUserAlbumUploadCode;
 use app\common\service\BaseService;
 use app\common\service\JwtService;
 use app\common\service\WxService;
-use app\index\model\WdXcxBase;
-use app\index\model\WdXcxPic;
-use app\index\service\upload\UploadService;
+use app\common\model\WdXcxBase;
+use app\common\model\WdXcxPic;
+use app\common\service\upload\UploadService;
 use think\App;
 use think\facade\Db;
 

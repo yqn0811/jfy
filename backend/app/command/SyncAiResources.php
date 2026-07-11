@@ -5,7 +5,7 @@ namespace app\command;
 use app\common\model\album\WdXcxAlbumFolder;
 use app\common\model\user\WdXcxUserAlbumPic;
 use app\common\service\album\AiResourceBridgeService;
-use app\index\model\WdXcxPic;
+use app\common\model\WdXcxPic;
 use think\console\Command;
 use think\console\Input;
 use think\console\input\Option;

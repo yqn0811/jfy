@@ -113,7 +113,6 @@ case $choice in
         echo "正在启动PHP内置服务器..."
         echo "访问地址："
         echo "  - API接口: http://localhost:8000/api/"
-        echo "  - 管理后台: http://localhost:8000/index/"
         echo ""
         echo "按 Ctrl+C 停止服务器"
         echo ""

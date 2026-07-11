@@ -3,7 +3,7 @@
 namespace app\common\model\album;
 
 use app\common\model\album\WdXcxAlbumFolder;
-use app\index\model\WdXcxPic;
+use app\common\model\WdXcxPic;
 use think\Model;
 
 class WdXcxAlbumSelectionItem extends Model

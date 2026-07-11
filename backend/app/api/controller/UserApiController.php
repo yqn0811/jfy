@@ -11,7 +11,7 @@ use app\common\service\WxService;
 use think\facade\Cache;
 use think\facade\Config;
 use think\facade\Log;
-use app\index\model\WdXcxPic;
+use app\common\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
 use think\Response;

@@ -127,7 +127,6 @@ php -S localhost:8080
 
 访问地址：
 - API接口：http://localhost:8000/api/
-- 管理后台：http://localhost:8000/index/
 
 #### 方式二：使用Nginx（生产环境）
 
@@ -174,8 +173,7 @@ sudo nginx -s reload  # 重载配置
 # 测试API接口
 curl http://localhost:8000/api/index
 
-# 测试管理后台
-curl http://localhost:8000/index/
+# 旧 PHP 管理后台已废弃并移除，后台管理统一在 AI 管理后台维护。
 ```
 
 ## 三、常见问题
@@ -292,7 +290,6 @@ curl -H "authorization-token: Bearer YOUR_TOKEN" \
 newjfybackend/
 ├── app/              # 应用目录
 │   ├── api/         # API应用
-│   ├── index/       # 管理后台应用
 │   └── common/      # 公共模块
 ├── config/          # 配置文件
 ├── public/          # Web根目录（入口文件）

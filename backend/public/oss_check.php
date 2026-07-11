@@ -8,8 +8,8 @@ define('root_path', __DIR__ . '/../');
 require __DIR__ . '/../vendor/autoload.php';
 
 use think\facade\Db;
-use app\index\service\upload\AliOssService;
-use app\index\service\upload\TenOssService;
+use app\common\service\upload\AliOssService;
+use app\common\service\upload\TenOssService;
 
 $app = new \think\App();
 $http = $app->http;

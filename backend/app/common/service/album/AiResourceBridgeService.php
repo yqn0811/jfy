@@ -4,7 +4,7 @@ namespace app\common\service\album;
 
 use app\common\model\user\WdXcxUser;
 use app\common\service\BaseService;
-use app\index\model\WdXcxPic;
+use app\common\model\WdXcxPic;
 use think\App;
 use think\facade\Cache;
 use think\facade\Log;

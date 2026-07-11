@@ -14,8 +14,8 @@ use app\common\model\order\WdXcxUserBuyGradeOrderLists;
 use app\common\model\order\WdXcxUserOrderLists;
 use app\common\service\distribution\DistributionService;
 use app\common\service\user\UserService;
-use app\index\model\WdXcxBase;
-use app\index\model\WdXcxPic;
+use app\common\model\WdXcxBase;
+use app\common\model\WdXcxPic;
 use think\facade\Db;
 use think\Model;
 
