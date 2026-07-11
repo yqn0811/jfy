@@ -357,9 +357,16 @@ export default {
       this.categoryPickerShow = false;
     },
 
+    normalizeCategoryIds(ids) {
+      return (Array.isArray(ids) ? ids : [ids])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+    },
+
     applyInitialCategory() {
       if (!this.initialCategoryId) return;
       const categoryId = Number(this.initialCategoryId);
+      if (!Number.isFinite(categoryId) || categoryId <= 0) return;
       const matched = this.categoryList.find(
         (item) => Number(item.id) === categoryId,
       );
@@ -786,6 +793,7 @@ export default {
 
       uni.showLoading({ title: "提交中..." });
       try {
+        const categoryIds = this.normalizeCategoryIds(this.selectedCategoryIds);
         const payload = {
           folder_type: 2,
           folder_name: this.productName,
@@ -797,13 +805,15 @@ export default {
             (this.coverImages[0] &&
               (this.coverImages[0].uploadedUrl || this.coverImages[0].src)) ||
             "",
-          category_ids: this.selectedCategoryIds, // 多个分类ID数组
+          category_ids: categoryIds, // 多个分类ID数组
           timestamp: new Date().getTime(),
         };
         let url = "album/create/folder";
         if (this.pid) {
           payload.fid = this.pid;
           url = "album/edit/folder";
+        } else if (categoryIds.length) {
+          payload.fid = categoryIds;
         }
 
         if (this.$go) {
@@ -817,17 +827,14 @@ export default {
           uni.showToast({ title: "提交成功", icon: "none" });
           this.notifyProductChanged();
           setTimeout(() => {
-            if (this.fromPage === "categoryPreview" && this.initialCategoryId) {
-              uni.setStorageSync(
-                "categoryPreviewRedirectToDetail",
-                String(this.initialCategoryId),
-              );
-              this.backOrOpenCategoryDetail(this.initialCategoryId);
+            const targetCategoryId = this.getReturnCategoryId();
+            if (this.fromPage === "categoryPreview" && targetCategoryId) {
+              this.openCategoryDetail(targetCategoryId);
               return;
             }
             if (this.fromPage === "classDetail") {
               uni.$emit("refreshClassDetailData");
-              this.backOrOpenCategoryDetail(this.initialCategoryId);
+              this.openCategoryDetail(targetCategoryId);
               return;
             }
             uni.navigateBack();
@@ -933,21 +940,17 @@ export default {
         console.error("清理未保存图片失败:", err);
       });
     },
-    backOrOpenCategoryDetail(categoryId) {
+    getReturnCategoryId() {
+      const selectedCategoryIds = this.normalizeCategoryIds(this.selectedCategoryIds);
+      const initialCategoryIds = this.normalizeCategoryIds(this.initialCategoryId);
+      return selectedCategoryIds[0] || initialCategoryIds[0] || "";
+    },
+    openCategoryDetail(categoryId) {
       if (!categoryId) {
         uni.navigateBack();
         return;
       }
       const detailUrl = `/pagesOther/classDetail/classDetail?id=${encodeURIComponent(categoryId)}`;
-      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
-      if (pages && pages.length > 1) {
-        uni.navigateBack({
-          fail: () => {
-            uni.redirectTo({ url: detailUrl });
-          },
-        });
-        return;
-      }
       uni.redirectTo({ url: detailUrl });
     },
     notifyProductChanged() {

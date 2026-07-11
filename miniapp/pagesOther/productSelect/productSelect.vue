@@ -60,6 +60,7 @@
 </template>
 
 <script>
+import { notifyRefresh } from "@/common/helper/refresh.js";
 import {
   getObjectId,
   resolveClickedListItem,
@@ -104,21 +105,12 @@ export default {
     },
   },
   methods: {
-    backOrOpenCategoryDetail(categoryId) {
+    openCategoryDetail(categoryId) {
       if (!categoryId) {
         uni.navigateBack();
         return;
       }
       const detailUrl = `/pagesOther/classDetail/classDetail?id=${encodeURIComponent(categoryId)}`;
-      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
-      if (pages && pages.length > 1) {
-        uni.navigateBack({
-          fail: () => {
-            uni.redirectTo({ url: detailUrl });
-          },
-        });
-        return;
-      }
       uni.redirectTo({ url: detailUrl });
     },
     // 获取所有产品
@@ -253,19 +245,16 @@ export default {
             title: res && res.msg ? res.msg : "操作成功",
             icon: "none",
           });
+          notifyRefresh(["product", "category", "home"]);
           // 返回上一页并携带结果（通过页面栈更新或直接 navigateBack）
           setTimeout(() => {
             if (this.fromPage === "categoryPreview") {
-              uni.setStorageSync(
-                "categoryPreviewRedirectToDetail",
-                String(this.albumId),
-              );
-              this.backOrOpenCategoryDetail(this.albumId);
+              this.openCategoryDetail(this.albumId);
               return;
             }
             if (this.fromPage === "classDetail") {
               uni.$emit("refreshClassDetailData");
-              this.backOrOpenCategoryDetail(this.albumId);
+              this.openCategoryDetail(this.albumId);
               return;
             } else {
               uni.$emit("refreshClassManageData");

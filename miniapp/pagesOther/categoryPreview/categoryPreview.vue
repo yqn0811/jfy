@@ -102,7 +102,6 @@ export default {
       userInfo: {},
       shareUrl: "",
       shareTitle: "",
-      redirectingToDetail: false,
     };
   },
   computed: {
@@ -142,9 +141,6 @@ export default {
       title: this.shareTitle,
       path: this.shareUrl,
     };
-  },
-  onShow() {
-    this.consumeDetailRedirectMarker();
   },
   methods: {
     initUserFromCache() {
@@ -230,20 +226,6 @@ export default {
       });
       uni.navigateTo({
         url: "/pagesOther/setPage/setPage",
-      });
-    },
-    consumeDetailRedirectMarker() {
-      if (this.redirectingToDetail || !this.categoryId) return;
-      const redirectId = uni.getStorageSync("categoryPreviewRedirectToDetail");
-      if (!redirectId || String(redirectId) !== String(this.categoryId)) return;
-      uni.removeStorageSync("categoryPreviewRedirectToDetail");
-      this.goToClassDetail();
-    },
-    goToClassDetail() {
-      if (!this.categoryId) return;
-      this.redirectingToDetail = true;
-      uni.redirectTo({
-        url: `/pagesOther/classDetail/classDetail?id=${encodeURIComponent(this.categoryId)}`,
       });
     },
   },
@@ -349,9 +331,7 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 56rpx 28rpx 48rpx;
-  background: #ffffff;
-  border-radius: 24rpx;
+  padding: 36rpx 28rpx 42rpx;
   box-sizing: border-box;
 }
 
@@ -384,7 +364,7 @@ export default {
   width: 238rpx;
   height: 178rpx;
   padding: 22rpx;
-  background: #ffffff;
+  background: #f8f8f8;
   border: 2rpx solid #222222;
   box-shadow: 0 18rpx 40rpx rgba(34, 34, 34, 0.12);
   transform: translateX(-50%);

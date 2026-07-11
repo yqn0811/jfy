@@ -82,13 +82,19 @@
       </view>
       <!-- 无内容时的占位 -->
       <view v-if="!pageError && !hasContent && !loading" class="class-empty">
-        <image
-          v-if="canManageChildCategory"
-          src="/pagesOther/static/icon/Frame@2x(25).png"
-          mode="widthFix"
-          class="empty-img"
-        ></image>
-        <text class="empty-text">{{ emptyMessage }}</text>
+        <view v-if="canManageCategoryContent" class="empty-visual">
+          <view class="visual-card visual-card-back"></view>
+          <view class="visual-card visual-card-front">
+            <view class="visual-image"></view>
+            <view class="visual-lines">
+              <view class="visual-line visual-line-long"></view>
+              <view class="visual-line visual-line-short"></view>
+            </view>
+          </view>
+          <view class="visual-plus">+</view>
+        </view>
+        <text v-if="canManageCategoryContent" class="empty-title">当前合集还没有作品</text>
+        <text class="empty-text">{{ canManageCategoryContent ? "新建产品或从已有产品中添加，作品会展示在这里" : emptyMessage }}</text>
         <view v-if="canManageCategoryContent" class="actions">
           <view class="btn" @tap="createProductInCategory">
             <image
@@ -1082,7 +1088,13 @@ export default {
 <style scoped lang="scss">
 .page {
   background: #f5f5f5;
+  min-height: 100vh;
   padding: 16rpx;
+  box-sizing: border-box;
+}
+
+.page-scoll {
+  padding-bottom: 180rpx;
   box-sizing: border-box;
 }
 
@@ -1266,129 +1278,129 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  min-height: 520rpx;
+  padding: 44rpx 12rpx 40rpx;
+  box-sizing: border-box;
 
-  .empty-img {
-    width: 545rpx;
-    height: 545rpx;
-    margin-bottom: 18rpx;
+  .empty-visual {
+    position: relative;
+    width: 320rpx;
+    height: 250rpx;
+    margin-bottom: 20rpx;
+  }
+
+  .visual-card {
+    position: absolute;
+    border-radius: 24rpx;
+    box-sizing: border-box;
+  }
+
+  .visual-card-back {
+    left: 42rpx;
+    top: 10rpx;
+    width: 210rpx;
+    height: 150rpx;
+    background: #eeeeee;
+    border: 2rpx solid #e2e2e2;
+    transform: rotate(-8deg);
+  }
+
+  .visual-card-front {
+    left: 50%;
+    bottom: 12rpx;
+    width: 238rpx;
+    height: 178rpx;
+    padding: 22rpx;
+    background: #f8f8f8;
+    border: 2rpx solid #222222;
+    box-shadow: 0 18rpx 40rpx rgba(34, 34, 34, 0.12);
+    transform: translateX(-50%);
+  }
+
+  .visual-image {
+    height: 74rpx;
+    border-radius: 18rpx;
+    background: linear-gradient(135deg, #ffd800 0%, #fff3a6 48%, #f1f1f1 100%);
+  }
+
+  .visual-lines {
+    margin-top: 22rpx;
+  }
+
+  .visual-line {
+    height: 12rpx;
+    border-radius: 12rpx;
+    background: #e0e0e0;
+  }
+
+  .visual-line-long {
+    width: 152rpx;
+  }
+
+  .visual-line-short {
+    width: 94rpx;
+    margin-top: 14rpx;
+  }
+
+  .visual-plus {
+    position: absolute;
+    right: 30rpx;
+    top: 26rpx;
+    width: 58rpx;
+    height: 58rpx;
+    border-radius: 50%;
+    background: #ffd800;
+    color: #222222;
+    font-size: 46rpx;
+    line-height: 56rpx;
+    text-align: center;
+    font-weight: 600;
+    box-shadow: 0 10rpx 24rpx rgba(255, 216, 0, 0.35);
+  }
+
+  .empty-title {
+    color: #222222;
+    font-size: 32rpx;
+    font-weight: 600;
+    line-height: 44rpx;
+  }
+
+  .empty-text {
+    max-width: 480rpx;
+    margin-top: 14rpx;
+    color: #7a7a7a;
+    font-size: 26rpx;
+    line-height: 38rpx;
+    text-align: center;
   }
 
   .actions {
     display: flex;
     gap: 16rpx;
-    margin-top: 12rpx;
+    margin-top: 40rpx;
   }
 
   .btn {
-    padding: 24rpx 68rpx;
+    width: 268rpx;
+    height: 96rpx;
     border-radius: 96rpx;
-    background: #222;
+    background: #222222;
     display: flex;
     align-items: center;
-    gap: 8rpx;
+    justify-content: center;
+    gap: 10rpx;
   }
 
   .btn-icon {
-    width: 48rpx;
-    height: 48rpx;
+    width: 40rpx;
+    height: 40rpx;
   }
 
   .btn-text {
-    font-weight: bold;
-    font-size: 32rpx;
-    color: #ffd000;
-  }
-  .image-list-wrap {
-    padding-bottom: 200rpx;
-  }
-  .upload-card {
-    margin-top: 20rpx;
-    height: 160rpx;
-    background: rgba(235, 235, 235, 1);
-    padding: 0 24rpx;
-    border-radius: 12rpx;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .upload-icon {
-    width: 48rpx;
-    height: 48rpx;
-  }
-
-  .upload-text {
-    color: rgba(0, 0, 0, 1);
-    font-size: 28rpx;
-    margin-top: 10rpx;
-  }
-
-  /* 底部栏容器（兼容安全区） */
-  .bottom-bar {
-    position: fixed;
-    background: #ffffff;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    box-sizing: border-box;
-    z-index: 50;
-  }
-
-  /* 左侧大按钮容器（居中宽度受限） */
-  .left-btn {
-    display: flex;
-    align-items: center;
-    padding: 16rpx 48rpx;
-    gap: 60rpx;
-    padding-bottom: calc(env(safe-area-inset-bottom) + 10rpx);
-  }
-
-  /* 黄色胶囊（包含图标框和文字） */
-  .share-inner {
-    width: 438rpx;
-    background: #ffd800;
-    height: 96rpx;
-    border-radius: 96rpx;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8rpx;
-  }
-
-  /* 左侧小图标的虚线方块 */
-  .icon-box {
-    width: 48rpx;
-    height: 48rpx;
-  }
-
-  /* 图标与文字样式 */
-  .icon {
     font-size: 30rpx;
-    color: #222;
-  }
-
-  .share-text {
-    font-weight: bold;
-    font-size: 32rpx;
-    color: #333333;
-  }
-
-  /* 右侧齿轮按钮 */
-  .settings-btn {
-    height: 88rpx;
-    background: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8rpx;
-  }
-
-  /* 齿轮图标 */
-  .settings-icon {
-    font-size: 28rpx;
-    color: #333;
+    font-weight: 600;
+    color: #ffd800;
   }
 }
 </style>
