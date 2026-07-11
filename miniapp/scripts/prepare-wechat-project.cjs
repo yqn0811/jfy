@@ -1,11 +1,15 @@
 const fs = require('fs')
 const path = require('path')
 const childProcess = require('child_process')
+const os = require('os')
 
 const root = path.resolve(__dirname, '..')
 const buildRoot = path.join(root, 'dist', 'build')
 const distRoot = path.join(root, 'dist', 'build', 'mp-weixin')
-const previewRoot = path.join(root, 'dist', 'wechat-preview', 'mp-weixin')
+const legacyPreviewRoot = path.join(root, 'dist', 'wechat-preview')
+const previewRoot = process.env.WECHAT_PREVIEW_ROOT
+  ? path.resolve(process.env.WECHAT_PREVIEW_ROOT)
+  : path.join(os.tmpdir(), 'jfy-miniapp-wechat-preview', 'mp-weixin')
 const projectConfigPath = path.join(root, 'project.config.json')
 const projectPrivateConfigPath = path.join(root, 'project.private.config.json')
 const subpackageRootName = 'pagesOther'
@@ -324,4 +328,8 @@ if (privateConfig) {
 }
 
 preparePackageAssets(distRoot)
+if (!previewRoot.startsWith(legacyPreviewRoot)) {
+  fs.rmSync(legacyPreviewRoot, { recursive: true, force: true })
+}
 copyDir(distRoot, previewRoot)
+console.log(`[prepare-wechat-project] WeChat preview project: ${previewRoot}`)
