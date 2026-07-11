@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -45,6 +45,8 @@ const couponCode = ref('')
 const couponError = ref('')
 const activePayment = ref<any>(null)
 let paymentTimer: number | null = null
+type PackageViewType = 'resource_storage' | 'traffic_monthly'
+const activePackageType = ref<PackageViewType>('resource_storage')
 
 onMounted(() => {
   loadBilling()
@@ -180,6 +182,33 @@ const mapPlan = (item: any): PlanPackageData => ({
 
 const resourcePlans = computed(() => plans.value.filter(plan => plan.packageType !== 'traffic_monthly'))
 const trafficPlans = computed(() => plans.value.filter(plan => plan.packageType === 'traffic_monthly'))
+const hasAvailablePlans = computed(() => resourcePlans.value.length > 0 || trafficPlans.value.length > 0)
+const packageTabOptions = computed<Array<{ type: PackageViewType; label: string; description: string; icon: string; count: number }>>(() => [
+  {
+    type: 'resource_storage',
+    label: '资源包',
+    description: '增加资源库存储空间，资源包会计入当前容量权益。',
+    icon: 'Database',
+    count: resourcePlans.value.length,
+  },
+  {
+    type: 'traffic_monthly',
+    label: '流量包',
+    description: '补充访客浏览、预览和下载产生的月度流量。',
+    icon: 'Wifi',
+    count: trafficPlans.value.length,
+  },
+])
+const activePackageMeta = computed(() => packageTabOptions.value.find(option => option.type === activePackageType.value) || packageTabOptions.value[0])
+const activePlans = computed(() => activePackageType.value === 'traffic_monthly' ? trafficPlans.value : resourcePlans.value)
+
+watch([resourcePlans, trafficPlans], ([resources, traffic]) => {
+  if (activePackageType.value === 'resource_storage' && resources.length === 0 && traffic.length > 0) {
+    activePackageType.value = 'traffic_monthly'
+  } else if (activePackageType.value === 'traffic_monthly' && traffic.length === 0 && resources.length > 0) {
+    activePackageType.value = 'resource_storage'
+  }
+})
 
 const mapOrder = (item: any): OrderData => ({
   id: String(item.id || item.order_id || item.order_no || ''),
@@ -423,45 +452,68 @@ const handleBackToWorkbench = () => {
 
       <!-- 套餐列表 Tab -->
       <TabsContent value="plans" class="mt-6 space-y-4">
-        <div class="space-y-8">
-          <section v-if="resourcePlans.length" class="space-y-3">
+        <div v-if="hasAvailablePlans" class="space-y-5">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 class="text-lg font-semibold text-foreground">资源包</h2>
-              <p class="mt-1 text-sm text-muted-foreground">增加资源库存储空间，资源包会计入当前容量权益。</p>
+              <h2 class="text-lg font-semibold text-foreground">可用套餐</h2>
+              <p class="mt-1 text-sm text-muted-foreground">切换查看资源包和流量包，按需要购买对应权益。</p>
             </div>
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <PlanCard
-                v-for="plan in resourcePlans"
-                :key="plan.id"
-                :plan="plan"
-                :is-current="storageUsage?.planName === plan.name"
-                :is-loading="isCreatingOrder"
-                @upgrade="handleUpgrade(plan.id)"
-              />
+            <div class="inline-grid w-full grid-cols-2 rounded-lg bg-muted/60 p-1 sm:w-auto">
+              <button
+                v-for="option in packageTabOptions"
+                :key="option.type"
+                type="button"
+                :class="[
+                  'inline-flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors',
+                  activePackageType === option.type
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                ]"
+                @click="activePackageType = option.type"
+              >
+                <SafeIcon :name="option.icon" :size="16" class="shrink-0" />
+                <span>{{ option.label }}</span>
+                <span
+                  :class="[
+                    'rounded px-1.5 py-0.5 text-xs',
+                    activePackageType === option.type
+                      ? 'bg-primary-foreground/20 text-primary-foreground'
+                      : 'bg-background/80 text-muted-foreground',
+                  ]"
+                >
+                  {{ option.count }}
+                </span>
+              </button>
             </div>
-          </section>
+          </div>
 
-          <section v-if="trafficPlans.length" class="space-y-3">
-            <div class="flex flex-wrap items-end justify-between gap-3">
+          <section class="space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 class="text-lg font-semibold text-foreground">流量月度包</h2>
-                <p class="mt-1 text-sm text-muted-foreground">补充访客浏览、预览和下载产生的月度流量。</p>
+                <h3 class="inline-flex items-center gap-2 text-lg font-semibold text-foreground">
+                  <SafeIcon :name="activePackageMeta.icon" :size="18" class="text-primary" />
+                  {{ activePackageMeta.label }}
+                </h3>
+                <p class="mt-1 text-sm text-muted-foreground">{{ activePackageMeta.description }}</p>
               </div>
             </div>
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div v-if="activePlans.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <PlanCard
-                v-for="plan in trafficPlans"
+                v-for="plan in activePlans"
                 :key="plan.id"
                 :plan="plan"
+                :is-current="activePackageType === 'resource_storage' && storageUsage?.planName === plan.name"
                 :is-loading="isCreatingOrder"
                 @upgrade="handleUpgrade(plan.id)"
               />
             </div>
+            <div v-else class="rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center text-sm text-muted-foreground">
+              暂无{{ activePackageMeta.label }}
+            </div>
           </section>
-
-          <div v-if="!resourcePlans.length && !trafficPlans.length" class="rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center text-sm text-muted-foreground">
-            暂无可购买套餐
-          </div>
+        </div>
+        <div v-else class="rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center text-sm text-muted-foreground">
+          暂无可购买套餐
         </div>
       </TabsContent>
 
