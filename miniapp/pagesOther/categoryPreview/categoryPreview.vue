@@ -24,12 +24,19 @@
       </view>
 
       <view class="empty-state">
-        <image
-          src="/static/icon/Frame@2x(25).png"
-          mode="widthFix"
-          class="empty-img"
-        />
-        <text class="empty-text">您还没有添加作品到当前合集</text>
+        <view class="empty-visual">
+          <view class="visual-card visual-card-back"></view>
+          <view class="visual-card visual-card-front">
+            <view class="visual-image"></view>
+            <view class="visual-lines">
+              <view class="visual-line visual-line-long"></view>
+              <view class="visual-line visual-line-short"></view>
+            </view>
+          </view>
+          <view class="visual-plus">+</view>
+        </view>
+        <text class="empty-title">当前合集还没有作品</text>
+        <text class="empty-text">新建产品或从已有产品中添加，作品会展示在这里</text>
         <view class="actions">
           <view class="btn" @tap="createProductInCategory">
             <image
@@ -342,17 +349,102 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 56rpx 28rpx 48rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  box-sizing: border-box;
 }
 
-.empty-img {
-  width: 545rpx;
-  height: 545rpx;
+.empty-visual {
+  position: relative;
+  width: 320rpx;
+  height: 250rpx;
+  margin-bottom: 20rpx;
+}
+
+.visual-card {
+  position: absolute;
+  border-radius: 24rpx;
+  box-sizing: border-box;
+}
+
+.visual-card-back {
+  left: 42rpx;
+  top: 10rpx;
+  width: 210rpx;
+  height: 150rpx;
+  background: #f8f8f8;
+  border: 2rpx solid #eeeeee;
+  transform: rotate(-8deg);
+}
+
+.visual-card-front {
+  left: 50%;
+  bottom: 12rpx;
+  width: 238rpx;
+  height: 178rpx;
+  padding: 22rpx;
+  background: #ffffff;
+  border: 2rpx solid #222222;
+  box-shadow: 0 18rpx 40rpx rgba(34, 34, 34, 0.12);
+  transform: translateX(-50%);
+}
+
+.visual-image {
+  height: 74rpx;
+  border-radius: 18rpx;
+  background: linear-gradient(135deg, #ffd800 0%, #fff3a6 48%, #f1f1f1 100%);
+}
+
+.visual-lines {
+  margin-top: 22rpx;
+}
+
+.visual-line {
+  height: 12rpx;
+  border-radius: 12rpx;
+  background: #e7e7e7;
+}
+
+.visual-line-long {
+  width: 152rpx;
+}
+
+.visual-line-short {
+  width: 94rpx;
+  margin-top: 14rpx;
+}
+
+.visual-plus {
+  position: absolute;
+  right: 30rpx;
+  top: 26rpx;
+  width: 58rpx;
+  height: 58rpx;
+  border-radius: 50%;
+  background: #ffd800;
+  color: #222222;
+  font-size: 46rpx;
+  line-height: 56rpx;
+  text-align: center;
+  font-weight: 600;
+  box-shadow: 0 10rpx 24rpx rgba(255, 216, 0, 0.35);
+}
+
+.empty-title {
+  color: #222222;
+  font-size: 32rpx;
+  font-weight: 600;
+  line-height: 44rpx;
 }
 
 .empty-text {
-  margin-top: 10rpx;
-  color: #999999;
+  max-width: 480rpx;
+  margin-top: 14rpx;
+  color: #7a7a7a;
   font-size: 26rpx;
+  line-height: 38rpx;
+  text-align: center;
 }
 
 .actions {
