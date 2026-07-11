@@ -10,27 +10,33 @@ export default {
   },
   onLaunch: function () {
     uni.getSystemInfo({
-      success: (res) => {
-        this.globalData.bottomLift = res.screenHeight - res.safeArea.bottom;
-        // 获取导航栏的高度（手机状态栏高度 + 胶囊高度 + 胶囊的上下间距）
-        const menuButtonInfo = uni.getMenuButtonBoundingClientRect();
+      success: (res = {}) => {
+        const screenHeight = res.screenHeight || res.windowHeight || 0;
+        const safeArea = res.safeArea || {};
+        const safeBottom =
+          typeof safeArea.bottom === "number" ? safeArea.bottom : screenHeight;
+        const menuButtonInfo = this.getMenuButtonInfo(res);
+
+        this.globalData.bottomLift = Math.max(0, screenHeight - safeBottom);
         this.globalData.navBarHeight = menuButtonInfo.height;
         this.globalData.navBarTop = menuButtonInfo.top;
         this.globalData.navBarWidth = menuButtonInfo.width;
-        this.globalData.screenHeight = res.screenHeight;
+        this.globalData.screenHeight = screenHeight;
       },
       fail(err) {},
     });
-    uni.loadFontFace({
-      family: "DOUYU",
-      global: true,
-      source:
-        'url("https://manage.4funinnovate.com/assets/front/douyuzhuiguangti.ttf")',
-      success() {},
-      fail(err) {
-        console.log(err);
-      },
-    });
+    if (typeof uni.loadFontFace === "function") {
+      uni.loadFontFace({
+        family: "DOUYU",
+        global: true,
+        source:
+          'url("https://manage.4funinnovate.com/assets/front/douyuzhuiguangti.ttf")',
+        success() {},
+        fail(err) {
+          console.log(err);
+        },
+      });
+    }
     this.checkUpdate();
     //版本更新
     // const updateManager = uni.getUpdateManager();
@@ -65,8 +71,29 @@ export default {
   onHide: function () {
   },
   methods: {
+    getMenuButtonInfo(systemInfo = {}) {
+      const fallback = {
+        height: 32,
+        top: systemInfo.statusBarHeight || 0,
+        width: 0,
+      };
+      if (typeof uni.getMenuButtonBoundingClientRect !== "function") {
+        return fallback;
+      }
+      try {
+        const info = uni.getMenuButtonBoundingClientRect();
+        return info && info.height ? info : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    },
     checkUpdate() {
-      if (wx.canIUse("getUpdateManager")) {
+      if (
+        typeof wx !== "undefined" &&
+        wx.canIUse &&
+        wx.canIUse("getUpdateManager") &&
+        wx.getUpdateManager
+      ) {
         const updateManager = wx.getUpdateManager();
 
         // 监听检查更新结果
@@ -97,7 +124,7 @@ export default {
             showCancel: false,
           });
         });
-      } else {
+      } else if (typeof wx !== "undefined" && wx.showModal) {
         wx.showModal({
           title: "提示",
           content: "当前微信版本过低，请升级到最新版本后重试",
