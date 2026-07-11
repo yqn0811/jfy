@@ -132,6 +132,44 @@ export const normalizeProductImageUrls = (...values: any[]): ProductImageUrls =>
   )
 }
 
+const uniqueImages = (...values: any[]) => {
+  const result: string[] = []
+  const seen = new Set<string>()
+  values.flat(Infinity).forEach((value) => {
+    const url = pickImage(value)
+    if (!url || seen.has(url)) return
+    seen.add(url)
+    result.push(url)
+  })
+  return result
+}
+
+const buildCoverUrlCandidates = (raw: any, ...fallbacks: any[]) => {
+  const imageUrls = normalizeProductImageUrls(raw, ...fallbacks)
+  return uniqueImages(
+    raw?.thumbnail_url,
+    raw?.thumbnailUrl,
+    raw?.thumb_url,
+    raw?.thumbUrl,
+    raw?.thumb,
+    raw?.new_thumb,
+    imageUrls.thumb,
+    imageUrls.preview,
+    raw?.preview_url,
+    raw?.previewUrl,
+    raw?.cover,
+    raw?.cover_url,
+    raw?.coverUrl,
+    raw?.picture_url,
+    raw?.pictureUrl,
+    raw?.image,
+    raw?.image_url,
+    raw?.imageUrl,
+    ...fallbacks,
+    fallbackImage
+  )
+}
+
 const countImages = (value: any) => {
   if (Array.isArray(value)) return value.length
   if (typeof value === 'string' && value.trim()) {
@@ -234,13 +272,15 @@ export const mapHomeProfile = (raw: any): HomeProfileData => {
 
 export const mapCategory = (raw: any, homeId = ''): CategoryData => {
   const children = toArray(raw.children || raw.child || raw.son || raw.sub_categories)
+  const coverUrlCandidates = buildCoverUrlCandidates(raw, raw.new_thumb, raw.cover, raw.picture_url)
   return {
     id: String(raw.id || raw.fid || ''),
     homeId: String(homeId || raw.uid || raw.home_id || ''),
     parentId: raw.pid ? String(raw.pid) : undefined,
     name: raw.folder_name || raw.name || '未命名分类',
     intro: raw.folder_desc || raw.desc || '',
-    coverUrl: pickImage(raw.new_thumb, raw.cover, raw.picture_url) || fallbackImage,
+    coverUrl: coverUrlCandidates[0] || fallbackImage,
+    coverUrlCandidates,
     productCount: Number(raw.product_count || raw.products_count || raw.total_album || raw.son_product_count || 0),
     childCount: Number(raw.child_count || raw.son_count || children.length || 0),
     visibility: Number(raw.private_type) === 2 ? 'private' : Number(raw.private_type) === 4 ? 'shared' : 'public',
@@ -254,9 +294,11 @@ export const mapCategory = (raw: any, homeId = ''): CategoryData => {
 
 export const mapProduct = (raw: any, homeId = ''): ProductData => {
   const colorImages = raw.pic_ids_arr || raw.pic_list || raw.color_images || raw.pictures || []
+  const firstColorImage = Array.isArray(colorImages) ? colorImages[0] : undefined
   const detailImages = raw.detail_pic_ids_arr || raw.detail_pic_list || raw.detail_pictures || []
   const categoryIds = splitStringList(raw.category_ids || raw.categoryIds || raw.category_id || raw.pid)
   const categoryNames = splitStringList(raw.category_names || raw.categoryNames || raw.category_name || raw.categoryName)
+  const coverUrlCandidates = buildCoverUrlCandidates(raw, firstColorImage, raw.new_thumb, raw.picture_url)
   return {
     id: String(raw.id || raw.fid || raw.product_id || ''),
     homeId: String(homeId || raw.uid || raw.home_id || ''),
@@ -267,7 +309,8 @@ export const mapProduct = (raw: any, homeId = ''): ProductData => {
     ownerUserId: String(raw.uid || raw.owner_uid || raw.ownerUserId || ''),
     name: raw.folder_name || raw.name || '未命名产品',
     intro: raw.folder_desc || raw.desc || raw.intro || '',
-    coverUrl: pickImage(raw.new_thumb, raw.picture_url, colorImages?.[0]) || fallbackImage,
+    coverUrl: coverUrlCandidates[0] || fallbackImage,
+    coverUrlCandidates,
     visibility: Number(raw.private_type) === 2 ? 'private' : Number(raw.private_type) === 4 ? 'shared' : 'public',
     hideDetailImage: Number(raw.hide_detail_pictures || raw.hideDetailImage || 0) === 1,
     allowDownload: resolveDownloadPermission(raw, false),
@@ -360,6 +403,7 @@ export interface PcRecordItem {
   title: string
   subtitle: string
   coverUrl: string
+  coverUrlCandidates?: string[]
   time: number
   timeText: string
   createdAt: string
@@ -424,6 +468,16 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
     raw.subtitle ||
     raw.type_name ||
     (targetType === 'home' ? '商户主页' : targetType === 'category' ? '分类' : '产品')
+  const coverUrlCandidates = buildCoverUrlCandidates(
+    raw,
+    raw.image,
+    raw.new_thumb,
+    raw.cover,
+    raw.avatar,
+    raw.company_logo,
+    raw.logo,
+    raw.picture_url
+  )
 
   return {
     id: String(raw.id || `${targetType}_${targetId}_${time || Date.now()}`),
@@ -433,7 +487,8 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
     targetShareCode,
     title,
     subtitle,
-    coverUrl: pickImage(raw.image, raw.new_thumb, raw.cover, raw.avatar, raw.company_logo, raw.logo, raw.picture_url) || fallbackImage,
+    coverUrl: coverUrlCandidates[0] || fallbackImage,
+    coverUrlCandidates,
     time,
     timeText: raw.time_str || formatTimeValue(time),
     createdAt: time ? new Date(time * 1000).toISOString() : '',

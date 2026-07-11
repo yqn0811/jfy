@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import SafeIcon from '@/components/common/SafeIcon.vue'
+import FallbackImage from '@/components/common/FallbackImage.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -109,10 +110,6 @@ const getFavoriteTitle = (fav: any): string => {
 
 const getFavoriteSubtitle = (fav: any): string => {
   return fav.subtitle || ''
-}
-
-const getFavoriteCover = (fav: any): string => {
-  return fav.coverUrl || ''
 }
 
 const formatDate = (dateStr: string): string => {
@@ -275,11 +272,16 @@ const handleLoginSuccess = async () => {
                   <!-- Cover -->
                   <TableCell class="w-20 py-3">
                     <div class="w-16 h-16 rounded-md overflow-hidden bg-muted/50 flex-shrink-0">
-                      <img
-                        :src="getFavoriteCover(fav)"
+                      <FallbackImage
+                        :src="fav.coverUrl"
+                        :candidates="fav.coverUrlCandidates"
                         :alt="getFavoriteTitle(fav)"
                         class="w-full h-full object-cover"
-                      />
+                      >
+                        <div class="flex h-full w-full items-center justify-center bg-muted">
+                          <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
+                        </div>
+                      </FallbackImage>
                     </div>
                   </TableCell>
 

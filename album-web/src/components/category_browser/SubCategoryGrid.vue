@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { Card, CardContent } from '@/components/ui/card'
 import SafeIcon from '@/components/common/SafeIcon.vue'
+import FallbackImage from '@/components/common/FallbackImage.vue'
 import type { CategoryVO } from '@/data/CategoryService'
 import { navigateToInternal } from '@/navigation'
 
@@ -31,11 +32,16 @@ const handleNavigate = (categoryId: string) => {
     >
       <CardContent class="p-0">
         <div class="aspect-square overflow-hidden bg-muted">
-          <img 
+          <FallbackImage
             :src="category.coverUrl"
+            :candidates="category.coverUrlCandidates"
             :alt="category.name"
             class="w-full h-full object-cover"
-          />
+          >
+            <div class="flex h-full w-full items-center justify-center bg-muted">
+              <SafeIcon name="Image" :size="36" class="text-muted-foreground/60" />
+            </div>
+          </FallbackImage>
         </div>
         <div class="p-4 space-y-2">
           <h3 class="text-item-title font-medium truncate">

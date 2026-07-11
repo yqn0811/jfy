@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import SafeIcon from '@/components/common/SafeIcon.vue'
+import FallbackImage from '@/components/common/FallbackImage.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
 import ShareDialog from '@/components/share_home/ShareDialog.vue'
@@ -856,11 +857,16 @@ const handleLoginSuccess = () => {
           >
             <!-- 产品封面 -->
             <div class="relative w-full aspect-square bg-muted overflow-hidden">
-              <img
+              <FallbackImage
                 :src="product.coverUrl"
+                :candidates="product.coverUrlCandidates"
                 :alt="product.name"
                 class="w-full h-full object-cover"
-              />
+              >
+                <div class="flex h-full w-full items-center justify-center bg-muted">
+                  <SafeIcon name="Image" :size="36" class="text-muted-foreground/60" />
+                </div>
+              </FallbackImage>
               <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
             </div>
 

@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import SafeIcon from '@/components/common/SafeIcon.vue'
+import FallbackImage from '@/components/common/FallbackImage.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { pcApi } from '@/lib/api'
 import { mapProduct } from '@/lib/jfyuntu-mappers'
@@ -333,18 +334,16 @@ const expireLabel = computed(() => {
         <div class="space-y-4">
           <Card class="surface-raised">
             <CardContent class="flex items-center gap-4 p-4">
-              <img
-                v-if="productData?.coverUrl"
-                :src="productData.coverUrl"
+              <FallbackImage
+                :src="productData?.coverUrl"
+                :candidates="productData?.coverUrlCandidates"
                 :alt="productData?.name || '产品封面'"
                 class="h-16 w-16 rounded-lg object-cover bg-muted"
-              />
-              <div
-                v-else
-                class="h-16 w-16 rounded-lg bg-muted flex items-center justify-center shrink-0"
               >
-                <SafeIcon name="Image" :size="22" class="text-muted-foreground" />
-              </div>
+                <div class="h-16 w-16 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <SafeIcon name="Image" :size="22" class="text-muted-foreground" />
+                </div>
+              </FallbackImage>
               <div class="min-w-0 flex-1">
                 <h3 class="text-item-title font-medium truncate">{{ productData?.name || '未命名产品' }}</h3>
                 <p class="text-caption mt-1 line-clamp-1">{{ productData?.intro || '暂无产品简介' }}</p>

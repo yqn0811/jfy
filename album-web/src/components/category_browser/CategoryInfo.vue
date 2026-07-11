@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import SafeIcon from '@/components/common/SafeIcon.vue'
+import FallbackImage from '@/components/common/FallbackImage.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
@@ -67,11 +68,16 @@ const handleLoginSuccess = () => {
     <CardContent class="p-0">
       <div class="flex gap-6 p-6">
         <div class="shrink-0">
-          <img 
-            :src="category.coverUrl" 
+          <FallbackImage
+            :src="category.coverUrl"
+            :candidates="category.coverUrlCandidates"
             :alt="category.name"
             class="w-32 h-32 rounded-lg object-cover border border-border"
-          />
+          >
+            <div class="flex h-32 w-32 items-center justify-center rounded-lg border border-border bg-muted">
+              <SafeIcon name="Image" :size="32" class="text-muted-foreground/60" />
+            </div>
+          </FallbackImage>
         </div>
 
         <div class="flex-1 min-w-0 flex flex-col justify-between">

@@ -12,6 +12,7 @@ export interface ProductData {
   name: string
   intro: string
   coverUrl: string
+  coverUrlCandidates?: string[]
   visibility: ProductVisibility
   hideDetailImage: boolean
   allowDownload?: boolean
