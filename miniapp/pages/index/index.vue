@@ -108,7 +108,7 @@
               <view
                 class="chip"
                 :class="{ active: curCategoryId === '' }"
-                @click="selectCategory({ id: '' })"
+                @click="selectCategory({ id: '', __all: true })"
               >
                 <image
                   class="chip-icon"
@@ -122,7 +122,7 @@
                 :class="{ active: curCategoryId === c.id }"
                 v-for="(c, idx) in categories"
                 :key="getCategoryKey(c, idx)"
-                @click="selectCategory(c)"
+                @click="selectCategory(c, idx)"
               >
                 <image
                   class="chip-icon"
@@ -242,7 +242,11 @@ import {
   getRefreshMarker,
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
-import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
 import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 
 import { getMiniCode, setPendingInviteCode } from "@/common/request/api.js";
@@ -616,11 +620,22 @@ export default {
         this.isFollow = !this.isFollow;
       }
     },
-    selectCategory(item) {
-      this.curCategoryId = item.id;
-      this.columns = !item.id
+    selectCategory(item, index, event) {
+      const category = resolveClickedListItem(item, index, event, this.categories);
+      if (!category || typeof category !== "object") {
+        showInvalidRecordToast("分类数据异常，请刷新后重试");
+        return;
+      }
+      const categoryId = getObjectId(category, [
+        "id",
+        "fid",
+        "folder_id",
+        "category_id",
+      ]);
+      this.curCategoryId = category.__all ? "" : categoryId;
+      this.columns = !this.curCategoryId
         ? this.getSavedHomeColumns()
-        : this.getCategoryColumns(item);
+        : this.getCategoryColumns(category);
       this.getAlbumList();
     },
     formatCategoryName(item) {

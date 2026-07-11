@@ -104,6 +104,23 @@ export default {
     },
   },
   methods: {
+    backOrOpenCategoryDetail(categoryId) {
+      if (!categoryId) {
+        uni.navigateBack();
+        return;
+      }
+      const detailUrl = `/pagesOther/classDetail/classDetail?id=${encodeURIComponent(categoryId)}`;
+      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+      if (pages && pages.length > 1) {
+        uni.navigateBack({
+          fail: () => {
+            uni.redirectTo({ url: detailUrl });
+          },
+        });
+        return;
+      }
+      uni.redirectTo({ url: detailUrl });
+    },
     // 获取所有产品
     async getAllProduct() {
       if (this.$go) {
@@ -243,11 +260,13 @@ export default {
                 "categoryPreviewRedirectToDetail",
                 String(this.albumId),
               );
-              uni.navigateBack();
+              this.backOrOpenCategoryDetail(this.albumId);
               return;
             }
             if (this.fromPage === "classDetail") {
               uni.$emit("refreshClassDetailData");
+              this.backOrOpenCategoryDetail(this.albumId);
+              return;
             } else {
               uni.$emit("refreshClassManageData");
             }

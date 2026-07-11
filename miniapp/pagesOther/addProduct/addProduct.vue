@@ -822,11 +822,13 @@ export default {
                 "categoryPreviewRedirectToDetail",
                 String(this.initialCategoryId),
               );
-              uni.navigateBack();
+              this.backOrOpenCategoryDetail(this.initialCategoryId);
               return;
             }
             if (this.fromPage === "classDetail") {
               uni.$emit("refreshClassDetailData");
+              this.backOrOpenCategoryDetail(this.initialCategoryId);
+              return;
             }
             uni.navigateBack();
           }, 1000);
@@ -930,6 +932,23 @@ export default {
       }).catch((err) => {
         console.error("清理未保存图片失败:", err);
       });
+    },
+    backOrOpenCategoryDetail(categoryId) {
+      if (!categoryId) {
+        uni.navigateBack();
+        return;
+      }
+      const detailUrl = `/pagesOther/classDetail/classDetail?id=${encodeURIComponent(categoryId)}`;
+      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+      if (pages && pages.length > 1) {
+        uni.navigateBack({
+          fail: () => {
+            uni.redirectTo({ url: detailUrl });
+          },
+        });
+        return;
+      }
+      uni.redirectTo({ url: detailUrl });
     },
     notifyProductChanged() {
       const types = ["product", "home"];

@@ -57,6 +57,12 @@
         <view class="state-btn" @tap="retryLoad">重新加载</view>
       </view>
 
+      <view v-if="!pageError && loading" class="state-card">
+        <view class="state-loading"></view>
+        <text class="state-title">加载中</text>
+        <text class="state-desc">正在加载分类内容</text>
+      </view>
+
       <!-- 子分类与产品网格 -->
       <view class="content" v-if="!pageError && hasContent">
         <ImageGrid
@@ -320,6 +326,10 @@ export default {
     if (options && options.id) this.categoryId = options.id;
     this.uid = this.resolveOwnerUid(options);
     this.createdPreview = !this.uid && String(options.created_preview || "") === "1";
+    if (!this.categoryId) {
+      this.setPageError("分类信息缺失，请返回后重试");
+      return;
+    }
     if (this.createdPreview) {
       this.applyCreatedPreviewOptions(options);
     }
@@ -1205,6 +1215,15 @@ export default {
   color: #333333;
   font-size: 26rpx;
   font-weight: 600;
+}
+
+.state-loading {
+  width: 52rpx;
+  height: 52rpx;
+  margin-bottom: 24rpx;
+  border-radius: 50%;
+  border: 6rpx solid #f0f0f0;
+  border-top-color: #ffd800;
 }
 
 .bottom-bar {
