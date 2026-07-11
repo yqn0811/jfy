@@ -385,7 +385,12 @@ export default {
     },
 
     createProduct() {
-      uni.navigateTo({ url: "/pagesOther/addProduct/addProduct?fromPage=productManage" });
+      const query = ["fromPage=productManage"];
+      if (this.selectedCategoryId) {
+        query.push(`category_id=${encodeURIComponent(this.selectedCategoryId)}`);
+        query.push(`category_name=${encodeURIComponent(this.selectedCategoryName || "")}`);
+      }
+      uni.navigateTo({ url: `/pagesOther/addProduct/addProduct?${query.join("&")}` });
     },
   },
 };

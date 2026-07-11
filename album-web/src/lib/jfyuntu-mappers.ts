@@ -186,6 +186,12 @@ const splitStringList = (value: any) => {
   return []
 }
 
+const importedResourceIdFromName = (value: any) => {
+  const text = String(value || '').trim()
+  const match = text.match(/^(?:我的资源库|AI资源库)-(-?\d+)$/u)
+  return match ? match[1] : ''
+}
+
 const formatDateText = (value: any) => {
   if (!value) return ''
   if (typeof value === 'string' && /[年/-]/.test(value)) return value
@@ -336,11 +342,19 @@ const mapImageItem = (raw: any, productId: string, type: 'colorChart' | 'detailC
   const url = pickImage(imageUrls.origin, imageUrls.edit, imageUrls.preview, imageUrls.thumb, raw?.picture_url, raw?.imgurl, raw?.picture_url_original, raw?.url, raw?.src, source, raw, imageUrls.download)
   const thumbnailUrl = pickImage(imageUrls.thumb, raw?.thumbnailUrl, raw?.thumb, raw?.picture_url, raw?.url, source, raw) || url
   const id = String(raw?.pic_id || source?.id || raw?.id || `${productId}_${type}_${index}`)
+  const name = raw?.pic_name || source?.pic_name || raw?.name || source?.name || raw?.file_name || `${type === 'colorChart' ? '花色图' : '详情图'} ${index + 1}`
+  const resourceId = String(
+    raw?.resource_id ||
+      raw?.resourceId ||
+      source?.resource_id ||
+      source?.resourceId ||
+      importedResourceIdFromName(name)
+  )
   return {
     id,
     productId,
     type,
-    name: raw?.pic_name || source?.pic_name || raw?.name || source?.name || raw?.file_name || `${type === 'colorChart' ? '花色图' : '详情图'} ${index + 1}`,
+    name,
     imageUrls: buildProductImageUrls(imageUrls, { url, thumbnailUrl }),
     url,
     thumbnailUrl,
@@ -350,7 +364,8 @@ const mapImageItem = (raw: any, productId: string, type: 'colorChart' | 'detailC
     isOriginalLarge: Number(raw?.size || raw?.sizeBytes || source?.size || source?.sizeBytes || 0) > 3 * 1024 * 1024,
     createdAt: raw?.create_time || raw?.createdAt || source?.create_time || source?.createdAt || '',
     albumPicId: raw?.album_pic_id || raw?.albumPicId || raw?.relation_id || raw?.relationId || '',
-    source: 'saved',
+    resourceId: resourceId || undefined,
+    source: resourceId ? 'ai_resource' : 'saved',
   }
 }
 

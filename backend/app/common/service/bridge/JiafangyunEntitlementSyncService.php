@@ -43,20 +43,22 @@ class JiafangyunEntitlementSyncService extends BaseService
     private function applyToUser($user, $entitlements)
     {
         $level = trim((string)($entitlements['membership_level'] ?? 'free'));
-        $gradeLevel = $this->levelToGrade($level);
         $capacityBytes = (int)($entitlements['resource_storage_capacity_bytes'] ?? 0);
         if ($capacityBytes <= 0 && isset($entitlements['resource_storage']['capacity_bytes'])) {
             $capacityBytes = (int)$entitlements['resource_storage']['capacity_bytes'];
         }
         $spaceSizeMb = $this->bytesToMb($capacityBytes);
+        $plan = is_array($entitlements['plan'] ?? null) ? $entitlements['plan'] : [];
+        $membershipPlanId = (int)($entitlements['membership_plan_id'] ?? 0);
+        $hasResourceMembership = $this->hasResourceMembership($level, $plan, $membershipPlanId, $spaceSizeMb);
+        $gradeLevel = $this->levelToGrade($level, $hasResourceMembership);
         if ($spaceSizeMb <= 0 && $gradeLevel <= 0) {
             $spaceSizeMb = self::DEFAULT_FREE_SPACE_MB;
         }
         $expireAt = $this->parseExpireAt($entitlements['membership_expire_at'] ?? null, $gradeLevel);
-        $plan = is_array($entitlements['plan'] ?? null) ? $entitlements['plan'] : [];
         $benefits = is_array($plan['benefits_json'] ?? null) ? $plan['benefits_json'] : (is_array($plan['benefits'] ?? null) ? $plan['benefits'] : []);
         $uploadSizeMb = $this->resolveUploadSizeMb($benefits, $gradeLevel);
-        $gradeName = $this->resolveGradeName($gradeLevel, $level, $plan);
+        $gradeName = $this->resolveGradeName($gradeLevel, $level, $plan, $hasResourceMembership);
 
         Db::startTrans();
         try {
@@ -81,7 +83,7 @@ class JiafangyunEntitlementSyncService extends BaseService
             'upload_size_type' => 1,
             'upload_size' => $uploadSizeMb,
             'membership_level' => $level,
-            'membership_plan_id' => (int)($entitlements['membership_plan_id'] ?? 0),
+            'membership_plan_id' => $membershipPlanId,
             'resource_storage' => $entitlements['resource_storage'] ?? [],
             'resource_storage_capacity_bytes' => (int)($entitlements['resource_storage_capacity_bytes'] ?? ($spaceSizeMb * 1024 * 1024)),
             'resource_storage_used_bytes' => (int)($entitlements['resource_storage_used_bytes'] ?? 0),
@@ -163,9 +165,24 @@ class JiafangyunEntitlementSyncService extends BaseService
         ]));
     }
 
-    private function levelToGrade($level)
+    private function hasResourceMembership($level, $plan, $membershipPlanId, $spaceSizeMb)
+    {
+        $category = trim((string)($plan['plan_category'] ?? ''));
+        if ($category === 'resource_storage') {
+            return true;
+        }
+        if ((int)$spaceSizeMb > self::DEFAULT_FREE_SPACE_MB) {
+            return true;
+        }
+        return strpos(strtolower(trim((string)$level)), 'resource') === 0;
+    }
+
+    private function levelToGrade($level, $hasResourceMembership = false)
     {
         $level = strtolower(trim((string)$level));
+        if ($hasResourceMembership && ($level === '' || $level === 'free' || $level === 'user' || strpos($level, 'resource') === 0)) {
+            return 1;
+        }
         $map = [
             'trial' => 1,
             'basic' => 2,
@@ -184,7 +201,7 @@ class JiafangyunEntitlementSyncService extends BaseService
         return 99;
     }
 
-    private function resolveGradeName($gradeLevel, $level, $plan)
+    private function resolveGradeName($gradeLevel, $level, $plan, $hasResourceMembership = false)
     {
         if ($gradeLevel <= 0) {
             return '普通用户';
@@ -199,6 +216,9 @@ class JiafangyunEntitlementSyncService extends BaseService
             'standard' => '标准版',
             'premium' => '专业版',
         ];
+        if ($hasResourceMembership) {
+            return '资源会员';
+        }
         return $map[$level] ?? ('会员' . $gradeLevel);
     }
 

@@ -3619,7 +3619,8 @@ class UserService extends BaseService
             )->count();
             if ($remainingRelationCount <= 0 && (int)$fieldReferenceCount <= 0) {
                 $pic = WdXcxPic::where('id', $picId)->where('uid', $userId)->find();
-                if ($pic) {
+                $isImportedResource = $pic && method_exists($pic, 'isImportedResourcePicture') && $pic->isImportedResourcePicture();
+                if ($pic && !$isImportedResource) {
                     $pic->delete();
                     $deleteResource = true;
                 }

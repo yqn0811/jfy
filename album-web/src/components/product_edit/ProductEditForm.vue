@@ -104,6 +104,39 @@ const visibilityOptions = [
   { value: 'shared' as const, label: '分享可见' },
 ]
 
+const normalizeImageIdentityUrl = (url: unknown) => String(url || '').trim().split('?')[0].replace(/\/$/, '')
+
+const resourceIdentity = (value: any) => {
+  const resourceId = String(value?.resourceId || value?.resource_id || '').trim()
+  if (resourceId) return `resource:${resourceId}`
+  const fileHash = String(value?.fileHash || value?.file_hash || value?.content_hash || value?.source_hash || value?.metadata?.file_hash || '').trim()
+  if (fileHash) return `hash:${fileHash}`
+  const imageUrls = value?.imageUrls || value?.image_urls || {}
+  const url = normalizeImageIdentityUrl(
+    pickImage(
+      imageUrls.origin,
+      imageUrls.download,
+      imageUrls.preview,
+      imageUrls.thumb,
+      value?.original_url,
+      value?.file_url,
+      value?.fileUrl,
+      value?.picture_url_original,
+      value?.url,
+      value?.thumbnailUrl,
+      value?.thumbnail_url,
+      value
+    )
+  )
+  return url ? `url:${url}` : ''
+}
+
+const imageDedupeKey = (image: ProductImageData) =>
+  resourceIdentity(image) || (image.fileHash ? `hash:${image.fileHash}` : `id:${image.id}`)
+
+const isResourceLibraryImage = (image?: ProductImageData | null) =>
+  image?.source === 'ai_resource' || Boolean(image?.resourceId)
+
 const isCategorySelected = (categoryId: string) => formState.value.categoryIds.includes(categoryId)
 
 const imageListForType = (type: ProductImageType) =>
@@ -161,9 +194,16 @@ const setVisibility = (value: FormState['visibility']) => {
 }
 
 const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: string): ProductImageData => {
-  const imageUrls = normalizeProductImageUrls(item)
-  const url = pickImage(imageUrls.origin, imageUrls.edit, imageUrls.preview, imageUrls.thumb, item.original_url, item.file_url, item.fileUrl, item.picture_url_original, item.url, item, imageUrls.download)
-  const thumbnailUrl = pickImage(imageUrls.thumb, item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
+  const normalizedUrls = normalizeProductImageUrls(item)
+  const url = pickImage(item.preview_url, item.previewUrl, item.thumbnail_url, item.thumbnailUrl, item.picture_url, item.imgurl, item.url, item.file_url, item.fileUrl, normalizedUrls.preview, normalizedUrls.edit, normalizedUrls.thumb, normalizedUrls.origin, item.original_url, item.picture_url_original, item, normalizedUrls.download)
+  const thumbnailUrl = pickImage(item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, normalizedUrls.thumb, normalizedUrls.preview, url)
+  const imageUrls = buildProductImageUrls({
+    ...normalizedUrls,
+    thumb: thumbnailUrl || normalizedUrls.thumb,
+    preview: url || normalizedUrls.preview,
+    edit: url || normalizedUrls.edit,
+  }, { url, thumbnailUrl })
+  const resourceId = String(item.resource_id || item.resourceId || '')
   return {
     id: String(item.pid || item.pic_id || item.id || item.local_pic_id || item.picture_id || item.resource_id || `resource_${Date.now()}`),
     productId: productIdValue,
@@ -178,18 +218,19 @@ const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: s
     isOriginalLarge: Number(item.sizeBytes || item.size || 0) > 3 * 1024 * 1024,
     createdAt: item.create_time || item.created_at || new Date().toLocaleString('zh-CN'),
     uploadStatus: 'reused',
-    resourceId: item.resource_id || item.id,
+    resourceId: resourceId || undefined,
     fileHash: item.file_hash || item.content_hash || item.source_hash || item?.metadata?.file_hash || '',
   }
 }
 
 const normalizeResourceList = (raw: any) => {
   return unwrapList(raw).map((item: any) => {
-    const url = pickImage(item.file_url, item.fileUrl, item.preview_url, item.previewUrl, item.thumbnail_url, item.thumbnailUrl, item.picture_url_original, item.url, item)
+    const url = pickImage(item.preview_url, item.previewUrl, item.thumbnail_url, item.thumbnailUrl, item.file_url, item.fileUrl, item.picture_url_original, item.url, item)
     const thumbnailUrl = pickImage(item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
     return {
       ...item,
       id: String(item.id || item.resource_id || item.pic_id || ''),
+      resource_id: item.resource_id || item.id,
       name: item.name || item.pic_name || item.file_name || '未命名图片',
       url,
       thumbnailUrl,
@@ -227,6 +268,11 @@ const markResourceBroken = (id: string) => {
 }
 
 const toggleResource = (id: string) => {
+  const resource = resourceList.value.find(item => item.id === id)
+  if (resource && existingImageIdentityKeys.value.has(resourceIdentity(resource))) {
+    toast.info('这张资源库图片已选过')
+    return
+  }
   const next = new Set(selectedResourceIds.value)
   if (next.has(id)) {
     next.delete(id)
@@ -246,7 +292,18 @@ const handleImportResources = async () => {
   try {
     const type = resourceTargetType.value
     const role = type === 'detailChart' ? 'detail' : 'cover'
-    const selected = resourceList.value.filter(item => selectedResourceIds.value.has(item.id))
+    const existingKeys = new Set(imageListForType(type).map(imageDedupeKey).filter(Boolean))
+    const selected = resourceList.value.filter(item => {
+      if (!selectedResourceIds.value.has(item.id)) return false
+      const key = resourceIdentity(item)
+      if (key && existingKeys.has(key)) return false
+      if (key) existingKeys.add(key)
+      return true
+    })
+    if (selected.length === 0) {
+      toast.info('选中的资源库图片已在当前列表中')
+      return
+    }
     const imported: ProductImageData[] = []
 
     for (const item of selected) {
@@ -406,11 +463,11 @@ const handleSave = async () => {
 const handleAddImages = (images: ProductImageData[], type: ProductImageType) => {
   const existingKeys = new Set(
     imageListForType(type)
-      .map(item => item.fileHash ? `hash:${item.fileHash}` : `id:${item.id}`)
+      .map(imageDedupeKey)
       .filter(Boolean)
   )
   const nextImages = images.filter((image) => {
-    const key = image.fileHash ? `hash:${image.fileHash}` : `id:${image.id}`
+    const key = imageDedupeKey(image)
     if (existingKeys.has(key)) return false
     existingKeys.add(key)
     return true
@@ -445,7 +502,7 @@ const handleRemoveImage = (id: string, type: ProductImageType) => {
     pcApi.discardUploadedPicture(String(removed.id)).catch((error) => {
       console.warn('Failed to discard uploaded image:', error)
     })
-  } else if (removed?.albumPicId) {
+  } else if (removed?.albumPicId && !isResourceLibraryImage(removed)) {
     pcApi.discardUploadedPicture({ album_pic_id: removed.albumPicId }).catch((error) => {
       console.warn('Failed to discard album image relation:', error)
     })
@@ -529,6 +586,10 @@ const handleUploadImage = async (file: File, type: ProductImageType, placeholder
     pendingDiscard: true,
   }
 }
+
+const existingImageIdentityKeys = computed(() =>
+  new Set(imageListForType(resourceTargetType.value).map(imageDedupeKey).filter(Boolean))
+)
 </script>
 
 <template>

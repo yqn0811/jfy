@@ -163,9 +163,9 @@
     <!-- 自定义底部导航 -->
     <custom-tab-bar
       v-if="!previewMode"
-      @createProduct="showCreatePopup = true"
+      @createProduct="navigateToCreate"
     />
-    <view class="preview-wrap">
+    <view v-if="previewMode" class="preview-wrap">
       <view class="preview-item" @click="openCustomer">
         <image
           class="preview-item-icon"
@@ -262,6 +262,7 @@ export default {
     return {
       columns: 2,
       previewMode: false,
+      showCreatePopup: false,
       showCategory: false,
       personalVisible: false,
       showSettingPopup: false, // 设置弹窗显示状态
@@ -643,6 +644,9 @@ export default {
     },
     navigateToCreate() {
       this.showCreatePopup = true;
+    },
+    handleCreateClose() {
+      this.showCreatePopup = false;
     },
     createAlbum() {
       this.showCreatePopup = false;

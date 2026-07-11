@@ -267,11 +267,23 @@ export default {
       return this.nextAction === "addProduct";
     },
     resolveCreatedCategoryId(data) {
-      const source = data && (data.folder_info || data.category || data.info || data);
+      const source =
+        data &&
+        (data.folder_info ||
+          data.category ||
+          data.info ||
+          data.data ||
+          data);
       return source && (source.id || source.fid || source.folder_id || source.category_id);
     },
     resolveCreatedCategoryName(data) {
-      const source = data && (data.folder_info || data.category || data.info || data);
+      const source =
+        data &&
+        (data.folder_info ||
+          data.category ||
+          data.info ||
+          data.data ||
+          data);
       return source && (source.folder_name || source.name || this.form.folder_name);
     },
     goToNewProduct(data) {

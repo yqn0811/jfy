@@ -1042,7 +1042,9 @@ class AlbumService extends BaseService
         $newProductIds = array_values(array_unique(array_merge($newCoverIds, $newDetailIds)));
         if (isset($param['pic_ids'])) {
             foreach (array_diff($oldCoverIds, $newCoverIds) as $removedPicId) {
+                $isImportedResource = $this->isImportedResourcePictureId((int)$removedPicId, $uid);
                 $deleteResource = !in_array((int)$removedPicId, $newProductIds, true)
+                    && !$isImportedResource
                     && !$this->isPictureReferencedElsewhere($uid, (int)$removedPicId);
                 if ($deleteResource) {
                     $this->deleteLocalPictureIfUnreferenced($uid, (int)$removedPicId);
@@ -1058,7 +1060,9 @@ class AlbumService extends BaseService
         }
         if (isset($param['detail_pic_ids'])) {
             foreach (array_diff($oldDetailIds, $newDetailIds) as $removedPicId) {
+                $isImportedResource = $this->isImportedResourcePictureId((int)$removedPicId, $uid);
                 $deleteResource = !in_array((int)$removedPicId, $newProductIds, true)
+                    && !$isImportedResource
                     && !$this->isPictureReferencedElsewhere($uid, (int)$removedPicId);
                 if ($deleteResource) {
                     $this->deleteLocalPictureIfUnreferenced($uid, (int)$removedPicId);
@@ -1092,6 +1096,16 @@ class AlbumService extends BaseService
             ->whereRaw('(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))', [$picId, $picId])
             ->count();
         return (int)$fieldReferenceCount > 0;
+    }
+
+    private function isImportedResourcePictureId($picId, $uid = 0)
+    {
+        $query = WdXcxPic::where('id', (int)$picId);
+        if ($uid) {
+            $query->where('uid', (int)$uid);
+        }
+        $pic = $query->find();
+        return $pic && method_exists($pic, 'isImportedResourcePicture') && $pic->isImportedResourcePicture();
     }
 
     private function deleteLocalPictureIfUnreferenced($uid, $picId)

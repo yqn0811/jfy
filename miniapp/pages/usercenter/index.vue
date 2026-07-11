@@ -445,11 +445,15 @@ export default {
       return this.userInfo.display_avatar || "/static/image/headurl.jpg";
     },
     memberName() {
-      return this.safeText(this.userInfo.grade_name) || "免费版";
+      const gradeName = this.safeText(this.userInfo.grade_name);
+      const planName = this.safeText(this.userInfo.membership_plan_name);
+      if (this.hasActiveMembership()) {
+        return this.isFreeMemberName(gradeName) ? (planName || "会员") : (gradeName || planName || "会员");
+      }
+      return this.isFreeMemberName(gradeName) ? "免费版" : (gradeName || "免费版");
     },
     memberStatusType() {
-      const level = Number(this.userInfo.grade_level || this.userInfo.vip_grade || 0);
-      if (level <= 0) return "free";
+      if (!this.hasActiveMembership()) return "free";
       return this.isMemberExpired() ? "expired" : "active";
     },
     memberStatusText() {
@@ -458,7 +462,11 @@ export default {
       return "免费版";
     },
     memberExpireText() {
-      const endTime = this.userInfo.end_time || this.userInfo.vip_end_time || this.userInfo.expire_time;
+      const endTime =
+        this.userInfo.end_time ||
+        this.userInfo.vip_end_time ||
+        this.userInfo.expire_time ||
+        this.userInfo.membership_expire_at;
       if (!endTime || Number(endTime) === 0) {
         return this.memberStatusType === "free" ? "未开通会员" : "永久有效";
       }
@@ -570,6 +578,22 @@ export default {
       }
       return fallback;
     },
+    isFreeMembershipLevel(value) {
+      const level = this.safeText(value).toLowerCase();
+      return !level || level === "free" || level === "user";
+    },
+    isFreeMemberName(value) {
+      const text = this.safeText(value);
+      return !text || text === "普通用户" || text === "免费版" || text === "未开通会员";
+    },
+    hasActiveMembership() {
+      const gradeLevel = Number(this.userInfo.grade_level || this.userInfo.vip_grade || 0);
+      if (gradeLevel > 0) return true;
+      if (!this.isFreeMembershipLevel(this.userInfo.membership_level)) return true;
+      if (Number(this.userInfo.membership_plan_id || 0) > 0) return true;
+      const freeBytes = 50 * 1024 * 1024;
+      return Number(this.userInfo.resource_storage_capacity_bytes || 0) > freeBytes;
+    },
     parseDateTime(value) {
       if (value === null || value === undefined || value === "") return 0;
       if (typeof value === "number" || /^\d+$/.test(String(value))) {
@@ -581,9 +605,12 @@ export default {
       return Number.isFinite(time) ? time : 0;
     },
     isMemberExpired() {
-      const level = Number(this.userInfo.grade_level || this.userInfo.vip_grade || 0);
-      const endTime = this.userInfo.end_time || this.userInfo.vip_end_time || this.userInfo.expire_time;
-      if (level <= 0 || !endTime || Number(endTime) === 0) return false;
+      const endTime =
+        this.userInfo.end_time ||
+        this.userInfo.vip_end_time ||
+        this.userInfo.expire_time ||
+        this.userInfo.membership_expire_at;
+      if (!this.hasActiveMembership() || !endTime || Number(endTime) === 0) return false;
       const time = this.parseDateTime(endTime);
       return time > 0 && time < Date.now();
     },

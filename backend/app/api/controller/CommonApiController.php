@@ -298,7 +298,18 @@ class CommonApiController extends ApiBaseController
         if (!$url || !isProxyableExternalImageUrl(removePicStyle($url))) {
             throwError('图片读取失败');
         }
+        if ($type !== 'original') {
+            return $this->redirectRemoteImage($url, 240);
+        }
         return $this->streamRemoteImage($url, $type === 'original' ? 300 : 1800);
+    }
+
+    private function redirectRemoteImage($url, $maxAge = 240)
+    {
+        return Response::create('', 'html', 302)->header([
+            'Location' => $url,
+            'Cache-Control' => 'public, max-age=' . (int)$maxAge,
+        ]);
     }
 
     private function streamRemoteImage($url, $maxAge = 1800)

@@ -292,6 +292,7 @@ class AiResourceBridgeService extends BaseService
         }
         $type = in_array($type, ['thumb', 'preview', 'original'], true) ? $type : 'thumb';
         $cacheKey = 'ai_resource_image_url_' . (int)$pic->id . '_' . md5($resourceId . '|' . $type);
+        $cacheTtl = $this->resourceImageUrlCacheTtl($type);
         $cached = Cache::get($cacheKey);
         if ($cached) {
             return $cached;
@@ -308,13 +309,13 @@ class AiResourceBridgeService extends BaseService
         } catch (\Throwable $e) {
             Log::warning('[AiResourceBridge] resource lookup failed, fallback to stored picture: ' . $e->getMessage());
             $url = $this->getSignedStoredPictureUrl($pic, $type);
-            Cache::set($cacheKey, $url, $type === 'original' ? 300 : 1800);
+            Cache::set($cacheKey, $url, $cacheTtl);
             return $url;
         }
         $resource = $resp['resource'] ?? null;
         if (!$resource) {
             $url = $this->getSignedStoredPictureUrl($pic, $type);
-            Cache::set($cacheKey, $url, $type === 'original' ? 300 : 1800);
+            Cache::set($cacheKey, $url, $cacheTtl);
             return $url;
         }
         $url = '';
@@ -323,7 +324,7 @@ class AiResourceBridgeService extends BaseService
             if (!$url) {
                 $url = $this->getSignedStoredPictureUrl($pic, $type);
             }
-            Cache::set($cacheKey, $url, 300);
+            Cache::set($cacheKey, $url, $cacheTtl);
             return $url;
         }
         if ($type === 'preview') {
@@ -331,15 +332,20 @@ class AiResourceBridgeService extends BaseService
             if (!$url) {
                 $url = $this->getSignedStoredPictureUrl($pic, $type);
             }
-            Cache::set($cacheKey, $url, 1800);
+            Cache::set($cacheKey, $url, $cacheTtl);
             return $url;
         }
         $url = $this->firstResourceImageUrl($resource, $this->resourceThumbnailUrlFields());
         if (!$url) {
             $url = $this->getSignedStoredPictureUrl($pic, $type);
         }
-        Cache::set($cacheKey, $url, 1800);
+        Cache::set($cacheKey, $url, $cacheTtl);
         return $url;
+    }
+
+    private function resourceImageUrlCacheTtl($type)
+    {
+        return $type === 'original' ? 300 : 240;
     }
 
     private function getSignedStoredPictureUrl($pic, $type = 'thumb')

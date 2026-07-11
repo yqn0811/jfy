@@ -82,7 +82,25 @@
           mode="widthFix"
           class="empty-img"
         ></image>
-        <text v-else class="empty-text">{{ emptyMessage }}</text>
+        <text class="empty-text">{{ emptyMessage }}</text>
+        <view v-if="canManageCategoryContent" class="actions">
+          <view class="btn" @tap="createProductInCategory">
+            <image
+              class="btn-icon"
+              src="/static/icon/add-yellow-icon.png"
+              mode="scaleToFill"
+            />
+            <text class="btn-text">添加产品</text>
+          </view>
+          <view class="btn secondary" @tap="selectExistingProducts">
+            <image
+              class="btn-icon"
+              src="/static/icon/image-3@2x(2).png"
+              mode="scaleToFill"
+            />
+            <text class="btn-text">选入已有</text>
+          </view>
+        </view>
       </view>
 
       <!-- 底部固定操作栏 -->
@@ -228,6 +246,9 @@ export default {
     },
     canManageChildCategory() {
       return !this.uid && this.isTopLevelCategory;
+    },
+    canManageCategoryContent() {
+      return !this.uid && !!this.categoryId;
     },
     hasOwnerInfo() {
       return !!(
@@ -891,6 +912,34 @@ export default {
       }
       uni.navigateTo({
         url: `/pagesOther/classSort/classSort?fid=${this.categoryId}&fromPage=classDetail`,
+      });
+    },
+    buildCurrentCategoryQuery(extra = {}) {
+      const query = {
+        category_id: this.categoryId,
+        category_name: this.displayCategoryTitle,
+        ...extra,
+      };
+      return Object.keys(query)
+        .filter((key) => query[key] !== undefined && query[key] !== null && query[key] !== "")
+        .map((key) => `${key}=${encodeURIComponent(query[key])}`)
+        .join("&");
+    },
+    createProductInCategory() {
+      if (!this.canManageCategoryContent) return;
+      const query = this.buildCurrentCategoryQuery({ fromPage: "classDetail" });
+      uni.navigateTo({
+        url: `/pagesOther/addProduct/addProduct?${query}`,
+      });
+    },
+    selectExistingProducts() {
+      if (!this.canManageCategoryContent) return;
+      const query = this.buildCurrentCategoryQuery({
+        fromPage: "classDetail",
+        albumId: this.categoryId,
+      });
+      uni.navigateTo({
+        url: `/pagesOther/productSelect/productSelect?${query}`,
       });
     },
     contactOwner() {
