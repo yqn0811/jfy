@@ -310,7 +310,7 @@ const handleLoginSuccess = () => {
             </Button>
             <Button variant="outline" class="h-11 gap-2" @click="handleDownload">
               <SafeIcon name="Download" :size="16" />
-              下载 ZIP
+              下载
             </Button>
             <Button variant="outline" class="h-11 gap-2" @click="handleContact">
               <SafeIcon name="MessageCircle" :size="16" />

@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
-import { downloadImagesAsZip } from '@/lib/download'
+import { downloadProductImages, shouldDownloadImagesAsZip } from '@/lib/download'
 
 interface Props {
   open: boolean
@@ -56,6 +56,18 @@ const isImageSelected = (image: ProductImageData) => {
 
 const selectedImageList = computed(() => {
   return productImages.value.filter(isImageSelected)
+})
+
+const selectedCount = computed(() => selectedImageList.value.length)
+
+const useZipDownload = computed(() => shouldDownloadImagesAsZip(selectedCount.value))
+
+const downloadButtonText = computed(() => {
+  const count = selectedCount.value
+  if (isDownloading.value) {
+    return downloadProgress.value || (useZipDownload.value ? '打包中...' : '下载中...')
+  }
+  return useZipDownload.value ? `下载 ZIP (${count})` : `下载图片 (${count})`
 })
 
 const selectAll = computed({
@@ -110,19 +122,21 @@ const handleDownload = async () => {
 
   const selectedList = selectedImageList.value
   isDownloading.value = true
-  downloadProgress.value = '正在打包图片...'
+  downloadProgress.value = useZipDownload.value ? '正在打包图片...' : '正在下载图片...'
   try {
-    await downloadImagesAsZip(
+    const mode = await downloadProductImages(
       selectedList,
       `product-${props.productId || 'images'}.zip`,
       (completed, total) => {
-        downloadProgress.value = `正在打包 ${completed}/${total}`
+        downloadProgress.value = useZipDownload.value
+          ? `正在打包 ${completed}/${total}`
+          : `正在下载 ${completed}/${total}`
       }
     )
-    toast.success(`已打包 ${selectedList.length} 张图片`)
+    toast.success(mode === 'zip' ? `已打包 ${selectedList.length} 张图片` : `已下载 ${selectedList.length} 张图片`)
     emit('update:open', false)
   } catch (error: any) {
-    toast.error(error?.message || '打包下载失败，请稍后重试')
+    toast.error(error?.message || '下载失败，请稍后重试')
   } finally {
     isDownloading.value = false
     downloadProgress.value = ''
@@ -136,7 +150,7 @@ const handleDownload = async () => {
       <DialogHeader class="flex-shrink-0">
         <DialogTitle>下载图片</DialogTitle>
         <DialogDescription>
-          选择要下载的图片，系统会打包为 ZIP 文件
+          选择要下载的图片，5 张及以上会打包为 ZIP 文件
         </DialogDescription>
       </DialogHeader>
 
@@ -246,7 +260,7 @@ const handleDownload = async () => {
           class="flex items-center gap-2"
         >
           <SafeIcon :name="isDownloading ? 'Loader2' : 'Download'" :size="16" :class="isDownloading ? 'animate-spin' : ''" />
-          {{ isDownloading ? downloadProgress || '打包中...' : `下载 ZIP (${selectedImageList.length})` }}
+          {{ downloadButtonText }}
         </Button>
       </DialogFooter>
     </DialogContent>

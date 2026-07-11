@@ -16,7 +16,7 @@ import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
 import SelectionPickerDialog from '@/components/selection/SelectionPickerDialog.vue'
 import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { isVipMember } from '@/lib/account'
-import { downloadImagesAsZip, downloadUrl, resolveProductImageDownloadUrl } from '@/lib/download'
+import { downloadProductImages, downloadUrl, resolveProductImageDownloadUrl } from '@/lib/download'
 import { mapCategory, mapProduct, mapProductImagesFromDetail, normalizeHomePayload, unwrapList } from '@/lib/jfyuntu-mappers'
 import { currentRouteState } from '@/navigation'
 import type { HomeProfileData } from '@/data/HomeProfileData'
@@ -532,13 +532,13 @@ const downloadImages = async (images: ProductImageData[]) => {
     return
   }
   try {
-    await downloadImagesAsZip(
+    const mode = await downloadProductImages(
       images,
       `product-${selectedProduct.value?.id || 'images'}.zip`
     )
-    toast.success(`已打包 ${images.length} 张图片`)
+    toast.success(mode === 'zip' ? `已打包 ${images.length} 张图片` : `已下载 ${images.length} 张图片`)
   } catch (error: any) {
-    toast.error(error?.message || '打包下载失败，请稍后重试')
+    toast.error(error?.message || '下载失败，请稍后重试')
   }
 }
 
@@ -787,7 +787,7 @@ const handleLoginSuccess = () => {
                 </Button>
                 <Button variant="outline" class="gap-2" @click="handleDownloadProduct">
                   <SafeIcon name="Download" :size="16" />
-                  {{ canDownloadProductImages ? '下载 ZIP' : '下载' }}
+                  {{ canDownloadProductImages ? '下载' : '不可下载' }}
                 </Button>
               </div>
             </div>

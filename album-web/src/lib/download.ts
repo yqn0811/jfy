@@ -61,6 +61,10 @@ const isControlledDownloadUrl = (url: string) => /\/api\/user\/download\/origina
 
 const isPersistedPicId = (picId: string) => /^\d+$/.test(picId)
 
+export const ORIGINAL_ZIP_MIN_IMAGE_COUNT = 5
+
+export const shouldDownloadImagesAsZip = (count: number) => count >= ORIGINAL_ZIP_MIN_IMAGE_COUNT
+
 const resolveControlledDownloadPicId = (image: ProductImageData, url: string) => {
   try {
     const parsed = new URL(url, window.location.href)
@@ -118,7 +122,28 @@ const fetchProductImageBlobForZip = async (image: ProductImageData) => {
   return { blob, extension, filename: '' }
 }
 
-export const downloadImagesAsZip = async (
+const downloadImagesIndividually = async (
+  images: ProductImageData[],
+  onProgress?: (completed: number, total: number) => void,
+  onImageFetched?: (image: ProductImageData, blob: Blob) => void | Promise<void>
+) => {
+  for (let index = 0; index < images.length; index += 1) {
+    const image = images[index]
+    const { blob, extension, filename: responseFilename } = await fetchProductImageBlobForZip(image)
+    await onImageFetched?.(image, blob)
+    const responseBaseName = responseFilename ? responseFilename.replace(/\.[a-z0-9]{2,5}$/i, '') : ''
+    const baseName = sanitizeFilename(image.name || responseBaseName || `图片-${index + 1}`)
+    const objectUrl = URL.createObjectURL(blob)
+    try {
+      downloadUrl(objectUrl, responseFilename || `${baseName}.${extension || 'jpg'}`)
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+    }
+    onProgress?.(index + 1, images.length)
+  }
+}
+
+const downloadImagesAsZipFile = async (
   images: ProductImageData[],
   filename = 'product-images.zip',
   onProgress?: (completed: number, total: number) => void,
@@ -167,3 +192,20 @@ export const downloadImagesAsZip = async (
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
   }
 }
+
+export const downloadProductImages = async (
+  images: ProductImageData[],
+  filename = 'product-images.zip',
+  onProgress?: (completed: number, total: number) => void,
+  onImageFetched?: (image: ProductImageData, blob: Blob) => void | Promise<void>
+) => {
+  if (!images.length) return 'none' as const
+  if (!shouldDownloadImagesAsZip(images.length)) {
+    await downloadImagesIndividually(images, onProgress, onImageFetched)
+    return 'images' as const
+  }
+  await downloadImagesAsZipFile(images, filename, onProgress, onImageFetched)
+  return 'zip' as const
+}
+
+export const downloadImagesAsZip = downloadProductImages
