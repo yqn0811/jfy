@@ -141,7 +141,9 @@
 import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
 import {
   buildOriginalDownloadRequest,
+  imageUrlFor,
 } from "@/common/helper/imageUrls.js";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 
 export default {
   data() {
@@ -159,6 +161,7 @@ export default {
       styleId: "",
       mode: "",
       existingProductIds: [], // 已存在的产品图片ID列表
+      ownerSaveAllowed: false,
     };
   },
   computed: {
@@ -181,6 +184,9 @@ export default {
       this.uid = options.uid;
       this.mode = options.mode;
       this.styleId = options.styleId;
+      if (this.uid && !ensureSharedPageLogin("pagesOther/selectStyle/selectStyle", options, this.uid)) {
+        return;
+      }
 
       // 如果是 add 模式，接收已存在的产品列表
       if (this.mode === "add") {
@@ -212,6 +218,9 @@ export default {
           const url = "user/home/products/detail";
           const res = await this.$go(url, data, "get", { show_err: true });
           const d = res && res.data ? res.data : {};
+          const ownerInfo = d.user_info || {};
+          this.ownerSaveAllowed =
+            Number(d.visit_allow_save_pic || ownerInfo.visit_allow_save_pic || 0) === 1;
 
           // 映射图片列表
           const picList = Array.isArray(d.pic_list) ? d.pic_list : [];
@@ -228,7 +237,7 @@ export default {
             return {
               ...item,
               id: item.id,
-              image: item.imgurl,
+              image: imageUrlFor(item, "thumb") || item.imgurl,
               title: item.pic_name,
               selected: isDisabled,
               disabled: isDisabled,
@@ -547,6 +556,30 @@ export default {
         });
       });
     },
+    canUseOriginalImage() {
+      const userInfo = uni.getStorageSync("userInfo") || {};
+      const gradeLevel = Number(
+        userInfo.grade_level ||
+          userInfo.gradeLevel ||
+          userInfo.vip_grade ||
+          userInfo.vipGrade ||
+          0,
+      );
+      const rawEndTime =
+        userInfo.end_time ||
+        userInfo.endTime ||
+        userInfo.vip_end_time ||
+        userInfo.vipEndTime ||
+        userInfo.expire_time ||
+        userInfo.expireTime ||
+        0;
+      let endTime = Number(rawEndTime || 0);
+      if (!endTime && typeof rawEndTime === "string" && rawEndTime) {
+        const parsed = new Date(rawEndTime).getTime();
+        endTime = Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+      }
+      return gradeLevel > 0 && (!endTime || endTime > Math.floor(Date.now() / 1000));
+    },
     async downloadSingleImages(items) {
       let successCount = 0;
       for (const item of items) {
@@ -564,6 +597,33 @@ export default {
     },
     // 下载
     async handleDownload() {
+      if (!this.$checkLoginStatus()) {
+        uni.showToast({
+          title: "请先登录",
+          icon: "none",
+        });
+        ensureSharedPageLogin("pagesOther/selectStyle/selectStyle", {
+          id: this.productId,
+          uid: this.uid,
+          mode: this.mode,
+          styleId: this.styleId,
+        }, this.uid);
+        return;
+      }
+      if (!this.canUseOriginalImage()) {
+        uni.showToast({
+          title: "请先升级成为会员",
+          icon: "none",
+        });
+        return;
+      }
+      if (this.uid && !this.ownerSaveAllowed) {
+        uni.showToast({
+          title: "该用户未开放下载",
+          icon: "none",
+        });
+        return;
+      }
       const selectedItems = this.imageList.filter(
         (item) => item.selected && !item.disabled,
       );

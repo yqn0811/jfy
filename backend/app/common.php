@@ -483,9 +483,10 @@ function isProxyableExternalImageUrl($url)
     return preg_match('/^ai-jf-[a-z0-9-]+\.cos\.[a-z0-9-]+\.myqcloud\.com$/i', $host) === 1;
 }
 
-function proxyExternalImageUrl($url)
+function proxyExternalImageUrl($url, $usePreviewStyle = false)
 {
-    $url = removePicStyle(trim((string)$url));
+    $url = trim((string)$url);
+    $url = $usePreviewStyle ? appendPicStyle($url) : removePicStyle($url);
     if ($url === '' || !isProxyableExternalImageUrl($url)) {
         return $url;
     }

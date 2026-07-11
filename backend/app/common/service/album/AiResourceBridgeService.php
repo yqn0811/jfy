@@ -121,11 +121,15 @@ class AiResourceBridgeService extends BaseService
             })
             ->find();
         if ($exists) {
-            $displayUrl = $exists->TruePic;
+            $imageUrls = buildPictureImageUrls($exists);
             return [
                 'id' => $exists->id,
-                'url' => $displayUrl,
-                'file_url' => $displayUrl,
+                'url' => $imageUrls['thumb'] ?: $imageUrls['preview'],
+                'thumbnail_url' => $imageUrls['thumb'],
+                'preview_url' => $imageUrls['preview'],
+                'file_url' => $imageUrls['origin'],
+                'image_urls' => $imageUrls,
+                'imageUrls' => $imageUrls,
                 'original_url' => $fileUrl,
                 'resource_id' => $resourceId,
                 'role' => $role,
@@ -144,12 +148,16 @@ class AiResourceBridgeService extends BaseService
             'uid' => $uid,
             'file_type' => 1,
         ]);
-        $displayUrl = $pic->TruePic;
+        $imageUrls = buildPictureImageUrls($pic);
 
         return [
             'id' => $pic->id,
-            'url' => $displayUrl,
-            'file_url' => $displayUrl,
+            'url' => $imageUrls['thumb'] ?: $imageUrls['preview'],
+            'thumbnail_url' => $imageUrls['thumb'],
+            'preview_url' => $imageUrls['preview'],
+            'file_url' => $imageUrls['origin'],
+            'image_urls' => $imageUrls,
+            'imageUrls' => $imageUrls,
             'original_url' => $fileUrl,
             'resource_id' => $resourceId,
             'role' => $role,
@@ -579,20 +587,30 @@ class AiResourceBridgeService extends BaseService
 
     private function normalizeResourceImageUrls($item)
     {
+        $rawItem = $item;
         foreach ($this->resourceImageUrlFields() as $field) {
             if (!empty($item[$field])) {
-                $item[$field] = proxyExternalImageUrl($item[$field]);
+                $item[$field] = proxyExternalImageUrl(
+                    $item[$field],
+                    in_array($field, $this->resourcePreviewImageUrlFields(), true)
+                );
             }
         }
-        if (empty($item['thumbnail_url'])) {
-            $item['thumbnail_url'] = $this->firstResourceImageUrl($item, $this->resourceThumbnailUrlFields());
+        $originalUrl = $this->firstResourceImageUrl($rawItem, $this->resourceOriginalUrlFields());
+        $previewUrl = $this->firstResourceImageUrl($rawItem, $this->resourcePreviewUrlFields());
+        $thumbUrl = $this->firstResourceImageUrl($rawItem, $this->resourceThumbnailUrlFields());
+        if ($thumbUrl === '') {
+            $thumbUrl = $previewUrl ?: $originalUrl;
         }
-        if (empty($item['preview_url'])) {
-            $item['preview_url'] = $this->firstResourceImageUrl($item, $this->resourcePreviewUrlFields());
+        if ($previewUrl === '') {
+            $previewUrl = $thumbUrl ?: $originalUrl;
         }
-        if (empty($item['file_url'])) {
-            $item['file_url'] = $this->firstResourceImageUrl($item, $this->resourceOriginalUrlFields());
+        if ($originalUrl === '') {
+            $originalUrl = $previewUrl ?: $thumbUrl;
         }
+        $item['thumbnail_url'] = proxyExternalImageUrl($thumbUrl, true);
+        $item['preview_url'] = proxyExternalImageUrl($previewUrl, true);
+        $item['file_url'] = proxyExternalImageUrl($originalUrl, false);
         $item['image_urls'] = [
             'thumb' => (string)($item['thumbnail_url'] ?? ''),
             'preview' => (string)($item['preview_url'] ?? ''),
@@ -695,6 +713,26 @@ class AiResourceBridgeService extends BaseService
             'signedUrl',
             'download_url',
             'downloadUrl',
+            'url',
+        ];
+    }
+
+    private function resourcePreviewImageUrlFields()
+    {
+        return [
+            'thumbnail_url',
+            'thumbnailUrl',
+            'thumb_url',
+            'thumbUrl',
+            'thumb',
+            'preview_url',
+            'previewUrl',
+            'image_url',
+            'imageUrl',
+            'cover_url',
+            'coverUrl',
+            'picture_url',
+            'pictureUrl',
             'url',
         ];
     }

@@ -59,6 +59,11 @@ class CommonApiController extends ApiBaseController
         $this->result($this->service->getWorkbenchMenu());
     }
 
+    public function memberUpgradeConfig()
+    {
+        $this->result($this->service->memberUpgradeConfig());
+    }
+
     /**获取游戏排行榜
      * @return void
      */
@@ -238,7 +243,6 @@ class CommonApiController extends ApiBaseController
             ['url', ''],
         ])['url'];
         $url = html_entity_decode(trim((string)$url), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $url = removePicStyle($url);
         if (!$url || !isProxyableExternalImageUrl($url)) {
             throwError('图片地址不允许');
         }

@@ -243,6 +243,7 @@ import {
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
 import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 
 import { getMiniCode, setPendingInviteCode } from "@/common/request/api.js";
 
@@ -318,6 +319,9 @@ export default {
       this.previewMode = true;
     }
     this.shareUrl = this.buildHomeSharePath();
+    if (this.previewMode && !ensureSharedPageLogin("pages/index/index", options, this.uid)) {
+      return;
+    }
     if (this.redirectSceneTarget(options)) {
       return;
     }

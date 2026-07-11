@@ -63,7 +63,8 @@ export const requireShareLogin = (uid = "", redirectUrl = "") => {
     return true;
   }
   saveShareLoginRedirect(redirectUrl);
-  return silentLogin(uid);
+  silentLogin(uid);
+  return false;
 };
 
 /**

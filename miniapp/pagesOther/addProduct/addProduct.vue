@@ -181,6 +181,7 @@ import UploadPicker from "./components/UploadPicker.vue"; // 根据项目路径�
 import CategoryMultiSelect from "./components/CategoryMultiSelect.vue";
 import Upload from "@/common/request/upload.js";
 import { notifyRefresh } from "@/common/helper/refresh.js";
+import { imageUrlFor } from "@/common/helper/imageUrls.js";
 import {
   buildUploadNameFormData,
   getSelectedUploadFileName,
@@ -402,25 +403,13 @@ export default {
           console.log(this.selectedCategoryNames);
         }
 
-        this.coverImages = res.data.pic_list.map((res) => {
-          return {
-            id: res.id,
-            src: res.imgurl,
-            uploadedUrl: res.imgurl,
-            uploading: false,
-            source: "saved",
-          };
-        });
+        this.coverImages = res.data.pic_list.map((item) =>
+          this.normalizeProductImage(item, "saved"),
+        );
         this.coverImageIds = this.getImageIds("cover");
-        this.detailImages = res.data.detail_pic_list.map((res) => {
-          return {
-            id: res.id,
-            src: res.imgurl,
-            uploadedUrl: res.imgurl,
-            uploading: false,
-            source: "saved",
-          };
-        });
+        this.detailImages = res.data.detail_pic_list.map((item) =>
+          this.normalizeProductImage(item, "saved"),
+        );
         this.detailImageIds = this.getImageIds("detail");
       }
     },
@@ -493,14 +482,7 @@ export default {
         if (!item || !item.id || exists.has(String(item.id)) || imageList.length >= max) {
           return;
         }
-        imageList.push({
-          id: item.id,
-          src: item.url || item.file_url,
-          uploadedUrl: item.file_url || item.url,
-          uploading: false,
-          source: "ai_resource",
-          resourceId: item.resource_id,
-        });
+        imageList.push(this.normalizeProductImage(item, "ai_resource"));
         exists.add(String(item.id));
       });
       this.syncImageIds();
@@ -651,8 +633,12 @@ export default {
       }
       this.$set(imageList, idx, {
         id: res.id,
-        src: res.url,
-        uploadedUrl: res.url,
+        src: res.thumbUrl || res.previewUrl || res.url,
+        uploadedUrl: res.originUrl || res.uploadedUrl || res.url,
+        previewUrl: res.previewUrl || res.url,
+        originUrl: res.originUrl || res.uploadedUrl || res.url,
+        image_urls: res.image_urls || {},
+        imageUrls: res.imageUrls || {},
         uploading: false,
         source: res.source || "upload",
         resourceId: res.resourceId || "",
@@ -742,12 +728,16 @@ export default {
     // 预览图片（合并花色图和详情图）
     previewImage(src) {
       const urls = [];
-      this.coverImages.forEach((i) => urls.push(i.src));
-      this.detailImages.forEach((i) => urls.push(i.src));
+      this.coverImages.forEach((i) => urls.push(this.getPreviewImageUrl(i)));
+      this.detailImages.forEach((i) => urls.push(this.getPreviewImageUrl(i)));
+      const current = this.getPreviewImageUrl({ src });
       uni.previewImage({
-        current: src,
-        urls: urls.length > 0 ? urls : [src],
+        current,
+        urls: urls.filter(Boolean).length > 0 ? urls.filter(Boolean) : [current],
       });
+    },
+    getPreviewImageUrl(item = {}) {
+      return item.previewUrl || imageUrlFor(item, "preview") || item.src || "";
     },
     // 删除详情某一张
     removeDetail(idx) {
@@ -856,7 +846,8 @@ export default {
       const payload = Array.isArray(data.data)
         ? data.data[0] || {}
         : data.data || data;
-      const url =
+      const urls = payload.image_urls || payload.imageUrls || payload.urls || {};
+      const url = imageUrlFor(payload, "thumb") ||
         payload.url ||
         payload.imgurl ||
         payload.src ||
@@ -883,8 +874,31 @@ export default {
       return {
         id,
         url,
+        thumbUrl: imageUrlFor(payload, "thumb") || url,
+        previewUrl: imageUrlFor(payload, "preview") || url,
+        originUrl: imageUrlFor(payload, "origin") || payload.file_url || payload.original_url || url,
+        uploadedUrl: imageUrlFor(payload, "origin") || payload.file_url || payload.original_url || url,
+        image_urls: urls,
+        imageUrls: urls,
         source: payload.source || data.source || "upload",
         resourceId: payload.resource_id || payload.resourceId || data.resource_id || data.resourceId || "",
+      };
+    },
+    normalizeProductImage(item = {}, source = "saved") {
+      const thumbUrl = imageUrlFor(item, "thumb") || item.url || item.imgurl || "";
+      const previewUrl = imageUrlFor(item, "preview") || thumbUrl;
+      const originUrl = imageUrlFor(item, "origin") || item.file_url || item.original_url || previewUrl;
+      return {
+        id: item.id || item.pid || item.pic_id,
+        src: thumbUrl || previewUrl || originUrl,
+        uploadedUrl: originUrl,
+        previewUrl,
+        originUrl,
+        image_urls: item.image_urls || item.imageUrls || item.urls || {},
+        imageUrls: item.imageUrls || item.image_urls || item.urls || {},
+        uploading: false,
+        source,
+        resourceId: item.resource_id || item.resourceId || "",
       };
     },
     discardUploadedPicture(picId) {
@@ -1090,7 +1104,7 @@ export default {
   overflow-y: auto;
   .container-scoll {
     width: 100%;
-    padding-bottom: 160rpx;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 260rpx);
   }
 
   .form-box {
@@ -1373,15 +1387,23 @@ export default {
 
   .submit-wrap {
     position: fixed;
-    bottom: 30rpx;
+    bottom: 0;
     left: 0;
     width: 100%;
+    min-height: calc(env(safe-area-inset-bottom) + 150rpx);
+    padding: 18rpx 32rpx calc(env(safe-area-inset-bottom) + 18rpx);
     display: flex;
+    align-items: center;
     justify-content: center;
+    background: #ffffff;
+    box-sizing: border-box;
+    z-index: 80;
+    border-top: 1rpx solid #f0f0f0;
   }
 
   .submit-btn {
-    width: 686rpx;
+    width: 100%;
+    max-width: 686rpx;
     height: 96rpx;
     background: #ffd800;
     border-radius: 48rpx;

@@ -34,7 +34,7 @@
           :data-index="index"
           @click="toggle(item, index, $event)"
         >
-          <image class="thumb" :src="imageUrl(item)" mode="aspectFill"></image>
+          <image class="thumb" :src="imageUrl(item)" mode="aspectFill" lazy-load></image>
           <view class="check" :class="{ active: isSelected(item.id) }">
             <text v-if="isSelected(item.id)">✓</text>
           </view>
@@ -60,6 +60,7 @@ import {
   resolveClickedListItem,
   showInvalidRecordToast,
 } from "@/common/helper/clickItem.js";
+import { imageUrlFor } from "@/common/helper/imageUrls.js";
 
 export default {
   data() {
@@ -90,7 +91,7 @@ export default {
   },
   methods: {
     imageUrl(item) {
-      return item.thumbnail_url || item.preview_url || item.file_url || "";
+      return imageUrlFor(item, "thumb");
     },
     resourceKey(item) {
       const url =

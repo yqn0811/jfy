@@ -89,7 +89,7 @@
       </scroll-view>
 
       <!-- 底部固定栏 -->
-      <view class="bottom-bar">
+      <view class="bottom-bar" :style="{ height: bottomBarHeight + 'px' }">
         <view class="left-btn" @tap="createCategory">
           <view class="share-inner">
             <image
@@ -149,6 +149,7 @@ export default {
       categories: [],
       loading: false,
       listHeight: 600,
+      bottomBarHeight: 126,
       defaultIcon: "/static/icon/default_cat.png",
       settingVisible: false,
       classVisible: false,
@@ -161,8 +162,9 @@ export default {
   onLoad(options = {}) {
     const sys = this.$base.getSystemInfoCompat();
     const safeBottom = (sys.safeAreaInsets && sys.safeAreaInsets.bottom) || 0;
+    this.bottomBarHeight = 126 + safeBottom;
     // 计算列表高度：屏高 - 页面上下内边距 - 搜索区 - 底部固定栏和安全区。
-    this.listHeight = Math.max(240, sys.windowHeight - 106 - 96 - safeBottom);
+    this.listHeight = Math.max(240, sys.windowHeight - 126 - this.bottomBarHeight);
     this.parentId = Number(options.fid || 0);
     if (this.parentId) {
       this.parentInfo = {
@@ -397,7 +399,7 @@ export default {
 
   .page-scoll {
     min-height: 100vh;
-    padding-bottom: 190rpx;
+    padding-bottom: 260rpx;
     box-sizing: border-box;
   }
 }
@@ -433,12 +435,12 @@ export default {
 
 .list {
   margin-top: 8rpx;
-  padding-bottom: 220rpx;
+  padding-bottom: 260rpx;
   box-sizing: border-box;
 }
 
 .list-bottom-spacer {
-  height: calc(env(safe-area-inset-bottom) + 180rpx);
+  height: calc(env(safe-area-inset-bottom) + 240rpx);
 }
 
 .category-card {
@@ -606,12 +608,12 @@ export default {
   display: flex;
   align-items: center;
   gap: 22rpx;
-  padding: 22rpx 32rpx;
+  padding: 16rpx 32rpx;
   box-sizing: border-box;
   z-index: 50;
   border-top: 1rpx solid #edf0f3;
   box-shadow: 0 -8rpx 24rpx rgba(20, 27, 36, 0.04);
-  padding-bottom: calc(env(safe-area-inset-bottom) + 18rpx);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 14rpx);
 }
 
 /* 左侧大按钮容器（居中宽度受限） */

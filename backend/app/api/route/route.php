@@ -47,6 +47,7 @@ Route::group('common', function (){
     Route::post('upload', 'CommonApiController/uploadImage')->middleware('auth'); //上传图片
     Route::get('index', 'CommonApiController/indexBaseInfo'); //首页基础信息
     Route::get('base', 'CommonApiController/commonBaseInfo'); //公共基础信息
+    Route::get('member_upgrade_config', 'CommonApiController/memberUpgradeConfig'); //会员升级入口配置
     Route::get('workbench/menu', 'CommonApiController/getWorkbenchMenu');
     Route::get('visit', 'CommonApiController/commonVisitRecord'); //访问记录
     Route::post('newgift', 'CommonApiController/getUserNewGiftLists'); //获取新礼包列表

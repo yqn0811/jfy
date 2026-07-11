@@ -676,7 +676,19 @@ class UserService extends BaseService
         }
 
         $albumService = new AlbumService($this->app);
-        return $albumService->getProductDetail($productId, $visitorUid);
+        $detail = $albumService->getProductDetail($productId, $visitorUid);
+        $detail->user_info = [
+            'id' => (int)$user->id,
+            'uid' => (int)$user->id,
+            'nickname' => $user->nickname,
+            'avatar' => $user->avatar,
+            'company_name' => $user->company_name,
+            'company_logo' => $user->company_logo,
+            'company_desc' => $user->company_desc,
+            'visit_allow_save_pic' => (int)$user->visit_allow_save_pic,
+        ];
+        $detail->visit_allow_save_pic = (int)$user->visit_allow_save_pic;
+        return $detail;
     }
 
     public function getHomePictureDetail($targetUserId, $picId, $visitorUid = 0)
