@@ -362,7 +362,7 @@ export const pcApi = {
   getCurrentUser: async () => normalizeCurrentUser(await apiRequest<any>('user/show_info')),
   updatePcSettings: (body: Record<string, any>) =>
     apiRequest<any>('user/update_pc_settings', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
-  uploadCommonImage: (file: File) => {
+  uploadCommonImage: (file: File, extra: Record<string, any> = {}) => {
     const form = new FormData()
     form.append('file', file, file.name)
     form.append('filename', file.name)
@@ -371,7 +371,14 @@ export const pcApi = {
     form.append('name', file.name)
     form.append('file_size', String(file.size || 0))
     form.append('size', String(file.size || 0))
-    form.append('file_type', '1')
+    if (extra.file_type === undefined && extra.fileType === undefined) {
+      form.append('file_type', '1')
+    }
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        form.append(key, String(value))
+      }
+    })
     return apiUpload<any>('common/upload', form)
   },
 
@@ -470,6 +477,16 @@ export const pcApi = {
       method: 'POST',
       body: { pic_id: picId, file_url: fileUrl, file_size: fileSize, timestamp: Date.now() },
     }),
+  discardUploadedPicture: (picIdOrBody: string | Record<string, any>) => {
+    const body =
+      typeof picIdOrBody === 'string'
+        ? { pic_id: picIdOrBody }
+        : picIdOrBody
+    return apiRequest<any>('user/discard/uploaded_pic', {
+      method: 'POST',
+      body: { timestamp: Date.now(), ...body },
+    })
+  },
   getOriginalDownloadUrl: (picId: string, params: Record<string, any> = {}) =>
     apiRequest<any>('user/download/original', {
       method: 'POST',

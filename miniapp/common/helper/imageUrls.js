@@ -23,9 +23,52 @@ const pickFirst = (...values) => {
 };
 
 const isControlledDownloadUrl = (value) => normalizeText(value).indexOf("/api/user/download/original") !== -1;
+const COS_PREVIEW_STYLE = "imageMogr2/thumbnail/480x/quality/75";
+const KNOWN_PREVIEW_STYLES = [
+  "x-oss-process=image/resize,m_fixed,w_480/quality,Q_75",
+  COS_PREVIEW_STYLE,
+];
+
+const removePreviewStyle = (value) => {
+  let text = normalizeText(value);
+  if (!text) return "";
+  KNOWN_PREVIEW_STYLES.forEach((style) => {
+    text = text
+      .replace(`?${style}&`, "?")
+      .replace(`&${style}&`, "&")
+      .replace(`?${style}`, "")
+      .replace(`&${style}`, "");
+  });
+  return text.replace(/[?&]$/, "");
+};
+
+const hasPreviewStyle = (value) => {
+  const text = normalizeText(value);
+  return KNOWN_PREVIEW_STYLES.some((style) => text.indexOf(style) !== -1);
+};
+
+const isTencentCosUrl = (value) => {
+  const text = normalizeText(value);
+  if (!/^https?:\/\//i.test(text)) return false;
+  const match = text.match(/^https?:\/\/([^/?#]+)/i);
+  return !!(match && /\.cos\.[a-z0-9-]+\.myqcloud\.com$/i.test(match[1]));
+};
+
+const asPreviewUrl = (value) => {
+  const text = normalizeText(value);
+  if (!text || isControlledDownloadUrl(text) || text.indexOf("/static/") === 0) {
+    return text;
+  }
+  if (!isTencentCosUrl(text)) {
+    return text;
+  }
+  if (text.indexOf(COS_PREVIEW_STYLE) !== -1) return text;
+  const baseUrl = removePreviewStyle(text);
+  return `${baseUrl}${baseUrl.indexOf("?") === -1 ? "?" : "&"}${COS_PREVIEW_STYLE}`;
+};
 
 const shouldSendDownloadFileUrl = (value) => {
-  const text = normalizeText(value);
+  const text = removePreviewStyle(value);
   return text && !isControlledDownloadUrl(text);
 };
 
@@ -44,14 +87,14 @@ const pickDisplayUrl = (...values) => {
 
 export const getImageUrls = (item = {}) => {
   const urls = item.image_urls || item.imageUrls || item.urls || {};
-  const origin = pickDisplayUrl(
+  const origin = removePreviewStyle(pickDisplayUrl(
     urls.origin,
     item.picture_url_original,
     item.original_url,
     item.originalUrl,
     item.file_url,
-  );
-  const preview = pickDisplayUrl(
+  ));
+  const preview = asPreviewUrl(pickDisplayUrl(
     urls.preview,
     item.preview_url,
     item.picture_url,
@@ -60,9 +103,9 @@ export const getImageUrls = (item = {}) => {
     item.src,
     item.url,
     origin,
-  );
-  const edit = pickDisplayUrl(urls.edit, item.edit_url, item.editUrl, preview, origin);
-  const thumb = pickDisplayUrl(
+  ));
+  const edit = asPreviewUrl(pickDisplayUrl(urls.edit, item.edit_url, item.editUrl, preview, origin));
+  const thumb = asPreviewUrl(pickDisplayUrl(
     urls.thumb,
     item.thumbnail_url,
     item.thumbnailUrl,
@@ -71,8 +114,8 @@ export const getImageUrls = (item = {}) => {
     preview,
     edit,
     origin,
-  );
-  const download = pickFirst(urls.download, item.download_url, item.downloadUrl, origin, edit, preview, thumb);
+  ));
+  const download = removePreviewStyle(pickFirst(urls.download, item.download_url, item.downloadUrl, origin, edit, preview, thumb));
   return {
     thumb,
     preview,
@@ -109,6 +152,9 @@ export const resolveImageDownloadUrl = (request, item = {}, extra = {}) => {
   }
   if (fileSize > 0) {
     payload.file_size = fileSize;
+  }
+  if (payload.file_url) {
+    payload.file_url = removePreviewStyle(payload.file_url);
   }
   return request(
     "user/download/original",

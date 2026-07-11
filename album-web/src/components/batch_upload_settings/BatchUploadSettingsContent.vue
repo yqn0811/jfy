@@ -190,22 +190,30 @@ const handleCopyCombined = async () => {
   }
 }
 
-const handleToggleUpload = (checked: boolean) => {
-  uploadEnabled.value = checked
-  if (checked && passwordEnabled.value && !password.value) {
+const handleToggleUpload = () => {
+  if (uploadEnabled.value && passwordEnabled.value && !password.value) {
     password.value = generatePassword()
   }
 }
 
+const toggleUploadEnabled = () => {
+  uploadEnabled.value = !uploadEnabled.value
+  handleToggleUpload()
+}
+
 // 切换密码启用
-const handleTogglePassword = (checked: boolean) => {
-  passwordEnabled.value = checked
-  if (checked) {
+const handleTogglePassword = () => {
+  if (passwordEnabled.value) {
     uploadEnabled.value = true
     if (!password.value) {
       password.value = generatePassword()
     }
   }
+}
+
+const togglePasswordEnabled = () => {
+  passwordEnabled.value = !passwordEnabled.value
+  handleTogglePassword()
 }
 
 // 刷新密码
@@ -394,25 +402,41 @@ const expireLabel = computed(() => {
               <CardDescription>关闭后，此产品协同编辑入口无法访问</CardDescription>
             </CardHeader>
             <CardContent class="space-y-4">
-              <div class="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
+              <div
+                role="button"
+                tabindex="0"
+                class="flex w-full items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/30"
+                @click="toggleUploadEnabled"
+                @keydown.enter.prevent="toggleUploadEnabled"
+                @keydown.space.prevent="toggleUploadEnabled"
+              >
                 <div class="flex items-center gap-2">
                   <Label class="text-label">开启协同编辑入口</Label>
                   <SafeIcon name="UploadCloud" :size="14" class="text-muted-foreground" />
                 </div>
                 <Switch
-                  :checked="uploadEnabled"
-                  @update:checked="handleToggleUpload"
+                  v-model="uploadEnabled"
+                  @update:model-value="handleToggleUpload"
+                  @click.stop
                 />
               </div>
 
-              <div class="flex items-center justify-between gap-4">
+              <div
+                role="button"
+                tabindex="0"
+                class="flex w-full items-center justify-between gap-4 rounded-lg p-3 text-left transition-colors hover:bg-muted/30"
+                @click="togglePasswordEnabled"
+                @keydown.enter.prevent="togglePasswordEnabled"
+                @keydown.space.prevent="togglePasswordEnabled"
+              >
                 <div class="flex items-center gap-2">
                   <Label class="text-label">启用访问密码</Label>
                   <SafeIcon name="Lock" :size="14" class="text-muted-foreground" />
                 </div>
                 <Switch
-                  :checked="passwordEnabled"
-                  @update:checked="handleTogglePassword"
+                  v-model="passwordEnabled"
+                  @update:model-value="handleTogglePassword"
+                  @click.stop
                 />
               </div>
 

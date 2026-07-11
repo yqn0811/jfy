@@ -28,6 +28,7 @@ use app\common\service\JwtService;
 use app\common\service\RemoteObjectService;
 use app\common\service\WxService;
 use app\common\service\album\AlbumService;
+use app\common\service\album\AiResourceBridgeService;
 use app\common\service\bridge\JiafangyunBridgeClient;
 use app\index\model\WdXcxBase;
 use app\index\model\WdXcxPic;
@@ -3498,7 +3499,8 @@ class UserService extends BaseService
      */
     public function userDeleteMyPics($param, $user_id)
     {
-        $pic_ids = explode(',', $param['pic_ids']);
+        $pic_ids = array_values(array_filter(array_map('intval', explode(',', $param['pic_ids']))));
+        $deletedSyncItems = [];
         Db::startTrans();
         try{
             foreach ($pic_ids as $pic_id){
@@ -3508,8 +3510,22 @@ class UserService extends BaseService
                     //查询关联的 也删除
                     $user_pics =  WdXcxUserAlbumPic::where('pic_id', $pic_id)->select();
                     foreach ($user_pics as $user_pic){
+                        $deletedSyncItems[] = [
+                            'pic_id' => (int)$pic_id,
+                            'folder_id' => (int)$user_pic->folder_id,
+                            'relation_id' => (int)$user_pic->id,
+                            'role' => 'album',
+                            'delete_resource' => false,
+                        ];
                         $user_pic->delete();
                     }
+                    $deletedSyncItems[] = [
+                        'pic_id' => (int)$pic_id,
+                        'folder_id' => 0,
+                        'relation_id' => 0,
+                        'role' => 'upload',
+                        'delete_resource' => true,
+                    ];
                 }else{
                     throwError('图片不存在');
                 }
@@ -3519,6 +3535,100 @@ class UserService extends BaseService
             throwError($e->getMessage());
         }
         Db::commit();
+        $this->syncDeletedPicturesToResourceBridge($user_id, $deletedSyncItems);
+    }
+
+    public function discardUploadedPicture($picId, $userId)
+    {
+        $picId = (int)$picId;
+        $userId = (int)$userId;
+        $pic = WdXcxPic::where('id', $picId)->where('uid', $userId)->find();
+        if (!$pic) {
+            throwError('图片不存在');
+        }
+        $relationCount = WdXcxUserAlbumPic::where('pic_id', $picId)->count();
+        $fieldReferenceCount = WdXcxAlbumFolder::where('uid', $userId)
+            ->whereRaw('(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))', [$picId, $picId])
+            ->count();
+        if ($relationCount > 0 || (int)$fieldReferenceCount > 0) {
+            throwError('图片已保存到产品，请在产品中删除');
+        }
+
+        Db::startTrans();
+        try {
+            $pic->delete();
+        } catch (\Exception $e) {
+            Db::rollback();
+            throwError($e->getMessage());
+        }
+        Db::commit();
+
+        (new AiResourceBridgeService($this->app))->safeMarkPictureDeleted($userId, $picId, [
+            'role' => 'upload',
+            'delete_resource' => true,
+        ]);
+    }
+
+    public function discardUploadedAlbumPicture($albumPicId, $userId)
+    {
+        $albumPicId = (int)$albumPicId;
+        $userId = (int)$userId;
+        $relation = WdXcxUserAlbumPic::where('id', $albumPicId)->find();
+        if (!$relation) {
+            throwError('图片不存在');
+        }
+        $folder = WdXcxAlbumFolder::where('id', (int)$relation->folder_id)->find();
+        if (!$folder || (int)$folder->uid !== $userId) {
+            throwError('您没有权限操作此图片');
+        }
+        $picId = (int)$relation->pic_id;
+        $folderId = (int)$relation->folder_id;
+        $deleteResource = false;
+        Db::startTrans();
+        try {
+            $relation->delete();
+            $remainingRelationCount = WdXcxUserAlbumPic::where('pic_id', $picId)->count();
+            $fieldReferenceCount = WdXcxAlbumFolder::whereRaw(
+                '(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))',
+                [$picId, $picId]
+            )->count();
+            if ($remainingRelationCount <= 0 && (int)$fieldReferenceCount <= 0) {
+                $pic = WdXcxPic::where('id', $picId)->where('uid', $userId)->find();
+                if ($pic) {
+                    $pic->delete();
+                    $deleteResource = true;
+                }
+            }
+        } catch (\Exception $e) {
+            Db::rollback();
+            throwError($e->getMessage());
+        }
+        Db::commit();
+
+        (new AiResourceBridgeService($this->app))->safeMarkPictureDeleted($userId, $picId, [
+            'b_folder_id' => $folderId,
+            'b_relation_id' => $albumPicId,
+            'external_product_id' => (string)$folderId,
+            'role' => 'album',
+            'delete_resource' => $deleteResource,
+        ]);
+    }
+
+    private function syncDeletedPicturesToResourceBridge($userId, $items)
+    {
+        if (empty($items)) {
+            return;
+        }
+        $bridge = new AiResourceBridgeService($this->app);
+        foreach ($items as $item) {
+            $bridge->safeMarkPictureDeleted($userId, (int)$item['pic_id'], [
+                'b_folder_id' => (int)($item['folder_id'] ?? 0),
+                'b_relation_id' => (int)($item['relation_id'] ?? 0),
+                'external_product_id' => (string)($item['folder_id'] ?? ''),
+                'role' => (string)($item['role'] ?? ''),
+                'delete_resource' => !empty($item['delete_resource']),
+            ]);
+        }
     }
 
     /**用户访问记录

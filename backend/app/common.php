@@ -37,11 +37,12 @@ function remote($uniacid, $url, $type)
     }
 
     $back_url = doRemote($uniacid, $url, $type);
+    $remote_config = cacheRemoteSet($uniacid);
 
     if($type == 1){
-        $back_url = $back_url . '?x-oss-process=image/resize,m_fixed,w_480/quality,Q_75';
+        $back_url = appendPicStyle($back_url, (int)($remote_config['remote'] ?? 0));
     }else{
-        $back_url = str_replace('?x-oss-process=image/resize,m_fixed,w_480/quality,Q_75', '', $back_url);
+        $back_url = removePicStyle($back_url);
     }
 
     $back_url = str_replace('//upimages', '/upimages', $back_url);
@@ -306,15 +307,56 @@ function doRemote($uniacid, $url, $type)
     return $url;
 }
 
+function picPreviewStyles()
+{
+    return [
+        'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75',
+        'imageMogr2/thumbnail/480x/quality/75',
+    ];
+}
+
+function isTencentCosAssetUrl($url)
+{
+    $parts = parse_url(trim((string)$url));
+    $host = strtolower((string)($parts['host'] ?? ''));
+    return $host !== '' && preg_match('/\.cos\.[a-z0-9-]+\.myqcloud\.com$/i', $host) === 1;
+}
+
+function picPreviewStyleForUrl($url, $remoteType = 0)
+{
+    $remoteType = (int)$remoteType;
+    if ($remoteType === 4 || isTencentCosAssetUrl($url)) {
+        return 'imageMogr2/thumbnail/480x/quality/75';
+    }
+    if ($remoteType > 0) {
+        return 'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75';
+    }
+    return '';
+}
+
+function appendPicStyle($url, $remoteType = 0)
+{
+    $url = removePicStyle((string)$url);
+    if ($url === '') {
+        return '';
+    }
+    $style = picPreviewStyleForUrl($url, $remoteType);
+    if ($style === '') {
+        return $url;
+    }
+    return $url . (strpos($url, '?') === false ? '?' : '&') . $style;
+}
+
 function removePicStyle($url)
 {
     $url = (string)$url;
-    $style = 'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75';
-    if ($url === '' || strpos($url, 'x-oss-process=') === false) {
+    if ($url === '') {
         return $url;
     }
-    $url = str_replace(['?' . $style . '&', '&' . $style . '&'], ['?', '&'], $url);
-    $url = str_replace(['?' . $style, '&' . $style], '', $url);
+    foreach (picPreviewStyles() as $style) {
+        $url = str_replace(['?' . $style . '&', '&' . $style . '&'], ['?', '&'], $url);
+        $url = str_replace(['?' . $style, '&' . $style], '', $url);
+    }
     $url = rtrim($url, '?&');
     return $url;
 }
@@ -554,7 +596,7 @@ function buildPictureImageUrls($pictureOrUrl, $previewUrl = '')
     if ($previewUrl !== '') {
         $displayUrl = trim((string)$previewUrl);
     }
-    $displayUrl = normalizePublicAssetUrl($displayUrl);
+    $displayUrl = normalizePublicAssetUrl(appendPicStyle($displayUrl));
     $originalUrl = normalizePublicAssetUrl(removePicStyle($displayUrl));
 
     return [

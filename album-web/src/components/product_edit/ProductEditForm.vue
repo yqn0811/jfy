@@ -126,6 +126,21 @@ const isPersistedImage = (image: ProductImageData) =>
 const imageIdsForSave = (images: ProductImageData[]) =>
   images.filter(isPersistedImage).map(item => item.id)
 
+const originalSavedImageIds = new Set<string>()
+const pendingUploadedImageIds = new Set<string>()
+
+const markSavedSnapshot = () => {
+  originalSavedImageIds.clear()
+  ;[...formState.value.colorChartImages, ...formState.value.detailChartImages]
+    .filter(isPersistedImage)
+    .forEach(image => originalSavedImageIds.add(String(image.id)))
+}
+
+const isNewUploadImage = (image: ProductImageData) => {
+  const id = String(image.id || '')
+  return Boolean(id) && image.source === 'upload' && pendingUploadedImageIds.has(id) && !originalSavedImageIds.has(id)
+}
+
 const fileToSha256 = async (file: File) => {
   if (!crypto?.subtle) return ''
   const buffer = await file.arrayBuffer()
@@ -229,17 +244,19 @@ const handleImportResources = async () => {
 
   isResourceLoading.value = true
   try {
-    const fid = await ensureProductDraft()
     const type = resourceTargetType.value
     const role = type === 'detailChart' ? 'detail' : 'cover'
     const selected = resourceList.value.filter(item => selectedResourceIds.value.has(item.id))
     const imported: ProductImageData[] = []
 
     for (const item of selected) {
-      const data = await pcApi.importAiResource(item.id, role, fid)
+      const data = await pcApi.importAiResource(item.id, role)
       const rows = unwrapList(data)
       const importedItem = rows[0] || (data && typeof data === 'object' ? data : null) || item
-      imported.push(mapResourceToImage(importedItem, type, fid))
+      imported.push({
+        ...mapResourceToImage(importedItem, type, productId.value || formState.value.id || ''),
+        source: 'ai_resource',
+      })
     }
 
     handleAddImages(imported, type)
@@ -299,6 +316,7 @@ const loadProductData = async (id: string) => {
     }
 
     Object.assign(initialFormState, formState.value)
+    markSavedSnapshot()
   } catch (error) {
     console.error('Failed to load product:', error)
     toast.error('加载产品失败，请重试')
@@ -312,6 +330,13 @@ const handleCancel = () => {
     const confirmed = window.confirm('您有未保存的更改，确定要放弃吗？')
     if (!confirmed) return
   }
+  const discardIds = [...pendingUploadedImageIds].filter(id => !originalSavedImageIds.has(id))
+  pendingUploadedImageIds.clear()
+  discardIds.forEach((id) => {
+    pcApi.discardUploadedPicture(id).catch((error) => {
+      console.warn('Failed to discard uploaded image:', error)
+    })
+  })
   if (props.embedded) {
     emit('cancel')
     return
@@ -356,6 +381,15 @@ const handleSave = async () => {
     }
 
     toast.success('设置已保存')
+    Object.assign(initialFormState, {
+      ...formState.value,
+      colorChartImages: formState.value.colorChartImages.map(image => ({ ...image, source: 'saved' as const, pendingDiscard: false })),
+      detailChartImages: formState.value.detailChartImages.map(image => ({ ...image, source: 'saved' as const, pendingDiscard: false })),
+    })
+    formState.value.colorChartImages = initialFormState.colorChartImages
+    formState.value.detailChartImages = initialFormState.detailChartImages
+    pendingUploadedImageIds.clear()
+    markSavedSnapshot()
     if (props.embedded) {
       emit('saved', formState.value.id || productId.value || '')
     } else {
@@ -404,7 +438,18 @@ const handleUpdateImage = (clientId: string, image: ProductImageData, type: Prod
 }
 
 const handleRemoveImage = (id: string, type: ProductImageType) => {
+  const removed = imageListForType(type).find((img) => img.id === id || img.clientId === id)
   setImageListForType(type, imageListForType(type).filter((img) => img.id !== id && img.clientId !== id))
+  if (removed && isNewUploadImage(removed)) {
+    pendingUploadedImageIds.delete(String(removed.id))
+    pcApi.discardUploadedPicture(String(removed.id)).catch((error) => {
+      console.warn('Failed to discard uploaded image:', error)
+    })
+  } else if (removed?.albumPicId) {
+    pcApi.discardUploadedPicture({ album_pic_id: removed.albumPicId }).catch((error) => {
+      console.warn('Failed to discard album image relation:', error)
+    })
+  }
   toast.success('已删除')
 }
 
@@ -412,30 +457,7 @@ const handleReorderImages = (images: ProductImageData[], type: ProductImageType)
   setImageListForType(type, images)
 }
 
-const ensureProductDraft = async () => {
-  if (productId.value || formState.value.id) {
-    return productId.value || formState.value.id
-  }
-  const created = await pcApi.createProductOrCategory({
-    fid: formState.value.categoryIds[0] || 0,
-    folder_type: 2,
-    folder_name: formState.value.name || '未命名产品',
-    folder_desc: formState.value.intro || '',
-    category_ids: formState.value.categoryIds,
-    pic_ids: [],
-    detail_pic_ids: [],
-    hide_detail_pictures: formState.value.hideDetailImage ? 1 : 0,
-    allow_draft: 1,
-  })
-  const newId = String(created?.id || created?.fid || created?.folder_id || '')
-  if (!newId) throw new Error('产品创建失败，请稍后重试')
-  productId.value = newId
-  formState.value.id = newId
-  return newId
-}
-
 const handleUploadImage = async (file: File, type: ProductImageType, placeholder: ProductImageData): Promise<ProductImageData> => {
-  const fid = await ensureProductDraft()
   const fileHash = await fileToSha256(file).catch(() => '')
   if (fileHash) {
     const localDuplicate = imageListForType(type).find(image =>
@@ -460,11 +482,11 @@ const handleUploadImage = async (file: File, type: ProductImageType, placeholder
     const duplicateResourceId = String(duplicate?.resource_id || duplicate?.id || duplicate?.resource?.id || '')
     if (duplicateResourceId) {
       const role = type === 'detailChart' ? 'detail' : 'cover'
-      const imported = await pcApi.importAiResource(duplicateResourceId, role, fid)
+      const imported = await pcApi.importAiResource(duplicateResourceId, role)
       const rows = unwrapList(imported)
       const importedItem = rows[0] || (imported && typeof imported === 'object' ? imported : null) || duplicate
       return {
-        ...mapResourceToImage(importedItem, type, fid),
+        ...mapResourceToImage(importedItem, type, productId.value || formState.value.id || ''),
         clientId: placeholder.clientId,
         fileHash,
         uploadStatus: 'reused',
@@ -473,19 +495,22 @@ const handleUploadImage = async (file: File, type: ProductImageType, placeholder
     }
   }
 
-  const data = await pcApi.uploadProductImage(fid, file, type, {
+  const item = await pcApi.uploadCommonImage(file, {
+    file_type: 1,
     file_hash: fileHash,
     content_hash: fileHash,
   })
-  const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
-  const item = rows[0] || {}
   const imageUrls = normalizeProductImageUrls(item)
   const fallbackUrl = URL.createObjectURL(file)
   const url = pickImage(imageUrls.origin, imageUrls.edit, imageUrls.preview, imageUrls.thumb, item.url, fallbackUrl, imageUrls.download)
   const thumbnailUrl = pickImage(imageUrls.thumb, imageUrls.preview, url)
+  const id = String(item.pid || item.id || `img_${Date.now()}`)
+  if (/^\d+$/.test(id)) {
+    pendingUploadedImageIds.add(id)
+  }
   return {
-    id: String(item.pid || item.id || `img_${Date.now()}`),
-    productId: fid,
+    id,
+    productId: productId.value || formState.value.id || '',
     type,
     name: file.name,
     imageUrls: buildProductImageUrls(imageUrls, { url, thumbnailUrl }),
@@ -500,6 +525,8 @@ const handleUploadImage = async (file: File, type: ProductImageType, placeholder
     fileHash,
     uploadStatus: 'done',
     uploadProgress: 100,
+    source: 'upload',
+    pendingDiscard: true,
   }
 }
 </script>

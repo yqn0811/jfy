@@ -116,7 +116,7 @@ export default {
       } else if (type === "category") {
         // 跳转到新建分类页面
         uni.navigateTo({
-          url: "/pagesOther/addClass/addClass?type=category&fromPage="+this.fromPage,
+          url: "/pagesOther/addClass/addClass?type=category&next=addProduct&fromPage="+this.fromPage,
         });
       }
     },

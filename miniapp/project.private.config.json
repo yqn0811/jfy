@@ -15,10 +15,16 @@
     "showShadowRootInWxmlPanel": true,
     "useStaticServer": false,
     "useLanDebug": false,
-    "showES6CompileOption": false,
+    "showES6CompileOption": true,
     "checkInvalidKey": true,
     "ignoreDevUnusedFiles": true,
-    "bigPackageSizeSupport": false
+    "es6": false,
+    "postcss": false,
+    "minified": false,
+    "minifyWXSS": false,
+    "minifyWXML": false,
+    "uploadWithSourceMap": false,
+    "bigPackageSizeSupport": true
   },
   "libVersion": "3.10.1",
   "condition": {}

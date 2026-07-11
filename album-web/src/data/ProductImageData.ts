@@ -35,6 +35,9 @@ export interface ProductImageData {
   uploadError?: string
   fileHash?: string
   resourceId?: string | number
+  albumPicId?: string | number
+  source?: 'upload' | 'saved' | 'ai_resource'
+  pendingDiscard?: boolean
 }
 
 const firstUrl = (...values: Array<string | undefined | null>) => {

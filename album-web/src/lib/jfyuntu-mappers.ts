@@ -306,6 +306,8 @@ const mapImageItem = (raw: any, productId: string, type: 'colorChart' | 'detailC
     sortOrder: Number(raw?.sort || raw?.sortOrder || index),
     isOriginalLarge: Number(raw?.size || raw?.sizeBytes || source?.size || source?.sizeBytes || 0) > 3 * 1024 * 1024,
     createdAt: raw?.create_time || raw?.createdAt || source?.create_time || source?.createdAt || '',
+    albumPicId: raw?.album_pic_id || raw?.albumPicId || raw?.relation_id || raw?.relationId || '',
+    source: 'saved',
   }
 }
 

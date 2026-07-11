@@ -1042,25 +1042,66 @@ class AlbumService extends BaseService
         $newProductIds = array_values(array_unique(array_merge($newCoverIds, $newDetailIds)));
         if (isset($param['pic_ids'])) {
             foreach (array_diff($oldCoverIds, $newCoverIds) as $removedPicId) {
+                $deleteResource = !in_array((int)$removedPicId, $newProductIds, true)
+                    && !$this->isPictureReferencedElsewhere($uid, (int)$removedPicId);
+                if ($deleteResource) {
+                    $this->deleteLocalPictureIfUnreferenced($uid, (int)$removedPicId);
+                }
                 $bridge->safeMarkPictureDeleted($uid, $removedPicId, [
                     'b_folder_id' => (int)$folder->id,
                     'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$removedPicId, 'cover'),
                     'external_product_id' => (string)$folder->id,
                     'role' => 'cover',
-                    'delete_resource' => !in_array((int)$removedPicId, $newProductIds, true),
+                    'delete_resource' => $deleteResource,
                 ]);
             }
         }
         if (isset($param['detail_pic_ids'])) {
             foreach (array_diff($oldDetailIds, $newDetailIds) as $removedPicId) {
+                $deleteResource = !in_array((int)$removedPicId, $newProductIds, true)
+                    && !$this->isPictureReferencedElsewhere($uid, (int)$removedPicId);
+                if ($deleteResource) {
+                    $this->deleteLocalPictureIfUnreferenced($uid, (int)$removedPicId);
+                }
                 $bridge->safeMarkPictureDeleted($uid, $removedPicId, [
                     'b_folder_id' => (int)$folder->id,
                     'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$removedPicId, 'detail'),
                     'external_product_id' => (string)$folder->id,
                     'role' => 'detail',
-                    'delete_resource' => !in_array((int)$removedPicId, $newProductIds, true),
+                    'delete_resource' => $deleteResource,
                 ]);
             }
+        }
+    }
+
+    private function isPictureReferencedElsewhere($uid, $picId)
+    {
+        $picId = (int)$picId;
+        if ($picId <= 0) {
+            return false;
+        }
+        $relationCount = WdXcxUserAlbumPic::alias('ap')
+            ->join('wd_xcx_album_folder af', 'af.id = ap.folder_id')
+            ->where('ap.pic_id', $picId)
+            ->where('af.uid', $uid)
+            ->count();
+        if ((int)$relationCount > 0) {
+            return true;
+        }
+        $fieldReferenceCount = WdXcxAlbumFolder::where('uid', $uid)
+            ->whereRaw('(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))', [$picId, $picId])
+            ->count();
+        return (int)$fieldReferenceCount > 0;
+    }
+
+    private function deleteLocalPictureIfUnreferenced($uid, $picId)
+    {
+        if ($this->isPictureReferencedElsewhere($uid, $picId)) {
+            return;
+        }
+        $pic = WdXcxPic::where('id', (int)$picId)->where('uid', (int)$uid)->find();
+        if ($pic) {
+            $pic->delete();
         }
     }
 

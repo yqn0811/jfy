@@ -229,6 +229,27 @@ class UserApiController extends ApiBaseController
         $this->result($this->userService->recordDownloadTraffic($param, request()->userID()), 0, '记录成功');
     }
 
+    public function discardUploadedPicture()
+    {
+        $param = $this->request->postMore([
+            ['pic_id', 0],
+            ['id', 0],
+            ['album_pic_id', 0],
+        ]);
+        $picId = (int)($param['pic_id'] ?: $param['id']);
+        $albumPicId = (int)$param['album_pic_id'];
+        if ($albumPicId > 0) {
+            $this->userService->discardUploadedAlbumPicture($albumPicId, request()->userID());
+            $this->result([], 0, '删除成功');
+            return;
+        }
+        if ($picId <= 0) {
+            throwError('请选择要删除的图片');
+        }
+        $this->userService->discardUploadedPicture($picId, request()->userID());
+        $this->result([], 0, '删除成功');
+    }
+
     /**申请原图下载地址，统一校验会员、可见性并记录下载流量
      * @return void
      * @throws \cores\exception\BaseException
@@ -929,6 +950,24 @@ class UserApiController extends ApiBaseController
         }else{
             $result['space_used'] = 0;
         }
+        $result['legacy_use_space'] = $UserPicSize;
+        $result['legacy_all_space'] = $result['all_space'];
+        $result['legacy_space_used'] = $result['space_used'];
+
+        $resourceCapacityBytes = (int)($result['resource_storage_capacity_bytes'] ?? 0);
+        if ($resourceCapacityBytes > 0) {
+            $resourceUsedBytes = max(0, (int)($result['resource_storage_used_bytes'] ?? 0));
+            $resourceRemainingBytes = (int)($result['resource_storage_remaining_bytes'] ?? 0);
+            if ($resourceRemainingBytes <= 0) {
+                $resourceRemainingBytes = max($resourceCapacityBytes - $resourceUsedBytes, 0);
+            }
+            $result['use_space'] = $resourceUsedBytes;
+            $result['all_space'] = $this->formatBytesAsStorageText($resourceCapacityBytes);
+            $result['space_used'] = $this->formatPercent($resourceUsedBytes, $resourceCapacityBytes);
+            $result['normal_space_bytes'] = $resourceUsedBytes;
+            $result['trash_space_bytes'] = 0;
+            $result['resource_storage_remaining_bytes'] = $resourceRemainingBytes;
+        }
         $result['total_pics'] = WdXcxPic::where('uid', $uid)->count();
         $result['total_collects'] = WdXcxUserCollectPics::where('uid', $uid)->count();
         
@@ -961,6 +1000,39 @@ class UserApiController extends ApiBaseController
         }
 
         $this->result($result);
+    }
+
+    private function formatBytesAsStorageText($bytes)
+    {
+        $bytes = (int)$bytes;
+        if ($bytes <= 0) {
+            return '0M';
+        }
+        $gb = 1024 * 1024 * 1024;
+        $mb = 1024 * 1024;
+        if ($bytes >= $gb) {
+            return $this->trimStorageNumber($bytes / $gb) . 'G';
+        }
+        return $this->trimStorageNumber($bytes / $mb) . 'M';
+    }
+
+    private function trimStorageNumber($value)
+    {
+        $number = (float)$value;
+        if ($number >= 100) {
+            return (string)round($number);
+        }
+        return rtrim(rtrim(number_format($number, 1, '.', ''), '0'), '.');
+    }
+
+    private function formatPercent($used, $total)
+    {
+        $used = (float)$used;
+        $total = (float)$total;
+        if ($used <= 0 || $total <= 0) {
+            return '0.00';
+        }
+        return number_format(min(100, max(0, ($used / $total) * 100)), 2, '.', '');
     }
 
     public function markUserVisitorsRead()

@@ -148,7 +148,10 @@ const handleShare = (platform: string) => {
 
         <!-- 网页版链接 -->
         <div class="space-y-2">
-          <label class="text-sm font-medium">网页版</label>
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-sm font-medium">网页版</label>
+            <span class="text-xs text-muted-foreground">请在PC电脑端打开，手机端只能支持小程序</span>
+          </div>
           <div class="flex gap-2">
             <Input
               :model-value="webShareUrl"

@@ -124,7 +124,8 @@ export default {
       introLength: 0,
       editCategoryId: 0,
       parentCategoryId: 0,
-      fromPage:''
+      fromPage:'',
+      nextAction: "",
     };
   },
   onLoad(options) {
@@ -135,7 +136,8 @@ export default {
     if (options && options.parent_id) {
       this.parentCategoryId = Number(options.parent_id || 0);
     }
-    this.fromPage = options.fromPage
+    this.fromPage = options.fromPage || "";
+    this.nextAction = options.next || "";
     this.nameLength = this.form.folder_name.length;
     this.introLength = this.form.folder_desc.length;
   },
@@ -226,7 +228,7 @@ export default {
           }
           const params = this.buildApiParams(payload);
           // 使用项目已有请求封装
-          await this.$go(url, params, "post", {
+          const res = await this.$go(url, params, "post", {
             show_err: true,
           });
           uni.showToast({ title: "保存成功", icon: "none" });
@@ -234,6 +236,10 @@ export default {
           setTimeout(() => {
             if (this.editCategoryId) {
               uni.navigateBack();
+              return;
+            }
+            if (this.shouldGoToNewProduct()) {
+              this.goToNewProduct(res && res.data);
               return;
             }
             uni.navigateBack();
@@ -253,6 +259,34 @@ export default {
     },
     notifyCategoryChanged() {
       notifyRefresh(["category", "home"]);
+    },
+    shouldGoToNewProduct() {
+      if (this.editCategoryId || this.parentCategoryId) {
+        return false;
+      }
+      return this.nextAction === "addProduct";
+    },
+    resolveCreatedCategoryId(data) {
+      const source = data && (data.folder_info || data.category || data.info || data);
+      return source && (source.id || source.fid || source.folder_id || source.category_id);
+    },
+    resolveCreatedCategoryName(data) {
+      const source = data && (data.folder_info || data.category || data.info || data);
+      return source && (source.folder_name || source.name || this.form.folder_name);
+    },
+    goToNewProduct(data) {
+      const categoryId = this.resolveCreatedCategoryId(data);
+      const categoryName = this.resolveCreatedCategoryName(data);
+      const query = ["fromPage=addClass"];
+      if (categoryId) {
+        query.push(`category_id=${encodeURIComponent(categoryId)}`);
+      }
+      if (categoryName) {
+        query.push(`category_name=${encodeURIComponent(categoryName)}`);
+      }
+      uni.redirectTo({
+        url: `/pagesOther/addProduct/addProduct?${query.join("&")}`,
+      });
     },
   },
 };
