@@ -179,12 +179,16 @@ const handleUploadComplete = (type: 'colorChart' | 'detailChart', files: string[
   uploadedFiles.value[type] = Array.from(merged)
 }
 
-const uploadFile = async (file: File, type: 'colorChart' | 'detailChart') => {
+const uploadFile = async (
+  file: File,
+  type: 'colorChart' | 'detailChart',
+  meta: { batchId?: string; batchStartedAt?: number; sortOrder?: number; batchTotal?: number } = {}
+) => {
   const token = uploadToken.value || uploadTokenStore.get(uploadCode.value)
   if (!token || !productId.value) {
     throw new Error('上传凭证未就绪')
   }
-  const result = await pcApi.uploadWebProductImage(productId.value, file, type, token)
+  const result = await pcApi.uploadWebProductImage(productId.value, file, type, token, meta)
   const rows = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : []
   const item = rows?.[0] || {}
   return item.url || item.picture_url || item.imgurl || item.file_url || URL.createObjectURL(file)

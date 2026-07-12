@@ -104,6 +104,8 @@ class WebUploadApiController extends ApiBaseController
             'file_type' => $storage_file_type,
             'upload_field' => $upload_field,
             'pid' => $pid,
+            'batch_started_at' => $this->request->post('batch_started_at', 0),
+            'sort_order' => $this->request->post('sort_order', 0),
             'original_names' => $this->getUploadOriginalNames($this->request->post()),
         ], $uid);
         $this->result($result);

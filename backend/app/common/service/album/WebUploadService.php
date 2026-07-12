@@ -193,6 +193,7 @@ class WebUploadService extends BaseService
                 $pic_album = [];
                 $last_url = '';
                 $uploadField = $this->normalizeProductUploadField($params['upload_field'] ?? '');
+                $requestSort = $this->resolveUploadSort($params);
                 $role = $uploadField === 'detail_chart' ? 'detail' : 'cover';
                 foreach ($data as $item){
                     $imageDetection = $this->weChatImageValidation($item['url']);
@@ -200,6 +201,7 @@ class WebUploadService extends BaseService
                         throwError("图片检测不通过，请重新上传");
                     }
                     $pic_album[] = [
+                        'sort' => $requestSort,
                         'uniacid' => 1,
                         'user_id' => $uid,
                         'pic_id' => $item['pid'],
@@ -218,8 +220,9 @@ class WebUploadService extends BaseService
                     ->whereIn('pic_id', array_column($pic_album, 'pic_id'))
                     ->where('create_time', '>=', $syncStartTime)
                     ->with(['picture'])
-                    ->order('id desc')
+                    ->order('id asc')
                     ->select();
+                $this->normalizeCreatedRelationSorts($createdRelations);
                 if($need_check){
                     $folder_info->check_status = 0;
                     $folder_info->save();
@@ -244,6 +247,29 @@ class WebUploadService extends BaseService
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',
             'data' => $data,
         ];
+    }
+
+    private function normalizeCreatedRelationSorts($relations)
+    {
+        foreach ($relations as $relation) {
+            if (!$relation || (int)($relation->id ?? 0) <= 0 || (int)($relation->sort ?? 0) > 0) {
+                continue;
+            }
+            $sort = (int)$relation->id;
+            WdXcxUserAlbumPic::where('id', $relation->id)->update(['sort' => $sort]);
+            $relation->sort = $sort;
+        }
+    }
+
+    private function resolveUploadSort($params)
+    {
+        $batchStartedAt = (int)($params['batch_started_at'] ?? 0);
+        $sortOrder = (int)($params['sort_order'] ?? 0);
+        if ($batchStartedAt > 0 && $sortOrder > 0) {
+            $sort = $batchStartedAt + min($sortOrder, 999);
+            return max(1, min($sort, 2147483647));
+        }
+        return 0;
     }
 
     private function normalizeProductUploadField($value)

@@ -1004,7 +1004,7 @@ class AlbumService extends BaseService
         $role = $this->normalizeProductUploadRole($role);
         $rows = WdXcxUserAlbumPic::where('folder_id', $productId)
             ->with(['picture'])
-            ->order('sort asc, set_top_time desc, id desc')
+            ->order('sort asc, id asc')
             ->select();
         $result = [];
         foreach ($rows as $row) {

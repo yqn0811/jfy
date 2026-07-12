@@ -465,7 +465,13 @@ export const pcApi = {
     apiRequest<any>('web/upload', { params: { code, timestamp: Date.now() }, auth: false }),
   getWebUploadToken: (code: string, password = '') =>
     apiRequest<any>('web/token/upload', { method: 'POST', body: { code, password }, auth: false }),
-  uploadWebProductImage: (fid: string, file: File, type: 'colorChart' | 'detailChart', token: string) => {
+  uploadWebProductImage: (
+    fid: string,
+    file: File,
+    type: 'colorChart' | 'detailChart',
+    token: string,
+    meta: { batchId?: string; batchStartedAt?: number; sortOrder?: number; batchTotal?: number } = {}
+  ) => {
     const form = new FormData()
     form.append('fid', fid)
     form.append('files', file, file.name)
@@ -478,6 +484,10 @@ export const pcApi = {
     form.append('file_type', '1')
     form.append('upload_field', type === 'detailChart' ? 'detail_chart' : 'color_chart')
     form.append('image_role', type === 'detailChart' ? 'detail' : 'cover')
+    if (meta.batchId) form.append('batch_id', meta.batchId)
+    if (meta.batchStartedAt) form.append('batch_started_at', String(meta.batchStartedAt))
+    if (meta.sortOrder) form.append('sort_order', String(meta.sortOrder))
+    if (meta.batchTotal) form.append('batch_total', String(meta.batchTotal))
     return apiUpload<any>('web/folder/pic/upload', form, token)
   },
 

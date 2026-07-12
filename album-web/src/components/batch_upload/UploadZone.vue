@@ -13,7 +13,7 @@ interface Props {
   progress?: number
   disabled?: boolean
   maxConcurrent?: number
-  uploadHandler?: (file: File, type: 'colorChart' | 'detailChart') => Promise<string>
+  uploadHandler?: (file: File, type: 'colorChart' | 'detailChart', meta: UploadHandlerMeta) => Promise<string>
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -29,11 +29,22 @@ const emit = defineEmits<{
 
 type UploadItem = {
   id: string
+  batchId: string
+  batchStartedAt: number
+  sortOrder: number
+  batchTotal: number
   file: File
   previewUrl: string
   finalUrl: string
   status: 'queued' | 'uploading' | 'done' | 'error'
   errorMessage: string
+}
+
+type UploadHandlerMeta = {
+  batchId: string
+  batchStartedAt: number
+  sortOrder: number
+  batchTotal: number
 }
 
 const isDragging = ref(false)
@@ -100,8 +111,14 @@ const handleFiles = async (files: FileList) => {
     return
   }
 
-  const items: UploadItem[] = imageFiles.map(file => ({
+  const batchStartedAt = Math.floor(Date.now() / 1000)
+  const batchId = `${batchStartedAt}_${Math.random().toString(36).slice(2)}`
+  const items: UploadItem[] = imageFiles.map((file, index) => ({
     id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    batchId,
+    batchStartedAt,
+    sortOrder: index + 1,
+    batchTotal: imageFiles.length,
     file,
     previewUrl: URL.createObjectURL(file),
     finalUrl: '',
@@ -125,7 +142,12 @@ const handleFiles = async (files: FileList) => {
 
         try {
           if (props.uploadHandler) {
-            finalUrl = await props.uploadHandler(item.file, props.type)
+            finalUrl = await props.uploadHandler(item.file, props.type, {
+              batchId: item.batchId,
+              batchStartedAt: item.batchStartedAt,
+              sortOrder: item.sortOrder,
+              batchTotal: item.batchTotal,
+            })
           } else {
             await new Promise(resolve => setTimeout(resolve, 300))
           }
@@ -188,7 +210,12 @@ const retryItem = async (index: number) => {
   uploadItems.value = [...uploadItems.value]
   try {
     const finalUrl = props.uploadHandler
-      ? await props.uploadHandler(item.file, props.type)
+      ? await props.uploadHandler(item.file, props.type, {
+        batchId: item.batchId,
+        batchStartedAt: item.batchStartedAt,
+        sortOrder: item.sortOrder,
+        batchTotal: item.batchTotal,
+      })
       : item.previewUrl
     item.finalUrl = finalUrl || item.previewUrl
     item.status = 'done'
