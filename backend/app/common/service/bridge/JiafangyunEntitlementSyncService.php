@@ -58,11 +58,12 @@ class JiafangyunEntitlementSyncService extends BaseService
         $expireAt = $this->parseExpireAt($entitlements['membership_expire_at'] ?? null, $gradeLevel);
         $benefits = is_array($plan['benefits_json'] ?? null) ? $plan['benefits_json'] : (is_array($plan['benefits'] ?? null) ? $plan['benefits'] : []);
         $uploadSizeMb = $this->resolveUploadSizeMb($benefits, $gradeLevel);
+        $concurrencyLimit = $this->resolveConcurrencyLimit($benefits, $entitlements);
         $gradeName = $this->resolveGradeName($gradeLevel, $level, $plan, $hasResourceMembership);
 
         Db::startTrans();
         try {
-            $this->ensureVipgradeRow($gradeLevel, $gradeName, $spaceSizeMb, $uploadSizeMb);
+            $this->ensureVipgradeRow($gradeLevel, $gradeName, $spaceSizeMb, $uploadSizeMb, $concurrencyLimit);
             $this->ensureUserVipGradeInfo($user, $gradeLevel, $expireAt, $spaceSizeMb, $level);
             $updates = [
                 'vip_grade' => $gradeLevel,
@@ -100,12 +101,12 @@ class JiafangyunEntitlementSyncService extends BaseService
             'monthly_traffic_remaining_bytes' => (int)($entitlements['monthly_traffic_remaining_bytes'] ?? ($entitlements['traffic_remaining_bytes'] ?? 0)),
             'monthly_traffic_remaining_gb' => (float)($entitlements['monthly_traffic_remaining_gb'] ?? ($entitlements['traffic_remaining_gb'] ?? 0)),
             'monthly_traffic_exceeded' => (bool)($entitlements['monthly_traffic_exceeded'] ?? ($entitlements['traffic_exceeded'] ?? false)),
-            'concurrency_limit' => (int)($benefits['concurrency_limit'] ?? ($entitlements['concurrency_limit'] ?? 0)),
+            'concurrency_limit' => $concurrencyLimit,
             'points_balance' => (int)($entitlements['points_balance'] ?? 0),
         ];
     }
 
-    private function ensureVipgradeRow($gradeLevel, $gradeName, $spaceSizeMb, $uploadSizeMb)
+    private function ensureVipgradeRow($gradeLevel, $gradeName, $spaceSizeMb, $uploadSizeMb, $concurrencyLimit)
     {
         if ($gradeLevel <= 0) {
             return;
@@ -118,6 +119,7 @@ class JiafangyunEntitlementSyncService extends BaseService
             'cloud_size' => $cloudSizeGb,
             'upload_size_type' => 1,
             'upload_size' => $uploadSizeMb,
+            'editor_number' => $concurrencyLimit,
             'create_time' => time(),
             'update_time' => time(),
         ]);
@@ -238,6 +240,12 @@ class JiafangyunEntitlementSyncService extends BaseService
             return 50;
         }
         return 20;
+    }
+
+    private function resolveConcurrencyLimit($benefits, $entitlements)
+    {
+        $value = (int)($benefits['concurrency_limit'] ?? ($entitlements['concurrency_limit'] ?? 1));
+        return max(1, min($value ?: 1, 10));
     }
 
     private function parseExpireAt($value, $gradeLevel)

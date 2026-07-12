@@ -30,7 +30,7 @@ const emit = defineEmits<{
 type UploadItem = {
   previewUrl: string
   finalUrl: string
-  status: 'uploading' | 'done' | 'error'
+  status: 'queued' | 'uploading' | 'done' | 'error'
 }
 
 const isDragging = ref(false)
@@ -42,7 +42,7 @@ const uploadedFiles = computed(() => uploadItems.value.map(item => item.finalUrl
 const safeMaxConcurrent = computed(() => {
   const value = Number(props.maxConcurrent || 1)
   if (!Number.isFinite(value) || value <= 0) return 1
-  return Math.min(Math.floor(value), 8)
+  return Math.min(Math.floor(value), 10)
 })
 
 const handleDragOver = (e: DragEvent) => {
@@ -79,7 +79,7 @@ const handleFiles = async (files: FileList) => {
   const items: UploadItem[] = imageFiles.map(file => ({
     previewUrl: URL.createObjectURL(file),
     finalUrl: '',
-    status: 'uploading' as const,
+    status: 'queued' as const,
   }))
   uploadItems.value = items
   emit('uploading', true)
@@ -93,6 +93,8 @@ const handleFiles = async (files: FileList) => {
         const file = imageFiles[index]
         const item = items[index]
         let finalUrl = item.previewUrl
+        item.status = 'uploading'
+        uploadItems.value = [...items]
 
         try {
           if (props.uploadHandler) {
@@ -141,6 +143,7 @@ const triggerFileInput = () => {
 
 const getItemStatus = (index: number) => {
   const status = uploadItems.value[index]?.status
+  if (status === 'queued') return '排队中'
   if (status === 'uploading') return '上传中'
   if (status === 'error') return '上传失败'
   return '已上传'
@@ -148,6 +151,7 @@ const getItemStatus = (index: number) => {
 
 const getItemIcon = (index: number) => {
   const status = uploadItems.value[index]?.status
+  if (status === 'queued') return 'Clock3'
   if (status === 'uploading') return 'Loader2'
   if (status === 'error') return 'AlertCircle'
   return 'Check'
@@ -155,6 +159,7 @@ const getItemIcon = (index: number) => {
 
 const getItemIconClass = (index: number) => {
   const status = uploadItems.value[index]?.status
+  if (status === 'queued') return 'text-muted-foreground'
   if (status === 'uploading') return 'text-muted-foreground animate-spin'
   if (status === 'error') return 'text-destructive'
   return 'text-primary'
@@ -211,7 +216,7 @@ const getItemIconClass = (index: number) => {
 
     <div class="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <p class="text-base font-medium text-muted-foreground">
-        {{ uploadedFiles.length > 0 ? `已选择 ${uploadedFiles.length} 张图片` : (waitingLabel || '等待选择图片') }}
+        {{ uploadedFiles.length > 0 ? `已选择 ${uploadedFiles.length} 张图片，最多 ${safeMaxConcurrent} 张并发上传` : (waitingLabel || '等待选择图片') }}
       </p>
       <div class="flex flex-wrap gap-3">
         <Button

@@ -101,7 +101,7 @@ const initUpload = async () => {
     trafficUsed.value = pickText(uploadPolicy?.traffic_used_text, info?.traffic_used_text)
     trafficTotal.value = pickText(uploadPolicy?.traffic_limit_text, info?.traffic_limit_text)
     trafficPercent.value = normalizePercent(uploadPolicy?.traffic_used_percent || info?.traffic_used_percent)
-    concurrencyLimit.value = Math.max(1, Math.min(Number(uploadPolicy?.concurrency_limit || uploadPolicy?.upload_concurrency || info?.concurrency_limit || 1), 8))
+    concurrencyLimit.value = Math.max(1, Math.min(Number(uploadPolicy?.concurrency_limit || uploadPolicy?.upload_concurrency || info?.concurrency_limit || 1), 10))
     product.value = mapProduct({
       id: productInfo?.id || info?.id,
       uid: ownerId.value || info?.owner_id || info?.uid,

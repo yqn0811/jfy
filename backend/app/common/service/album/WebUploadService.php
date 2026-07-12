@@ -6,6 +6,7 @@ use app\common\model\album\WdXcxAlbumFolder;
 use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserAlbumPic;
 use app\common\model\user\WdXcxUserAlbumUploadCode;
+use app\common\model\user\WdXcxVipgrade;
 use app\common\service\BaseService;
 use app\common\service\JwtService;
 use app\common\service\WxService;
@@ -310,10 +311,11 @@ class WebUploadService extends BaseService
 
     private function buildUploadPolicy($user)
     {
+        $concurrencyLimit = $this->getUploadConcurrencyLimit($user);
         return [
-            'concurrency' => 1,
-            'upload_concurrency' => 1,
-            'concurrency_limit' => 1,
+            'concurrency' => $concurrencyLimit,
+            'upload_concurrency' => $concurrencyLimit,
+            'concurrency_limit' => $concurrencyLimit,
             'single_file_limit_mb' => (int)$user->TrueUploadSize,
             'traffic_limit_bytes' => 0,
             'traffic_used_bytes' => 0,
@@ -323,6 +325,30 @@ class WebUploadService extends BaseService
             'traffic_remaining_text' => '不限量',
             'traffic_used_percent' => 0,
         ];
+    }
+
+    private function getUploadConcurrencyLimit($user)
+    {
+        $vipGradeInfo = $user->VipGradeInfo;
+        $gradeLevel = (int)($vipGradeInfo['grade_level'] ?? 0);
+        if ($gradeLevel <= 0) {
+            return 1;
+        }
+
+        $endTime = $vipGradeInfo['end_time'] ?? 0;
+        if ($endTime && strtotime($endTime . ' 23:59:59') < time()) {
+            return 1;
+        }
+
+        $editorNumber = (int)WdXcxVipgrade::where('grade_level', $gradeLevel)
+            ->where('uniacid', $user->uniacid)
+            ->value('editor_number');
+        if ($editorNumber <= 0) {
+            $editorNumber = (int)WdXcxVipgrade::where('grade_level', $gradeLevel)
+                ->value('editor_number');
+        }
+
+        return max(1, min($editorNumber ?: 1, 10));
     }
 
     private function buildProductInfo($folder)
