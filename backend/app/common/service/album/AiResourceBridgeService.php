@@ -234,6 +234,10 @@ class AiResourceBridgeService extends BaseService
         if (!$relation || !$relation->picture) {
             return null;
         }
+        $resourceId = $this->getResourceIdFromPicture($relation->picture);
+        if ($resourceId > 0) {
+            return $this->syncImportedResourceCategory($uid, $relation, $resourceId);
+        }
         return $this->syncPicture($uid, $relation->picture, array_merge([
             'b_folder_id' => (int)$relation->folder_id,
             'b_relation_id' => (int)$relation->id,
@@ -288,6 +292,36 @@ class AiResourceBridgeService extends BaseService
             Log::error('[AiResourceBridge] sync album relation failed: ' . $e->getMessage());
             return null;
         }
+    }
+
+    public function syncImportedResourceCategory($uid, $relation, $resourceId)
+    {
+        if (!$relation || !$this->isBridgeEnabledForUser($uid)) {
+            return null;
+        }
+        $resourceId = (int)$resourceId;
+        if ($resourceId <= 0) {
+            return null;
+        }
+        $user = $this->getBridgeUser($uid);
+        $categoryName = $this->folderName((int)$relation->folder_id);
+        if ($categoryName === '') {
+            return null;
+        }
+        $payload = array_merge($this->bridgeUserPayload($user), [
+            'b_folder_id' => (int)$relation->folder_id,
+            'b_pic_id' => (int)$relation->pic_id,
+            'b_relation_id' => (int)$relation->id,
+            'category_name' => $categoryName,
+            'metadata' => [
+                'b_pic_id' => (int)$relation->pic_id,
+                'b_folder_id' => (int)$relation->folder_id,
+                'b_relation_id' => (int)$relation->id,
+                'category_name' => $categoryName,
+                'source' => 'jiafangyun_imported_resource_category',
+            ],
+        ]);
+        return $this->requestAiResource('POST', '/jiafangyun/bridge/resources/' . $resourceId . '/category', $payload);
     }
 
     public function safeMarkPictureDeleted($uid, $picId, $options = [])

@@ -192,7 +192,7 @@ class SyncAiResources extends Command
                 if ($dryRun) {
                     continue;
                 }
-                if (!$relation->picture || $bridge->shouldSkipPicture($relation->picture)) {
+                if (!$relation->picture) {
                     $stats['skipped']++;
                     continue;
                 }
