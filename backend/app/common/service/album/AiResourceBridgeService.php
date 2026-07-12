@@ -176,6 +176,8 @@ class AiResourceBridgeService extends BaseService
         $user = $this->getBridgeUser($uid);
         $fileUrl = removePicStyle(remote($pic->uniacid ?: 1, $pic->imgurl, 1));
         $previewUrl = remote($pic->uniacid ?: 1, $pic->imgurl, 1);
+        $remoteType = (int)(cacheRemoteSet($pic->uniacid ?: 1)['remote'] ?? 0);
+        $thumbnailUrl = appendPicThumbStyle($fileUrl, $remoteType);
         if (!$fileUrl) {
             return null;
         }
@@ -189,7 +191,7 @@ class AiResourceBridgeService extends BaseService
             'sort_order' => (int)($options['sort_order'] ?? 0),
             'file_url' => $fileUrl,
             'preview_url' => $previewUrl,
-            'thumbnail_url' => $previewUrl,
+            'thumbnail_url' => $thumbnailUrl ?: $previewUrl,
             'name' => $pic->pic_name ?: '佳方云图片',
             'mime_type' => $this->guessMimeType($fileUrl, (int)$pic->file_type),
             'file_size' => (int)$pic->getData('size'),

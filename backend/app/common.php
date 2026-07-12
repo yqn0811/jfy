@@ -310,7 +310,9 @@ function doRemote($uniacid, $url, $type)
 function picPreviewStyles()
 {
     return [
+        'x-oss-process=image/resize,m_fixed,w_320/quality,Q_75',
         'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75',
+        'imageMogr2/thumbnail/320x/quality/75',
         'imageMogr2/thumbnail/480x/quality/75',
     ];
 }
@@ -345,6 +347,21 @@ function appendPicStyle($url, $remoteType = 0)
         return $url;
     }
     return $url . (strpos($url, '?') === false ? '?' : '&') . $style;
+}
+
+function appendPicThumbStyle($url, $remoteType = 0)
+{
+    $url = removePicStyle((string)$url);
+    if ($url === '') {
+        return '';
+    }
+    if ((int)$remoteType === 4 || isTencentCosAssetUrl($url)) {
+        return $url . (strpos($url, '?') === false ? '?' : '&') . 'imageMogr2/thumbnail/320x/quality/75';
+    }
+    if ((int)$remoteType > 0) {
+        return $url . (strpos($url, '?') === false ? '?' : '&') . 'x-oss-process=image/resize,m_fixed,w_320/quality,Q_75';
+    }
+    return appendPicStyle($url, $remoteType);
 }
 
 function removePicStyle($url)
@@ -602,9 +619,11 @@ function buildPictureImageUrls($pictureOrUrl, $previewUrl = '')
     }
     $displayUrl = normalizePublicAssetUrl(appendPicStyle($displayUrl));
     $originalUrl = normalizePublicAssetUrl(removePicStyle($displayUrl));
+    $remoteType = $pic ? (int)(cacheRemoteSet($pic->uniacid ?: 1)['remote'] ?? 0) : 0;
+    $thumbUrl = normalizePublicAssetUrl(appendPicThumbStyle($originalUrl ?: $displayUrl, $remoteType));
 
     return [
-        'thumb' => $displayUrl,
+        'thumb' => $thumbUrl ?: $displayUrl,
         'preview' => $displayUrl,
         'edit' => $displayUrl,
         'origin' => $originalUrl,
