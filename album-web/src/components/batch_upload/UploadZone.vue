@@ -42,6 +42,11 @@ const uploadItems = ref<UploadItem[]>([])
 
 const uploadedFiles = computed(() => uploadItems.value.map(item => item.finalUrl || item.previewUrl))
 const hasItems = computed(() => uploadItems.value.length > 0)
+const visibleUploadItems = computed(() =>
+  uploadItems.value
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.status !== 'done')
+)
 const doneCount = computed(() => uploadItems.value.filter(item => item.status === 'done').length)
 const failedCount = computed(() => uploadItems.value.filter(item => item.status === 'error').length)
 const uploadingCount = computed(() => uploadItems.value.filter(item => item.status === 'uploading').length)
@@ -304,9 +309,9 @@ const getItemIconClass = (index: number) => {
       </div>
     </div>
 
-    <div v-if="uploadItems.length > 0" class="mt-5 max-h-52 space-y-2 overflow-y-auto pr-1">
+    <div v-if="visibleUploadItems.length > 0" class="mt-5 max-h-52 space-y-2 overflow-y-auto pr-1">
       <div
-        v-for="(item, index) in uploadItems"
+        v-for="{ item, index } in visibleUploadItems"
         :key="item.id"
         class="flex items-center gap-3 p-2 bg-muted/50 rounded border border-border"
         :class="item.status === 'error' && 'border-destructive/30 bg-destructive/5'"
