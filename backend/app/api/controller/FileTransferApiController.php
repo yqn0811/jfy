@@ -33,6 +33,8 @@ class FileTransferApiController extends ApiBaseController
             ['status', 'uploaded'],
             ['preview_url', ''],
             ['previewUrl', ''],
+            ['transfer_token', ''],
+            ['transferToken', ''],
             ['sso_subject', ''],
             ['ssoSubject', ''],
         ], false, false);
@@ -48,7 +50,7 @@ class FileTransferApiController extends ApiBaseController
             throwError('请选择上传文件');
         }
 
-        $this->result($this->file_service->uploadFiles($files, $this->request->post(), (int)request()->userID()), 0, '上传成功');
+        $this->result($this->file_service->uploadFiles($files, $this->request->post(), $this->getOptionalUserId()), 0, '上传成功');
     }
 
     public function createShare()
@@ -66,12 +68,14 @@ class FileTransferApiController extends ApiBaseController
             ['allowPreview', ''],
             ['notify_on_download', 0],
             ['notifyOnDownload', ''],
+            ['transfer_token', ''],
+            ['transferToken', ''],
             ['sso_subject', ''],
             ['ssoSubject', ''],
         ], false, false);
         $param = $this->normalizeShareParam($param, $this->request->post());
 
-        $this->result($this->file_service->createShare($param, (int)request()->userID()), 0, '创建成功');
+        $this->result($this->file_service->createShare($param, $this->getOptionalUserId()), 0, '创建成功');
     }
 
     public function listShares()
@@ -81,9 +85,14 @@ class FileTransferApiController extends ApiBaseController
             ['status', ''],
             ['page', 1],
             ['limit', 20],
+            ['transfer_token', ''],
+            ['transferToken', ''],
+            ['sso_subject', ''],
+            ['ssoSubject', ''],
         ]);
+        $param = $this->normalizeShareListParam($param, $this->request->get());
 
-        $this->result($this->file_service->listShares($param, (int)request()->userID()));
+        $this->result($this->file_service->listShares($param, $this->getOptionalUserId()));
     }
 
     public function getPublicShare()
@@ -118,19 +127,40 @@ class FileTransferApiController extends ApiBaseController
         $this->result($this->file_service->verifySharePassword($param['code'], $param['password']), 0, '验证成功');
     }
 
+    public function getShareQrcode()
+    {
+        $param = $this->request->postMore([
+            ['code', ''],
+            ['share_code', ''],
+            ['shareCode', ''],
+            ['url', ''],
+        ], false, false);
+        $code = $this->pickFirst($param, ['code', 'share_code', 'shareCode']);
+        if ($code === '') {
+            throwError('分享参数不完整');
+        }
+
+        $this->result($this->file_service->getShareQrcode($code, (string)$param['url']), 0, '生成成功');
+    }
+
     public function getShare()
     {
         $param = $this->request->getMore([
             ['code', ''],
             ['share_code', ''],
             ['shareCode', ''],
+            ['transfer_token', ''],
+            ['transferToken', ''],
+            ['sso_subject', ''],
+            ['ssoSubject', ''],
         ], false, false);
+        $param = $this->normalizeShareListParam($param, $this->request->get());
         $param['code'] = $this->pickFirst($param, ['code', 'share_code', 'shareCode']);
         if (empty($param['code'])) {
             throwError('分享参数不完整');
         }
 
-        $this->result($this->file_service->getShareByCode($param['code'], false, '', (int)request()->userID()));
+        $this->result($this->file_service->getOwnerShareByCode($param['code'], $this->getOptionalUserId(), $param));
     }
 
     public function downloadFile()
@@ -174,6 +204,7 @@ class FileTransferApiController extends ApiBaseController
             'mimeType' => 'mime_type',
             'sizeBytes' => 'size_bytes',
             'previewUrl' => 'preview_url',
+            'transferToken' => 'transfer_token',
             'ssoSubject' => 'sso_subject',
         ];
         foreach ($map as $from => $to) {
@@ -194,6 +225,23 @@ class FileTransferApiController extends ApiBaseController
             'maxDownloads' => 'max_downloads',
             'allowPreview' => 'allow_preview',
             'notifyOnDownload' => 'notify_on_download',
+            'transferToken' => 'transfer_token',
+            'ssoSubject' => 'sso_subject',
+        ];
+        foreach ($map as $from => $to) {
+            if (array_key_exists($from, $raw)) {
+                $param[$to] = $raw[$from];
+            } elseif ($this->isBlankValue($param[$to] ?? null) && !$this->isBlankValue($param[$from] ?? null)) {
+                $param[$to] = $param[$from];
+            }
+        }
+        return $param;
+    }
+
+    private function normalizeShareListParam(array $param, array $raw = [])
+    {
+        $map = [
+            'transferToken' => 'transfer_token',
             'ssoSubject' => 'sso_subject',
         ];
         foreach ($map as $from => $to) {
@@ -214,6 +262,15 @@ class FileTransferApiController extends ApiBaseController
             }
         }
         return '';
+    }
+
+    private function getOptionalUserId()
+    {
+        try {
+            return (int)request()->userID();
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     private function isBlankValue($value)

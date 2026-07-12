@@ -1,3 +1,5 @@
+import { ref } from 'vue'
+
 const DEFAULT_API_BASE = 'https://api.jfyuntu.com/api'
 
 export interface ApiEnvelope<T = any> {
@@ -31,6 +33,13 @@ interface RequestOptions {
 }
 
 const normalizeToken = (token = '') => token.replace(/^Bearer\s+/i, '').trim()
+const FILE_AUTH_TOKEN_KEY = 'file_web_token'
+const LEGACY_AUTH_TOKEN_KEYS = ['jfyuntu_pc_token', 'token']
+export const authStateVersion = ref(0)
+
+const notifyAuthChanged = () => {
+  authStateVersion.value += 1
+}
 
 export const getRuntimeApiBase = () => {
   if (typeof window === 'undefined') return DEFAULT_API_BASE
@@ -63,23 +72,25 @@ export const buildApiUrl = (path: string, params?: Record<string, any>) => {
 export const authStore = {
   getToken() {
     if (typeof localStorage === 'undefined') return ''
-    return normalizeToken(
-      localStorage.getItem('jfyuntu_pc_token') ||
-        localStorage.getItem('file_web_token') ||
-        localStorage.getItem('token') ||
-        ''
-    )
+    return normalizeToken(localStorage.getItem(FILE_AUTH_TOKEN_KEY) || '')
   },
   setToken(token: string) {
     if (typeof localStorage === 'undefined') return
     const normalized = normalizeToken(token)
     if (!normalized) return
-    localStorage.setItem('file_web_token', normalized)
-    localStorage.setItem('jfyuntu_pc_token', normalized)
-    localStorage.setItem('token', normalized)
+    localStorage.setItem(FILE_AUTH_TOKEN_KEY, normalized)
+    LEGACY_AUTH_TOKEN_KEYS.forEach((key) => localStorage.removeItem(key))
+    notifyAuthChanged()
   },
   hasToken() {
+    authStateVersion.value
     return !!this.getToken()
+  },
+  clearToken() {
+    if (typeof localStorage === 'undefined') return
+    localStorage.removeItem(FILE_AUTH_TOKEN_KEY)
+    LEGACY_AUTH_TOKEN_KEYS.forEach((key) => localStorage.removeItem(key))
+    notifyAuthChanged()
   },
 }
 
@@ -135,14 +146,57 @@ export async function apiRequest<T = any>(path: string, options: RequestOptions 
   return unwrapEnvelope<T>(payload as ApiEnvelope<T>, response.status)
 }
 
+const getDownloadFilename = (response: Response, fallback = 'download') => {
+  const disposition = response.headers.get('Content-Disposition') || ''
+  const encodedMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (encodedMatch?.[1]) {
+    try {
+      return decodeURIComponent(encodedMatch[1])
+    } catch {
+      return encodedMatch[1]
+    }
+  }
+  const plainMatch = disposition.match(/filename="?([^";]+)"?/i)
+  return plainMatch?.[1] || fallback
+}
+
+export async function apiDownload(
+  path: string,
+  options: { params?: Record<string, any>; filename?: string; token?: string; auth?: boolean } = {}
+): Promise<void> {
+  const url = buildApiUrl(path, options.params)
+  const token = options.auth === false ? '' : normalizeToken(options.token || authStore.getToken())
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: makeHeaders(token),
+  })
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiEnvelope | null
+    throw new ApiError(payload?.msg || payload?.message || '下载失败，请重试', response.status, payload?.data)
+  }
+
+  const blob = await response.blob()
+  const blobUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = blobUrl
+  link.download = options.filename || getDownloadFilename(response, 'download')
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(blobUrl)
+}
+
 export async function apiUpload<T = any>(
   path: string,
   formData: FormData,
-  token = authStore.getToken()
+  token = authStore.getToken(),
+  options: { auth?: boolean; optionalAuth?: boolean } = {}
 ): Promise<T> {
+  const uploadToken = options.auth === false ? '' : normalizeToken(token)
   const response = await fetch(joinUrl(getRuntimeApiBase(), path), {
     method: 'POST',
-    headers: makeHeaders(token),
+    headers: makeHeaders(uploadToken),
     body: formData,
   })
   const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null

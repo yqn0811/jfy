@@ -15,9 +15,12 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 
 interface Props {
   task: CollectionTaskData
+  isArchiving?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  isArchiving: false,
+})
 
 const emit = defineEmits<{
   (e: 'copy-link'): void
@@ -98,10 +101,11 @@ const handleArchiveClick = () => {
               <DropdownMenuItem 
                 v-if="task.status !== 'archived'"
                 @click="handleArchiveClick" 
+                :disabled="isArchiving"
                 class="gap-2 text-destructive focus:text-destructive"
               >
                 <SafeIcon name="Archive" :size="16" />
-                <span>归档任务</span>
+                <span>{{ isArchiving ? '归档中...' : '归档任务' }}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

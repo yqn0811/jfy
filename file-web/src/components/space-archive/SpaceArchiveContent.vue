@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { SpaceService } from '@/data/SpaceService'
 import type { SpaceOverview, ArchiveItemVO } from '@/data/SpaceService'
 import type { SpaceFolderData } from '@/data/SpaceData'
@@ -20,8 +20,6 @@ const props = defineProps<{
 const isClient = ref(true)
 const spaceOverview = ref<SpaceOverview>(SpaceService.getOverview())
 const folders = ref<SpaceFolderData[]>(SpaceService.getFolders())
-const archiveItems = ref<ArchiveItemVO[]>(SpaceService.queryArchives({}))
-
 const activeFolder = ref<string | null>(null)
 const selectedArchive = ref<ArchiveItemVO | null>(null)
 const isDrawerOpen = ref(false)
@@ -35,18 +33,19 @@ const breadcrumbs = [
 ]
 
 const filteredArchives = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase()
   return SpaceService.queryArchives({
-    keyword: searchKeyword.value,
+    keyword,
     filter: {
       ...(activeFolder.value && { folderId: activeFolder.value }),
-      ...(statusFilter.value && { status: statusFilter.value })
+      ...(statusFilter.value && statusFilter.value !== 'all' && { status: statusFilter.value })
     }
   })
 })
 
 const activeFolderName = computed(() => {
-  if (!activeFolder.value) return '全部归档'
-  return folders.value.find(f => f.id === activeFolder.value)?.name || '全部归档'
+  if (!activeFolder.value) return folders.value.length ? '全部归档' : '归档列表'
+  return folders.value.find(f => f.id === activeFolder.value)?.name || '归档列表'
 })
 
 const handleFolderSelect = (folderId: string | null) => {
@@ -61,19 +60,23 @@ const handleArchiveSelect = (archive: ArchiveItemVO) => {
 }
 
 const handleDownload = (archive: ArchiveItemVO) => {
-  toast.success(`已开始下载 "${archive.name}"`)
+  if (!archive.id) return
+  toast.info('归档下载能力待接入真实数据')
 }
 
 const handleMove = (archive: ArchiveItemVO) => {
-  toast.success(`已移动 "${archive.name}" 到新位置`)
+  if (!archive.id) return
+  toast.info('归档移动能力待接入真实数据')
 }
 
 const handleDelete = (archive: ArchiveItemVO) => {
-  toast.success(`已删除 "${archive.name}"`)
+  if (!archive.id) return
+  toast.info('归档删除能力待接入真实数据')
 }
 
 const handlePermissionChange = (archive: ArchiveItemVO) => {
-  toast.success(`已更新 "${archive.name}" 的权限设置`)
+  if (!archive.id) return
+  toast.info('归档权限能力待接入真实数据')
 }
 
 onMounted(() => {
@@ -91,7 +94,7 @@ onMounted(() => {
 
 <template>
   <div class="page-body min-h-screen">
-    <div class="page-container flex flex-col gap-6">
+    <div class="app-shell flex flex-col gap-6">
       <!-- 页面头部 -->
       <DetailPageHeader
         title="空间与归档"

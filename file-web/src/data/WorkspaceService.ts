@@ -11,51 +11,42 @@ export interface WorkspaceOverview {
   lastUpdatedAt: string
 }
 
-export const workspaceDataList: WorkspaceData[] = [
-  {
-    id: 'workspace-001',
-    teamId: 'team-001',
-    currentTeamName: '织序传输助手演示团队',
-    todayPendingCount: 12,
-    expiringSoonCount: 3,
-    needResubmitCount: 5,
-    storageUsedGb: 286.4,
-    storageLimitGb: 500,
-    updatedAt: '2026-07-08T09:00:00Z'
-  }
-]
+export const workspaceDataList: WorkspaceData[] = []
+
+export const emptyWorkspaceOverview: WorkspaceOverview = {
+  teamName: '暂无工作区数据',
+  todayPendingCount: 0,
+  expiringSoonCount: 0,
+  needResubmitCount: 0,
+  storageUsedGb: 0,
+  storageLimitGb: 0,
+  storageUsageRate: 0,
+  lastUpdatedAt: '',
+}
 
 export class WorkspaceService {
   static getAll(): WorkspaceData[] {
     return workspaceDataList
   }
 
-  static getById(id: string): WorkspaceData | undefined {
-    return workspaceDataList.find((item) => item.id === id)
+  static getById(_id: string): WorkspaceData | undefined {
+    return undefined
   }
 
   static getOverview(): WorkspaceOverview {
-    const item = workspaceDataList[0]
-    return {
-      teamName: item.currentTeamName,
-      todayPendingCount: item.todayPendingCount,
-      expiringSoonCount: item.expiringSoonCount,
-      needResubmitCount: item.needResubmitCount,
-      storageUsedGb: item.storageUsedGb,
-      storageLimitGb: item.storageLimitGb,
-      storageUsageRate: item.storageLimitGb === 0 ? 0 : item.storageUsedGb / item.storageLimitGb,
-      lastUpdatedAt: item.updatedAt
-    }
+    return { ...emptyWorkspaceOverview }
   }
 
   static loadPersisted(): WorkspaceData[] | null {
-    if (typeof localStorage === 'undefined') return null
-    const raw = localStorage.getItem('workspaceDataList')
-    return raw ? (JSON.parse(raw) as WorkspaceData[]) : null
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('workspaceDataList')
+    }
+    return null
   }
 
-  static savePersisted(items: WorkspaceData[]): void {
-    if (typeof localStorage === 'undefined') return
-    localStorage.setItem('workspaceDataList', JSON.stringify(items))
+  static savePersisted(_items: WorkspaceData[]): void {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('workspaceDataList')
+    }
   }
 }

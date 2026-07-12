@@ -47,13 +47,16 @@ export class ReviewService {
   }
 
   static loadPersisted(): ReviewLogData[] | null {
-    if (typeof localStorage === 'undefined') return null
-    const raw = localStorage.getItem('reviewLogDataList')
-    return raw ? (JSON.parse(raw) as ReviewLogData[]) : null
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('reviewLogDataList')
+    }
+    return null
   }
 
   static savePersisted(items: ReviewLogData[]): void {
-    if (typeof localStorage === 'undefined') return
-    localStorage.setItem('reviewLogDataList', JSON.stringify(items))
+    void items
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('reviewLogDataList')
+    }
   }
 }

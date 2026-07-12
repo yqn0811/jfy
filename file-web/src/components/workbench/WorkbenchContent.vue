@@ -1,10 +1,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { TaskService } from '@/data/TaskService'
 import { WorkspaceService } from '@/data/WorkspaceService'
 import type { TaskData } from '@/data/TaskData'
 import { FileTransferApi, collectionTaskToTaskData, shareToTaskData } from '@/data/FileTransferApi'
+import { FileShareService } from '@/data/FileShareService'
 import ActionCard from '@/components/workbench/ActionCard.vue'
 import RecentTasksTable from '@/components/workbench/RecentTasksTable.vue'
 import TodoSidebar from '@/components/workbench/TodoSidebar.vue'
@@ -15,7 +15,7 @@ import { toast } from 'vue-sonner'
 
 const isClient = ref(true)
 
-const tasks = ref<TaskData[]>(TaskService.getAll())
+const tasks = ref<TaskData[]>([])
 const workspaceOverview = ref(WorkspaceService.getOverview())
 const isLoadingTasks = ref(false)
 const loadError = ref('')
@@ -45,42 +45,53 @@ onMounted(() => {
   requestAnimationFrame(() => {
     isClient.value = true
   })
+  loadLocalShareTasks()
   loadRemoteTasks()
 })
 
-const loadRemoteTasks = async () => {
-  if (!authStore.hasToken()) return
+const loadLocalShareTasks = () => {
+  tasks.value = FileShareService.getAll().map(shareToTaskData)
+}
 
+const loadRemoteTasks = async () => {
   isLoadingTasks.value = true
   loadError.value = ''
 
   try {
-    const [shares, collectionTasks] = await Promise.all([
-      FileTransferApi.listShares({ limit: 50 }),
-      FileTransferApi.listCollectionTasks({ limit: 50 }),
-    ])
+    const shares = await FileTransferApi.listShares({ limit: 50 })
+    const collectionTasks = authStore.hasToken()
+      ? await FileTransferApi.listCollectionTasks({ limit: 50 })
+      : { items: [] }
 
     const remoteTasks = [
       ...shares.items.map(shareToTaskData),
       ...collectionTasks.items.map((detail) => collectionTaskToTaskData(detail.task, detail.raw)),
     ]
 
-    if (remoteTasks.length > 0) {
-      tasks.value = remoteTasks
-    }
+    tasks.value = remoteTasks
   } catch (error) {
-    loadError.value = getApiErrorMessage(error, '任务列表加载失败')
+    if (authStore.hasToken() || tasks.value.length === 0) {
+      loadError.value = getApiErrorMessage(error, '任务列表加载失败')
+    }
   } finally {
     isLoadingTasks.value = false
   }
 }
 
-const handleTaskDeleted = () => {
-  toast.info('删除任务接口暂未开放')
-}
-
-const handleTaskArchived = () => {
-  toast.info('归档任务接口暂未开放')
+const handleTaskArchived = async (taskId: string) => {
+  const task = tasks.value.find((item) => item.id === taskId)
+  if (!task) return
+  if (task.type !== 'collection') {
+    toast.info('当前仅收集任务支持归档')
+    return
+  }
+  try {
+    await FileTransferApi.archiveCollectionTask(taskId)
+    toast.success('任务已归档')
+    await loadRemoteTasks()
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '归档失败，请重试'))
+  }
 }
 </script>
 
@@ -121,7 +132,7 @@ const handleTaskArchived = () => {
       <!-- Recent Tasks Section -->
       <div class="mb-8">
         <h2 class="text-section-title mb-4">最近任务</h2>
-        <p v-if="loadError" class="mb-3 text-sm text-muted-foreground">{{ loadError }}，已显示本地预览记录。</p>
+        <p v-if="loadError" class="mb-3 text-sm text-muted-foreground">{{ loadError }}</p>
 
         <!-- Empty State -->
         <div v-if="hasNoTasks && (isClient || !isClient)" class="surface-base card-padding text-center py-16">
@@ -167,7 +178,6 @@ const handleTaskArchived = () => {
           :status-filter="statusFilter"
           @update:search-keyword="(v) => (searchKeyword = v)"
           @update:status-filter="(v) => (statusFilter = v)"
-          @task-deleted="handleTaskDeleted"
           @task-archived="handleTaskArchived"
         />
       </div>

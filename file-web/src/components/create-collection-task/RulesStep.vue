@@ -24,7 +24,7 @@ const updateConfig = (key: keyof Props['ruleConfig'], value: any) => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="mx-auto max-w-[820px] space-y-6">
     <div>
       <h3 class="text-section-title mb-4">提交规则配置</h3>
       <p class="text-caption mb-6">

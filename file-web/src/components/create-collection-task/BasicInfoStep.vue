@@ -22,7 +22,7 @@ const props = defineProps<Props>()
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="mx-auto max-w-[820px] space-y-6">
     <div>
       <h3 class="text-section-title mb-4">基本信息</h3>
       <p class="text-caption mb-6">
@@ -39,7 +39,7 @@ const props = defineProps<Props>()
         id="task-name"
         :value="props.name"
         @input="(e) => emit('update:name', (e.target as HTMLInputElement).value)"
-        placeholder="例如：HR 入职资料收集 - 7 月批次"
+        placeholder="请输入任务名称"
         class="h-10"
       />
       <p class="text-xs text-muted-foreground">
@@ -54,7 +54,7 @@ const props = defineProps<Props>()
         id="task-desc"
         :value="props.description"
         @input="(e) => emit('update:description', (e.target as HTMLTextAreaElement).value)"
-        placeholder="例如：请在截止时间前补齐入职资料，便于统一归档与审核。"
+        placeholder="请输入提交说明和注意事项"
         class="min-h-24 resize-none"
       />
       <p class="text-xs text-muted-foreground">
@@ -86,7 +86,7 @@ const props = defineProps<Props>()
         id="submit-target"
         :value="props.submitTargetDescription"
         @input="(e) => emit('update:submitTargetDescription', (e.target as HTMLTextAreaElement).value)"
-        placeholder="例如：新入职员工，请按部门通知提交。"
+        placeholder="请输入需要提交材料的对象说明"
         class="min-h-20 resize-none"
       />
       <p class="text-xs text-muted-foreground">

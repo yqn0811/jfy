@@ -28,8 +28,8 @@ export interface ReviewLogData {
   submissionId: string
   reviewerId: string
   reviewerName: string
-  action: 'approve' | 'reject' | 'request_resubmission' | 'comment'
-  result: 'approved' | 'rejected' | 'pending' | 'resubmission_needed'
+  action: 'approve' | 'reject' | 'request_resubmission' | 'resubmit' | 'remind' | 'comment'
+  result: 'approved' | 'rejected' | 'pending' | 'resubmission_needed' | 'submitted' | 'recorded'
   remark: string
   createdAt: string
 }

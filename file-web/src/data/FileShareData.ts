@@ -1,5 +1,6 @@
 export interface FileShareData {
   id: string
+  shareCode?: string
   taskId: string
   title: string
   shareUrl: string
@@ -30,7 +31,7 @@ export interface UploadFileItemData {
 export interface ShareSettingData {
   id: string
   shareId: string
-  expiresIn: '7d' | '30d' | '90d'
+  expiresIn: '24h' | '7d' | '30d' | '90d'
   accessPassword: string
   maxDownloads: number
   allowPreview: boolean

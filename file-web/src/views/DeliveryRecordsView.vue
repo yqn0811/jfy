@@ -6,7 +6,7 @@ import DeliveryRecordList from '@/components/delivery_records/DeliveryRecordList
 <template>
   <StandardLayout>
     <main class="page-body">
-      <div class="page-container">
+      <div class="app-shell">
         <DeliveryRecordList />
       </div>
     </main>

@@ -7,30 +7,44 @@ import { toast } from 'vue-sonner'
 import { PublicSubmissionService } from '@/data/PublicSubmissionService'
 import type { SubmissionReceiptVO } from '@/data/PublicSubmissionService'
 import { navigateTo } from '@/navigation'
+import { getApiErrorMessage } from '@/lib/apiClient'
 
 const receipt = ref<SubmissionReceiptVO | null>(null)
 const isLoading = ref(false)
+const loadError = ref('')
 const taskId = ref<string>('')
+const sourceSubmissionId = ref<string>('')
 
 onMounted(() => {
   const params = new URLSearchParams(window.location.search)
-  const submissionId = params.get('submissionId') || 'submission-001'
+  const submissionId = params.get('submissionId') || ''
+  const queryTaskId = params.get('taskId') || ''
+  sourceSubmissionId.value = params.get('sourceSubmissionId') || params.get('source_submission_id') || ''
   
   isLoading.value = true
+  loadError.value = ''
   
-  try {
-    const result = PublicSubmissionService.submit(submissionId)
-    if (result) {
-      receipt.value = result
-      taskId.value = submissionId.split('-')[1] || 'task-001'
-    } else {
-      toast.error('无法加载提交信息，请稍后重试')
-    }
-  } catch (error) {
-    toast.error('加载提交信息失败')
-  } finally {
+  if (!submissionId) {
+    loadError.value = '缺少提交编号，无法加载提交信息'
+    toast.error(loadError.value)
     isLoading.value = false
+    return
   }
+
+  PublicSubmissionService.getReceipt(submissionId)
+    .then((result) => {
+      receipt.value = result
+      taskId.value = result.taskId || queryTaskId
+    })
+    .catch((error) => {
+      loadError.value = getApiErrorMessage(error, '无法加载提交信息，请稍后重试')
+      toast.error(loadError.value)
+      receipt.value = null
+      taskId.value = queryTaskId
+    })
+    .finally(() => {
+      isLoading.value = false
+    })
 })
 
 const handleCopyContact = () => {
@@ -43,11 +57,12 @@ const handleCopyContact = () => {
 }
 
 const handleReturnToSubmission = () => {
-  navigateTo(`/submission-upload?taskId=${taskId.value}`)
+  navigateTo(`/submission-upload?taskId=${encodeURIComponent(taskId.value)}`)
 }
 
 const handleResubmit = () => {
-  navigateTo(`/submission-upload?taskId=${taskId.value}`)
+  const sourceQuery = sourceSubmissionId.value ? `&sourceSubmissionId=${encodeURIComponent(sourceSubmissionId.value)}` : ''
+  navigateTo(`/submission-upload?taskId=${encodeURIComponent(taskId.value)}${sourceQuery}`)
 }
 
 const formatDate = (dateString: string) => {
@@ -68,9 +83,25 @@ const formatDate = (dateString: string) => {
 </script>
 
 <template>
-  <div class="page-body">
-    <div class="page-container">
-      <div class="max-w-2xl mx-auto space-y-8">
+  <div class="app-content-narrow space-y-8">
+      <div v-if="isLoading" class="surface-base card-padding text-center">
+        <SafeIcon name="Loader2" :size="32" class="mx-auto mb-3 animate-spin text-muted-foreground" />
+        <p class="text-caption">正在加载提交信息...</p>
+      </div>
+
+      <div v-else-if="loadError || !receipt" class="surface-base card-padding text-center">
+        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/60">
+          <SafeIcon name="FileQuestion" :size="28" class="text-muted-foreground" />
+        </div>
+        <h1 class="text-section-title mb-2">无法加载提交信息</h1>
+        <p class="text-caption mb-5">{{ loadError || '请确认提交链接是否正确。' }}</p>
+        <Button v-if="taskId" variant="outline" @click="handleReturnToSubmission">
+          <SafeIcon name="ArrowLeft" :size="16" class="mr-2" />
+          返回提交页面
+        </Button>
+      </div>
+
+      <template v-else>
       <!-- 成功状态卡片 -->
       <div class="surface-raised card-padding text-center space-y-6">
         <!-- 成功图标 -->
@@ -126,7 +157,7 @@ const formatDate = (dateString: string) => {
           补交说明
         </h3>
         <p class="text-caption text-muted-foreground leading-relaxed">
-          如果发起方要求补交材料，您将收到补交通知。请点击通知中的链接或使用原提交链接重新进入，按要求补交即可。
+          如果发起方要求补交材料，请使用发起方提供的补交链接重新进入并提交材料。
         </p>
       </div>
 
@@ -163,7 +194,7 @@ const formatDate = (dateString: string) => {
           @click="handleResubmit"
         >
           <SafeIcon name="RotateCcw" :size="16" class="mr-2" />
-          重新提交
+          {{ sourceSubmissionId ? '继续补交' : '重新提交' }}
         </Button>
       </div>
 
@@ -173,8 +204,7 @@ const formatDate = (dateString: string) => {
           此页面将在 <span class="font-medium">5 分钟</span> 后自动关闭
         </p>
       </div>
-      </div>
-    </div>
+      </template>
   </div>
 </template>
 

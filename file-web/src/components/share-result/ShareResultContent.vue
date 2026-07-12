@@ -1,100 +1,120 @@
-
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { FileShareService, type FileShareVO } from '@/data/FileShareService'
-import { FileTransferApi, getRememberedSharePassword, type FileTransferShareVO } from '@/data/FileTransferApi'
-import { authStore, getApiErrorMessage } from '@/lib/apiClient'
+import { computed, onMounted, ref } from 'vue'
+import { toast } from 'vue-sonner'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import DetailPageHeader from '@/components/common/DetailPageHeader.vue'
-import { toast } from 'vue-sonner'
+import { FileShareService, type FileShareVO } from '@/data/FileShareService'
+import { FileTransferApi, getRememberedSharePassword, type FileTransferShareVO } from '@/data/FileTransferApi'
+import { getApiErrorMessage } from '@/lib/apiClient'
 import { navigateTo } from '@/navigation'
-import { cn } from '@/lib/utils'
 
 const allShares = ref(FileShareService.getAll())
 const currentShare = ref<FileShareVO | null>(null)
-const shareId = ref<string>('')
-const isLoadingShare = ref(true)
+const shareId = ref('')
 const shareCode = ref('')
 const accessPassword = ref('')
+const isReceiverMode = ref(false)
+const receiverVerified = ref(false)
+const isLoadingShare = ref(true)
 const isVerifyingPassword = ref(false)
+const qrcodeImage = ref('')
+const isQrcodeLoading = ref(false)
 
 onMounted(async () => {
   const params = new URLSearchParams(window.location.search)
-  const paramShareId = params.get('shareId')
-  const paramShareCode = params.get('shareCode') || params.get('code')
-  
+  const paramShareId = params.get('shareId') || ''
+  const paramShareCode = params.get('shareCode') || params.get('code') || ''
+
   try {
     if (paramShareCode) {
+      isReceiverMode.value = !paramShareId
       shareCode.value = paramShareCode
-      const rememberedPassword = getRememberedSharePassword(paramShareCode)
+      const localShare = paramShareId ? FileShareService.getShareVOById(paramShareId) : undefined
+      const rememberedPassword = isReceiverMode.value ? '' : getRememberedSharePassword(paramShareCode) || localShare?.password || ''
       accessPassword.value = rememberedPassword
-      const share = authStore.hasToken()
-        ? await FileTransferApi.getOwnerShare(paramShareCode)
-        : await FileTransferApi.getPublicShare(paramShareCode, rememberedPassword)
-      currentShare.value = share
-      shareId.value = share.id
-      return
+
+      try {
+        const share = isReceiverMode.value
+          ? await FileTransferApi.getPublicShare(paramShareCode, rememberedPassword)
+          : await FileTransferApi.getOwnerShare(paramShareCode)
+        currentShare.value = {
+          ...share,
+          password: localShare?.password || share.password,
+        }
+        shareId.value = share.id
+        receiverVerified.value = isReceiverMode.value ? Boolean(rememberedPassword && share.passwordVerified) : true
+        return
+      } catch (error) {
+        if (localShare && !isReceiverMode.value) {
+          currentShare.value = localShare
+          shareId.value = localShare.id
+          receiverVerified.value = true
+          return
+        }
+        throw error
+      }
     }
 
     if (paramShareId) {
-      shareId.value = paramShareId
-      const share = FileShareService.getShareVOById(paramShareId)
-      if (share) {
-        currentShare.value = share
+      const localShare = FileShareService.getShareVOById(paramShareId)
+      if (localShare) {
+        currentShare.value = localShare
+        shareId.value = localShare.id
+        const code = localShare.shareCode || new URL(localShare.shareUrl || '/', window.location.origin).searchParams.get('shareCode') || ''
+        shareCode.value = code
+        accessPassword.value = getRememberedSharePassword(code) || localShare.password || ''
         return
       }
     }
 
-    const defaultShare = allShares.value[0]
-    if (defaultShare) {
-      shareId.value = defaultShare.id
-      currentShare.value = FileShareService.getShareVOById(defaultShare.id) || null
+    const fallback = allShares.value[0]
+    if (fallback) {
+      currentShare.value = FileShareService.getShareVOById(fallback.id) || null
+      shareId.value = fallback.id
     }
   } catch (error) {
-    if (paramShareId) {
-      const fallbackShare = FileShareService.getShareVOById(paramShareId)
-      if (fallbackShare) {
-        currentShare.value = fallbackShare
-        return
-      }
-    }
     toast.error(getApiErrorMessage(error, '分享信息加载失败'))
   } finally {
     isLoadingShare.value = false
   }
 })
 
+const remoteShare = computed(() => currentShare.value as FileTransferShareVO | null)
+const fileList = computed(() => remoteShare.value?.files || [])
+
 const isExpired = computed(() => {
-  if (!currentShare.value) return false
+  if (!currentShare.value?.expiresAt) return false
   return new Date(currentShare.value.expiresAt) < new Date()
 })
 
-const expiresInDays = computed(() => {
-  if (!currentShare.value) return 0
-  const now = new Date()
-  const expires = new Date(currentShare.value.expiresAt)
-  const diffTime = expires.getTime() - now.getTime()
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  return Math.max(0, diffDays)
+const expiresText = computed(() => {
+  if (!currentShare.value?.expiresAt) return '-'
+  if (isExpired.value) return '已过期'
+  const expiresAt = new Date(currentShare.value.expiresAt)
+  if (Number.isNaN(expiresAt.getTime())) return '-'
+  const seconds = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (hours >= 24) return `${Math.ceil(hours / 24)} 天`
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 })
 
-const remoteShare = computed(() => currentShare.value as FileTransferShareVO | null)
+const receiverNeedsPassword = computed(() => {
+  return Boolean(isReceiverMode.value && currentShare.value && !receiverVerified.value)
+})
 
-const needsPassword = computed(() => {
-  const share = remoteShare.value
-  return Boolean(shareCode.value && share?.hasPassword && !share.passwordVerified)
+const shareLink = computed(() => {
+  if (!currentShare.value) return ''
+  if (/^https?:\/\//i.test(currentShare.value.shareUrl)) return currentShare.value.shareUrl
+  return new URL(currentShare.value.shareUrl.replace(/\.html(?=\?|$)/, ''), window.location.origin).toString()
 })
 
 const formatFileSize = (mb: number) => {
-  if (mb >= 1024) {
-    return (mb / 1024).toFixed(2) + ' GB'
-  }
-  return mb.toFixed(2) + ' MB'
+  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`
+  return `${mb.toFixed(2)} MB`
 }
 
 const formatDate = (dateString: string) => {
@@ -106,7 +126,7 @@ const formatDate = (dateString: string) => {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   })
 }
 
@@ -123,6 +143,7 @@ const handleVerifyPassword = async () => {
     const share = await FileTransferApi.verifySharePassword(shareCode.value, password)
     currentShare.value = share
     accessPassword.value = password
+    receiverVerified.value = true
     toast.success('密码验证通过')
   } catch (error) {
     toast.error(getApiErrorMessage(error, '访问密码不正确'))
@@ -142,380 +163,669 @@ const handleDownloadFile = (fileId: string) => {
   window.open(getFileDownloadUrl(fileId), '_blank')
 }
 
-const handleCopyLink = async () => {
-  if (!currentShare.value) return
+const handleDownloadAll = () => {
+  const files = fileList.value
+  if (!files.length) {
+    toast.info('暂无可下载文件')
+    return
+  }
+  files.forEach((file) => handleDownloadFile(file.id))
+}
+
+const copyText = async (text: string, successText: string) => {
+  if (!text) {
+    toast.error('内容为空，无法复制')
+    return
+  }
   try {
-    await navigator.clipboard.writeText(currentShare.value.shareUrl)
-    toast.success('链接已复制')
+    await navigator.clipboard.writeText(text)
+    toast.success(successText)
   } catch {
-    toast.error('复制失败，请重试')
+    toast.error('复制失败，请手动复制')
   }
 }
 
-const handleCopyPassword = async () => {
-  if (!currentShare.value) return
+const handleCopyLink = () => {
+  copyText(shareLink.value, '链接已复制')
+}
+
+const handleCopyPassword = () => {
+  copyText(currentShare.value?.password || accessPassword.value, '访问密码已复制')
+}
+
+const loadQrcode = async () => {
+  if (!shareCode.value || qrcodeImage.value) return
   try {
-    await navigator.clipboard.writeText(currentShare.value.password)
-    toast.success('密码已复制')
-  } catch {
-    toast.error('复制失败，请重试')
+    isQrcodeLoading.value = true
+    const result = await FileTransferApi.getShareQrcode(shareCode.value, shareLink.value)
+    qrcodeImage.value = result.qrcode
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '二维码生成失败'))
+  } finally {
+    isQrcodeLoading.value = false
   }
-}
-
-const handleCopyQRCode = async () => {
-  if (!currentShare.value) return
-  try {
-    await navigator.clipboard.writeText(`二维码: ${currentShare.value.shareUrl}`)
-    toast.success('二维码已复制')
-  } catch {
-    toast.error('复制失败，请重试')
-  }
-}
-
-const handleRegenerateQRCode = () => {
-  toast.info('二维码重新生成接口暂未开放')
-}
-
-const handleExtendExpiry = () => {
-  toast.info('延长有效期接口暂未开放')
-}
-
-const handleViewDownloadRecords = () => {
-  navigateTo('/delivery-records')
-}
-
-const handleContinueSending = () => {
-  navigateTo('/quick-send')
-}
-
-const handleBack = () => {
-  navigateTo('/workbench')
 }
 </script>
 
 <template>
-  <div class="page-body">
-    <div class="page-container">
-      <!-- Header with Back Button -->
-      <DetailPageHeader
-        title="分享链接已生成"
-        :breadcrumbs="[
-          { label: '工作台', href: '/workbench' },
-          { label: '分享结果' }
-        ]"
-      />
-
-      <div v-if="currentShare" class="space-y-8">
-        <!-- Success Status Card -->
-        <Card class="border-l-4 border-l-[hsl(var(--success))] bg-[hsl(var(--success)_/_0.02)]">
-          <CardHeader class="pb-3">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-[hsl(var(--success))] flex items-center justify-center">
-                  <SafeIcon name="CheckCircle2" :size="20" color="white" />
-                </div>
-                <div>
-                  <CardTitle class="text-lg">分享链接已生成</CardTitle>
-                  <CardDescription>您可以将链接分享给他人，他们可以通过链接访问您的文件</CardDescription>
-                </div>
-              </div>
-              <Badge variant="outline" class="bg-[hsl(var(--success)_/_0.1)] text-[hsl(var(--success))] border-[hsl(var(--success)_/_0.3)]">
-                {{ isExpired ? '已过期' : '有效' }}
-              </Badge>
-            </div>
-          </CardHeader>
-        </Card>
-
-        <Card v-if="needsPassword">
-          <CardHeader>
-            <CardTitle class="text-base">需要访问密码</CardTitle>
-            <CardDescription>请输入分享者提供的访问密码后查看文件。</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form class="flex flex-col gap-2 sm:flex-row" @submit.prevent="handleVerifyPassword">
+  <div class="share-page">
+    <div v-if="currentShare" class="share-shell">
+      <template v-if="isReceiverMode">
+        <main class="receiver-main">
+          <section v-if="receiverNeedsPassword" class="password-panel">
+            <SafeIcon name="LockKeyhole" :size="42" />
+            <h1>需要密码才能访问</h1>
+            <form class="password-form" @submit.prevent="handleVerifyPassword">
               <Input
                 v-model="accessPassword"
                 type="password"
-                placeholder="请输入访问密码"
                 autocomplete="current-password"
+                placeholder="请输入分享者提供的访问密码"
               />
               <Button type="submit" :disabled="isVerifyingPassword">
-                {{ isVerifyingPassword ? '验证中...' : '验证' }}
+                <SafeIcon v-if="isVerifyingPassword" name="Loader2" :size="16" class="animate-spin" />
+                打开
               </Button>
             </form>
-          </CardContent>
-        </Card>
+          </section>
 
-        <!-- Main Content Grid -->
-        <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Left Column: Link & Settings -->
-          <div class="lg:col-span-2 space-y-6">
-            <!-- Share Link Section -->
-            <Card>
-              <CardHeader>
-                <CardTitle class="text-base">分享链接</CardTitle>
-              </CardHeader>
-              <CardContent class="space-y-4">
-                <div class="space-y-2">
-                  <label class="text-sm font-medium text-foreground">链接地址</label>
-                  <div class="flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      :value="currentShare.shareUrl"
-                      readonly
-                      class="bg-muted/50 text-sm font-mono"
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      class="shrink-0 max-sm:w-full"
-                      @click="handleCopyLink"
-                    >
-                      <SafeIcon name="Copy" :size="18" />
-                    </Button>
-                  </div>
+          <section v-else class="receiver-file-panel">
+            <div class="receiver-summary">
+              <div class="receiver-avatar">
+                <SafeIcon name="UserRound" :size="34" />
+              </div>
+              <div>
+                <h1>分享的文件</h1>
+                <p>共 {{ currentShare.fileCount }} 个文件，总大小：{{ formatFileSize(currentShare.totalSizeMb) }}</p>
+              </div>
+              <Badge :class="isExpired ? 'expired-badge' : 'active-badge'">
+                {{ isExpired ? '已过期' : `过期时间 ${expiresText}` }}
+              </Badge>
+            </div>
+            <div class="receiver-actions">
+              <Button :disabled="isExpired || fileList.length === 0" @click="handleDownloadAll">
+                <SafeIcon name="Download" :size="17" />
+                下载
+              </Button>
+              <Button variant="outline" disabled>
+                <SafeIcon name="Archive" :size="17" />
+                转存
+              </Button>
+            </div>
+            <div class="receiver-files">
+              <div v-for="file in fileList" :key="file.id" class="receiver-file-row">
+                <SafeIcon name="FileText" :size="22" />
+                <div>
+                  <strong>{{ file.fileName }}</strong>
+                  <span>{{ formatFileSize(file.fileSizeMb) }}</span>
                 </div>
+                <Button variant="ghost" size="sm" :disabled="isExpired" @click="handleDownloadFile(file.id)">
+                  下载
+                </Button>
+              </div>
+              <div v-if="fileList.length === 0" class="empty-file-box">
+                <SafeIcon name="FileQuestion" :size="34" />
+                <span>暂无可下载文件</span>
+              </div>
+            </div>
+          </section>
+        </main>
 
-                <Separator />
+        <aside class="receiver-side">
+          <div class="receiver-ad-card">
+            <strong>织序传输</strong>
+            <span>安全、可追踪的文件交付</span>
+          </div>
+          <div class="receiver-ad-card muted">
+            <strong>24 小时有效</strong>
+            <span>未登录分享到期自动清理</span>
+          </div>
+        </aside>
+      </template>
 
-                <div class="space-y-2">
-                  <label class="text-sm font-medium text-foreground">访问密码</label>
-                  <form class="flex flex-col gap-2 sm:flex-row" @submit.prevent>
-                    <Input
-                      :value="currentShare.password"
-                      readonly
-                      type="password"
-                      autocomplete="off"
-                      class="bg-muted/50 text-sm font-mono"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      class="shrink-0 max-sm:w-full"
-                      @click="handleCopyPassword"
-                    >
-                      <SafeIcon name="Copy" :size="18" />
-                    </Button>
-                  </form>
-                </div>
-              </CardContent>
-            </Card>
+      <template v-else>
+        <section class="owner-layout">
+          <aside class="owner-sidebar">
+            <button class="owner-nav active">
+              <SafeIcon name="Send" :size="17" />
+              我发送的
+            </button>
+            <button class="owner-nav" disabled>
+              <SafeIcon name="Inbox" :size="17" />
+              发给我的
+            </button>
+            <button class="owner-nav" disabled>
+              <SafeIcon name="FolderCheck" :size="17" />
+              我收集的
+            </button>
+          </aside>
 
-          <!-- Access Settings Summary -->
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">访问设置</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div class="grid grid-cols-2 gap-4">
-                <div class="space-y-1">
-                  <p class="text-xs text-muted-foreground">有效期</p>
-                  <p class="text-sm font-medium">
-                    {{ isExpired ? '已过期' : `${expiresInDays} 天` }}
-                  </p>
+          <main class="owner-main">
+            <header class="owner-header">
+              <div class="owner-title">
+                <div class="owner-avatar">
+                  <SafeIcon name="UserRound" :size="34" />
                 </div>
-                <div class="space-y-1">
-                  <p class="text-xs text-muted-foreground">最大下载次数</p>
-                  <p class="text-sm font-medium">{{ currentShare.maxDownloads }} 次</p>
-                </div>
-                <div class="space-y-1">
-                  <p class="text-xs text-muted-foreground">已下载次数</p>
-                  <p class="text-sm font-medium">{{ currentShare.downloadCount }} 次</p>
-                </div>
-                <div class="space-y-1">
-                  <p class="text-xs text-muted-foreground">在线预览</p>
-                  <p class="text-sm font-medium">{{ currentShare.allowPreview ? '允许' : '禁止' }}</p>
+                <div>
+                  <h1>发文件</h1>
+                  <p>共 {{ currentShare.fileCount }} 个文件，总大小：{{ formatFileSize(currentShare.totalSizeMb) }}</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+              <div class="owner-header-actions">
+                <span>
+                  <SafeIcon name="Clock3" :size="16" />
+                  过期时间：<strong>{{ expiresText }}</strong>
+                </span>
+                <Button :disabled="fileList.length === 0" @click="handleDownloadAll">
+                  <SafeIcon name="Download" :size="16" />
+                  下载
+                </Button>
+                <Button variant="outline" @click="handleContinueSending">
+                  发送新文件
+                </Button>
+              </div>
+            </header>
 
-          <!-- File Summary -->
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">文件信息</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm text-muted-foreground">文件数量</span>
-                  <span class="text-sm font-medium">{{ currentShare.fileCount }} 个</span>
+            <section class="owner-content">
+              <div class="owner-toolbar">
+                <div>
+                  <SafeIcon name="FolderOpen" :size="18" />
+                  全部文件
                 </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm text-muted-foreground">总大小</span>
-                  <span class="text-sm font-medium">{{ formatFileSize(currentShare.totalSizeMb) }}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm text-muted-foreground">生成时间</span>
-                  <span class="text-sm font-medium">{{ formatDate(currentShare.expiresAt) }}</span>
+                <div class="owner-view-icons">
+                  <SafeIcon name="List" :size="18" />
+                  <SafeIcon name="Grid2X2" :size="18" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card v-if="remoteShare?.files?.length">
-            <CardHeader>
-              <CardTitle class="text-base">文件清单</CardTitle>
-              <CardDescription class="text-xs">点击下载可保存单个文件</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div class="divide-y divide-border">
-                <div
-                  v-for="file in remoteShare.files"
-                  :key="file.id"
-                  class="flex items-center justify-between gap-3 py-3"
-                >
-                  <div class="min-w-0">
-                    <p class="truncate text-sm font-medium">{{ file.fileName }}</p>
-                    <p class="text-xs text-muted-foreground">{{ formatFileSize(file.fileSizeMb) }}</p>
+              <div class="owner-file-grid">
+                <article v-for="file in fileList" :key="file.id" class="owner-file-card">
+                  <div class="owner-file-icon">
+                    <SafeIcon name="FileText" :size="52" />
                   </div>
-                  <Button variant="outline" size="sm" @click="handleDownloadFile(file.id)">
-                    <SafeIcon name="Download" :size="15" class="mr-1" />
+                  <strong>{{ file.fileName }}</strong>
+                  <span>{{ formatFileSize(file.fileSizeMb) }}</span>
+                  <Button variant="ghost" size="sm" @click="handleDownloadFile(file.id)">
                     下载
                   </Button>
+                </article>
+                <div v-if="fileList.length === 0" class="empty-file-box">
+                  <SafeIcon name="FileQuestion" :size="34" />
+                  <span>暂无可查看的文件</span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </section>
+          </main>
 
-        <!-- Right Column: QR Code & Actions -->
-        <div class="space-y-6">
-          <!-- QR Code Card -->
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">二维码</CardTitle>
-              <CardDescription class="text-xs">扫描二维码快速分享</CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-4">
-              <div class="w-full aspect-square bg-muted/30 rounded-lg flex items-center justify-center border border-border">
-                <div class="text-center">
-                  <SafeIcon name="QrCode" :size="48" class="text-muted-foreground/40 mx-auto mb-2" />
-                  <p class="text-xs text-muted-foreground">二维码</p>
-                </div>
+          <aside class="owner-manage">
+            <header>
+              <h2>管理</h2>
+              <Button variant="ghost" size="icon" @click="navigateTo('/delivery-records')">
+                <SafeIcon name="X" :size="18" />
+              </Button>
+            </header>
+            <div class="manage-section">
+              <div class="manage-row">
+                <span>访问密码</span>
+                <Switch :checked="Boolean(currentShare.password || accessPassword)" disabled />
               </div>
-              <div class="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="flex-1"
-                  @click="handleCopyQRCode"
-                >
-                  <SafeIcon name="Copy" :size="16" class="mr-1" />
+              <Input :model-value="currentShare.password || accessPassword || '未设置访问密码'" readonly />
+              <Button variant="outline" @click="handleCopyPassword">
+                <SafeIcon name="Copy" :size="15" />
+                复制密码
+              </Button>
+            </div>
+            <div class="manage-section">
+              <span>生成公共链接</span>
+              <button class="manage-link" type="button" @click="handleCopyLink">{{ shareLink }}</button>
+              <div class="manage-inline-actions">
+                <Button variant="ghost" size="sm" @click="handleCopyLink">
+                  <SafeIcon name="Copy" :size="15" />
                   复制
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="flex-1"
-                  @click="handleRegenerateQRCode"
-                >
-                  <SafeIcon name="RotateCw" :size="16" class="mr-1" />
-                  重新生成
+                <Button variant="ghost" size="sm" @click="loadQrcode">
+                  <SafeIcon name="QrCode" :size="15" />
+                  二维码
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-
-          <!-- Quick Actions -->
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">快速操作</CardTitle>
-            </CardHeader>
-            <CardContent class="space-y-2">
-              <Button
-                variant="outline"
-                class="w-full justify-start"
-                @click="handleViewDownloadRecords"
-              >
-                <SafeIcon name="Download" :size="16" class="mr-2" />
-                查看下载记录
-              </Button>
-              <Button
-                variant="outline"
-                class="w-full justify-start"
-                @click="handleContinueSending"
-              >
-                <SafeIcon name="Plus" :size="16" class="mr-2" />
-                继续发送文件
-              </Button>
-              <Button
-                v-if="isExpired"
-                variant="outline"
-                class="w-full justify-start"
-                @click="handleExtendExpiry"
-              >
-                <SafeIcon name="Clock" :size="16" class="mr-2" />
-                延长有效期
-              </Button>
-            </CardContent>
-          </Card>
-
-          <!-- Recent Access Log -->
-          <Card v-if="currentShare.recentLogs.length > 0">
-            <CardHeader>
-              <CardTitle class="text-base">最近访问</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div class="space-y-3">
-                <div
-                  v-for="log in currentShare.recentLogs"
-                  :key="log.id"
-                  class="flex items-start justify-between text-sm pb-2 border-b border-border last:border-0 last:pb-0"
-                >
-                  <div class="min-w-0">
-                    <p class="font-medium text-foreground truncate">{{ log.visitorName }}</p>
-                    <p class="text-xs text-muted-foreground">{{ log.ipLabel }}</p>
-                  </div>
-                  <span class="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                    {{ formatDate(log.occurredAt) }}
-                  </span>
-                </div>
+              <div v-if="isQrcodeLoading || qrcodeImage" class="owner-qrcode-box">
+                <SafeIcon v-if="isQrcodeLoading" name="Loader2" :size="28" class="animate-spin" />
+                <img v-else :src="qrcodeImage" alt="分享二维码" />
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+            <div class="manage-section">
+              <span>统计</span>
+              <p>浏览人次：{{ currentShare.downloadCount }}</p>
+              <p>生成时间：{{ formatDate(remoteShare?.createdAt || '') }}</p>
+            </div>
+          </aside>
+        </section>
+      </template>
+    </div>
 
-        <!-- Bottom Action Bar -->
-        <div class="flex flex-col-reverse gap-3 justify-end pt-4 border-t border-border sm:flex-row">
-          <Button
-            variant="outline"
-            @click="handleBack"
-          >
-            返回工作台
-          </Button>
-          <Button
-            @click="handleContinueSending"
-          >
-            <SafeIcon name="Plus" :size="16" class="mr-2" />
-            继续发送文件
-          </Button>
-        </div>
-      </div>
-
-      <!-- Loading State -->
-      <div v-else class="flex items-center justify-center py-16">
-        <div class="text-center">
-          <SafeIcon
-            :name="isLoadingShare ? 'Loader2' : 'Link2Off'"
-            :size="48"
-            :class="isLoadingShare ? 'text-muted-foreground/40 mx-auto mb-4 animate-spin' : 'text-muted-foreground/40 mx-auto mb-4'"
-          />
-          <p class="text-muted-foreground">{{ isLoadingShare ? '加载中...' : '没有找到分享链接' }}</p>
-        </div>
-      </div>
+    <div v-else class="share-loading">
+      <SafeIcon :name="isLoadingShare ? 'Loader2' : 'Link2Off'" :size="42" :class="isLoadingShare && 'animate-spin'" />
+      <p>{{ isLoadingShare ? '加载中...' : '没有找到分享链接' }}</p>
+      <Button v-if="!isLoadingShare" variant="outline" @click="navigateTo('/quick-send')">返回发文件</Button>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* 确保卡片在悬停时有微妙的交互反馈 */
-:deep(.surface-raised) {
-  @apply transition-all duration-200;
+.share-page {
+  min-height: calc(100vh - var(--header-height));
+  background: hsl(var(--background));
 }
 
-:deep(.surface-raised):hover {
-  @apply shadow-md;
+.share-shell {
+  width: min(100%, var(--app-shell-width));
+  min-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+.receiver-main,
+.owner-main,
+.owner-manage,
+.owner-sidebar,
+.receiver-side {
+  min-width: 0;
+}
+
+.receiver-main {
+  width: calc(100% - 420px);
+  min-height: calc(100vh - var(--header-height) - 48px);
+  float: left;
+}
+
+.receiver-side {
+  float: right;
+  display: flex;
+  width: 392px;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.password-panel,
+.receiver-file-panel,
+.owner-content,
+.owner-header,
+.owner-manage,
+.receiver-ad-card {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-soft);
+}
+
+.password-panel {
+  display: flex;
+  min-height: 620px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.password-panel svg {
+  color: hsl(var(--primary));
+}
+
+.password-panel h1 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.password-form {
+  display: flex;
+  width: min(100%, 420px);
+  flex-direction: column;
+  gap: 18px;
+}
+
+.receiver-file-panel {
+  min-height: 620px;
+  overflow: hidden;
+}
+
+.receiver-summary,
+.owner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px 32px;
+}
+
+.receiver-avatar,
+.owner-avatar {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
+.receiver-summary h1,
+.owner-title h1 {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.receiver-summary p,
+.owner-title p {
+  margin-top: 6px;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+}
+
+.active-badge {
+  border-color: hsl(var(--success) / 0.3);
+  background: hsl(var(--success) / 0.1);
+  color: hsl(var(--success));
+}
+
+.expired-badge {
+  border-color: hsl(var(--destructive) / 0.3);
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+}
+
+.receiver-actions {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  border-top: 1px solid hsl(var(--border));
+  padding: 24px;
+}
+
+.receiver-actions > * {
+  min-width: 150px;
+}
+
+.receiver-files {
+  border-top: 1px solid hsl(var(--border));
+}
+
+.receiver-file-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 18px 32px;
+}
+
+.receiver-file-row strong,
+.owner-file-card strong {
+  overflow: hidden;
+  color: hsl(var(--foreground));
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.receiver-file-row span,
+.owner-file-card span {
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+
+.receiver-file-row div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.receiver-ad-card {
+  display: flex;
+  min-height: 180px;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(210 34% 18%) 55%, hsl(var(--primary)) 160%);
+  color: white;
+  padding: 24px;
+}
+
+.receiver-ad-card.muted {
+  background: linear-gradient(135deg, hsl(215 25% 22%) 0%, hsl(180 35% 28%) 120%);
+}
+
+.receiver-ad-card strong {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.receiver-ad-card span {
+  color: rgb(255 255 255 / 0.76);
+}
+
+.owner-layout {
+  display: grid;
+  grid-template-columns: 232px minmax(640px, 1fr) 320px;
+  gap: 0;
+  min-height: calc(100vh - var(--header-height) - 48px);
+}
+
+.owner-sidebar {
+  border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  padding: 18px 0;
+}
+
+.owner-nav {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.owner-nav.active {
+  border-left: 3px solid hsl(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+}
+
+.owner-header {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.owner-title,
+.owner-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.owner-header-actions span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+}
+
+.owner-header-actions strong {
+  color: hsl(var(--warning));
+}
+
+.owner-content {
+  min-height: 580px;
+  border-top: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.owner-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 18px 28px;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+}
+
+.owner-toolbar > div,
+.owner-view-icons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.owner-file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 18px;
+  padding: 42px;
+}
+
+.owner-file-card {
+  display: grid;
+  min-height: 230px;
+  grid-template-rows: 1fr auto auto auto;
+  gap: 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.22);
+  padding: 18px;
+}
+
+.owner-file-icon {
+  display: grid;
+  min-height: 100px;
+  place-items: center;
+  color: hsl(var(--muted-foreground));
+}
+
+.owner-manage {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.owner-manage header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 16px 18px;
+}
+
+.owner-manage h2 {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.manage-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 18px;
+}
+
+.manage-section > span,
+.manage-row span {
+  color: hsl(var(--foreground));
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.manage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.manage-link {
+  overflow: hidden;
+  color: hsl(var(--primary));
+  font-size: 13px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manage-inline-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.owner-qrcode-box {
+  display: grid;
+  width: 132px;
+  height: 132px;
+  place-items: center;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: white;
+}
+
+.owner-qrcode-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 8px;
+}
+
+.manage-section p {
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+
+.empty-file-box,
+.share-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+}
+
+.empty-file-box {
+  min-height: 220px;
+  grid-column: 1 / -1;
+}
+
+.share-loading {
+  min-height: calc(100vh - var(--header-height));
+}
+
+@media (max-width: 1200px) {
+  .share-shell {
+    min-width: 0;
+  }
+
+  .receiver-main,
+  .receiver-side {
+    float: none;
+    width: 100%;
+  }
+
+  .receiver-side {
+    margin-top: 24px;
+  }
+
+  .owner-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-sidebar {
+    display: none;
+  }
 }
 </style>

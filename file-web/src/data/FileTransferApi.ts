@@ -1,9 +1,9 @@
 import type { CollectionTaskData, TaskFieldConfigData, TaskMaterialItemData, TaskRuleConfigData } from './CollectionTaskData'
 import type { DeliveryRecordData } from './DeliveryRecordData'
-import type { FileShareData } from './FileShareData'
+import type { FileShareData, ShareAccessLogData } from './FileShareData'
 import type { FileShareVO } from './FileShareService'
 import type { TaskData } from './TaskData'
-import { apiRequest, apiUpload, buildApiUrl } from '@/lib/apiClient'
+import { apiDownload, apiRequest, apiUpload, authStore, buildApiUrl } from '@/lib/apiClient'
 
 export interface UploadedFileResult {
   id: string
@@ -11,6 +11,7 @@ export interface UploadedFileResult {
   fileSizeMb: number
   sizeBytes: number
   status: string
+  transferToken?: string
   previewUrl?: string
   downloadUrl?: string
 }
@@ -18,6 +19,7 @@ export interface UploadedFileResult {
 export interface CreateSharePayload {
   title: string
   fileIds: Array<string | number>
+  transferToken?: string
   password: string
   expiresAt: string
   maxDownloads: number
@@ -59,7 +61,20 @@ export interface FileTransferListResult<T> {
   limit: number
 }
 
+export interface CollectionTaskQrcodeVO {
+  taskId: string
+  url: string
+  qrcode: string
+}
+
+export interface FileShareQrcodeVO {
+  shareCode: string
+  url: string
+  qrcode: string
+}
+
 const isBlank = (value: unknown) => value === undefined || value === null || value === ''
+const ANONYMOUS_TRANSFER_TOKEN_KEY = 'file_web_anonymous_transfer_token'
 
 const pick = <T = any>(source: any, keys: string[], fallback?: T): T => {
   for (const key of keys) {
@@ -93,8 +108,9 @@ const toIsoLike = (value: unknown) => {
   return Number.isNaN(date.getTime()) ? raw : date.toISOString()
 }
 
-export const makeShareExpiresAt = (expiresIn: '7d' | '30d' | '90d') => {
+export const makeShareExpiresAt = (expiresIn: '24h' | '7d' | '30d' | '90d') => {
   const dayMap = {
+    '24h': 1,
     '7d': 7,
     '30d': 30,
     '90d': 90,
@@ -110,6 +126,23 @@ export const rememberSharePassword = (shareCode: string, password: string) => {
 export const getRememberedSharePassword = (shareCode: string) => {
   if (typeof sessionStorage === 'undefined' || !shareCode) return ''
   return sessionStorage.getItem(`file-share-password:${shareCode}`) || ''
+}
+
+export const getAnonymousTransferToken = () => {
+  if (typeof localStorage === 'undefined') return ''
+  const existing = localStorage.getItem(ANONYMOUS_TRANSFER_TOKEN_KEY)
+  if (existing) return existing
+  const bytes = new Uint8Array(16)
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes)
+  } else {
+    for (let index = 0; index < bytes.length; index++) {
+      bytes[index] = Math.floor(Math.random() * 256)
+    }
+  }
+  const token = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  localStorage.setItem(ANONYMOUS_TRANSFER_TOKEN_KEY, token)
+  return token
 }
 
 export const toAbsoluteShareUrl = (shareUrl: string, shareCode = '') => {
@@ -129,15 +162,28 @@ export const normalizeUploadedFile = (raw: any): UploadedFileResult => {
     fileSizeMb: Number(sizeMb.toFixed(2)),
     sizeBytes,
     status: toStringValue(pick(raw, ['status'], 'uploaded')),
+    transferToken: toStringValue(pick(raw, ['transferToken', 'transfer_token', 'ssoSubject', 'sso_subject'])),
     previewUrl: toStringValue(pick(raw, ['previewUrl', 'preview_url'])),
     downloadUrl: toStringValue(pick(raw, ['downloadUrl', 'download_url'])),
   }
 }
 
+export const normalizeShareAccessLog = (raw: any): ShareAccessLogData => ({
+  id: toStringValue(pick(raw, ['id'])),
+  shareId: toStringValue(pick(raw, ['shareId', 'share_id'])),
+  visitorName: toStringValue(pick(raw, ['visitorName', 'visitor_name'], '访客')),
+  action: toStringValue(pick(raw, ['action'], 'view')) as ShareAccessLogData['action'],
+  occurredAt: toIsoLike(pick(raw, ['occurredAt', 'occurred_at'])),
+  ipLabel: toStringValue(pick(raw, ['ipLabel', 'ip_label'])),
+})
+
 export const normalizeShareVO = (raw: any, password = ''): FileTransferShareVO => {
   const shareCode = toStringValue(pick(raw, ['shareCode', 'share_code']))
   const id = toStringValue(pick(raw, ['id', 'shareId', 'share_id'], shareCode || `share-${Date.now()}`))
   const files = Array.isArray(raw?.files) ? raw.files.map(normalizeUploadedFile) : []
+  const recentLogs = Array.isArray(pick(raw, ['recentLogs', 'recent_logs'], []))
+    ? pick<any[]>(raw, ['recentLogs', 'recent_logs'], []).map(normalizeShareAccessLog)
+    : []
   return {
     id,
     shareCode,
@@ -152,7 +198,7 @@ export const normalizeShareVO = (raw: any, password = ''): FileTransferShareVO =
     fileCount: toNumber(pick(raw, ['fileCount', 'file_count'], Array.isArray(raw?.files) ? raw.files.length : 0)),
     totalSizeMb: toNumber(pick(raw, ['totalSizeMb', 'total_size_mb'], toNumber(pick(raw, ['totalSizeBytes', 'total_size_bytes'], 0)) / 1024 / 1024)),
     downloadCount: toNumber(pick(raw, ['downloadCount', 'download_count'], 0)),
-    recentLogs: [],
+    recentLogs,
     hasPassword: toBoolean(pick(raw, ['hasPassword', 'has_password'], Boolean(password)), Boolean(password)),
     passwordVerified: toBoolean(pick(raw, ['passwordVerified', 'password_verified'], true), true),
     files,
@@ -164,6 +210,7 @@ export const normalizeShareData = (raw: any, password = ''): FileShareData => {
   const vo = normalizeShareVO(raw, password)
   return {
     id: vo.id,
+    shareCode: vo.shareCode,
     taskId: toStringValue(pick(raw, ['taskId', 'task_id'])),
     title: vo.title,
     shareUrl: vo.shareUrl,
@@ -305,7 +352,8 @@ export const shareToTaskData = (share: FileTransferShareVO | FileShareData): Tas
   const expiresTime = share.expiresAt ? new Date(share.expiresAt).getTime() : 0
   const hoursUntilDue = expiresTime ? (expiresTime - Date.now()) / 36e5 : Number.POSITIVE_INFINITY
   const status = share.status === 'expired' || (expiresTime > 0 && expiresTime < Date.now()) ? 'expired' : 'approved'
-  const id = 'shareCode' in share && share.shareCode ? share.shareCode : share.id
+  const shareCode = 'shareCode' in share ? share.shareCode || '' : ''
+  const id = share.id
 
   return {
     id,
@@ -323,11 +371,14 @@ export const shareToTaskData = (share: FileTransferShareVO | FileShareData): Tas
     ownerId: '',
     overdueLevel: hoursUntilDue < 0 ? 'critical' : hoursUntilDue < 24 ? 'warning' : 'normal',
     isArchived: false,
+    shareId: share.id,
+    shareCode,
+    shareUrl: share.shareUrl,
   }
 }
 
 export const shareToDeliveryRecord = (share: FileTransferShareVO | FileShareData): DeliveryRecordData => ({
-  id: 'shareCode' in share && share.shareCode ? share.shareCode : share.id,
+  id: share.id,
   name: share.title,
   type: 'sent',
   status: share.status === 'expired' ? 'expired' : normalizeShareRecordStatus(share.status),
@@ -337,6 +388,9 @@ export const shareToDeliveryRecord = (share: FileTransferShareVO | FileShareData
   expiresAt: share.expiresAt,
   lastActorName: '我',
   isArchived: false,
+  shareId: share.id,
+  shareCode: 'shareCode' in share ? share.shareCode || '' : '',
+  shareUrl: share.shareUrl,
 })
 
 export const collectionTaskToDeliveryRecord = (detail: CollectionTaskDetailVO): DeliveryRecordData => {
@@ -358,11 +412,17 @@ export const collectionTaskToDeliveryRecord = (detail: CollectionTaskDetailVO): 
 export class FileTransferApi {
   static async uploadFiles(files: File[]): Promise<UploadedFileResult[]> {
     const form = new FormData()
+    form.append('transferToken', getAnonymousTransferToken())
     files.forEach((file) => {
       form.append('files[]', file, file.name)
       form.append('original_names[]', file.name)
     })
-    const data = await apiUpload<{ items?: any[]; file_ids?: Array<string | number> }>('file/files/upload', form)
+    const data = await apiUpload<{ items?: any[]; file_ids?: Array<string | number> }>(
+      'file/files/upload',
+      form,
+      undefined,
+      { optionalAuth: true }
+    )
     return (data.items || []).map(normalizeUploadedFile)
   }
 
@@ -372,6 +432,7 @@ export class FileTransferApi {
       body: {
         title: payload.title,
         fileIds: payload.fileIds,
+        transferToken: payload.transferToken || getAnonymousTransferToken(),
         password: payload.password,
         expiresAt: payload.expiresAt,
         maxDownloads: payload.maxDownloads,
@@ -385,7 +446,11 @@ export class FileTransferApi {
   }
 
   static async getOwnerShare(shareCode: string): Promise<FileTransferShareVO> {
-    const data = await apiRequest<any>('file/shares/detail', { params: { code: shareCode } })
+    const isLoggedIn = authStore.hasToken()
+    const data = await apiRequest<any>('file/shares/detail', {
+      params: isLoggedIn ? { code: shareCode } : { code: shareCode, transferToken: getAnonymousTransferToken() },
+      auth: isLoggedIn,
+    })
     return normalizeShareVO(data, getRememberedSharePassword(shareCode))
   }
 
@@ -398,17 +463,33 @@ export class FileTransferApi {
   }
 
   static async verifySharePassword(shareCode: string, password: string): Promise<FileTransferShareVO> {
-    const data = await apiRequest<any>('file/shares/verify_password', {
-      method: 'POST',
-      body: { code: shareCode, password },
+    const data = await apiRequest<any>('file/shares/public', {
+      params: { code: shareCode, password },
       auth: false,
     })
     rememberSharePassword(shareCode, password)
     return normalizeShareVO(data, password)
   }
 
+  static async getShareQrcode(shareCode: string, url: string): Promise<FileShareQrcodeVO> {
+    const data = await apiRequest<any>('file/shares/qrcode', {
+      method: 'POST',
+      body: { code: shareCode, url },
+      auth: false,
+    })
+    return {
+      shareCode: toStringValue(pick(data, ['shareCode', 'share_code'], shareCode)),
+      url: toStringValue(pick(data, ['url'], url)),
+      qrcode: toStringValue(pick(data, ['qrcode', 'qrCode', 'qr_code'])),
+    }
+  }
+
   static async listShares(params: { keyword?: string; status?: string; page?: number; limit?: number } = {}) {
-    const data = await apiRequest<any>('file/shares', { params })
+    const isLoggedIn = authStore.hasToken()
+    const data = await apiRequest<any>('file/shares', {
+      params: isLoggedIn ? params : { ...params, transferToken: getAnonymousTransferToken() },
+      auth: isLoggedIn,
+    })
     return normalizeListResult(data, (item) => normalizeShareVO(item, getRememberedSharePassword(toStringValue(pick(item, ['shareCode', 'share_code'])))))
   }
 
@@ -418,6 +499,10 @@ export class FileTransferApi {
 
   static getOwnerDownloadUrl(fileId: string | number) {
     return buildApiUrl('file/files/download', { file_id: fileId })
+  }
+
+  static async downloadOwnerFile(fileId: string | number, filename?: string) {
+    return apiDownload('file/files/download', { params: { file_id: fileId }, filename })
   }
 
   static async createCollectionTask(payload: CreateCollectionTaskPayload): Promise<CollectionTaskDetailVO> {
@@ -458,6 +543,37 @@ export class FileTransferApi {
   static async getCollectionTask(taskId: string | number): Promise<CollectionTaskDetailVO> {
     const data = await apiRequest<any>('file/collection/tasks/detail', { params: { id: taskId } })
     return normalizeCollectionTaskDetail(data)
+  }
+
+  static async archiveCollectionTask(taskId: string | number): Promise<CollectionTaskDetailVO> {
+    const data = await apiRequest<any>('file/collection/tasks/archive', {
+      method: 'POST',
+      body: { id: taskId },
+    })
+    return normalizeCollectionTaskDetail(data)
+  }
+
+  static async getCollectionTaskQrcode(taskId: string | number, url: string): Promise<CollectionTaskQrcodeVO> {
+    const data = await apiRequest<any>('file/collection/tasks/qrcode', {
+      method: 'POST',
+      body: { taskId, url },
+    })
+    return {
+      taskId: toStringValue(pick(data, ['taskId', 'task_id'], taskId)),
+      url: toStringValue(pick(data, ['url'], url)),
+      qrcode: toStringValue(pick(data, ['qrcode', 'qrCode', 'qr_code'])),
+    }
+  }
+
+  static getCollectionTaskSubmissionsDownloadUrl(taskId: string | number) {
+    return buildApiUrl('file/collection/tasks/submissions/download', { taskId })
+  }
+
+  static async downloadCollectionTaskSubmissions(taskId: string | number, filename?: string) {
+    return apiDownload('file/collection/tasks/submissions/download', {
+      params: { taskId },
+      filename,
+    })
   }
 
   static async listCollectionTasks(params: { keyword?: string; status?: string; page?: number; limit?: number } = {}) {

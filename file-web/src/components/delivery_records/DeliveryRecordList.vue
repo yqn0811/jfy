@@ -1,8 +1,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { DeliveryRecordService } from '@/data/DeliveryRecordService'
 import type { DeliveryRecordVO } from '@/data/DeliveryRecordData'
+import { FileShareService } from '@/data/FileShareService'
 import {
   FileTransferApi,
   collectionTaskToDeliveryRecord,
@@ -24,7 +24,7 @@ import { authStore, getApiErrorMessage } from '@/lib/apiClient'
 
 const isClient = ref(true)
 
-const records = ref<DeliveryRecordVO[]>(DeliveryRecordService.getRecordVOList())
+const records = ref<DeliveryRecordVO[]>([])
 const isLoadingRecords = ref(false)
 const loadError = ref('')
 
@@ -96,10 +96,18 @@ const formatStorageSize = (mb: number) => {
 const handleRecordClick = (recordId: string) => {
   const record = records.value.find((item) => item.id === recordId)
   if (record?.type === 'sent') {
-    navigateTo(recordId.startsWith('share-') ? `/share-result?shareId=${recordId}` : `/share-result?shareCode=${recordId}`)
+    navigateTo(getShareResultPath(record))
     return
   }
   navigateTo(`/task-details?taskId=${recordId}`)
+}
+
+const getShareResultPath = (record: DeliveryRecordVO) => {
+  const params = new URLSearchParams()
+  if (record.shareCode) params.set('shareCode', record.shareCode)
+  if (record.shareId) params.set('shareId', record.shareId)
+  if (!record.shareCode && !record.shareId) params.set('shareId', record.id)
+  return `/share-result?${params.toString()}`
 }
 
 const handleExport = () => {
@@ -133,7 +141,7 @@ const handleExport = () => {
 }
 
 const handleBatchDownload = () => {
-  toast.info('批量下载接口暂未开放')
+  handleExport()
 }
 
 const handlePageChange = (page: number) => {
@@ -157,40 +165,54 @@ onMounted(() => {
 
     isClient.value = true
   })
+  loadLocalShareRecords()
   loadRemoteRecords()
 })
 
-const loadRemoteRecords = async () => {
-  if (!authStore.hasToken()) return
+const toRecordVO = (record: ReturnType<typeof shareToDeliveryRecord>): DeliveryRecordVO => ({
+  id: record.id,
+  name: record.name,
+  type: record.type,
+  status: record.status,
+  fileCount: record.fileCount,
+  storageSizeMb: record.storageSizeMb,
+  createdAt: record.createdAt,
+  expiresAt: record.expiresAt,
+  lastActorName: record.lastActorName,
+  shareId: record.shareId,
+  shareCode: record.shareCode,
+  shareUrl: record.shareUrl,
+})
 
+const loadLocalShareRecords = () => {
+  const localRecords = FileShareService.getAll().map((share) => toRecordVO(shareToDeliveryRecord(share)))
+  records.value = localRecords
+}
+
+const loadRemoteRecords = async () => {
   isLoadingRecords.value = true
   loadError.value = ''
 
   try {
-    const [shares, collectionTasks] = await Promise.all([
-      FileTransferApi.listShares({ limit: 100 }),
-      FileTransferApi.listCollectionTasks({ limit: 100 }),
-    ])
+    const shares = await FileTransferApi.listShares({ limit: 100 })
+    const collectionTasks = authStore.hasToken()
+      ? await FileTransferApi.listCollectionTasks({ limit: 100 })
+      : { items: [] }
     const remoteRecords = [
       ...shares.items.map(shareToDeliveryRecord),
       ...collectionTasks.items.map(collectionTaskToDeliveryRecord),
     ].map((item) => ({
-      id: item.id,
-      name: item.name,
-      type: item.type,
-      status: item.status,
-      fileCount: item.fileCount,
-      storageSizeMb: item.storageSizeMb,
-      createdAt: item.createdAt,
-      expiresAt: item.expiresAt,
-      lastActorName: item.lastActorName,
+      ...toRecordVO(item),
+      shareId: item.shareId,
+      shareCode: item.shareCode,
+      shareUrl: item.shareUrl,
     }))
 
-    if (remoteRecords.length > 0) {
-      records.value = remoteRecords
-    }
+    records.value = remoteRecords
   } catch (error) {
-    loadError.value = getApiErrorMessage(error, '交付记录加载失败')
+    if (authStore.hasToken() || records.value.length === 0) {
+      loadError.value = getApiErrorMessage(error, '交付记录加载失败')
+    }
   } finally {
     isLoadingRecords.value = false
   }
@@ -209,7 +231,7 @@ const loadRemoteRecords = async () => {
         </Button>
       </div>
     </div>
-    <p v-if="loadError" class="text-sm text-muted-foreground">{{ loadError }}，已显示本地预览记录。</p>
+    <p v-if="loadError" class="text-sm text-muted-foreground">{{ loadError }}</p>
 
     <!-- 筛选栏 -->
     <FilterBar>
@@ -243,7 +265,7 @@ const loadRemoteRecords = async () => {
       <template #actions>
         <Button variant="outline" size="sm" class="flex-1 sm:flex-none" @click="handleBatchDownload">
           <SafeIcon name="Download" :size="16" class="mr-2" />
-          批量下载
+          导出当前结果
         </Button>
         <Button variant="outline" size="sm" class="flex-1 sm:flex-none" @click="handleExport">
           <SafeIcon name="FileDown" :size="16" class="mr-2" />

@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { SubmissionData } from '@/data/SubmissionData'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,13 +31,15 @@ interface Props {
   statusFilter?: string
   showMissingOnly?: boolean
   selectedSubmissionId?: string | null
+  isBatchDownloading?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   searchKeyword: '',
   statusFilter: '',
   showMissingOnly: false,
-  selectedSubmissionId: null
+  selectedSubmissionId: null,
+  isBatchDownloading: false
 })
 
 const emit = defineEmits<{
@@ -45,7 +47,7 @@ const emit = defineEmits<{
   (e: 'update:status-filter', value: string): void
   (e: 'update:show-missing-only', value: boolean): void
   (e: 'select-submission', id: string): void
-  (e: 'batch-remind'): void
+  (e: 'batch-remind', ids: string[]): void
   (e: 'batch-download'): void
   (e: 'export-list'): void
 }>()
@@ -58,7 +60,7 @@ const allSelected = computed({
     if (val) {
       selectedRows.value = new Set(props.submissions.map(s => s.id))
     } else {
-      selectedRows.value.clear()
+      selectedRows.value = new Set()
     }
   }
 })
@@ -78,12 +80,26 @@ const handleRowClick = (submissionId: string) => {
 }
 
 const handleSelectRow = (submissionId: string, checked: boolean) => {
+  const nextRows = new Set(selectedRows.value)
   if (checked) {
-    selectedRows.value.add(submissionId)
+    nextRows.add(submissionId)
   } else {
-    selectedRows.value.delete(submissionId)
+    nextRows.delete(submissionId)
   }
+  selectedRows.value = nextRows
 }
+
+const handleBatchRemind = () => {
+  emit('batch-remind', Array.from(selectedRows.value))
+}
+
+watch(
+  () => props.submissions.map((submission) => submission.id).join(','),
+  () => {
+    const visibleIds = new Set(props.submissions.map((submission) => submission.id))
+    selectedRows.value = new Set(Array.from(selectedRows.value).filter((id) => visibleIds.has(id)))
+  }
+)
 </script>
 
 <template>
@@ -120,19 +136,20 @@ const handleSelectRow = (submissionId: string, checked: boolean) => {
           variant="outline" 
           size="sm"
           class="flex-1 gap-2 sm:flex-none"
-          @click="emit('batch-remind')"
+          @click="handleBatchRemind"
         >
           <SafeIcon name="Bell" :size="16" />
-          <span class="hidden sm:inline">批量提醒</span>
+          <span class="hidden sm:inline">{{ selectedRows.size > 0 ? `提醒选中(${selectedRows.size})` : '提醒选中' }}</span>
         </Button>
         <Button 
           variant="outline" 
           size="sm"
           class="flex-1 gap-2 sm:flex-none"
+          :disabled="isBatchDownloading"
           @click="emit('batch-download')"
         >
-          <SafeIcon name="Download" :size="16" />
-          <span class="hidden sm:inline">批量下载</span>
+          <SafeIcon :name="isBatchDownloading ? 'Loader2' : 'Download'" :size="16" :class="isBatchDownloading ? 'animate-spin' : ''" />
+          <span class="hidden sm:inline">{{ isBatchDownloading ? '下载中' : '批量下载' }}</span>
         </Button>
         <Button 
           variant="outline" 

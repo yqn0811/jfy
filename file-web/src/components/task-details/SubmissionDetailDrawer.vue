@@ -1,9 +1,11 @@
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import { SubmissionService } from '@/data/SubmissionService'
+import { FileTransferApi } from '@/data/FileTransferApi'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
+import { getApiErrorMessage } from '@/lib/apiClient'
 import {
   Sheet,
   SheetContent,
@@ -30,6 +32,7 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 interface Props {
   submissionId: string
   open: boolean
+  allowResubmission?: boolean
 }
 
 const props = defineProps<Props>()
@@ -40,12 +43,49 @@ const emit = defineEmits<{
 }>()
 
 const submission = ref(SubmissionService.getDetailVOById(props.submissionId))
+const isLoading = ref(false)
+const isReviewing = ref(false)
+const downloadingFileId = ref<string | null>(null)
+const loadError = ref('')
 const showRejectDialog = ref(false)
 const rejectReason = ref('')
+let loadToken = 0
 
-onMounted(() => {
-  submission.value = SubmissionService.getDetailVOById(props.submissionId)
-})
+const loadSubmission = async (submissionId: string) => {
+  if (!submissionId) {
+    submission.value = undefined
+    isLoading.value = false
+    return
+  }
+
+  const currentLoadToken = ++loadToken
+  loadError.value = ''
+  submission.value = undefined
+
+  try {
+    isLoading.value = true
+    const remoteSubmission = await SubmissionService.getDetailRemote(submissionId)
+    if (currentLoadToken !== loadToken) return
+    submission.value = remoteSubmission
+  } catch (error) {
+    if (currentLoadToken !== loadToken) return
+    loadError.value = getApiErrorMessage(error, '提交详情加载失败')
+    submission.value = undefined
+  } finally {
+    if (currentLoadToken === loadToken) {
+      isLoading.value = false
+    }
+  }
+}
+
+watch(
+  () => [props.submissionId, props.open] as const,
+  ([submissionId, open]) => {
+    if (!open) return
+    void loadSubmission(submissionId)
+  },
+  { immediate: true }
+)
 
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr)
@@ -58,33 +98,108 @@ const formatDate = (dateStr: string) => {
   })
 }
 
-const handleApprove = () => {
+const isRemoteSubmission = () => !props.submissionId.startsWith('submission-')
+
+const handleApprove = async () => {
   if (!submission.value) return
-  
-  toast.info('审核接口暂未开放')
+  if (!isRemoteSubmission()) {
+    toast.info('当前提交记录不可审核')
+    return
+  }
+
+  try {
+    isReviewing.value = true
+    submission.value = await SubmissionService.approveRemote(submission.value.id)
+    toast.success('已标记通过')
+    emit('submission-updated')
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '审核失败，请重试'))
+  } finally {
+    isReviewing.value = false
+  }
 }
 
 const handleRejectClick = () => {
+  if (props.allowResubmission === false) {
+    toast.info('当前任务未开启补交')
+    return
+  }
   showRejectDialog.value = true
 }
 
-const handleConfirmReject = () => {
+const handleConfirmReject = async () => {
   if (!rejectReason.value.trim()) {
     toast.error('请填写退回原因')
     return
   }
+  if (!submission.value) return
+  if (!isRemoteSubmission()) {
+    toast.info('当前提交记录不可退回补交')
+    showRejectDialog.value = false
+    rejectReason.value = ''
+    return
+  }
 
-  toast.info('退回提醒接口暂未开放')
-  showRejectDialog.value = false
-  rejectReason.value = ''
+  try {
+    isReviewing.value = true
+    submission.value = await SubmissionService.rejectRemote(submission.value.id, rejectReason.value.trim())
+    toast.success('已退回补交')
+    showRejectDialog.value = false
+    rejectReason.value = ''
+    emit('submission-updated')
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '退回失败，请重试'))
+  } finally {
+    isReviewing.value = false
+  }
 }
 
-const handleDownloadFile = (fileName: string) => {
-  toast.info(`文件下载接口暂未开放: ${fileName}`)
+const handleDownloadFile = async (fileId: string, fileName: string) => {
+  if (!fileId) {
+    toast.info(`文件暂不可下载: ${fileName}`)
+    return
+  }
+
+  try {
+    downloadingFileId.value = fileId
+    await FileTransferApi.downloadOwnerFile(fileId, fileName)
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '文件下载失败，请重试'))
+  } finally {
+    downloadingFileId.value = null
+  }
 }
 
-const handlePreviewFile = (fileName: string) => {
-  toast.info(`文件预览接口暂未开放: ${fileName}`)
+const handlePreviewFile = (previewUrl: string | undefined, downloadUrl: string | undefined, fileName: string) => {
+  const targetUrl = previewUrl || downloadUrl
+  if (!targetUrl) {
+    toast.info(`文件暂不可预览: ${fileName}`)
+    return
+  }
+  window.open(targetUrl, '_blank', 'noopener')
+}
+
+const handleCopyResubmissionLink = async () => {
+  if (!submission.value) return
+  const link = `${window.location.origin}/submission-upload?taskId=${encodeURIComponent(submission.value.collectionTaskId)}&sourceSubmissionId=${encodeURIComponent(submission.value.id)}`
+  try {
+    await navigator.clipboard.writeText(link)
+    toast.success('补交链接已复制')
+  } catch {
+    toast.error('复制失败，请重试')
+  }
+}
+
+const getReviewActionText = (action: string) => {
+  const map: Record<string, string> = {
+    approve: '标记通过',
+    reject: '退回补交',
+    request_resubmission: '要求补交',
+    resubmit: '已补交',
+    remind: '记录催办',
+    comment: '评论',
+  }
+  return map[action] || '记录'
 }
 </script>
 
@@ -103,6 +218,16 @@ const handlePreviewFile = (fileName: string) => {
 
       <!-- Scrollable Content -->
       <div class="flex-1 overflow-y-auto min-h-0 py-4 space-y-6">
+        <div v-if="isLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
+          <SafeIcon name="Loader2" :size="16" class="animate-spin" />
+          <span>正在加载提交详情...</span>
+        </div>
+
+        <div v-if="loadError" class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-muted-foreground">
+          <SafeIcon name="AlertTriangle" :size="16" class="mt-0.5 shrink-0 text-warning" />
+          <span>{{ loadError }}</span>
+        </div>
+
         <!-- 提交人信息 -->
         <div v-if="submission" class="space-y-3">
           <h4 class="text-sm font-semibold text-foreground">提交人信息</h4>
@@ -166,7 +291,7 @@ const handlePreviewFile = (fileName: string) => {
                   variant="ghost"
                   size="sm"
                   class="h-8 w-8 p-0"
-                  @click="handlePreviewFile(file.fileName)"
+                  @click="handlePreviewFile(file.previewUrl, file.downloadUrl, file.fileName)"
                 >
                   <SafeIcon name="Eye" :size="16" />
                 </Button>
@@ -174,9 +299,10 @@ const handlePreviewFile = (fileName: string) => {
                   variant="ghost"
                   size="sm"
                   class="h-8 w-8 p-0"
-                  @click="handleDownloadFile(file.fileName)"
+                  :disabled="downloadingFileId === file.id"
+                  @click="handleDownloadFile(file.id, file.fileName)"
                 >
-                  <SafeIcon name="Download" :size="16" />
+                  <SafeIcon :name="downloadingFileId === file.id ? 'Loader2' : 'Download'" :size="16" :class="downloadingFileId === file.id ? 'animate-spin' : ''" />
                 </Button>
               </div>
             </div>
@@ -197,7 +323,7 @@ const handlePreviewFile = (fileName: string) => {
                 <span class="text-xs text-muted-foreground">{{ formatDate(log.createdAt) }}</span>
               </div>
               <p class="text-xs text-muted-foreground mb-1">
-                {{ log.action === 'approve' ? '标记通过' : log.action === 'reject' ? '退回补交' : '评论' }}
+                {{ getReviewActionText(log.action) }}
               </p>
               <p class="text-sm text-foreground">{{ log.remark }}</p>
             </div>
@@ -206,21 +332,31 @@ const handlePreviewFile = (fileName: string) => {
       </div>
 
       <!-- Footer Actions -->
-      <SheetFooter class="shrink-0 flex-row gap-2 pt-4 border-t border-border/50">
+      <SheetFooter class="shrink-0 flex-row flex-wrap gap-2 pt-4 border-t border-border/50">
         <Button
-          v-if="submission?.status !== 'approved'"
+          v-if="submission?.status !== 'approved' && allowResubmission !== false"
           variant="outline"
           class="flex-1"
+          :disabled="isReviewing"
           @click="handleRejectClick"
         >
-          退回补交
+          {{ isReviewing ? '处理中...' : '退回补交' }}
+        </Button>
+        <Button
+          v-if="submission?.status === 'need_resubmission' && allowResubmission !== false"
+          variant="outline"
+          class="flex-1"
+          @click="handleCopyResubmissionLink"
+        >
+          复制补交链接
         </Button>
         <Button
           v-if="submission?.status !== 'approved'"
           class="flex-1"
+          :disabled="isReviewing"
           @click="handleApprove"
         >
-          标记通过
+          {{ isReviewing ? '处理中...' : '标记通过' }}
         </Button>
         <Button
           v-else
@@ -240,7 +376,7 @@ const handlePreviewFile = (fileName: string) => {
       <AlertDialogHeader>
         <AlertDialogTitle>退回补交</AlertDialogTitle>
         <AlertDialogDescription>
-          请填写退回原因，提交人将收到提醒。
+          请填写退回原因，系统会记录本次退回补交。
         </AlertDialogDescription>
       </AlertDialogHeader>
 
@@ -256,8 +392,8 @@ const handlePreviewFile = (fileName: string) => {
 
       <AlertDialogFooter>
         <AlertDialogCancel>取消</AlertDialogCancel>
-        <AlertDialogAction @click="handleConfirmReject" class="bg-destructive hover:bg-destructive/90">
-          确认退回
+        <AlertDialogAction :disabled="isReviewing" @click="handleConfirmReject" class="bg-destructive hover:bg-destructive/90">
+          {{ isReviewing ? '处理中...' : '确认退回' }}
         </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>

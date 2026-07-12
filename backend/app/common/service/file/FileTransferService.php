@@ -7,6 +7,7 @@ use app\common\model\file\FtFileShare;
 use app\common\model\file\FtFileShareItem;
 use app\common\model\file\FtShareAccessLog;
 use app\common\service\BaseService;
+use app\common\service\TencentCOSService;
 use think\App;
 use think\facade\Db;
 use think\facade\Log;
@@ -14,6 +15,9 @@ use think\facade\Log;
 class FileTransferService extends BaseService
 {
     const LOCAL_PROVIDER = 'local_private';
+    const ALI_OSS_PROVIDER = 'ali_oss';
+    const TENCENT_COS_PROVIDER = 'ten_cos';
+    const ANONYMOUS_SHARE_TTL_SECONDS = 86400;
 
     public function __construct(App $app)
     {
@@ -26,6 +30,8 @@ class FileTransferService extends BaseService
         if (empty($uploadFiles)) {
             throwError('请选择上传文件');
         }
+        $transferToken = $this->normalizeTransferToken($param, $uid, true);
+        $ownerSubject = $uid > 0 ? ($param['sso_subject'] ?? null) : $transferToken;
 
         $maxSizeMb = max(1, (int)env('file_transfer.max_upload_mb', 500));
         $saved = [];
@@ -55,7 +61,7 @@ class FileTransferService extends BaseService
             $objectKey = $relativeDir . '/' . $saveName;
             $fileModel = FtFile::create([
                 'owner_user_id' => $uid,
-                'sso_subject' => $param['sso_subject'] ?? null,
+                'sso_subject' => $ownerSubject,
                 'original_name' => $originalName,
                 'object_key' => $objectKey,
                 'storage_provider' => self::LOCAL_PROVIDER,
@@ -120,15 +126,20 @@ class FileTransferService extends BaseService
         if ($title === '') {
             $title = '快速分享 - ' . date('Y-m-d H:i');
         }
+        $transferToken = $this->normalizeTransferToken($param, $uid, false);
+        $ownerSubject = $uid > 0 ? ($param['sso_subject'] ?? null) : $transferToken;
         $fileIds = $this->normalizeIdList($param['file_ids'] ?? []);
         if (empty($fileIds)) {
             throwError('请选择分享文件');
         }
 
-        $files = FtFile::where('owner_user_id', $uid)
+        $query = FtFile::where('owner_user_id', $uid)
             ->whereIn('id', $fileIds)
-            ->whereNull('deleted_at')
-            ->select();
+            ->whereNull('deleted_at');
+        if ($uid <= 0) {
+            $query->where('sso_subject', $transferToken);
+        }
+        $files = $query->select();
         if (count($files) !== count(array_unique($fileIds))) {
             throwError('存在无权分享的文件');
         }
@@ -142,20 +153,27 @@ class FileTransferService extends BaseService
                 $totalSize += (int)$file->size_bytes;
             }
 
-            $share = FtFileShare::create([
+            $shareData = [
                 'owner_user_id' => $uid,
-                'sso_subject' => $param['sso_subject'] ?? null,
+                'sso_subject' => $ownerSubject,
                 'title' => $title,
                 'share_code' => $this->makeShareCode(),
                 'password_hash' => $this->makePasswordHash($param['password'] ?? ''),
-                'expires_at' => $this->normalizeDateTime($param['expires_at'] ?? null),
                 'max_downloads' => max(0, (int)($param['max_downloads'] ?? 0)),
                 'allow_preview' => !empty($param['allow_preview']) ? 1 : 0,
                 'notify_on_download' => !empty($param['notify_on_download']) ? 1 : 0,
                 'status' => 'active',
                 'file_count' => $fileCount,
                 'total_size_bytes' => $totalSize,
-            ]);
+            ];
+            if ($uid > 0) {
+                $shareData['expires_at'] = $this->normalizeDateTime($param['expires_at'] ?? null);
+            }
+
+            $share = FtFileShare::create($shareData);
+            if ($uid <= 0) {
+                $this->setAnonymousShareExpiry((int)$share->id);
+            }
 
             $sort = 0;
             foreach ($fileIds as $fileId) {
@@ -178,6 +196,62 @@ class FileTransferService extends BaseService
     public function verifySharePassword(string $code, string $password)
     {
         return $this->getShareByCode($code, true, $password);
+    }
+
+    public function getOwnerShareByCode(string $code, int $uid, array $param = [])
+    {
+        if ($uid > 0) {
+            return $this->getShareByCode($code, false, '', $uid);
+        }
+
+        $transferToken = $this->normalizeTransferToken($param, $uid, false);
+        $share = FtFileShare::where('share_code', trim($code))
+            ->where('owner_user_id', 0)
+            ->where('sso_subject', $transferToken)
+            ->whereNull('deleted_at')
+            ->find();
+        if (!$share) {
+            throwError('分享不存在或已失效');
+        }
+        $this->assertShareUsable($share, false);
+
+        $items = FtFileShareItem::with(['file'])
+            ->where('share_id', $share->id)
+            ->order('sort_order asc, id asc')
+            ->select();
+
+        return $this->formatShare($share, $items, false, true);
+    }
+
+    public function getShareQrcode(string $code, string $url)
+    {
+        $share = FtFileShare::where('share_code', trim($code))
+            ->whereNull('deleted_at')
+            ->find();
+        if (!$share) {
+            throwError('分享不存在或已失效');
+        }
+        $this->assertShareUsable($share, false);
+
+        $url = $this->normalizeShareResultUrl($url, (string)$share->share_code);
+        $qrcodeDir = public_path() . 'uploads/qrcode';
+        if (!is_dir($qrcodeDir) && !mkdir($qrcodeDir, 0755, true) && !is_dir($qrcodeDir)) {
+            throwError('二维码目录创建失败');
+        }
+
+        try {
+            $qrcode = \cores\utils\Utils::createQrcode($url, '', true);
+        } catch (\Throwable $e) {
+            throwError('二维码生成失败');
+        }
+
+        return [
+            'share_code' => (string)$share->share_code,
+            'shareCode' => (string)$share->share_code,
+            'url' => $url,
+            'qrcode' => $qrcode,
+            'qrCode' => $qrcode,
+        ];
     }
 
     public function getShareByCode(string $code, bool $publicView = true, string $password = '', int $ownerUid = 0)
@@ -220,6 +294,7 @@ class FileTransferService extends BaseService
         $limit = max(1, min(100, (int)($param['limit'] ?? 20)));
         $status = trim((string)($param['status'] ?? ''));
         $keyword = trim((string)($param['keyword'] ?? ''));
+        $transferToken = $uid > 0 ? '' : $this->normalizeTransferToken($param, $uid, false);
 
         $query = FtFileShare::where('owner_user_id', $uid)
             ->whereNull('deleted_at')
@@ -230,6 +305,10 @@ class FileTransferService extends BaseService
                 $query->whereLike('title', '%' . $keyword . '%');
             })
             ->order('id desc');
+
+        if ($uid <= 0) {
+            $query->where('sso_subject', $transferToken);
+        }
 
         $list = $query->paginate([
             'list_rows' => $limit,
@@ -318,17 +397,127 @@ class FileTransferService extends BaseService
         }
     }
 
+    public function cleanupExpiredAnonymousShares(int $limit = 200, bool $dryRun = false)
+    {
+        $limit = max(1, min(1000, $limit));
+        $now = $this->nowUtc();
+        $shares = FtFileShare::where('owner_user_id', 0)
+            ->whereIn('status', ['active', 'expired'])
+            ->whereNotNull('expires_at')
+            ->whereRaw('expires_at <= CURRENT_TIMESTAMP')
+            ->whereNull('deleted_at')
+            ->order('id asc')
+            ->limit($limit)
+            ->select();
+
+        $stats = [
+            'shares' => 0,
+            'files' => 0,
+            'objects' => 0,
+            'failed_objects' => 0,
+            'dry_run' => $dryRun,
+        ];
+
+        foreach ($shares as $share) {
+            $stats['shares']++;
+            $items = FtFileShareItem::with(['file'])
+                ->where('share_id', $share->id)
+                ->select();
+
+            $shareFailedObjects = 0;
+
+            foreach ($items as $item) {
+                if (!$item->file) {
+                    continue;
+                }
+                $file = $item->file;
+                if ((int)$file->owner_user_id !== 0 || !empty($file->deleted_at)) {
+                    continue;
+                }
+                if ($this->hasActiveShareReference((int)$file->id, (int)$share->id, $now)) {
+                    continue;
+                }
+
+                $stats['files']++;
+                $deleted = $dryRun ? true : $this->deleteStoredObject($file);
+                if ($deleted) {
+                    $stats['objects']++;
+                    if (!$dryRun) {
+                        $file->status = 'deleted';
+                        $file->deleted_at = $now;
+                        $file->save();
+                    }
+                } else {
+                    $stats['failed_objects']++;
+                    $shareFailedObjects++;
+                }
+            }
+
+            if (!$dryRun) {
+                $share->status = 'expired';
+                if ($shareFailedObjects === 0) {
+                    $share->deleted_at = $now;
+                }
+                $share->save();
+            }
+        }
+
+        return $stats;
+    }
+
     private function assertShareUsable($share, bool $checkDownloadLimit)
     {
         if ((string)$share->status !== 'active') {
             throwError('分享不存在或已失效');
         }
-        if (!empty($share->expires_at) && strtotime((string)$share->expires_at) < time()) {
+        if (!empty($share->expires_at) && $this->isShareExpired($share)) {
             throwError('分享已过期');
         }
         if ($checkDownloadLimit && (int)$share->max_downloads > 0 && (int)$share->download_count >= (int)$share->max_downloads) {
             throwError('分享下载次数已用完');
         }
+    }
+
+    private function isShareExpired($share)
+    {
+        if (empty($share->id)) {
+            return strtotime((string)$share->expires_at) <= time();
+        }
+        return FtFileShare::where('id', $share->id)
+            ->whereRaw('expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP')
+            ->count() > 0;
+    }
+
+    private function normalizeShareResultUrl(string $url, string $shareCode)
+    {
+        $url = trim($url);
+        if ($url === '') {
+            $url = '/share-result?shareCode=' . rawurlencode($shareCode);
+        }
+        if (mb_strlen($url) > 2000 || !preg_match('/^(https?:\/\/|\/)/i', $url)) {
+            throwError('二维码链接不合法');
+        }
+
+        $parts = parse_url($url);
+        if ($parts === false) {
+            throwError('二维码链接不合法');
+        }
+
+        $path = isset($parts['path']) ? rtrim((string)$parts['path'], '/') : '';
+        if (!in_array($path, ['/share-result', '/share-result.html'], true)) {
+            throwError('二维码链接必须为分享结果页');
+        }
+
+        $query = [];
+        if (!empty($parts['query'])) {
+            parse_str((string)$parts['query'], $query);
+        }
+        $linkCode = trim((string)($query['shareCode'] ?? ($query['share_code'] ?? ($query['code'] ?? ''))));
+        if ($linkCode !== $shareCode) {
+            throwError('二维码链接与分享不匹配');
+        }
+
+        return $url;
     }
 
     private function getLocalFilePath($file)
@@ -349,6 +538,112 @@ class FileTransferService extends BaseService
             throwError('文件不存在或已失效');
         }
         return $realPath;
+    }
+
+    private function hasActiveShareReference(int $fileId, int $currentShareId, string $now)
+    {
+        $shareIds = FtFileShareItem::where('file_id', $fileId)
+            ->where('share_id', '<>', $currentShareId)
+            ->column('share_id');
+        if (empty($shareIds)) {
+            return false;
+        }
+
+        return FtFileShare::whereIn('id', $shareIds)
+            ->whereNull('deleted_at')
+            ->where('status', 'active')
+            ->whereRaw('(expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)')
+            ->count() > 0;
+    }
+
+    private function deleteStoredObject($file)
+    {
+        $provider = (string)$file->storage_provider;
+        if ($provider === self::LOCAL_PROVIDER) {
+            return $this->deleteLocalFile($file);
+        }
+        if ($provider === self::ALI_OSS_PROVIDER) {
+            return $this->deleteAliOssObject($file);
+        }
+        if ($provider === self::TENCENT_COS_PROVIDER || $provider === 'tencent_cos') {
+            return $this->deleteTencentCosObject($file);
+        }
+        Log::warning(sprintf(
+            'file transfer cleanup skipped unsupported provider provider=%s object=%s file_id=%s',
+            $provider,
+            (string)$file->object_key,
+            (string)$file->id
+        ));
+        return false;
+    }
+
+    private function deleteLocalFile($file)
+    {
+        try {
+            $path = $this->getLocalFilePath($file);
+        } catch (\Throwable $e) {
+            return true;
+        }
+        if (is_file($path) && !@unlink($path)) {
+            Log::error('file transfer cleanup unlink failed: ' . $path);
+            return false;
+        }
+        return true;
+    }
+
+    private function deleteAliOssObject($file)
+    {
+        try {
+            $config = cacheRemoteSet($this->uniacid);
+            $aliInfo = $config['aliOss'] ?? ($config['oss'] ?? null);
+            if (empty($aliInfo['ak']) || empty($aliInfo['sk']) || empty($aliInfo['domain']) || empty($aliInfo['bucket'])) {
+                Log::warning('file transfer cleanup ali_oss skipped: config incomplete file_id=' . (string)$file->id);
+                return false;
+            }
+            require_once root_path() . '/vendor/aliyun/autoload.php';
+            $objectKey = $this->normalizeRemoteObjectKey((string)$file->object_key, (string)($aliInfo['folder_name'] ?? ''));
+            $client = new \OSS\OssClient($aliInfo['ak'], $aliInfo['sk'], $aliInfo['domain']);
+            $client->deleteObject($aliInfo['bucket'], $objectKey);
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('file transfer cleanup ali_oss failed file_id=' . (string)$file->id . ' error=' . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function deleteTencentCosObject($file)
+    {
+        try {
+            $config = cacheRemoteSet($this->uniacid);
+            $cosInfo = $config['cos'] ?? ($config['ten_cos'] ?? null);
+            if (empty($cosInfo['ak']) || empty($cosInfo['sk']) || empty($cosInfo['region']) || empty($cosInfo['bucket'])) {
+                Log::warning('file transfer cleanup ten_cos skipped: config incomplete file_id=' . (string)$file->id);
+                return false;
+            }
+            $objectKey = $this->normalizeRemoteObjectKey((string)$file->object_key, (string)($cosInfo['folder_name'] ?? ''));
+            $cos = new TencentCOSService($cosInfo, $objectKey);
+            if (!$cos->delObject()) {
+                Log::error('file transfer cleanup ten_cos failed file_id=' . (string)$file->id . ' error=' . (string)$cos->getErrorMessage());
+                return false;
+            }
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('file transfer cleanup ten_cos failed file_id=' . (string)$file->id . ' error=' . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function normalizeRemoteObjectKey(string $objectKey, string $folderName = '')
+    {
+        $objectKey = ltrim(str_replace('\\', '/', $objectKey), '/');
+        if (strpos($objectKey, '..') !== false || $objectKey === '') {
+            throwError('文件路径不合法');
+        }
+        $folderName = trim(str_replace('\\', '/', $folderName), '/');
+        if ($folderName !== '' && strpos($objectKey, $folderName . '/') !== 0) {
+            $objectKey = $folderName . '/' . $objectKey;
+        }
+        return $objectKey;
     }
 
     private function formatFile($file, bool $includeStorage = true, string $shareCode = '')
@@ -381,6 +676,10 @@ class FileTransferService extends BaseService
             $data['sha256'] = (string)$file->sha256;
             $data['preview_url'] = (string)$file->preview_url;
             $data['previewUrl'] = (string)$file->preview_url;
+            if ($shareCode === '') {
+                $data['transfer_token'] = (string)$file->sso_subject;
+                $data['transferToken'] = (string)$file->sso_subject;
+            }
         }
         if ($shareCode !== '') {
             $data['download_url'] = '/api/file/shares/download?code=' . rawurlencode($shareCode) . '&file_id=' . (int)$file->id;
@@ -398,13 +697,52 @@ class FileTransferService extends BaseService
             }
         }
 
+        $recentLogs = [];
+        if (!$publicView) {
+            $recentLogs = FtShareAccessLog::where('share_id', $share->id)
+                ->order('occurred_at desc, id desc')
+                ->limit(8)
+                ->select()
+                ->map(function ($log) {
+                    return $this->formatShareAccessLog($log);
+                })
+                ->toArray();
+        }
+
         return array_merge($this->formatShareRow($share), [
             'has_password' => !empty($share->password_hash),
             'hasPassword' => !empty($share->password_hash),
             'password_verified' => $passwordVerified,
             'passwordVerified' => $passwordVerified,
             'files' => $files,
+            'recent_logs' => $recentLogs,
+            'recentLogs' => $recentLogs,
         ]);
+    }
+
+    private function formatShareAccessLog($log)
+    {
+        $ipLabel = (string)($log->ip_label ?: $log->ip_address ?: '');
+        if ($ipLabel !== '' && strpos($ipLabel, '.') !== false) {
+            $parts = explode('.', $ipLabel);
+            if (count($parts) === 4) {
+                $parts[3] = '*';
+                $ipLabel = implode('.', $parts);
+            }
+        }
+
+        return [
+            'id' => (string)$log->id,
+            'share_id' => (string)$log->share_id,
+            'shareId' => (string)$log->share_id,
+            'visitor_name' => '访客',
+            'visitorName' => '访客',
+            'action' => (string)$log->action,
+            'occurred_at' => (string)$log->occurred_at,
+            'occurredAt' => (string)$log->occurred_at,
+            'ip_label' => $ipLabel,
+            'ipLabel' => $ipLabel,
+        ];
     }
 
     private function formatShareRow($share)
@@ -529,6 +867,24 @@ class FileTransferService extends BaseService
         return preg_match('/^[a-f0-9]{64}$/', $value) ? $value : null;
     }
 
+    private function normalizeTransferToken(array $param, int $uid, bool $createIfMissing)
+    {
+        if ($uid > 0) {
+            return '';
+        }
+        $token = trim((string)($param['transfer_token'] ?? ($param['transferToken'] ?? '')));
+        if ($token === '') {
+            $token = trim((string)($param['sso_subject'] ?? ($param['ssoSubject'] ?? '')));
+        }
+        if ($token === '' && $createIfMissing) {
+            $token = bin2hex(random_bytes(16));
+        }
+        if (!preg_match('/^[A-Za-z0-9_-]{16,128}$/', $token)) {
+            throwError('传输凭证无效，请刷新后重试');
+        }
+        return $token;
+    }
+
     private function normalizeDateTime($value)
     {
         $value = trim((string)$value);
@@ -536,7 +892,29 @@ class FileTransferService extends BaseService
             return null;
         }
         $timestamp = strtotime($value);
-        return $timestamp ? date('Y-m-d H:i:s', $timestamp) : null;
+        return $timestamp ? $this->formatUtc($timestamp) : null;
+    }
+
+    private function nowUtc()
+    {
+        return $this->formatUtc(time());
+    }
+
+    private function nowDbExpression()
+    {
+        return Db::raw('CURRENT_TIMESTAMP');
+    }
+
+    private function setAnonymousShareExpiry(int $shareId)
+    {
+        FtFileShare::where('id', $shareId)->update([
+            'expires_at' => Db::raw("CURRENT_TIMESTAMP + INTERVAL '24 hours'"),
+        ]);
+    }
+
+    private function formatUtc(int $timestamp)
+    {
+        return gmdate('Y-m-d H:i:sP', $timestamp);
     }
 
     private function makePasswordHash($password)

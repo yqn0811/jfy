@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import StandardLayout from '@/layouts/StandardLayout.vue'
-import ShareResultContent from '@/components/share-result/ShareResultContent.vue'
+import QuickSendContent from '@/components/quick-send/QuickSendContent.vue'
 </script>
 
 <template>
   <StandardLayout>
-    <ShareResultContent />
+    <QuickSendContent />
   </StandardLayout>
 </template>

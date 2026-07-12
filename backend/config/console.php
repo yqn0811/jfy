@@ -11,5 +11,6 @@ return [
         'test_poster' => \app\command\TestPosterCommand::class,
         'test_db' => \app\command\TestDb::class,
         'album:sync-ai-resources' => \app\command\SyncAiResources::class,
+        'file:cleanup-expired-anonymous' => \app\command\CleanupExpiredAnonymousFiles::class,
     ],
 ];

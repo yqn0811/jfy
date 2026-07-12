@@ -9,6 +9,9 @@ export interface DeliveryRecordData {
   expiresAt: string
   lastActorName: string
   isArchived: boolean
+  shareId?: string
+  shareCode?: string
+  shareUrl?: string
 }
 
 export interface DeliveryRecordVO {
@@ -21,4 +24,7 @@ export interface DeliveryRecordVO {
   createdAt: string
   expiresAt: string
   lastActorName: string
+  shareId?: string
+  shareCode?: string
+  shareUrl?: string
 }

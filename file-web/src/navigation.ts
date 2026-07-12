@@ -1,4 +1,6 @@
 import { computed, reactive } from 'vue'
+import { authStore } from '@/lib/apiClient'
+import { cleanupLegacyDemoData } from '@/data/legacyDemoCleanup'
 
 export interface AppRouteState {
   path: string
@@ -22,6 +24,19 @@ const getLocationState = (): AppRouteState => ({
   query: Object.fromEntries(new URLSearchParams(window.location.search).entries()),
 })
 
+const consumeLoginTokenFromLocation = () => {
+  const search = new URLSearchParams(window.location.search)
+  const token = search.get('token')
+  if (!token) return
+  authStore.setToken(token)
+  search.delete('token')
+  search.delete('login')
+  const query = search.toString()
+  window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
+}
+
+cleanupLegacyDemoData()
+
 const state = reactive(getLocationState())
 
 export const currentRouteState = computed(() => ({
@@ -30,6 +45,7 @@ export const currentRouteState = computed(() => ({
 }))
 
 export const syncRouteFromLocation = () => {
+  consumeLoginTokenFromLocation()
   const next = getLocationState()
   state.path = next.path
   state.query = next.query

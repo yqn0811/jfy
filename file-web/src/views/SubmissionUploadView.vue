@@ -1,55 +1,87 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import PublicLayout from '@/layouts/PublicLayout.vue'
 import SubmissionUploadPageContent from '@/components/submission_upload_page/SubmissionUploadPageContent.vue'
 import { PublicSubmissionService } from '@/data/PublicSubmissionService'
-import {
-  CollectionTaskService,
-  taskFieldConfigDataList,
-  taskMaterialItemDataList,
-} from '@/data/CollectionTaskService'
 import type { PublicSubmissionTaskVO } from '@/data/PublicSubmissionData'
+import type { TaskFieldConfigData, TaskMaterialItemData } from '@/data/CollectionTaskData'
 import { currentRouteState } from '@/navigation'
+import { getApiErrorMessage } from '@/lib/apiClient'
+import { Button } from '@/components/ui/button'
+import SafeIcon from '@/components/common/SafeIcon.vue'
 
-const taskId = computed(() => String(currentRouteState.value.query.taskId || 'task-001'))
-const taskVOData = computed<PublicSubmissionTaskVO>(() => {
-  return PublicSubmissionService.getTaskVOById(taskId.value) || {
-    id: 'public-task-001',
-    taskId: taskId.value,
-    taskName: '示例收集任务',
-    organizationName: '织序传输助手',
-    description: '请完成材料上传',
-    dueAt: '2026-07-09T12:00:00Z',
-    accessCodeRequired: false,
-    submitterFields: [],
-    materials: [],
-    status: 'active',
-  }
-})
+const taskId = computed(() => String(currentRouteState.value.query.taskId || ''))
+const sourceSubmissionId = computed(() => String(currentRouteState.value.query.sourceSubmissionId || currentRouteState.value.query.source_submission_id || ''))
+const remoteTask = ref<PublicSubmissionTaskVO | null>(null)
+const loadError = ref('')
+const isLoading = ref(true)
 
-const taskData = computed(() => CollectionTaskService.getById(taskId.value))
+const taskVOData = computed(() => remoteTask.value)
 const fieldConfigs = computed(() => {
-  return taskData.value
-    ? (taskData.value.submitterFieldIds || [])
-        .map((id) => taskFieldConfigDataList.find((field) => field.id === id))
-        .filter(Boolean)
-    : []
+  const fields = taskVOData.value?.submitterFields || []
+  if (fields.length > 0 && typeof fields[0] === 'object') {
+    return fields as TaskFieldConfigData[]
+  }
+  return []
 })
 const materialConfigs = computed(() => {
-  return taskData.value
-    ? (taskData.value.materialItemIds || [])
-        .map((id) => taskMaterialItemDataList.find((material) => material.id === id))
-        .filter(Boolean)
-    : []
+  const materials = taskVOData.value?.materials || []
+  if (materials.length > 0 && typeof materials[0] === 'object') {
+    return materials as TaskMaterialItemData[]
+  }
+  return []
 })
+
+const loadTask = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  remoteTask.value = null
+  if (!taskId.value) {
+    loadError.value = '缺少任务 ID，请使用发起方提供的提交链接。'
+    isLoading.value = false
+    return
+  }
+  try {
+    remoteTask.value = await PublicSubmissionService.getPublicTask(taskId.value, String(currentRouteState.value.query.accessCode || ''))
+  } catch (error) {
+    loadError.value = getApiErrorMessage(error, '任务加载失败')
+    remoteTask.value = null
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(loadTask)
+
+const handleTaskVerified = (task: PublicSubmissionTaskVO) => {
+  remoteTask.value = task
+}
 </script>
 
 <template>
   <PublicLayout>
     <SubmissionUploadPageContent
+      v-if="taskVOData"
       :task-v-o-data="taskVOData"
       :field-configs="fieldConfigs"
       :material-configs="materialConfigs"
+      :is-loading="isLoading"
+      :load-error="loadError"
+      :source-submission-id="sourceSubmissionId"
+      @task-verified="handleTaskVerified"
     />
+    <div v-else class="app-content-narrow py-16">
+      <div class="surface-base card-padding text-center">
+        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/60">
+          <SafeIcon :name="isLoading ? 'Loader2' : 'FileQuestion'" :size="28" :class="isLoading ? 'animate-spin text-muted-foreground' : 'text-muted-foreground'" />
+        </div>
+        <h1 class="text-section-title mb-2">{{ isLoading ? '正在加载任务' : '未找到收集任务' }}</h1>
+        <p class="text-caption mb-5">{{ isLoading ? '请稍候...' : loadError || '请确认提交链接是否正确。' }}</p>
+        <Button v-if="!isLoading" variant="outline" @click="loadTask">
+          <SafeIcon name="RefreshCw" :size="16" class="mr-2" />
+          重新加载
+        </Button>
+      </div>
+    </div>
   </PublicLayout>
 </template>

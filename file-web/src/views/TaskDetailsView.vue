@@ -2,32 +2,68 @@
 import { computed, ref, watch } from 'vue'
 import StandardLayout from '@/layouts/StandardLayout.vue'
 import TaskDetailsContent from '@/components/task-details/TaskDetailsContent.vue'
-import { CollectionTaskService } from '@/data/CollectionTaskService'
+import { taskRuleConfigDataList } from '@/data/CollectionTaskService'
 import { FileTransferApi } from '@/data/FileTransferApi'
 import { SubmissionService } from '@/data/SubmissionService'
 import { currentRouteState } from '@/navigation'
 import type { CollectionTaskData } from '@/data/CollectionTaskData'
+import type { SubmissionData } from '@/data/SubmissionData'
+import { getApiErrorMessage } from '@/lib/apiClient'
 
 const taskId = computed(() => {
   const queryTaskId = currentRouteState.value.query.taskId
-  return String(queryTaskId || CollectionTaskService.getAll()[0]?.id || 'task-001')
+  return queryTaskId ? String(queryTaskId) : ''
 })
 
-const task = ref<CollectionTaskData | undefined>(CollectionTaskService.getById(taskId.value))
-const submissions = computed(() => SubmissionService.query({ filter: { collectionTaskId: taskId.value } }))
+const getLocalRuleConfig = (ruleConfigId: string) => {
+  return taskRuleConfigDataList.find((item) => item.id === ruleConfigId)
+}
+
+const task = ref<CollectionTaskData | undefined>(undefined)
+const ruleConfig = ref(getLocalRuleConfig(task.value?.ruleConfigId || ''))
+const submissions = ref<SubmissionData[]>([])
+const submissionsError = ref('')
+const isSubmissionsLoading = ref(false)
+let loadToken = 0
+
+const loadTaskDetails = async (id: string) => {
+  const currentLoadToken = ++loadToken
+  task.value = undefined
+  ruleConfig.value = undefined
+  submissions.value = []
+  submissionsError.value = ''
+  if (!id) {
+    submissionsError.value = '缺少任务 ID，请从工作台或交付记录进入任务详情。'
+    return
+  }
+
+  try {
+    isSubmissionsLoading.value = true
+    const [detail, submissionResult] = await Promise.all([
+      FileTransferApi.getCollectionTask(id),
+      SubmissionService.listRemote({ taskId: id, limit: 100 }),
+    ])
+    if (currentLoadToken !== loadToken) return
+    task.value = detail.task
+    ruleConfig.value = detail.ruleConfig
+    submissions.value = submissionResult.items
+  } catch (error) {
+    if (currentLoadToken !== loadToken) return
+    task.value = undefined
+    ruleConfig.value = undefined
+    submissions.value = []
+    submissionsError.value = getApiErrorMessage(error, '任务详情加载失败')
+  } finally {
+    if (currentLoadToken === loadToken) {
+      isSubmissionsLoading.value = false
+    }
+  }
+}
 
 watch(
   taskId,
-  async (id) => {
-    task.value = CollectionTaskService.getById(id)
-    if (!id || id.startsWith('task-')) return
-
-    try {
-      const detail = await FileTransferApi.getCollectionTask(id)
-      task.value = detail.task
-    } catch {
-      task.value = CollectionTaskService.getById(id)
-    }
+  (id) => {
+    void loadTaskDetails(id)
   },
   { immediate: true }
 )
@@ -36,8 +72,16 @@ watch(
 <template>
   <StandardLayout>
     <div class="page-body">
-      <div class="page-container">
-        <TaskDetailsContent :task="task" :submissions="submissions" :task-id="taskId" />
+      <div class="app-shell">
+        <TaskDetailsContent
+          :task="task"
+          :rule-config="ruleConfig"
+          :submissions="submissions"
+          :task-id="taskId"
+          :is-submissions-loading="isSubmissionsLoading"
+          :submissions-error="submissionsError"
+          @refresh-submissions="loadTaskDetails(taskId)"
+        />
       </div>
     </div>
   </StandardLayout>

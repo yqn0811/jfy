@@ -1,3 +1,5 @@
+import type { TaskFieldConfigData, TaskMaterialItemData } from './CollectionTaskData'
+
 export interface PublicSubmissionTaskData {
   id: string
   taskId: string
@@ -20,8 +22,9 @@ export interface PublicSubmissionTaskVO {
   description: string
   dueAt: string
   accessCodeRequired: boolean
-  submitterFields: string[]
-  materials: string[]
+  accessCodeVerified?: boolean
+  submitterFields: string[] | TaskFieldConfigData[]
+  materials: string[] | TaskMaterialItemData[]
   status: 'active' | 'expired' | 'paused'
 }
 

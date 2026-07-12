@@ -2,6 +2,7 @@ import type { FileShareData, ShareAccessLogData, ShareSettingData, UploadFileIte
 
 export interface FileShareVO {
   id: string
+  shareCode?: string
   title: string
   shareUrl: string
   password: string
@@ -16,156 +17,13 @@ export interface FileShareVO {
   recentLogs: ShareAccessLogData[]
 }
 
-export const fileShareDataList: FileShareData[] = [
-  {
-    id: 'share-001',
-    taskId: 'task-002',
-    title: '摄影交付链接 - 客户陈列馆',
-    shareUrl: 'https://share.zxtransfer.example/s/9k2m4q',
-    password: '482916',
-    expiresAt: '2026-07-18T18:00:00Z',
-    maxDownloads: 20,
-    allowPreview: true,
-    notifyOnDownload: true,
-    status: 'active',
-    fileCount: 8,
-    totalSizeMb: 1840,
-    createdAt: '2026-07-07T10:20:00Z',
-    updatedAt: '2026-07-07T10:32:00Z'
-  },
-  {
-    id: 'share-002',
-    taskId: 'task-001',
-    title: 'HR 入职资料收集 - 7 月批次',
-    shareUrl: 'https://share.zxtransfer.example/s/1h7p8r',
-    password: '603214',
-    expiresAt: '2026-07-09T12:00:00Z',
-    maxDownloads: 12,
-    allowPreview: false,
-    notifyOnDownload: true,
-    status: 'active',
-    fileCount: 5,
-    totalSizeMb: 620,
-    createdAt: '2026-07-01T03:00:00Z',
-    updatedAt: '2026-07-06T06:10:00Z'
-  },
-  {
-    id: 'share-003',
-    taskId: 'task-005',
-    title: '合同签署页补交通知',
-    shareUrl: 'https://share.zxtransfer.example/s/2x8n5w',
-    password: '714805',
-    expiresAt: '2026-07-06T12:00:00Z',
-    maxDownloads: 5,
-    allowPreview: true,
-    notifyOnDownload: false,
-    status: 'expired',
-    fileCount: 3,
-    totalSizeMb: 220,
-    createdAt: '2026-06-22T04:20:00Z',
-    updatedAt: '2026-07-07T09:00:00Z'
-  }
-]
+export const fileShareDataList: FileShareData[] = []
 
-export const uploadFileItemDataList: UploadFileItemData[] = [
-  {
-    id: 'upload-001',
-    shareId: 'share-001',
-    fileName: '客户陈列馆_封面图_01.jpg',
-    fileSizeMb: 12.4,
-    progress: 100,
-    status: 'success',
-    uploadedAt: '2026-07-07T10:24:00Z',
-    retryCount: 0
-  },
-  {
-    id: 'upload-002',
-    shareId: 'share-001',
-    fileName: '客户陈列馆_成片_07.mp4',
-    fileSizeMb: 820,
-    progress: 64,
-    status: 'uploading',
-    retryCount: 0
-  },
-  {
-    id: 'upload-003',
-    shareId: 'share-001',
-    fileName: '客户陈列馆_清单.xlsx',
-    fileSizeMb: 1.8,
-    progress: 100,
-    status: 'success',
-    uploadedAt: '2026-07-07T10:25:00Z',
-    retryCount: 0
-  },
-  {
-    id: 'upload-004',
-    shareId: 'share-002',
-    fileName: '身份证正面.jpg',
-    fileSizeMb: 3.2,
-    progress: 100,
-    status: 'success',
-    uploadedAt: '2026-07-01T03:18:00Z',
-    retryCount: 0
-  },
-  {
-    id: 'upload-005',
-    shareId: 'share-002',
-    fileName: '离职证明.pdf',
-    fileSizeMb: 1.1,
-    progress: 100,
-    status: 'failed',
-    failReason: '网络中断，请重试',
-    retryCount: 1
-  }
-]
+export const uploadFileItemDataList: UploadFileItemData[] = []
 
-export const shareSettingDataList: ShareSettingData[] = [
-  {
-    id: 'setting-001',
-    shareId: 'share-001',
-    expiresIn: '30d',
-    accessPassword: '482916',
-    maxDownloads: 20,
-    allowPreview: true,
-    notifyOnDownload: true
-  },
-  {
-    id: 'setting-002',
-    shareId: 'share-002',
-    expiresIn: '7d',
-    accessPassword: '603214',
-    maxDownloads: 12,
-    allowPreview: false,
-    notifyOnDownload: true
-  }
-]
+export const shareSettingDataList: ShareSettingData[] = []
 
-export const shareAccessLogDataList: ShareAccessLogData[] = [
-  {
-    id: 'log-001',
-    shareId: 'share-001',
-    visitorName: '陈女士',
-    action: 'view',
-    occurredAt: '2026-07-07T11:05:00Z',
-    ipLabel: '上海'
-  },
-  {
-    id: 'log-002',
-    shareId: 'share-001',
-    visitorName: '陈女士',
-    action: 'download',
-    occurredAt: '2026-07-07T11:08:00Z',
-    ipLabel: '上海'
-  },
-  {
-    id: 'log-003',
-    shareId: 'share-002',
-    visitorName: '张老师',
-    action: 'copy_link',
-    occurredAt: '2026-07-01T03:20:00Z',
-    ipLabel: '北京'
-  }
-]
+export const shareAccessLogDataList: ShareAccessLogData[] = []
 
 export class FileShareService {
   static getAll(): FileShareData[] {
@@ -215,6 +73,7 @@ export class FileShareService {
     if (!share) return undefined
     return {
       id: share.id,
+      shareCode: share.shareCode,
       title: share.title,
       shareUrl: share.shareUrl,
       password: share.password,
@@ -237,7 +96,18 @@ export class FileShareService {
   static loadPersisted(): FileShareData[] | null {
     if (typeof localStorage === 'undefined') return null
     const raw = localStorage.getItem('fileShareDataList')
-    return raw ? (JSON.parse(raw) as FileShareData[]) : null
+    if (!raw) return null
+    const items = JSON.parse(raw) as FileShareData[]
+    const filtered = items.filter((item) => {
+      const shareUrl = String(item.shareUrl || '')
+      const id = String(item.id || '')
+      const taskId = String(item.taskId || '')
+      return !/^share-00\d$/.test(id) && !/^task-00\d$/.test(taskId) && !/zxtransfer\.example|example\.com/i.test(shareUrl)
+    })
+    if (filtered.length !== items.length) {
+      localStorage.setItem('fileShareDataList', JSON.stringify(filtered))
+    }
+    return filtered
   }
 
   static savePersisted(items: FileShareData[]): void {

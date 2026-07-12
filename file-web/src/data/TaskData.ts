@@ -14,4 +14,7 @@ export interface TaskData {
   ownerId: string
   overdueLevel: 'normal' | 'warning' | 'critical'
   isArchived: boolean
+  shareId?: string
+  shareCode?: string
+  shareUrl?: string
 }

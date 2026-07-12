@@ -20,15 +20,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Progress } from '@/components/ui/progress'
+import { Textarea } from '@/components/ui/textarea'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import FileListItem from '@/components/common/FileListItem.vue'
 import { FileShareService } from '@/data/FileShareService'
 import {
   FileTransferApi,
+  getAnonymousTransferToken,
   makeShareExpiresAt,
   normalizeShareData,
+  normalizeShareVO,
+  toAbsoluteShareUrl,
+  type FileTransferShareVO,
 } from '@/data/FileTransferApi'
-import { getApiErrorMessage } from '@/lib/apiClient'
+import { authStore, getApiErrorMessage } from '@/lib/apiClient'
 import { navigateTo } from '@/navigation'
 
 interface UploadFile {
@@ -57,23 +69,28 @@ type LegalDialogType = 'service' | 'privacy'
 type ShareRecord = ReturnType<typeof FileShareService.getAll>[number]
 
 const MAX_FILE_SIZE_MB = 500
-const LOCAL_FALLBACK_ENABLED =
-  import.meta.env.DEV ||
-  import.meta.env.PUBLIC_ENABLE_MOCK === '1' ||
-  import.meta.env.PUBLIC_ENABLE_MOCK === 'true'
 
 const fileInput = ref<HTMLInputElement | null>(null)
+const folderInput = ref<HTMLInputElement | null>(null)
 const uploadedFiles = ref<UploadFile[]>([])
 const isDragging = ref(false)
 const isGenerating = ref(false)
+const isUploadProgressOpen = ref(false)
+const isPickupCodeOpen = ref(false)
+const isTextDialogOpen = ref(false)
+const textFileName = ref('临时文本.txt')
+const textFileContent = ref('')
 const termsAccepted = ref(true)
 const sendMode = ref<SendMode>('standard')
 const activePanel = ref<UtilityPanel>('pickup')
 const pickupCode = ref('')
 const pickupResult = ref<ShareRecord | null>(null)
 const pickupSearched = ref(false)
-const isLoggedIn = ref(false)
 const legalDialog = ref<LegalDialogType | null>(null)
+const generatedShare = ref<FileTransferShareVO | null>(null)
+const isShareResultOpen = ref(false)
+const shareQrcode = ref('')
+const isShareQrcodeLoading = ref(false)
 
 const shareSettings = ref<ShareSettings>({
   expiresIn: '30d',
@@ -128,6 +145,12 @@ const canGenerateLink = computed(() => {
   return allFilesUploaded.value && termsAccepted.value && !isGenerating.value
 })
 
+const generateButtonLabel = computed(() => {
+  if (isGenerating.value) return '生成中...'
+  if (hasFiles.value && !allFilesUploaded.value) return '文件上传中...'
+  return '生成分享链接'
+})
+
 const fileAccept = computed(() => {
   return sendMode.value === 'image' ? 'image/*' : '*'
 })
@@ -141,6 +164,7 @@ const emptyHint = computed(() => {
 })
 
 const expiresLabel = computed(() => {
+  if (!authStore.hasToken()) return '24 小时'
   const map: Record<ShareSettings['expiresIn'], string> = {
     '7d': '7 天',
     '30d': '30 天',
@@ -174,7 +198,7 @@ const recentShares = computed<ShareRecord[]>(() => {
   const shareMap = new Map<string, ShareRecord>()
   const persistedShares = FileShareService.loadPersisted() ?? []
 
-  ;[...persistedShares, ...FileShareService.getAll()].forEach((share) => {
+  persistedShares.forEach((share) => {
     const existing = shareMap.get(share.id)
     if (!existing || new Date(share.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
       shareMap.set(share.id, share)
@@ -193,6 +217,46 @@ const isLegalDialogOpen = computed({
   set: (open: boolean) => {
     if (!open) legalDialog.value = null
   },
+})
+
+const shareResultLink = computed(() => {
+  if (!generatedShare.value) return ''
+  return toAbsoluteShareUrl(generatedShare.value.shareUrl, generatedShare.value.shareCode)
+})
+
+const shareResultPassword = computed(() => generatedShare.value?.password || '')
+const shareResultPasswordDisplay = computed(() => shareResultPassword.value || '当前记录未返回访问密码')
+const shareResultSummary = computed(() => {
+  if (!generatedShare.value) return ''
+  return `${generatedShare.value.fileCount} 个文件，${formatShareSize(generatedShare.value.totalSizeMb)}`
+})
+
+const shareResultExpiresText = computed(() => {
+  if (!generatedShare.value?.expiresAt) return authStore.hasToken() ? expiresLabel.value : '24 小时'
+  const expiresAt = new Date(generatedShare.value.expiresAt)
+  if (Number.isNaN(expiresAt.getTime())) return authStore.hasToken() ? expiresLabel.value : '24 小时'
+  const hours = Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / (60 * 60 * 1000)))
+  if (hours < 48) return `${hours} 小时`
+  return `${Math.ceil(hours / 24)} 天`
+})
+
+const uploadProgressPercent = computed(() => {
+  if (!uploadedFiles.value.length) return 0
+  const total = uploadedFiles.value.reduce((sum, file) => sum + file.progress, 0)
+  return Math.round(total / uploadedFiles.value.length)
+})
+
+const uploadDialogTitle = computed(() => {
+  if (!uploadedFiles.value.length) return '等待选择文件'
+  if (uploadedFiles.value.some((file) => file.status === 'failed')) return '部分文件上传失败'
+  if (allFilesUploaded.value) return '文件已上传完成'
+  return '正在上传文件'
+})
+
+const uploadDialogDescription = computed(() => {
+  if (!uploadedFiles.value.length) return '请选择要发送给对方的文件。'
+  if (allFilesUploaded.value) return '文件已准备好，可以继续发送。'
+  return `已选择 ${uploadedFiles.value.length} 个文件，正在写入安全存储。`
 })
 
 const legalDialogTitle = computed(() => {
@@ -219,6 +283,16 @@ const openFilePicker = () => {
   fileInput.value?.click()
 }
 
+const openFolderPicker = () => {
+  folderInput.value?.click()
+}
+
+const openTextDialog = () => {
+  textFileName.value = '临时文本.txt'
+  textFileContent.value = ''
+  isTextDialogOpen.value = true
+}
+
 const validateFiles = (files: FileList): boolean => {
   for (let index = 0; index < files.length; index++) {
     const file = files[index]
@@ -237,6 +311,7 @@ const validateFiles = (files: FileList): boolean => {
 
 const appendFiles = (files: FileList) => {
   if (!validateFiles(files)) return
+  isUploadProgressOpen.value = true
 
   for (let index = 0; index < files.length; index++) {
     const file = files[index]
@@ -263,6 +338,26 @@ const handleInputChange = (event: Event) => {
     appendFiles(target.files)
     target.value = ''
   }
+}
+
+const handleFolderInputChange = (event: Event) => {
+  handleInputChange(event)
+}
+
+const handleCreateTextFile = () => {
+  const content = textFileContent.value.trim()
+  if (!content) {
+    toast.error('请先输入文本内容')
+    return
+  }
+
+  const safeName = (textFileName.value.trim() || '临时文本.txt').replace(/[\\/:*?"<>|\r\n]+/g, '_')
+  const fileName = safeName.includes('.') ? safeName : `${safeName}.txt`
+  const file = new File([content], fileName, { type: 'text/plain;charset=utf-8' })
+  const dataTransfer = new DataTransfer()
+  dataTransfer.items.add(file)
+  appendFiles(dataTransfer.files)
+  isTextDialogOpen.value = false
 }
 
 const handleDragOver = (event: DragEvent) => {
@@ -313,14 +408,6 @@ async function uploadFile(fileId: string) {
     const latest = uploadedFiles.value.find((file) => file.id === fileId)
     if (!latest) return
 
-    if (LOCAL_FALLBACK_ENABLED) {
-      latest.status = 'success'
-      latest.progress = 100
-      latest.backendFileId = undefined
-      toast.success(`文件 "${latest.fileName}" 已加入本地发送`)
-      return
-    }
-
     latest.status = 'failed'
     latest.progress = 0
     latest.failReason = getApiErrorMessage(error, '上传失败，请重试')
@@ -345,6 +432,7 @@ const handleRemoveFile = (fileId: string) => {
 
 const handleClearFiles = () => {
   uploadedFiles.value = []
+  isUploadProgressOpen.value = false
 }
 
 const handleModeSelect = (mode: SendMode) => {
@@ -381,16 +469,39 @@ const handlePickupSearch = () => {
   toast.success('已找到分享记录')
 }
 
-const handleOpenShare = (shareId: string) => {
-  navigateTo(`/share-result?shareId=${shareId}`)
+const getShareCodeFromRecord = (share: Pick<ShareRecord, 'shareCode' | 'shareUrl'>) => {
+  if (share.shareCode) return share.shareCode
+  try {
+    return new URL(share.shareUrl || '/', window.location.origin).searchParams.get('shareCode') || ''
+  } catch {
+    return ''
+  }
 }
 
-const handleLogin = () => {
-  if (isLoggedIn.value) {
-    toast.success('当前已登录')
-    return
+const openShareResultDialog = async (share: ShareRecord | FileTransferShareVO) => {
+  const shareCode = getShareCodeFromRecord(share)
+  const localPassword = share.password || shareSettings.value.accessPassword
+  generatedShare.value = normalizeShareVO({ ...share, shareCode }, localPassword)
+  isShareResultOpen.value = true
+  shareQrcode.value = ''
+  void loadShareQrcode()
+
+  if (!shareCode) return
+
+  try {
+    const remoteShare = await FileTransferApi.getOwnerShare(shareCode)
+    generatedShare.value = {
+      ...remoteShare,
+      password: localPassword || remoteShare.password,
+    }
+    if (!shareQrcode.value) void loadShareQrcode()
+  } catch {
+    // 本地记录已经足够展示链接、密码和二维码；远端详情失败时不打断 A 端复制分享。
   }
-  toast.info('登录入口暂未接入')
+}
+
+const handleOpenShare = (share: ShareRecord) => {
+  void openShareResultDialog(share)
 }
 
 const handleSupport = () => {
@@ -415,6 +526,82 @@ const handleOpenLegal = (type: LegalDialogType) => {
 const handleNoticeHelp = () => {
   activePanel.value = 'security'
   toast.success('已打开安全说明')
+}
+
+const copyText = async (text: string, successText: string) => {
+  if (!text) {
+    toast.error('内容为空，无法复制')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.success(successText)
+  } catch {
+    toast.error('复制失败，请手动复制')
+  }
+}
+
+const handleCopyShareLink = () => {
+  copyText(shareResultLink.value, '分享链接已复制')
+}
+
+const handleCopySharePassword = () => {
+  copyText(shareResultPassword.value, '访问密码已复制')
+}
+
+const handleOpenPickupCode = () => {
+  if (!generatedShare.value) return
+  isPickupCodeOpen.value = true
+}
+
+const loadShareQrcode = async () => {
+  if (!generatedShare.value?.shareCode || shareQrcode.value || isShareQrcodeLoading.value) return
+
+  try {
+    isShareQrcodeLoading.value = true
+    const result = await FileTransferApi.getShareQrcode(generatedShare.value.shareCode, shareResultLink.value)
+    shareQrcode.value = result.qrcode
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '二维码生成失败，已保留分享链接'))
+  } finally {
+    isShareQrcodeLoading.value = false
+  }
+}
+
+const handleRefreshShareQrcode = async () => {
+  shareQrcode.value = ''
+  await loadShareQrcode()
+}
+
+const handleDownloadShareQrcode = () => {
+  if (!shareQrcode.value) {
+    toast.info('二维码尚未生成')
+    return
+  }
+  const link = document.createElement('a')
+  link.href = shareQrcode.value
+  link.download = `${generatedShare.value?.title || '分享链接'}-二维码.png`.replace(/[\\/:*?"<>|\r\n]+/g, '_')
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+const handleCreateAnotherShare = () => {
+  isShareResultOpen.value = false
+  isPickupCodeOpen.value = false
+  generatedShare.value = null
+  shareQrcode.value = ''
+  uploadedFiles.value = []
+  shareSettings.value.accessPassword = generatePassword()
+}
+
+const handleManageGeneratedShare = () => {
+  if (!generatedShare.value) return
+  const params = new URLSearchParams()
+  if (generatedShare.value.shareCode) params.set('shareCode', generatedShare.value.shareCode)
+  if (generatedShare.value.id) params.set('shareId', generatedShare.value.id)
+  isShareResultOpen.value = false
+  navigateTo(`/share-result?${params.toString()}`)
 }
 
 const handleGenerateLink = async () => {
@@ -447,53 +634,67 @@ const handleGenerateLink = async () => {
     const share = await FileTransferApi.createShare({
       title: `快速分享 - ${new Date().toLocaleString('zh-CN')}`,
       fileIds,
+      transferToken: getAnonymousTransferToken(),
       password: shareSettings.value.accessPassword,
-      expiresAt: makeShareExpiresAt(shareSettings.value.expiresIn),
+      expiresAt: makeShareExpiresAt(authStore.hasToken() ? shareSettings.value.expiresIn : '24h'),
       maxDownloads: shareSettings.value.maxDownloads,
       allowPreview: shareSettings.value.allowPreview,
       notifyOnDownload: shareSettings.value.notifyOnDownload,
     })
 
-    const allShares = FileShareService.getAll()
+    const allShares = FileShareService.loadPersisted() ?? []
     allShares.push(normalizeShareData(share, shareSettings.value.accessPassword))
     FileShareService.savePersisted(allShares)
 
+    generatedShare.value = share
+    isShareResultOpen.value = true
+    isUploadProgressOpen.value = false
+    shareQrcode.value = ''
+    void loadShareQrcode()
     toast.success('分享链接已生成')
-    navigateTo(`/share-result?shareCode=${encodeURIComponent(share.shareCode)}&shareId=${encodeURIComponent(share.id)}`)
   } catch (error) {
-    if (!LOCAL_FALLBACK_ENABLED) {
-      toast.error(getApiErrorMessage(error, '生成分享链接失败，请重试'))
-      return
-    }
-
-    const localShare = createLocalShareRecord()
-    const allShares = FileShareService.getAll()
-    allShares.push(localShare)
-    FileShareService.savePersisted(allShares)
-    toast.success('分享链接已生成')
-    navigateTo(`/share-result?shareId=${localShare.id}`)
+    toast.error(getApiErrorMessage(error, '生成分享链接失败，请重试'))
   } finally {
     isGenerating.value = false
   }
 }
 
-function createLocalShareRecord(): ShareRecord {
-  const shareId = `share-${Date.now()}`
-  return {
-    id: shareId,
-    taskId: '',
-    title: `快速分享 - ${new Date().toLocaleString('zh-CN')}`,
-    shareUrl: `https://share.zxtransfer.example/s/${Math.random().toString(36).substring(2, 8)}`,
-    password: shareSettings.value.accessPassword,
-    expiresAt: makeShareExpiresAt(shareSettings.value.expiresIn),
-    maxDownloads: shareSettings.value.maxDownloads,
-    allowPreview: shareSettings.value.allowPreview,
-    notifyOnDownload: shareSettings.value.notifyOnDownload,
-    status: 'active',
-    fileCount: uploadedFiles.value.length,
-    totalSizeMb: totalSizeMb.value,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+const openShareResultFromQuery = async () => {
+  const params = new URLSearchParams(window.location.search)
+  const isLegacyShareResultPage = window.location.pathname.replace(/\.html$/, '').replace(/\/+$/, '') === '/share-result'
+  const shouldOpenDialog = params.get('shareResult') === '1' || isLegacyShareResultPage
+  if (!shouldOpenDialog) return
+
+  const queryShareId = params.get('shareId') || ''
+  const queryShareCode = params.get('shareCode') || params.get('code') || ''
+  const localShare = queryShareId
+    ? FileShareService.getById(queryShareId)
+    : FileShareService.getAll().find((share) => getShareCodeFromRecord(share) === queryShareCode)
+
+  try {
+    if (localShare) {
+      await openShareResultDialog({
+        ...localShare,
+        shareCode: queryShareCode || localShare.shareCode,
+      })
+    } else if (queryShareCode) {
+      const remoteShare = await FileTransferApi.getOwnerShare(queryShareCode)
+      generatedShare.value = remoteShare
+      isShareResultOpen.value = true
+      shareQrcode.value = ''
+      void loadShareQrcode()
+    } else {
+      toast.error('没有找到对应的分享记录')
+    }
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '分享信息加载失败'))
+  } finally {
+    params.delete('shareResult')
+    params.delete('shareId')
+    params.delete('shareCode')
+    params.delete('code')
+    const nextQuery = params.toString()
+    window.history.replaceState({}, '', `/quick-send${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`)
   }
 }
 
@@ -519,12 +720,13 @@ onMounted(() => {
       navigateTo('/quick-send')
     }
   })
+  void openShareResultFromQuery()
 })
 </script>
 
 <template>
   <div class="page-body quick-send-page min-h-[calc(100vh-var(--header-height))]">
-    <div class="page-container quick-send-container">
+    <div class="app-shell quick-send-container">
       <section class="quick-workspace" aria-label="快速发文件工作区">
         <aside class="control-panel">
           <div class="intro-block">
@@ -597,6 +799,15 @@ onMounted(() => {
             :accept="fileAccept"
             @change="handleInputChange"
           />
+          <input
+            ref="folderInput"
+            type="file"
+            class="hidden"
+            multiple
+            webkitdirectory
+            directory
+            @change="handleFolderInputChange"
+          />
 
           <div
             class="transfer-card"
@@ -622,10 +833,45 @@ onMounted(() => {
               <div class="upload-symbol">
                 <SafeIcon :name="sendMode === 'image' ? 'ImagePlus' : 'FileUp'" :size="42" />
               </div>
-              <Button class="choose-file-button" @click="openFilePicker">
-                <SafeIcon name="FilePlus2" :size="18" />
-                {{ pickerLabel }}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <Button class="choose-file-button">
+                    <SafeIcon name="FilePlus2" :size="18" />
+                    {{ pickerLabel }}
+                    <SafeIcon name="ChevronDown" :size="16" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" class="source-menu w-64">
+                  <DropdownMenuItem class="source-menu-item" @click="openFilePicker">
+                    <SafeIcon name="FileText" :size="18" />
+                    <span>
+                      <strong>单个、多个文件</strong>
+                      <small>选择本地文件上传</small>
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem class="source-menu-item" @click="openFolderPicker">
+                    <SafeIcon name="FolderOpen" :size="18" />
+                    <span>
+                      <strong>整个文件夹</strong>
+                      <small>保留文件夹中的文件结构</small>
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem class="source-menu-item" @click="toast.info('空间选择稍后接入')">
+                    <SafeIcon name="Cloud" :size="18" />
+                    <span>
+                      <strong>从空间选择</strong>
+                      <small>选择已归档文件</small>
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem class="source-menu-item" @click="openTextDialog">
+                    <SafeIcon name="PencilLine" :size="18" />
+                    <span>
+                      <strong>写文本</strong>
+                      <small>生成一个文本文件发送</small>
+                    </span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <p>{{ emptyHint }}</p>
               <div class="format-row">
                 <span>最大 500MB</span>
@@ -641,9 +887,37 @@ onMounted(() => {
                   <p class="text-caption">合计 {{ totalSizeMb.toFixed(2) }} MB</p>
                 </div>
                 <div class="selected-actions">
-                  <Button variant="outline" size="sm" @click="openFilePicker">
-                    继续添加
+                  <Button
+                    class="generate-link-button"
+                    :disabled="!canGenerateLink"
+                    @click="handleGenerateLink"
+                  >
+                    <SafeIcon v-if="isGenerating" name="Loader2" :size="16" class="animate-spin" />
+                    <SafeIcon v-else name="Link2" :size="16" />
+                    {{ generateButtonLabel }}
                   </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <Button variant="outline" size="sm">
+                        继续添加
+                        <SafeIcon name="ChevronDown" :size="14" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-56">
+                      <DropdownMenuItem class="gap-2" @click="openFilePicker">
+                        <SafeIcon name="FileText" :size="16" />
+                        添加文件
+                      </DropdownMenuItem>
+                      <DropdownMenuItem class="gap-2" @click="openFolderPicker">
+                        <SafeIcon name="FolderOpen" :size="16" />
+                        添加文件夹
+                      </DropdownMenuItem>
+                      <DropdownMenuItem class="gap-2" @click="openTextDialog">
+                        <SafeIcon name="PencilLine" :size="16" />
+                        写文本
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="handleClearFiles">
                     清空
                   </Button>
@@ -700,31 +974,25 @@ onMounted(() => {
                 <button type="button" @click.stop="handleOpenLegal('privacy')">《用户隐私政策》</button>
               </span>
             </label>
-            <p class="login-row">
-              <template v-if="isLoggedIn">
-                已登录，接收方可按权限在线预览。
-              </template>
-              <template v-else>
-                未登录，对方无法在线预览。
-                <button type="button" @click="handleLogin">立即登录</button>
-              </template>
-            </p>
           </div>
 
           <div v-if="hasFiles" class="settings-card">
             <div class="settings-header">
               <div>
                 <h2 class="text-item-title">分享设置</h2>
-                <p class="text-caption mt-1">配置有效期、访问密码和下载限制</p>
+                <p class="text-caption mt-1">
+                  {{ authStore.hasToken() ? '配置有效期、访问密码和下载限制' : '未登录文件有效期为 24 小时，到期后自动清理' }}
+                </p>
               </div>
               <Button :disabled="!canGenerateLink" @click="handleGenerateLink">
                 <SafeIcon v-if="isGenerating" name="Loader2" :size="16" class="animate-spin" />
-                {{ isGenerating ? '生成中...' : '生成分享链接' }}
+                <SafeIcon v-else name="Link2" :size="16" />
+                {{ generateButtonLabel }}
               </Button>
             </div>
 
             <div class="settings-grid">
-              <div class="space-y-2">
+              <div v-if="authStore.hasToken()" class="space-y-2">
                 <Label class="text-label">有效期</Label>
                 <Select v-model="shareSettings.expiresIn">
                   <SelectTrigger class="h-9">
@@ -736,6 +1004,13 @@ onMounted(() => {
                     <SelectItem value="90d">90 天</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div v-else class="space-y-2">
+                <Label class="text-label">有效期</Label>
+                <div class="anonymous-expiry-box">
+                  <SafeIcon name="Clock3" :size="16" />
+                  24 小时
+                </div>
               </div>
 
               <div class="space-y-2">
@@ -803,7 +1078,7 @@ onMounted(() => {
                 <strong>{{ pickupResult.title }}</strong>
                 <span>{{ pickupResult.fileCount }} 个文件 · {{ formatShareSize(pickupResult.totalSizeMb) }}</span>
               </div>
-              <Button size="sm" @click="handleOpenShare(pickupResult.id)">
+              <Button size="sm" @click="handleOpenShare(pickupResult)">
                 打开
               </Button>
             </div>
@@ -837,7 +1112,7 @@ onMounted(() => {
                 :key="share.id"
                 type="button"
                 class="recent-item"
-                @click="handleOpenShare(share.id)"
+                @click="handleOpenShare(share)"
               >
                 <span>
                   <strong>{{ share.title }}</strong>
@@ -912,7 +1187,7 @@ onMounted(() => {
           </DialogDescription>
         </DialogHeader>
         <div class="legal-copy">
-          <p>以下内容用于演示当前产品交互，实际条款可接入正式协议文本。</p>
+          <p>以下内容为当前传输服务的关键说明。</p>
           <ul>
             <li v-for="point in legalDialogPoints" :key="point">{{ point }}</li>
           </ul>
@@ -920,6 +1195,225 @@ onMounted(() => {
         <DialogFooter>
           <Button @click="legalDialog = null">知道了</Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isTextDialogOpen">
+      <DialogContent class="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>写文本发送</DialogTitle>
+          <DialogDescription>
+            文本会作为一个 .txt 文件加入本次发送。
+          </DialogDescription>
+        </DialogHeader>
+        <div class="text-file-form">
+          <div class="space-y-2">
+            <Label class="text-label">文件名</Label>
+            <Input v-model="textFileName" placeholder="例如 说明.txt" />
+          </div>
+          <div class="space-y-2">
+            <Label class="text-label">文本内容</Label>
+            <Textarea v-model="textFileContent" class="min-h-40" placeholder="输入要发送给对方的文字内容" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="isTextDialogOpen = false">取消</Button>
+          <Button @click="handleCreateTextFile">加入发送</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isUploadProgressOpen">
+      <DialogContent class="upload-progress-dialog max-w-2xl">
+        <DialogHeader>
+          <DialogTitle class="upload-progress-title">
+            <SafeIcon :name="allFilesUploaded ? 'CheckCircle2' : 'Loader2'" :size="22" :class="!allFilesUploaded && 'animate-spin'" />
+            {{ uploadDialogTitle }}
+          </DialogTitle>
+          <DialogDescription>
+            {{ uploadDialogDescription }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="upload-progress-body">
+          <div class="upload-size-orb">
+            <strong>{{ formatShareSize(totalSizeMb) }}</strong>
+          </div>
+          <div class="upload-progress-copy">
+            <p>{{ allFilesUploaded ? '已完成 100%' : `即将完成...${uploadProgressPercent}%` }}</p>
+            <Progress :model-value="uploadProgressPercent" class="h-2" />
+          </div>
+          <div class="upload-progress-list">
+            <div v-for="file in uploadedFiles" :key="file.id" class="upload-progress-item">
+              <SafeIcon :name="file.status === 'success' ? 'CheckCircle2' : file.status === 'failed' ? 'CircleAlert' : 'Loader2'" :size="16" :class="file.status === 'uploading' && 'animate-spin'" />
+              <span>{{ file.fileName }}</span>
+              <strong>{{ file.status === 'failed' ? '失败' : `${Math.round(file.progress)}%` }}</strong>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" :disabled="!allFilesUploaded" @click="isUploadProgressOpen = false">
+            {{ allFilesUploaded ? '继续设置' : '上传中' }}
+          </Button>
+          <Button :disabled="!canGenerateLink" @click="handleGenerateLink">
+            发送
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isShareResultOpen">
+      <DialogContent class="share-result-dialog max-w-5xl">
+        <DialogHeader>
+          <DialogTitle class="share-result-title">
+            <span class="share-result-icon">
+              <SafeIcon name="Check" :size="20" />
+            </span>
+            文件发送成功
+          </DialogTitle>
+          <DialogDescription>
+            {{ shareResultSummary }}，已生成公共链接和访问密码。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div v-if="generatedShare" class="share-result-body">
+          <section class="share-success-panel">
+            <div class="success-hero-icon">
+              <SafeIcon name="ThumbsUp" :size="58" />
+            </div>
+            <h2>{{ shareResultSummary }}，已全部发送成功</h2>
+            <p>
+              过期时间：<strong>{{ shareResultExpiresText }}</strong>
+            </p>
+            <div class="share-success-actions">
+              <Button variant="outline" @click="handleCopyShareLink">
+                <SafeIcon name="MessageCircle" :size="18" />
+                社交分享
+              </Button>
+              <Button variant="secondary" @click="handleOpenPickupCode">
+                <SafeIcon name="KeyRound" :size="18" />
+                生成取件码
+              </Button>
+            </div>
+            <div class="public-link-row">
+              <span>公共链接：</span>
+              <button type="button" @click="handleCopyShareLink">{{ shareResultLink }}</button>
+              <Button variant="ghost" size="sm" @click="handleCopyShareLink">
+                <SafeIcon name="Copy" :size="15" />
+                复制
+              </Button>
+              <Button variant="ghost" size="sm" @click="loadShareQrcode">
+                <SafeIcon name="QrCode" :size="15" />
+                二维码
+              </Button>
+            </div>
+          </section>
+
+          <aside class="share-manage-panel">
+            <div class="share-result-field">
+              <Label class="text-label">链接地址</Label>
+              <div class="share-copy-row">
+                <Input :model-value="shareResultLink" readonly class="font-mono text-sm" />
+                <Button variant="outline" @click="handleCopyShareLink">
+                  <SafeIcon name="Copy" :size="16" />
+                  复制
+                </Button>
+              </div>
+            </div>
+
+            <div class="share-result-field">
+              <Label class="text-label">访问密码</Label>
+              <div class="share-copy-row">
+                <Input :model-value="shareResultPasswordDisplay" readonly class="font-mono text-sm" />
+                <Button variant="outline" @click="handleCopySharePassword">
+                  <SafeIcon name="Copy" :size="16" />
+                  复制
+                </Button>
+              </div>
+            </div>
+
+            <div class="share-result-meta">
+              <div>
+                <span>有效期</span>
+                <strong>{{ shareResultExpiresText }}</strong>
+              </div>
+              <div>
+                <span>文件数量</span>
+                <strong>{{ generatedShare.fileCount }} 个</strong>
+              </div>
+              <div>
+                <span>总大小</span>
+                <strong>{{ formatShareSize(generatedShare.totalSizeMb) }}</strong>
+              </div>
+            </div>
+          </aside>
+
+          <aside class="share-qrcode-panel">
+            <div class="share-qrcode-box">
+              <SafeIcon
+                v-if="isShareQrcodeLoading"
+                name="Loader2"
+                :size="34"
+                class="animate-spin text-muted-foreground"
+              />
+              <img
+                v-else-if="shareQrcode"
+                :src="shareQrcode"
+                alt="分享二维码"
+              />
+              <button v-else type="button" @click="loadShareQrcode">
+                <SafeIcon name="QrCode" :size="42" />
+                <span>生成二维码</span>
+              </button>
+            </div>
+            <div class="share-qrcode-actions">
+              <Button variant="outline" size="sm" @click="handleRefreshShareQrcode">
+                <SafeIcon name="RotateCw" :size="15" />
+                刷新
+              </Button>
+              <Button variant="outline" size="sm" :disabled="!shareQrcode" @click="handleDownloadShareQrcode">
+                <SafeIcon name="Download" :size="15" />
+                下载
+              </Button>
+            </div>
+          </aside>
+        </div>
+
+        <DialogFooter class="gap-2 sm:justify-between">
+          <Button variant="ghost" size="icon" title="分享设置" @click="handleManageGeneratedShare">
+            <SafeIcon name="Settings" :size="18" />
+          </Button>
+          <div class="flex flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" @click="handleManageGeneratedShare">
+              查看 / 管理文件
+            </Button>
+            <Button @click="handleCreateAnotherShare">
+              <SafeIcon name="Send" :size="16" />
+              发送新文件
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isPickupCodeOpen">
+      <DialogContent class="pickup-code-dialog max-w-lg">
+        <DialogHeader>
+          <DialogTitle>取件码</DialogTitle>
+          <DialogDescription>
+            对方也可以用访问密码作为取件码打开文件。
+          </DialogDescription>
+        </DialogHeader>
+        <div class="pickup-code-body">
+          <strong>{{ shareResultPasswordDisplay }}</strong>
+          <p>有效期：{{ shareResultExpiresText }}</p>
+          <Button variant="outline" @click="handleCopySharePassword">
+            <SafeIcon name="Copy" :size="16" />
+            复制取件码
+          </Button>
+        </div>
+        <p class="pickup-code-note">
+          取件码与访问密码一致，用于接收方打开公开链接后的密码验证。
+        </p>
       </DialogContent>
     </Dialog>
   </div>
@@ -944,8 +1438,8 @@ onMounted(() => {
 
 .quick-workspace {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(420px, 1fr) minmax(280px, 360px);
-  gap: 20px;
+  grid-template-columns: minmax(300px, 360px) minmax(640px, 1fr) minmax(340px, 420px);
+  gap: 24px;
   align-items: start;
   width: 100%;
   padding: 32px 0;
@@ -1013,8 +1507,7 @@ onMounted(() => {
 .panel-heading p,
 .transfer-empty p,
 .hint-list,
-.legal-copy,
-.login-row {
+.legal-copy {
   color: hsl(var(--muted-foreground));
   font-size: 14px;
   line-height: 1.6;
@@ -1219,6 +1712,36 @@ onMounted(() => {
   min-width: 152px;
 }
 
+.source-menu {
+  padding: 8px;
+}
+
+.source-menu-item {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 12px;
+  border-radius: 8px;
+}
+
+.source-menu-item span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.source-menu-item strong {
+  color: hsl(var(--foreground));
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.source-menu-item small {
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+}
+
 .format-row {
   display: flex;
   flex-wrap: wrap;
@@ -1254,7 +1777,12 @@ onMounted(() => {
 .selected-actions {
   display: flex;
   flex-shrink: 0;
+  align-items: center;
   gap: 8px;
+}
+
+.generate-link-button {
+  min-width: 142px;
 }
 
 .file-list-scroll {
@@ -1309,8 +1837,7 @@ onMounted(() => {
   accent-color: hsl(var(--primary));
 }
 
-.terms-row button,
-.login-row button {
+.terms-row button {
   color: hsl(var(--foreground));
   font-weight: 600;
 }
@@ -1332,6 +1859,20 @@ onMounted(() => {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-top: 18px;
+}
+
+.anonymous-expiry-box {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.35);
+  padding: 0 12px;
+  color: hsl(var(--foreground));
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .settings-switches {
@@ -1551,9 +2092,328 @@ onMounted(() => {
   list-style: disc;
 }
 
-@media (max-width: 1180px) {
+.text-file-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.upload-progress-dialog {
+  gap: 22px;
+}
+
+.upload-progress-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.upload-progress-title svg {
+  color: hsl(var(--primary));
+}
+
+.upload-progress-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  padding: 10px 0 18px;
+}
+
+.upload-size-orb {
+  display: grid;
+  width: 128px;
+  height: 128px;
+  place-items: center;
+  border: 10px solid hsl(var(--primary) / 0.15);
+  border-radius: 999px;
+  background: hsl(var(--primary) / 0.72);
+  color: white;
+}
+
+.upload-size-orb strong {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.upload-progress-copy {
+  display: flex;
+  width: min(100%, 420px);
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.upload-progress-copy p {
+  color: hsl(var(--foreground));
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.upload-progress-list {
+  display: flex;
+  width: min(100%, 520px);
+  max-height: 180px;
+  flex-direction: column;
+  overflow: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+}
+
+.upload-progress-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+
+.upload-progress-item:last-child {
+  border-bottom: 0;
+}
+
+.upload-progress-item span {
+  overflow: hidden;
+  color: hsl(var(--foreground));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-progress-item strong {
+  font-size: 12px;
+}
+
+.share-result-dialog {
+  gap: 20px;
+}
+
+.share-result-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.share-result-icon {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: hsl(var(--success));
+  color: white;
+}
+
+.share-result-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.share-success-panel,
+.share-manage-panel,
+.share-qrcode-panel {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--card));
+}
+
+.share-success-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 42px 24px;
+  text-align: center;
+}
+
+.success-hero-icon {
+  display: grid;
+  width: 110px;
+  height: 110px;
+  place-items: center;
+  border-radius: 999px;
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+}
+
+.share-success-panel h2 {
+  color: hsl(var(--primary));
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.share-success-panel p {
+  color: hsl(var(--muted-foreground));
+  font-size: 15px;
+}
+
+.share-success-panel p strong {
+  color: hsl(var(--warning));
+}
+
+.share-success-actions {
+  display: grid;
+  width: min(100%, 520px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.public-link-row {
+  display: flex;
+  width: min(100%, 720px);
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+}
+
+.public-link-row button:first-of-type {
+  min-width: 0;
+  max-width: 360px;
+  overflow: hidden;
+  color: hsl(var(--primary));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-manage-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+}
+
+.share-result-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-copy-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.share-copy-row input {
+  min-width: 0;
+}
+
+.share-result-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.share-result-meta div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.45);
+  padding: 12px;
+}
+
+.share-result-meta span {
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+}
+
+.share-result-meta strong {
+  overflow: hidden;
+  color: hsl(var(--foreground));
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-qrcode-panel {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.share-qrcode-box {
+  display: grid;
+  aspect-ratio: 1;
+  width: 100%;
+  place-items: center;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.3);
+  overflow: hidden;
+}
+
+.share-qrcode-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 12px;
+  background: white;
+}
+
+.share-qrcode-box button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+
+.share-qrcode-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pickup-code-dialog {
+  gap: 22px;
+}
+
+.pickup-code-body {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.pickup-code-body strong {
+  color: hsl(var(--primary));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 56px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.pickup-code-body p,
+.pickup-code-note {
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+@media (max-width: 1400px) {
   .quick-workspace {
-    grid-template-columns: minmax(220px, 280px) minmax(420px, 1fr);
+    grid-template-columns: minmax(260px, 320px) minmax(520px, 1fr);
   }
 
   .utility-panel {
@@ -1568,6 +2428,12 @@ onMounted(() => {
 
   .panel-section {
     min-height: 220px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .quick-workspace {
+    grid-template-columns: minmax(230px, 280px) minmax(480px, 1fr);
   }
 }
 
@@ -1616,6 +2482,15 @@ onMounted(() => {
   .settings-switches {
     grid-template-columns: 1fr;
   }
+
+  .share-result-body {
+    grid-template-columns: 1fr;
+  }
+
+  .share-qrcode-panel {
+    grid-column: auto;
+    max-width: 260px;
+  }
 }
 
 @media (max-width: 520px) {
@@ -1653,6 +2528,15 @@ onMounted(() => {
 
   .selected-actions > * {
     width: 100%;
+  }
+
+  .share-copy-row,
+  .share-result-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .share-qrcode-panel {
+    max-width: none;
   }
 }
 </style>

@@ -35,10 +35,6 @@ const isSaving = ref(false)
 const isCreating = ref(false)
 const showCancelDialog = ref(false)
 const lastSaveTime = ref(0)
-const LOCAL_FALLBACK_ENABLED =
-  import.meta.env.DEV ||
-  import.meta.env.PUBLIC_ENABLE_MOCK === '1' ||
-  import.meta.env.PUBLIC_ENABLE_MOCK === 'true'
 
 const formData = reactive({
   name: '',
@@ -167,40 +163,11 @@ const handleCreateTask = async () => {
     }, 500)
   } catch (error) {
     console.error('Create task error:', error)
-    if (!LOCAL_FALLBACK_ENABLED) {
-      toast.error(getApiErrorMessage(error, '创建任务失败，请重试'))
-      return
-    }
-
-    const localTask = createLocalTask()
-    persistCreatedTask(localTask)
-    clearDraftStorage()
-    toast.success('收集任务创建成功！')
-    setTimeout(() => {
-      navigateTo(`/task-details?taskId=${localTask.id}`)
-    }, 500)
+    toast.error(getApiErrorMessage(error, '创建任务失败，请重试'))
   } finally {
     isCreating.value = false
   }
 }
-
-const createLocalTask = () => ({
-  id: `task-${Date.now()}`,
-  teamId: 'team-001',
-  templateId: null,
-  name: formData.name,
-  description: formData.description,
-  status: 'collecting' as const,
-  dueAt: formData.dueAt,
-  submitTargetDescription: formData.submitTargetDescription,
-  submitterFieldIds: formData.fields.map((f) => f.id),
-  materialItemIds: formData.materials.map((m) => m.id),
-  ruleConfigId: `rule-${Date.now()}`,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  archivedAt: null,
-  ownerId: 'user-001',
-})
 
 const persistCreatedTask = (task: CollectionTaskData) => {
   const allTasks = CollectionTaskService.getAll()
@@ -294,7 +261,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-col gap-6 lg:gap-8 max-w-4xl mx-auto" v-if="isClient">
+  <div class="w-full flex flex-col gap-5 lg:gap-6" v-if="isClient">
     <!-- Header -->
     <div class="flex items-start justify-between gap-4">
       <div>
@@ -315,7 +282,7 @@ watch(
     <StepIndicator :current-step="currentStep" :steps="steps" />
 
     <!-- Form Content -->
-    <div class="surface-base card-padding min-h-[400px]">
+    <div class="surface-base card-padding min-h-[360px]">
       <!-- Step 1: Basic Info -->
       <BasicInfoStep
         v-if="currentStep === 1"
@@ -351,7 +318,7 @@ watch(
     </div>
 
     <!-- Navigation Buttons -->
-    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div class="sticky bottom-4 z-20 flex flex-col-reverse gap-3 rounded-lg border border-border bg-card/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-4">
       <div class="flex items-center gap-3">
         <Button
           variant="outline"
