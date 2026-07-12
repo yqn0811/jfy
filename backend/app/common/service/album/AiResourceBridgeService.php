@@ -807,15 +807,10 @@ class AiResourceBridgeService extends BaseService
 
     private function isImportedResourcePicture($pic)
     {
-        $imgurl = trim((string)($pic->imgurl ?? ''));
-        if ($imgurl === '') {
-            return false;
-        }
-        if (WdXcxPic::isHttpUrl($imgurl) || WdXcxPic::isSchemeLessHttpUrl($imgurl) || strpos($imgurl, '//') === 0) {
-            return true;
-        }
         $name = (string)($pic->pic_name ?? '');
-        return strpos($name, '我的资源库-') === 0 || strpos($name, 'AI资源库-') === 0;
+        return $this->getResourceIdFromPicture($pic) > 0
+            || strpos($name, '我的资源库-') === 0
+            || strpos($name, 'AI资源库-') === 0;
     }
 
     private function requestAiResource($method, $path, $payload = null)
