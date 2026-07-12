@@ -6,12 +6,13 @@ use app\common\model\album\WdXcxAlbumFolder;
 use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserAlbumPic;
 use app\common\model\user\WdXcxUserAlbumUploadCode;
+use app\common\model\user\WdXcxVipgrade;
 use app\common\service\BaseService;
 use app\common\service\JwtService;
 use app\common\service\WxService;
-use app\index\model\WdXcxBase;
-use app\index\model\WdXcxPic;
-use app\index\service\upload\UploadService;
+use app\common\model\WdXcxBase;
+use app\common\model\WdXcxPic;
+use app\common\service\upload\UploadService;
 use think\App;
 use think\facade\Db;
 
@@ -175,6 +176,7 @@ class WebUploadService extends BaseService
     public function uploadFileAlbum($params, $uid)
     {
         $need_check = WdXcxBase::where('uniacid', 1)->value('pic_check');
+        $role = 'cover';
         Db::startTrans();
         try{
             $data = (new UploadService($this->uniacid))->uploadImages([
@@ -190,12 +192,16 @@ class WebUploadService extends BaseService
                 $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
                 $pic_album = [];
                 $last_url = '';
+                $uploadField = $this->normalizeProductUploadField($params['upload_field'] ?? '');
+                $requestSort = $this->resolveUploadSort($params);
+                $role = $uploadField === 'detail_chart' ? 'detail' : 'cover';
                 foreach ($data as $item){
                     $imageDetection = $this->weChatImageValidation($item['url']);
                     if($imageDetection["data"] != 0){ // 图片涉黄了
                         throwError("图片检测不通过，请重新上传");
                     }
                     $pic_album[] = [
+                        'sort' => $requestSort,
                         'uniacid' => 1,
                         'user_id' => $uid,
                         'pic_id' => $item['pid'],
@@ -204,7 +210,7 @@ class WebUploadService extends BaseService
                         'create_time' => time(),
                         'update_time' => time(),
                         'upload_date' => date('Y-m-d'),
-                        'upload_field' => '',
+                        'upload_field' => $uploadField,
                     ];
                     $last_url = $item['url'];
                 }
@@ -214,13 +220,14 @@ class WebUploadService extends BaseService
                     ->whereIn('pic_id', array_column($pic_album, 'pic_id'))
                     ->where('create_time', '>=', $syncStartTime)
                     ->with(['picture'])
-                    ->order('id desc')
+                    ->order('id asc')
                     ->select();
+                $this->normalizeCreatedRelationSorts($createdRelations);
                 if($need_check){
                     $folder_info->check_status = 0;
                     $folder_info->save();
                 }else{
-                    if($params['file_type'] == 1){
+                    if($role === 'cover'){
                         $this->updateParentThumbs($folder_info->id, $last_url);
                     }
                 }
@@ -233,13 +240,45 @@ class WebUploadService extends BaseService
         if (!empty($createdRelations)) {
             $bridge = new AiResourceBridgeService($this->app);
             foreach ($createdRelations as $relation) {
-                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, 'album');
+                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, $role);
             }
         }
         return [
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',
             'data' => $data,
         ];
+    }
+
+    private function normalizeCreatedRelationSorts($relations)
+    {
+        foreach ($relations as $relation) {
+            if (!$relation || (int)($relation->id ?? 0) <= 0 || (int)($relation->sort ?? 0) > 0) {
+                continue;
+            }
+            $sort = (int)$relation->id;
+            WdXcxUserAlbumPic::where('id', $relation->id)->update(['sort' => $sort]);
+            $relation->sort = $sort;
+        }
+    }
+
+    private function resolveUploadSort($params)
+    {
+        $batchStartedAt = (int)($params['batch_started_at'] ?? 0);
+        $sortOrder = (int)($params['sort_order'] ?? 0);
+        if ($batchStartedAt > 0 && $sortOrder > 0) {
+            $sort = $batchStartedAt + min($sortOrder, 999);
+            return max(1, min($sort, 2147483647));
+        }
+        return 0;
+    }
+
+    private function normalizeProductUploadField($value)
+    {
+        $value = strtolower(trim((string)$value));
+        if (in_array($value, ['detail', 'detail_chart', 'detailchart', 'detail_pic', 'detail_pic_ids', '2'], true)) {
+            return 'detail_chart';
+        }
+        return 'color_chart';
     }
 
     /**更新父级文件夹的缩略图
@@ -310,10 +349,11 @@ class WebUploadService extends BaseService
 
     private function buildUploadPolicy($user)
     {
+        $concurrencyLimit = $this->getUploadConcurrencyLimit($user);
         return [
-            'concurrency' => 1,
-            'upload_concurrency' => 1,
-            'concurrency_limit' => 1,
+            'concurrency' => $concurrencyLimit,
+            'upload_concurrency' => $concurrencyLimit,
+            'concurrency_limit' => $concurrencyLimit,
             'single_file_limit_mb' => (int)$user->TrueUploadSize,
             'traffic_limit_bytes' => 0,
             'traffic_used_bytes' => 0,
@@ -323,6 +363,30 @@ class WebUploadService extends BaseService
             'traffic_remaining_text' => '不限量',
             'traffic_used_percent' => 0,
         ];
+    }
+
+    private function getUploadConcurrencyLimit($user)
+    {
+        $vipGradeInfo = $user->VipGradeInfo;
+        $gradeLevel = (int)($vipGradeInfo['grade_level'] ?? 0);
+        if ($gradeLevel <= 0) {
+            return 1;
+        }
+
+        $endTime = $vipGradeInfo['end_time'] ?? 0;
+        if ($endTime && strtotime($endTime . ' 23:59:59') < time()) {
+            return 1;
+        }
+
+        $editorNumber = (int)WdXcxVipgrade::where('grade_level', $gradeLevel)
+            ->where('uniacid', $user->uniacid)
+            ->value('editor_number');
+        if ($editorNumber <= 0) {
+            $editorNumber = (int)WdXcxVipgrade::where('grade_level', $gradeLevel)
+                ->value('editor_number');
+        }
+
+        return max(1, min($editorNumber ?: 1, 10));
     }
 
     private function buildProductInfo($folder)

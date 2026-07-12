@@ -37,24 +37,16 @@ function remote($uniacid, $url, $type)
     }
 
     $back_url = doRemote($uniacid, $url, $type);
+    $remote_config = cacheRemoteSet($uniacid);
 
     if($type == 1){
-        $back_url = $back_url . '?x-oss-process=image/resize,m_fixed,w_480/quality,Q_75';
+        $back_url = appendPicStyle($back_url, (int)($remote_config['remote'] ?? 0));
     }else{
-        $back_url = str_replace('?x-oss-process=image/resize,m_fixed,w_480/quality,Q_75', '', $back_url);
-    }
-
-    if($type == 1){
-        if(isset($_SERVER['HTTP_REFERER'])){
-            $http_referer = $_SERVER['HTTP_REFERER'];
-            if(strpos($http_referer, 'https') === false){
-                $back_url = str_replace('https', 'http', $back_url);
-            }
-        }
+        $back_url = removePicStyle($back_url);
     }
 
     $back_url = str_replace('//upimages', '/upimages', $back_url);
-    return $back_url;
+    return normalizePublicAssetUrl($back_url);
 }
 
 //远程图片链接处理
@@ -315,17 +307,156 @@ function doRemote($uniacid, $url, $type)
     return $url;
 }
 
+function picPreviewStyles()
+{
+    return [
+        'x-oss-process=image/resize,m_fixed,w_320/quality,Q_75',
+        'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75',
+        'imageMogr2/thumbnail/320x/quality/75',
+        'imageMogr2/thumbnail/480x/quality/75',
+    ];
+}
+
+function isTencentCosAssetUrl($url)
+{
+    $parts = parse_url(trim((string)$url));
+    $host = strtolower((string)($parts['host'] ?? ''));
+    return $host !== '' && preg_match('/\.cos\.[a-z0-9-]+\.myqcloud\.com$/i', $host) === 1;
+}
+
+function picPreviewStyleForUrl($url, $remoteType = 0)
+{
+    $remoteType = (int)$remoteType;
+    if ($remoteType === 4 || isTencentCosAssetUrl($url)) {
+        return 'imageMogr2/thumbnail/480x/quality/75';
+    }
+    if ($remoteType > 0) {
+        return 'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75';
+    }
+    return '';
+}
+
+function appendPicStyle($url, $remoteType = 0)
+{
+    $url = removePicStyle((string)$url);
+    if ($url === '') {
+        return '';
+    }
+    $style = picPreviewStyleForUrl($url, $remoteType);
+    if ($style === '') {
+        return $url;
+    }
+    return $url . (strpos($url, '?') === false ? '?' : '&') . $style;
+}
+
+function appendPicThumbStyle($url, $remoteType = 0)
+{
+    $url = removePicStyle((string)$url);
+    if ($url === '') {
+        return '';
+    }
+    if ((int)$remoteType === 4 || isTencentCosAssetUrl($url)) {
+        return $url . (strpos($url, '?') === false ? '?' : '&') . 'imageMogr2/thumbnail/320x/quality/75';
+    }
+    if ((int)$remoteType > 0) {
+        return $url . (strpos($url, '?') === false ? '?' : '&') . 'x-oss-process=image/resize,m_fixed,w_320/quality,Q_75';
+    }
+    return appendPicStyle($url, $remoteType);
+}
+
 function removePicStyle($url)
 {
     $url = (string)$url;
-    $style = 'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75';
-    if ($url === '' || strpos($url, 'x-oss-process=') === false) {
+    if ($url === '') {
         return $url;
     }
-    $url = str_replace(['?' . $style . '&', '&' . $style . '&'], ['?', '&'], $url);
-    $url = str_replace(['?' . $style, '&' . $style], '', $url);
+    foreach (picPreviewStyles() as $style) {
+        $url = str_replace(['?' . $style . '&', '&' . $style . '&'], ['?', '&'], $url);
+        $url = str_replace(['?' . $style, '&' . $style], '', $url);
+    }
     $url = rtrim($url, '?&');
     return $url;
+}
+
+function normalizePublicAssetUrl($url)
+{
+    $url = trim((string)$url);
+    if ($url === '') {
+        return '';
+    }
+    if (strpos($url, '//') === 0) {
+        $url = 'https:' . $url;
+    }
+    if (preg_match('/^http:\/\//i', $url)) {
+        $url = preg_replace('/^http:\/\//i', 'https://', $url);
+    }
+    return rewritePublicAssetHost($url);
+}
+
+function publicAssetHostRewriteMap()
+{
+    $map = [];
+    $raw = (string)env(
+        'PUBLIC_ASSET_HOST_REWRITE_MAP',
+        getenv('PUBLIC_ASSET_HOST_REWRITE_MAP') ?: ''
+    );
+    if ($raw === '') {
+        return $map;
+    }
+    foreach (explode(',', str_replace(['，', ';'], ',', $raw)) as $item) {
+        $item = trim($item);
+        if ($item === '') {
+            continue;
+        }
+        $delimiter = strpos($item, '=>') !== false ? '=>' : '=';
+        $parts = explode($delimiter, $item, 2);
+        if (count($parts) !== 2) {
+            continue;
+        }
+        $from = normalizePublicAssetHost($parts[0]);
+        $to = normalizePublicAssetHost($parts[1]);
+        if ($from !== '' && $to !== '') {
+            $map[strtolower($from)] = $to;
+        }
+    }
+    return $map;
+}
+
+function normalizePublicAssetHost($host)
+{
+    $host = trim((string)$host);
+    if ($host === '') {
+        return '';
+    }
+    if (strpos($host, '//') === 0) {
+        $host = 'https:' . $host;
+    }
+    if (strpos($host, '://') === false) {
+        $host = 'https://' . $host;
+    }
+    $parsed = parse_url($host);
+    return strtolower((string)($parsed['host'] ?? ''));
+}
+
+function rewritePublicAssetHost($url)
+{
+    if (!preg_match('/^https?:\/\//i', $url)) {
+        return $url;
+    }
+    $parsed = parse_url($url);
+    $host = strtolower((string)($parsed['host'] ?? ''));
+    if ($host === '') {
+        return $url;
+    }
+    $map = publicAssetHostRewriteMap();
+    if (!isset($map[$host])) {
+        return $url;
+    }
+    $scheme = strtolower((string)($parsed['scheme'] ?? 'https')) === 'http' ? 'https' : (string)$parsed['scheme'];
+    $path = (string)($parsed['path'] ?? '');
+    $query = isset($parsed['query']) ? '?' . $parsed['query'] : '';
+    $fragment = isset($parsed['fragment']) ? '#' . $parsed['fragment'] : '';
+    return $scheme . '://' . $map[$host] . $path . $query . $fragment;
 }
 
 function isProxyableExternalImageUrl($url)
@@ -369,9 +500,10 @@ function isProxyableExternalImageUrl($url)
     return preg_match('/^ai-jf-[a-z0-9-]+\.cos\.[a-z0-9-]+\.myqcloud\.com$/i', $host) === 1;
 }
 
-function proxyExternalImageUrl($url)
+function proxyExternalImageUrl($url, $usePreviewStyle = false)
 {
-    $url = removePicStyle(trim((string)$url));
+    $url = trim((string)$url);
+    $url = $usePreviewStyle ? appendPicStyle($url) : removePicStyle($url);
     if ($url === '' || !isProxyableExternalImageUrl($url)) {
         return $url;
     }
@@ -423,6 +555,80 @@ function buildResourceImageProxyUrl($picId, $type = 'thumb')
     return rtrim($root, '/') . '/api/common/resource_image?pic_id=' . $picId
         . '&type=' . rawurlencode($type)
         . '&token=' . getResourceImageProxyToken($picId, $type);
+}
+
+function getApiRootUrl()
+{
+    $root = defined('ROOT_HOST') ? ROOT_HOST : '';
+    if (!$root && !empty($_SERVER['HTTP_HOST'])) {
+        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')
+            || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        $root = ($https ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'];
+    }
+    return rtrim($root, '/');
+}
+
+function getJiafangyunPcBaseUrl()
+{
+    $base = trim((string)env('JIAFANGYUN_PC_BASE_URL', getenv('JIAFANGYUN_PC_BASE_URL') ?: ''));
+    if ($base === '') {
+        $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+        $base = strpos($host, 'api-test.jfyuntu.com') !== false
+            ? 'https://pic-test.jfyuntu.com/'
+            : 'https://pic.jfyuntu.com/';
+    }
+    return rtrim($base, '/') . '/';
+}
+
+function buildPictureDownloadRequestUrl($picId)
+{
+    $picId = (int)$picId;
+    if ($picId <= 0) {
+        return '';
+    }
+    $root = getApiRootUrl();
+    $path = '/api/user/download/original?pic_id=' . $picId;
+    return $root ? ($root . $path) : $path;
+}
+
+function buildPictureImageUrls($pictureOrUrl, $previewUrl = '')
+{
+    $pic = is_object($pictureOrUrl) ? $pictureOrUrl : null;
+    $displayUrl = '';
+    $originalUrl = '';
+
+    if ($pic) {
+        $picId = (int)($pic->id ?? 0);
+        $isImported = method_exists($pic, 'isImportedResourcePicture') && $pic->isImportedResourcePicture();
+        if ($isImported && $picId > 0) {
+            return [
+                'thumb' => buildResourceImageProxyUrl($picId, 'thumb'),
+                'preview' => buildResourceImageProxyUrl($picId, 'preview'),
+                'edit' => buildResourceImageProxyUrl($picId, 'preview'),
+                'origin' => '',
+                'download' => buildPictureDownloadRequestUrl($picId),
+            ];
+        }
+        $displayUrl = (string)($pic->TruePic ?? '');
+    } else {
+        $displayUrl = trim((string)$pictureOrUrl);
+    }
+
+    if ($previewUrl !== '') {
+        $displayUrl = trim((string)$previewUrl);
+    }
+    $displayUrl = normalizePublicAssetUrl(appendPicStyle($displayUrl));
+    $originalUrl = normalizePublicAssetUrl(removePicStyle($displayUrl));
+    $remoteType = $pic ? (int)(cacheRemoteSet($pic->uniacid ?: 1)['remote'] ?? 0) : 0;
+    $thumbUrl = normalizePublicAssetUrl(appendPicThumbStyle($originalUrl ?: $displayUrl, $remoteType));
+
+    return [
+        'thumb' => $thumbUrl ?: $displayUrl,
+        'preview' => $displayUrl,
+        'edit' => $displayUrl,
+        'origin' => $originalUrl,
+        'download' => $pic ? buildPictureDownloadRequestUrl((int)($pic->id ?? 0)) : $originalUrl,
+    ];
 }
 
 /**获取本地图片全路径

@@ -10,10 +10,11 @@
           :placeholder="placeholderFor('categoryName', '一个好的分类名称，能更吸引人哦')"
           maxlength="10"
           :placeholder-style="'color:#cfcfcf'"
-          v-model="form.folder_name"
+          :value="form.folder_name"
           @tap="focusField('categoryName')"
           @focus="focusField('categoryName')"
-          @blur="blurField('categoryName')"
+          @blur="handleNameBlur"
+          @confirm="onNameInput"
           @input="onNameInput"
         />
         <view class="count-row">
@@ -30,10 +31,10 @@
           :placeholder="placeholderFor('categoryDesc', '简单介绍一下你的分类')"
           maxlength="150"
           :placeholder-style="'color:#cfcfcf'"
-          v-model="form.folder_desc"
+          :value="form.folder_desc"
           @tap="focusField('categoryDesc')"
           @focus="focusField('categoryDesc')"
-          @blur="blurField('categoryDesc')"
+          @blur="handleIntroBlur"
           @input="onIntroInput"
         ></textarea>
         <view class="count-row">
@@ -124,10 +125,10 @@ export default {
       introLength: 0,
       editCategoryId: 0,
       parentCategoryId: 0,
-      fromPage:''
+      fromPage:'',
     };
   },
-  onLoad(options) {
+  onLoad(options = {}) {
     if (options && options.fid) {
       this.editCategoryId = Number(options.fid || 0);
       this.getFolderDetail();
@@ -135,7 +136,7 @@ export default {
     if (options && options.parent_id) {
       this.parentCategoryId = Number(options.parent_id || 0);
     }
-    this.fromPage = options.fromPage
+    this.fromPage = options.fromPage || "";
     this.nameLength = this.form.folder_name.length;
     this.introLength = this.form.folder_desc.length;
   },
@@ -152,23 +153,44 @@ export default {
         });
         if (res.code === 0) {
           const data = res.data.folder_info;
-          console.log(res.data);
-          this.form.folder_name = data.folder_name;
-          this.form.folder_desc = data.folder_desc;
+          this.setCategoryName(data.folder_name);
+          this.setCategoryDesc(data.folder_desc);
           this.form.private_type = Number(data.private_type || 1);
           this.form.layout_type = Number(data.layout_type || 1) === 2 ? 2 : 1;
-          this.nameLength = this.form.folder_name.length;
-          this.introLength = this.form.folder_desc.length;
         }
       }
     },
+    getInputValue(e) {
+      if (!e || !e.detail || e.detail.value === undefined || e.detail.value === null) {
+        return "";
+      }
+      return String(e.detail.value);
+    },
+    setCategoryName(value) {
+      const text = value === undefined || value === null ? "" : String(value);
+      this.form.folder_name = text;
+      this.nameLength = text.length;
+      return text;
+    },
+    setCategoryDesc(value) {
+      const text = value === undefined || value === null ? "" : String(value);
+      this.form.folder_desc = text;
+      this.introLength = text.length;
+      return text;
+    },
     onNameInput(e) {
-      this.form.folder_name = e.detail.value || "";
-      this.nameLength = this.form.folder_name.length;
+      return this.setCategoryName(this.getInputValue(e));
+    },
+    handleNameBlur(e) {
+      this.onNameInput(e);
+      this.blurField("categoryName");
     },
     onIntroInput(e) {
-      this.form.folder_desc = e.detail.value || "";
-      this.introLength = this.form.folder_desc.length;
+      return this.setCategoryDesc(this.getInputValue(e));
+    },
+    handleIntroBlur(e) {
+      this.onIntroInput(e);
+      this.blurField("categoryDesc");
     },
     selectVisibility(value) {
       this.form.private_type = value;
@@ -191,17 +213,19 @@ export default {
 
     // 保存分类
     async save() {
+      const folderName = this.setCategoryName(this.form.folder_name).trim();
+      const folderDesc = this.setCategoryDesc(this.form.folder_desc);
       // 必填校验：分类名称不能为空
-      if (!this.form.folder_name || !this.form.folder_name.trim()) {
+      if (!folderName) {
         uni.showToast({ title: "分类名称为必填项", icon: "none" });
         return;
       }
       // 本页面按截图为“选填”，因此不强制校验名称，但可以限制长度为 1-10 可选
-      if (this.nameLength > 10) {
+      if (folderName.length > 10) {
         uni.showToast({ title: "分类名称不能超过10个字符", icon: "none" });
         return;
       }
-      if (this.introLength > 150) {
+      if (folderDesc.length > 150) {
         uni.showToast({ title: "分类描述不能超过150个字符", icon: "none" });
         return;
       }
@@ -210,8 +234,8 @@ export default {
       try {
         const payload = {
           folder_type: 1,
-          folder_name: this.form.folder_name || "",
-          folder_desc: this.form.folder_desc || "",
+          folder_name: folderName,
+          folder_desc: folderDesc,
           private_type: this.form.private_type,
           layout_type: this.form.layout_type,
         };
@@ -227,21 +251,25 @@ export default {
           }
           const params = this.buildApiParams(payload);
           // 使用项目已有请求封装
-          await this.$go(url, params, "post", {
+          const res = await this.$go(url, params, "post", {
             show_err: true,
           });
           uni.showToast({ title: "保存成功", icon: "none" });
-          this.notifyCategoryChanged();
+          this.notifyCategoryChanged({
+            includeCategory: !!this.editCategoryId || !!this.parentCategoryId,
+          });
           setTimeout(() => {
             if (this.editCategoryId) {
               uni.navigateBack();
               return;
             }
-            uni.navigateBack();
+            if (this.parentCategoryId) {
+              uni.navigateBack();
+              return;
+            }
+            this.goToCategoryPreview(res && res.data);
           }, 800);
         } else {
-          // 回退：打印参数，方便联调替换为真实请求
-          console.warn("提交数据：", params);
           uni.showToast({
             title: "已构建请求，请替换为真实接口",
             icon: "none",
@@ -254,8 +282,54 @@ export default {
         uni.hideLoading();
       }
     },
-    notifyCategoryChanged() {
-      notifyRefresh(["category", "home"]);
+    notifyCategoryChanged({ includeCategory = true } = {}) {
+      notifyRefresh(includeCategory ? ["category", "home"] : ["home"]);
+    },
+    resolveCreatedCategoryId(data) {
+      const source = this.resolveCreatedCategoryData(data);
+      return source && (source.id || source.fid || source.folder_id || source.category_id);
+    },
+    resolveCreatedCategoryName(data) {
+      const source = this.resolveCreatedCategoryData(data);
+      return source && (source.folder_name || source.name || this.form.folder_name);
+    },
+    resolveCreatedCategoryData(data) {
+      if (!data) return null;
+      const source = data.data || data.folder_info || data.category || data.info || data;
+      return (
+        source.folder_info ||
+        source.category ||
+        source.info ||
+        source.data ||
+        source
+      );
+    },
+    goToCategoryPreview(data) {
+      const categoryId = this.resolveCreatedCategoryId(data);
+      if (!categoryId) {
+        uni.navigateBack();
+        return;
+      }
+      const query = [
+        `id=${encodeURIComponent(categoryId)}`,
+        "created_preview=1",
+      ];
+      const categoryName = this.resolveCreatedCategoryName(data);
+      if (categoryName) {
+        query.push(`name=${encodeURIComponent(categoryName)}`);
+      }
+      if (this.form.folder_desc) {
+        query.push(`desc=${encodeURIComponent(this.form.folder_desc)}`);
+      }
+      if (this.form.private_type) {
+        query.push(`private_type=${encodeURIComponent(this.form.private_type)}`);
+      }
+      if (this.form.layout_type) {
+        query.push(`layout_type=${encodeURIComponent(this.form.layout_type)}`);
+      }
+      uni.redirectTo({
+        url: `/pagesOther/categoryPreview/categoryPreview?${query.join("&")}`,
+      });
     },
   },
 };

@@ -23,7 +23,7 @@
       </view>
 
       <!-- 列表 -->
-      <scroll-view class="list" scroll-y :style="{ height: listHeight + 'px' }">
+      <scroll-view class="list" scroll-y>
         <block v-if="loading">
           <view class="loading">加载中...</view>
         </block>
@@ -147,7 +147,6 @@ export default {
       keyword: "",
       categories: [],
       loading: false,
-      listHeight: 600,
       defaultIcon: "/static/icon/default_cat.png",
       settingVisible: false,
       classVisible: false,
@@ -158,9 +157,6 @@ export default {
     };
   },
   onLoad(options = {}) {
-    const sys = this.$base.getSystemInfoCompat();
-    // 计算列表高度：屏高 - 顶部搜索 - 底部按钮（估算）
-    this.listHeight = sys.windowHeight - 120 - 44;
     this.parentId = Number(options.fid || 0);
     if (this.parentId) {
       this.parentInfo = {
@@ -388,14 +384,17 @@ export default {
 
 <style scoped lang="scss">
 .page {
-  min-height: 100vh;
+  height: 100vh;
   padding: 18rpx 20rpx 0;
   background: #f6f7f9;
   box-sizing: border-box;
+  overflow: hidden;
 
   .page-scoll {
-    min-height: 100vh;
-    padding-bottom: 190rpx;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 144rpx);
     box-sizing: border-box;
   }
 }
@@ -430,8 +429,10 @@ export default {
 }
 
 .list {
+  flex: 1;
+  min-height: 0;
   margin-top: 8rpx;
-  padding-bottom: 140rpx;
+  padding-bottom: 16rpx;
   box-sizing: border-box;
 }
 
@@ -597,15 +598,15 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
+  min-height: calc(env(safe-area-inset-bottom) + 124rpx);
   display: flex;
   align-items: center;
   gap: 22rpx;
-  padding: 22rpx 32rpx;
+  padding: 14rpx 32rpx calc(env(safe-area-inset-bottom) + 14rpx);
   box-sizing: border-box;
   z-index: 50;
   border-top: 1rpx solid #edf0f3;
   box-shadow: 0 -8rpx 24rpx rgba(20, 27, 36, 0.04);
-  padding-bottom: calc(env(safe-area-inset-bottom) + 18rpx);
 }
 
 /* 左侧大按钮容器（居中宽度受限） */

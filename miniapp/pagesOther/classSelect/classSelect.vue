@@ -15,7 +15,8 @@
           :key="item.id"
           class="category-item selected"
           :class="{ 'is-child': item.level > 0 }"
-          @click="toggleCategory(item)"
+          :data-index="index"
+          @click="toggleCategory(item, index, $event)"
         >
           <view class="item-left" :style="{ paddingLeft: item.level * 42 + 'rpx' }">
             <view v-if="item.level > 0" class="tree-branch">
@@ -72,6 +73,12 @@
 </template>
 
 <script>
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
+
 export default {
   data() {
     return {
@@ -178,7 +185,6 @@ export default {
             }
           })
           .catch((err) => {
-            console.log("获取全部分类失败:", err);
             resolve([]);
           });
       });
@@ -192,9 +198,11 @@ export default {
           this.getPidCategoryList(),
           this.getCategoryList()
         ]);
-        this.selectedIds = productCategories.map(item => item.id)
+        this.selectedIds = productCategories
+          .map(item => getObjectId(item, ["id", "category_id", "folder_id"]))
+          .filter(Boolean)
         // 创建产品分类的 id 集合
-        const productCategoryIds = new Set(productCategories.map(item => item.id));
+        const productCategoryIds = new Set(this.selectedIds);
 
         // 给全部分类中存在于产品分类的项设置 checked 为 true
         this.categoryList = allCategories.map(item => ({
@@ -225,15 +233,21 @@ export default {
     },
 
     // 切换分类选择状态
-    toggleCategory(item) {
-      item.checked = !item.checked
-      const index = this.selectedIds.indexOf(item.id);
-      if (index > -1) {
+    toggleCategory(item, index, event) {
+      const current = resolveClickedListItem(item, index, event, this.categoryList);
+      const categoryId = getObjectId(current, ["id", "category_id", "folder_id"]);
+      if (!current || !categoryId) {
+        showInvalidRecordToast();
+        return;
+      }
+      current.checked = !current.checked
+      const selectedIndex = this.selectedIds.indexOf(categoryId);
+      if (selectedIndex > -1) {
         // 已选中，取消选中
-        this.selectedIds.splice(index, 1);
+        this.selectedIds.splice(selectedIndex, 1);
       } else {
         // 未选中，添加选中
-        this.selectedIds.push(item.id);
+        this.selectedIds.push(categoryId);
       }
     },
 

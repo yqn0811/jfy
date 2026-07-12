@@ -3,6 +3,7 @@
 namespace app\common\service\user;
 
 use app\common\model\album\WdXcxAlbumFolder;
+use app\common\model\album\WdXcxProductCategoryBind;
 use app\common\model\album\WdXcxAlbumVisitRecord;
 use app\common\model\album\WdXcxVisitFolderPwd;
 use app\common\model\coupon\WdXcxUserCoupon;
@@ -27,7 +28,11 @@ use app\common\service\JwtService;
 use app\common\service\RemoteObjectService;
 use app\common\service\WxService;
 use app\common\service\album\AlbumService;
-use app\index\model\WdXcxPic;
+use app\common\service\album\AiResourceBridgeService;
+use app\common\service\bridge\JiafangyunBridgeClient;
+use app\common\model\WdXcxBase;
+use app\common\model\WdXcxPic;
+use app\common\service\TencentCOSService;
 use cores\utils\Utils;
 use think\App;
 use think\cache\driver\Redis;
@@ -45,10 +50,10 @@ class UserService extends BaseService
 
     private function getHomeWebBaseUrl()
     {
-        return 'https://pic.jfyuntu.com/pic/';
+        return getJiafangyunPcBaseUrl();
     }
 
-    private function buildHomeWebShareUrl($shareCode, $params = [])
+    private function buildHomeWebShareUrl($shareCode, $params = [], $path = 'share-home')
     {
         $query = ['code' => (string)$shareCode];
         foreach ($params as $key => $value) {
@@ -57,7 +62,11 @@ class UserService extends BaseService
             }
             $query[$key] = (string)$value;
         }
-        return $this->getHomeWebBaseUrl() . 'share-home.html?' . http_build_query($query);
+        $pagePath = trim((string)$path, '/');
+        if ($pagePath === '') {
+            $pagePath = 'share-home';
+        }
+        return $this->getHomeWebBaseUrl() . $pagePath . '?' . http_build_query($query);
     }
 
     private function ensureHomeShareCode($user)
@@ -176,11 +185,11 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout')
+            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,private_type,show_connect,other_share,set_top')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $targetUserId, $is_owner, $shared_ids, $collected_ids){
-                $item->product_count = 0;
+                $item->product_count = $this->getVisibleCategoryProductCount($item->id, $targetUserId, $is_owner, $shared_ids);
                 $item->child_count = $this->getVisibleCategoryChildCount($item->id, $targetUserId, $is_owner, $shared_ids);
                 $item->son_count = $item->child_count;
                 $item->children = $this->getVisibleCategoryChildren($item->id, $targetUserId, $visitorUid, $is_owner, $shared_ids, $collected_ids);
@@ -269,7 +278,7 @@ class UserService extends BaseService
         return $codes[$uid];
     }
 
-    public function getHomeCategories($targetUserId, $visitorUid = 0, $fid = 0, $includeCurrent = 0)
+    public function getHomeCategories($targetUserId, $visitorUid = 0, $fid = 0, $includeCurrent = 0, $shareVersion = null)
     {
         $user = WdXcxUser::find($targetUserId);
         if (!$user || !$user->is_show_home) {
@@ -308,11 +317,11 @@ class UserService extends BaseService
                       });
                 });
             })
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type')
+            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type,show_connect,other_share,set_top')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
             ->each(function($item) use ($visitorUid, $targetUserId, $is_owner, $shared_ids, $collected_ids){
-                $item->product_count = 0;
+                $item->product_count = $this->getVisibleCategoryProductCount($item->id, $targetUserId, $is_owner, $shared_ids);
                 $item->child_count = $this->getVisibleCategoryChildCount($item->id, $targetUserId, $is_owner, $shared_ids);
                 $item->son_count = $item->child_count;
                 $item->children = $this->getVisibleCategoryChildren($item->id, $targetUserId, $visitorUid, $is_owner, $shared_ids, $collected_ids);
@@ -326,17 +335,21 @@ class UserService extends BaseService
             $folderInfo = WdXcxAlbumFolder::where('id', (int)$fid)
                 ->where('uid', $targetUserId)
                 ->where('folder_type', 1)
-                ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type')
+                ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type,show_connect,other_share,set_top')
                 ->find();
             if (!$folderInfo) {
                 throwError('分类不存在');
             }
             $this->assertVisibleCategory($fid, $targetUserId, $is_owner, $shared_ids, true);
-            $folderInfo->product_count = 0;
+            if ($shareVersion !== null && $shareVersion !== '' && (int)$shareVersion !== AlbumService::getFolderShareVersion($fid)) {
+                throwError('分享链接已失效，请让分享者重新发送');
+            }
+            $folderInfo->product_count = $this->getVisibleCategoryProductCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids);
             $folderInfo->child_count = $this->getVisibleCategoryChildCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids);
             $folderInfo->son_count = $folderInfo->child_count;
             $folderInfo->level = $folderInfo->FolderLeval;
             $folderInfo->is_collect = in_array($folderInfo->id, $collected_ids) ? 1 : 0;
+            $folderInfo->share_version = AlbumService::getFolderShareVersion($folderInfo->id);
             return [
                 'lists' => $categories,
                 'folder_info' => $folderInfo,
@@ -384,17 +397,8 @@ class UserService extends BaseService
         if ($isOwner) {
             return;
         }
-        if ($allowAnonymousPreview || ((int)$owner->visit_no_need_nickname === 1 && (int)$owner->visit_no_need_mobile === 1)) {
-            return;
-        }
         if (!$visitorUid) {
             throwError('请先授权登录');
-        }
-        if ((int)$owner->visit_no_need_mobile === 0) {
-            $visitor = WdXcxUser::find($visitorUid);
-            if (!$visitor || empty($visitor->mobile)) {
-                throwError('请先授权登录');
-            }
         }
     }
 
@@ -431,18 +435,50 @@ class UserService extends BaseService
         return $this->applyVisibleCategoryScope($query, $isOwner, $sharedIds)->count();
     }
 
+    private function getVisibleCategoryProductCount($categoryId, $targetUserId, $isOwner, $sharedIds)
+    {
+        $boundIds = WdXcxProductCategoryBind::where('category_id', (int)$categoryId)
+            ->where('userid', (int)$targetUserId)
+            ->column('product_id');
+        $directIds = WdXcxAlbumFolder::where('uid', (int)$targetUserId)
+            ->where('folder_type', 2)
+            ->where('pid', (int)$categoryId)
+            ->column('id');
+        $productIds = array_values(array_unique(array_filter(array_map('intval', array_merge($boundIds ?: [], $directIds ?: [])))));
+        if (empty($productIds)) {
+            return 0;
+        }
+
+        $query = WdXcxAlbumFolder::where('uid', (int)$targetUserId)
+            ->where('folder_type', 2)
+            ->whereIn('id', $productIds);
+        if ($isOwner) {
+            return $query->count();
+        }
+        return $query->where(function($q) use ($sharedIds){
+            $q->where('private_type', 1)
+              ->whereOr(function($q2) use ($sharedIds){
+                  if (!empty($sharedIds)) {
+                      $q2->where('private_type', 4)->whereIn('id', $sharedIds);
+                  } else {
+                      $q2->whereRaw('0');
+                  }
+              });
+        })->count();
+    }
+
     private function getVisibleCategoryChildren($categoryId, $targetUserId, $visitorUid, $isOwner, $sharedIds, $collectedIds)
     {
         $query = WdXcxAlbumFolder::where('uid', $targetUserId)
             ->where('folder_type', 1)
             ->where('pid', $categoryId)
-            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type')
+            ->field('id,folder_name,folder_desc,new_thumb,sort,uid,layout_type,pic_layout,pid,private_type,show_connect,other_share,set_top')
             ->order('sort desc, set_top desc, set_top_time desc, id desc');
 
         return $this->applyVisibleCategoryScope($query, $isOwner, $sharedIds)
             ->select()
             ->each(function($child) use ($targetUserId, $visitorUid, $isOwner, $sharedIds, $collectedIds){
-                $child->product_count = 0;
+                $child->product_count = $this->getVisibleCategoryProductCount($child->id, $targetUserId, $isOwner, $sharedIds);
                 $child->child_count = $this->getVisibleCategoryChildCount($child->id, $targetUserId, $isOwner, $sharedIds);
                 $child->son_count = $child->child_count;
                 $child->children = $this->getVisibleCategoryChildren($child->id, $targetUserId, $visitorUid, $isOwner, $sharedIds, $collectedIds);
@@ -483,25 +519,35 @@ class UserService extends BaseService
             }
             $folderId = (int)$row->folder_id;
             $picId = (int)$row->pic_id;
-            $fileType = (int)$row->picture->file_type;
-            if (!$folderId || !$picId || !in_array($fileType, [1, 2], true)) {
+            if (!$folderId || !$picId || (int)$row->picture->file_type !== 1) {
                 continue;
             }
             if (!isset($map[$folderId])) {
-                $map[$folderId] = [1 => [], 2 => []];
+                $map[$folderId] = ['cover' => [], 'detail' => []];
             }
-            $map[$folderId][$fileType][$picId] = true;
+            $role = $this->normalizeProductUploadRole($row->upload_field ?? '');
+            $map[$folderId][$role][$picId] = true;
         }
         return $map;
     }
 
-    private function countProductPictures($fieldPicIds, $uploadedPictureMap, $productId, $fileType)
+    private function normalizeProductUploadRole($value)
     {
+        $value = strtolower(trim((string)$value));
+        if (in_array($value, ['detail', 'detail_chart', 'detailchart', 'detail_pic', 'detail_pic_ids', '2'], true)) {
+            return 'detail';
+        }
+        return 'cover';
+    }
+
+    private function countProductPictures($fieldPicIds, $uploadedPictureMap, $productId, $role)
+    {
+        $role = $this->normalizeProductUploadRole($role);
         $ids = [];
         foreach ($this->normalizeProductPicIds($fieldPicIds) as $picId) {
             $ids[$picId] = true;
         }
-        foreach (($uploadedPictureMap[(int)$productId][(int)$fileType] ?? []) as $picId => $exists) {
+        foreach (($uploadedPictureMap[(int)$productId][$role] ?? []) as $picId => $exists) {
             if ($exists) {
                 $ids[(int)$picId] = true;
             }
@@ -596,10 +642,10 @@ class UserService extends BaseService
 
         $products->each(function($item) use ($visitorUid, $collected_ids, $is_owner, $uploadedPictureMap){
                 $this->hydrateProductThumb($item);
-                $item->color_chart_count = $this->countProductPictures($item->pic_ids ?? '', $uploadedPictureMap, $item->id, 1);
+                $item->color_chart_count = $this->countProductPictures($item->pic_ids ?? '', $uploadedPictureMap, $item->id, 'cover');
                 $item->detail_chart_count = ((int)($item->hide_detail_pictures ?? 0) === 1 && !$is_owner)
                     ? 0
-                    : $this->countProductPictures($item->detail_pic_ids ?? '', $uploadedPictureMap, $item->id, 2);
+                    : $this->countProductPictures($item->detail_pic_ids ?? '', $uploadedPictureMap, $item->id, 'detail');
                 $item->son_count = $item->SonCount;
                 if($item->uid != $visitorUid){
                     $item->folder_name = $item->folder_name;
@@ -644,7 +690,19 @@ class UserService extends BaseService
         }
 
         $albumService = new AlbumService($this->app);
-        return $albumService->getProductDetail($productId, $visitorUid);
+        $detail = $albumService->getProductDetail($productId, $visitorUid);
+        $detail->user_info = [
+            'id' => (int)$user->id,
+            'uid' => (int)$user->id,
+            'nickname' => $user->nickname,
+            'avatar' => $user->avatar,
+            'company_name' => $user->company_name,
+            'company_logo' => $user->company_logo,
+            'company_desc' => $user->company_desc,
+            'visit_allow_save_pic' => (int)$user->visit_allow_save_pic,
+        ];
+        $detail->visit_allow_save_pic = (int)$user->visit_allow_save_pic;
+        return $detail;
     }
 
     public function getHomePictureDetail($targetUserId, $picId, $visitorUid = 0)
@@ -658,6 +716,7 @@ class UserService extends BaseService
         }
 
         $isOwner = ($visitorUid === $targetUserId && $visitorUid !== 0);
+        $this->assertHomeVisitRequirement($user, $visitorUid, $isOwner, true);
         $pic = null;
         $product = null;
         $relation = null;
@@ -752,7 +811,8 @@ class UserService extends BaseService
 
     private function mapHomePictureDetail($pic, $product = null, $relation = null, $user = null)
     {
-        $url = $pic->TruePic;
+        $imageUrls = buildPictureImageUrls($pic);
+        $url = $imageUrls['preview'];
         if (!$url) {
             throwError('图片暂不可预览');
         }
@@ -770,7 +830,12 @@ class UserService extends BaseService
             'imgurl' => $url,
             'src' => $url,
             'picture_url' => $url,
-            'picture_url_original' => removePicStyle($url),
+            'picture_url_original' => $imageUrls['origin'] ?: removePicStyle($url),
+            'thumbnail_url' => $imageUrls['thumb'],
+            'preview_url' => $imageUrls['preview'],
+            'file_url' => $imageUrls['origin'],
+            'image_urls' => $imageUrls,
+            'imageUrls' => $imageUrls,
             'pic_name' => $picName ?: '图片名称未命名',
             'pic_beizhu' => $picName,
             'file_type' => (int)$pic->file_type,
@@ -782,6 +847,295 @@ class UserService extends BaseService
             'upload_time' => $createTime ? date('Y年m月d日 H:i', $createTime) : '',
             'create_time' => $createTime,
         ];
+    }
+
+    private function isActiveMember($user)
+    {
+        if (!$user) {
+            return false;
+        }
+        try {
+            $gradeInfo = $user->VipGradeInfo;
+            $gradeLevel = (int)($gradeInfo['grade_level'] ?? ($user->vip_grade ?? 0));
+            $endTime = $gradeInfo['end_time'] ?? 0;
+            if (is_string($endTime) && $endTime !== '' && preg_match('/^\d{4}-\d{2}-\d{2}/', $endTime)) {
+                $endTime = strtotime($endTime . ' 23:59:59');
+            }
+            $endTime = (int)$endTime;
+            return $gradeLevel > 0 && ($endTime === 0 || $endTime > time());
+        } catch (\Throwable $e) {
+            return (int)($user->vip_grade ?? 0) > 0;
+        }
+    }
+
+    private function isPictureInProductField($product, $picId, $field)
+    {
+        if (!$product || !$field) {
+            return false;
+        }
+        return in_array((int)$picId, $this->normalizeProductPicIds($product->$field ?? ''), true);
+    }
+
+    private function isPictureInProduct($product, $picId)
+    {
+        if (!$product) {
+            return false;
+        }
+        if ($this->isPictureInProductField($product, $picId, 'pic_ids')
+            || $this->isPictureInProductField($product, $picId, 'detail_pic_ids')) {
+            return true;
+        }
+        return (bool)WdXcxUserAlbumPic::where('folder_id', (int)$product->id)
+            ->where('pic_id', (int)$picId)
+            ->find();
+    }
+
+    private function assertPictureDownloadVisible($pic, $viewerUid, $targetUserId = 0, $productId = 0)
+    {
+        $viewerUid = (int)$viewerUid;
+        $targetUserId = (int)$targetUserId;
+        $productId = (int)$productId;
+        if (!$pic || !$viewerUid) {
+            throwError('图片不存在');
+        }
+
+        $ownerUid = $targetUserId > 0 ? $targetUserId : (int)$pic->uid;
+        $isOwner = $viewerUid === $ownerUid;
+        if ($ownerUid <= 0) {
+            $ownerUid = (int)$pic->uid;
+            $isOwner = $viewerUid === $ownerUid;
+        }
+
+        if ($productId > 0) {
+            $product = WdXcxAlbumFolder::where('id', $productId)
+                ->where('uid', $ownerUid)
+                ->where('folder_type', 2)
+                ->find();
+            if (!$product) {
+                throwError('产品不存在');
+            }
+            if (!$this->isPictureInProduct($product, (int)$pic->id)) {
+                throwError('无权下载该图片');
+            }
+            if (!$isOwner && (int)$product->private_type === 2) {
+                throwError('此内容为私有，请勿访问');
+            }
+            if (!$isOwner) {
+                $owner = WdXcxUser::find($ownerUid);
+                if (!$owner || (int)$owner->visit_allow_save_pic !== 1) {
+                    throwError('该用户未开放下载');
+                }
+            }
+            if (!$isOwner && (int)$product->hide_detail_pictures === 1 && $this->isPictureInProductField($product, (int)$pic->id, 'detail_pic_ids')) {
+                throwError('详情图已被隐藏');
+            }
+            return;
+        }
+
+        if ((int)$pic->uid === $viewerUid) {
+            return;
+        }
+
+        if ($ownerUid > 0) {
+            $owner = WdXcxUser::find($ownerUid);
+            if (!$owner || !$owner->is_show_home) {
+                throwError('该用户未公开主页');
+            }
+            $this->assertHomeVisitRequirement($owner, $viewerUid, $isOwner, false);
+            if (!$isOwner && (int)$owner->visit_allow_save_pic !== 1) {
+                throwError('该用户未开放下载');
+            }
+            $product = $this->findVisibleHomeProductByPicture($ownerUid, (int)$pic->id, $viewerUid, $isOwner);
+            if (!$product) {
+                throwError('分享链接无效');
+            }
+            if (!$isOwner && (int)$product->hide_detail_pictures === 1 && $this->isPictureInProductField($product, (int)$pic->id, 'detail_pic_ids')) {
+                throwError('详情图已被隐藏');
+            }
+            return;
+        }
+
+        $ownedRelation = WdXcxUserAlbumPic::where('pic_id', (int)$pic->id)
+            ->where('user_id', $viewerUid)
+            ->find();
+        if ($ownedRelation) {
+            return;
+        }
+
+        throwError('无权下载该图片');
+    }
+
+    private function originalDownloadUrlForPicture($pic)
+    {
+        if (!$pic) {
+            return '';
+        }
+        if (method_exists($pic, 'isImportedResourcePicture') && $pic->isImportedResourcePicture()) {
+            return (new \app\common\service\album\AiResourceBridgeService($this->app))->getPictureResourceImageUrl($pic, 'original');
+        }
+        $type = (int)$pic->getData('type');
+        if ($type === 5) {
+            $config = cacheRemoteSet((int)($pic->uniacid ?: $this->uniacid));
+            $cos = $config['cos'] ?? null;
+            if ($cos && !empty($cos['bucket']) && !empty($cos['region']) && !empty($cos['ak']) && !empty($cos['sk'])) {
+                $key = trim((string)$pic->getData('imgurl'), '/');
+                if (!empty($cos['folder_name']) && strpos($key, trim((string)$cos['folder_name'], '/') . '/') !== 0) {
+                    $key = trim((string)$cos['folder_name'], '/') . '/' . $key;
+                }
+                $signedUrl = (new TencentCOSService($cos, $key))->getSignedObjectUrl('+10 minutes');
+                if ($signedUrl !== '') {
+                    return $signedUrl;
+                }
+            }
+        }
+        return removePicStyle($pic->TruePic);
+    }
+
+    private function resolveOriginalDownloadFileSize($pic, $url = '')
+    {
+        $remoteSize = $this->resolveRemoteContentLength($url);
+        if ($remoteSize > 0) {
+            return $remoteSize;
+        }
+        return (int)$pic->getData('size');
+    }
+
+    private function resolveRemoteContentLength($url)
+    {
+        $url = trim((string)$url);
+        if ($url === '' || !preg_match('/^https?:\/\//i', $url)) {
+            return 0;
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_NOBODY => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 12,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_USERAGENT => 'JiafangyunOriginalDownload/1.0',
+        ]);
+        curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $length = (float)curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+        curl_close($ch);
+
+        if ($status >= 200 && $status < 400 && $length > 0) {
+            return (int)$length;
+        }
+        return 0;
+    }
+
+    public function getOriginalDownloadUrl($param, $userId)
+    {
+        $picId = (int)($param['pic_id'] ?? ($param['id'] ?? 0));
+        if ($picId <= 0) {
+            throwError('图片不存在');
+        }
+        $pic = WdXcxPic::where('id', $picId)->find();
+        if (!$pic) {
+            throwError('图片不存在');
+        }
+        $viewer = WdXcxUser::where('id', (int)$userId)->find();
+        if (!$viewer) {
+            throwError('请先授权登录');
+        }
+        if (!$this->isActiveMember($viewer)) {
+            throwError('请先升级成为会员');
+        }
+
+        $targetUserId = (int)($param['target_user_id'] ?? ($param['uid'] ?? 0));
+        $productId = (int)($param['product_id'] ?? ($param['folder_id'] ?? 0));
+        $this->assertPictureDownloadVisible($pic, (int)$userId, $targetUserId, $productId);
+
+        $url = \normalizePublicAssetUrl($this->originalDownloadUrlForPicture($pic));
+        if ($url === '') {
+            throwError('原图暂不可下载');
+        }
+
+        $fileSize = !empty($param['skip_remote_size'])
+            ? (int)$pic->getData('size')
+            : $this->resolveOriginalDownloadFileSize($pic, $url);
+        $shouldRecordTraffic = !array_key_exists('record_traffic', $param) || (int)$param['record_traffic'] !== 0;
+        $traffic = null;
+        if ($shouldRecordTraffic) {
+            $traffic = $this->recordDownloadTraffic([
+                'pic_id' => $picId,
+                'file_url' => $url,
+                'file_size' => $fileSize,
+            ], $userId);
+        }
+
+        return [
+            'pic_id' => $picId,
+            'url' => $url,
+            'download_url' => $url,
+            'downloadUrl' => $url,
+            'file_name' => $this->originalDownloadFilename($pic, $url),
+            'fileName' => $this->originalDownloadFilename($pic, $url),
+            'file_size' => $fileSize,
+            'traffic' => $traffic,
+            'expires_in' => 600,
+        ];
+    }
+
+    public function getOriginalZipDownloadItems($param, $userId)
+    {
+        $picIds = $param['pic_ids'] ?? ($param['picIds'] ?? []);
+        if (is_string($picIds)) {
+            $decoded = json_decode($picIds, true);
+            if (is_array($decoded)) {
+                $picIds = $decoded;
+            } else {
+                $picIds = explode(',', $picIds);
+            }
+        }
+        if (!is_array($picIds)) {
+            $picIds = [];
+        }
+        $picIds = array_values(array_unique(array_filter(array_map('intval', $picIds))));
+        if (empty($picIds)) {
+            throwError('请选择要下载的图片');
+        }
+        if (count($picIds) > 60) {
+            throwError('单次最多下载60张图片');
+        }
+
+        $items = [];
+        foreach ($picIds as $picId) {
+            $download = $this->getOriginalDownloadUrl(array_merge($param, [
+                'pic_id' => $picId,
+                'record_traffic' => 0,
+            ]), $userId);
+            $items[] = [
+                'pic_id' => (int)$download['pic_id'],
+                'url' => (string)($download['download_url'] ?? ($download['downloadUrl'] ?? ($download['url'] ?? ''))),
+                'file_name' => (string)($download['file_name'] ?? ($download['fileName'] ?? ('图片-' . $picId . '.jpg'))),
+                'file_size' => (int)($download['file_size'] ?? 0),
+            ];
+        }
+
+        return $items;
+    }
+
+    private function originalDownloadFilename($pic, $url)
+    {
+        $name = trim((string)$pic->getData('pic_name'));
+        if ($name === '') {
+            $name = '图片-' . (int)$pic->id;
+        }
+        if (pathinfo($name, PATHINFO_EXTENSION) === '') {
+            $path = (string)parse_url((string)$url, PHP_URL_PATH);
+            $ext = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
+            if ($ext !== '' && preg_match('/^[a-z0-9]{2,5}$/i', $ext)) {
+                $name .= '.' . $ext;
+            }
+        }
+        return $name;
     }
 
     private function safeString($val)
@@ -807,33 +1161,53 @@ class UserService extends BaseService
      * 获取主页分享链接信息
      * @param $targetUserId
      * @param string $path
+     * @param string $type
+     * @param int $id
      * @return array
      */
-    public function getHomeShareLink($targetUserId, $path = '')
+    public function getHomeShareLink($targetUserId, $path = '', $type = 'home', $id = 0)
     {
         $user = WdXcxUser::find($targetUserId);
-        if (!$user || !$user->is_show_home) {
+        if (!$user || ($type !== 'selection' && !$user->is_show_home)) {
             throwError('该用户未公开主页');
         }
         $homeShareCode = $this->ensureHomeShareCode($user);
         $inviteCode = $this->ensureInviteCode($user);
-        $title = ($user->company_name ?: $user->nickname) . '的主页';
-        $miniPath = $this->normalizeMiniProgramPath($path ?: 'pages/index/index');
-        $pagePath = $miniPath['path'];
-        $params = $miniPath['params'];
-        $params['uid'] = (string)$targetUserId;
-        if ($inviteCode) {
-            $params['invite_code'] = (string)$inviteCode;
+        $sharePayload = $this->buildMiniProgramSharePayload($targetUserId, $path, $type, $id, $inviteCode);
+        $pagePath = $sharePayload['page_path'];
+        $query = $sharePayload['query'];
+        $mini_path = $sharePayload['mini_path'];
+        $displayMeta = $this->getShareDisplayMeta($user, $type, $id);
+        $title = $displayMeta['show_name'] ?: (($user->company_name ?: $user->nickname) . '的主页');
+        $pcParams = [];
+        $pcPath = 'share-home';
+        if ($type === 'product' && $id) {
+            $pcParams['productId'] = (string)$id;
+        } elseif ($type === 'category' && $id) {
+            $pcParams['categoryId'] = (string)$id;
+        } elseif ($type === 'selection' && $id) {
+            $pcPath = 'my-selections';
+            $pcParams['selectionId'] = (string)$id;
+            $selection = \app\common\model\album\WdXcxAlbumSelection::find($id);
+            if ($selection && $selection->product_id) {
+                $pcParams['productId'] = (string)$selection->product_id;
+            }
         }
-
-        $query = http_build_query($params);
-        $mini_path = $query ? ($pagePath . '?' . $query) : $pagePath;
-        $pcLink = $this->buildHomeWebShareUrl($homeShareCode);
+        $pcLink = $this->buildHomeWebShareUrl($homeShareCode, $pcParams, $pcPath);
 
         try {
             $share_link = (new WxService())->generateUrlLink($pagePath, $query);
         } catch (\Throwable $e) {
-            $share_link = (new WxService())->generateShortLink('/' . $mini_path, $title, false);
+            Log::warning('getHomeShareLink generateUrlLink fallback: ' . $e->getMessage());
+            try {
+                $share_link = (new WxService())->generateShortLink('/' . $mini_path, $title, false);
+            } catch (\Throwable $fallbackException) {
+                Log::error('getHomeShareLink generateShortLink fallback failed: ' . $fallbackException->getMessage());
+                $share_link = $pcLink;
+            }
+        }
+        if (!$share_link) {
+            $share_link = $pcLink;
         }
 
         $scene = $query ?: ('uid=' . $targetUserId);
@@ -841,6 +1215,7 @@ class UserService extends BaseService
             'share_link' => $share_link,
             'link' => $share_link,
             'url_link' => $share_link,
+            'mobile_link' => $share_link,
             'pc_link' => $pcLink,
             'web_link' => $pcLink,
             'web_url' => $pcLink,
@@ -892,12 +1267,24 @@ class UserService extends BaseService
         if ($type !== 'home' && $id) {
             $params['type'] = (string)$type;
             $params['id'] = (string)$id;
+            if ($type === 'category') {
+                $params['share_v'] = (string)AlbumService::getFolderShareVersion($id);
+            }
         }
 
         $query = http_build_query($params);
-        $sceneParams = ['uid' => (string)$targetUserId];
+        $sceneParams = ['u' => (string)$targetUserId];
         if ($type !== 'home' && $id) {
-            $sceneParams['id'] = (string)$id;
+            $sceneParams['i'] = (string)$id;
+            $sceneTypeMap = [
+                'category' => 'c',
+                'product' => 'p',
+                'selection' => 's',
+            ];
+            $sceneParams['t'] = $sceneTypeMap[$type] ?? (string)$type;
+            if ($type === 'category') {
+                $sceneParams['v'] = (string)AlbumService::getFolderShareVersion($id);
+            }
         }
         if ($type === 'home' && $inviteCode) {
             $inviteScene = http_build_query($sceneParams + ['invite_code' => (string)$inviteCode]);
@@ -1518,6 +1905,49 @@ class UserService extends BaseService
         if (isset($param['home_share_image']) && $param['home_share_image'] !== null) {
             $user->home_share_image = $param['home_share_image'];
         }
+        if (isset($param['company_name']) && $param['company_name'] !== null) {
+            $user->company_name = $param['company_name'];
+        }
+        if (isset($param['company_logo']) && $param['company_logo'] !== null) {
+            $user->company_logo = $param['company_logo'];
+        }
+        if (isset($param['company_desc']) && $param['company_desc'] !== null) {
+            $user->company_desc = $param['company_desc'];
+        }
+        if (isset($param['contact_mobile']) && $param['contact_mobile'] !== null) {
+            $user->contact_mobile = $param['contact_mobile'];
+        }
+        if (isset($param['contact_wechat']) && $param['contact_wechat'] !== null) {
+            $user->contact_wechat = $param['contact_wechat'];
+        }
+        if (isset($param['address_province']) && $param['address_province'] !== null) {
+            $user->address_province = $param['address_province'];
+        }
+        if (isset($param['address_city']) && $param['address_city'] !== null) {
+            $user->address_city = $param['address_city'];
+        }
+        if (isset($param['address_district']) && $param['address_district'] !== null) {
+            $user->address_district = $param['address_district'];
+        }
+        if (isset($param['address_detail']) && $param['address_detail'] !== null) {
+            $user->address_detail = $param['address_detail'];
+        }
+        if (isset($param['is_show_home']) && $param['is_show_home'] !== null) {
+            $user->is_show_home = (int)$param['is_show_home'];
+        }
+        if (isset($param['industry_info']) && $param['industry_info'] !== null && $param['industry_info'] !== '') {
+            $industry = (int)$param['industry_info'];
+            if (!in_array($industry, [0, 1, 2, 3], true)) {
+                throwError('行业信息不合法');
+            }
+            $user->industry_info = $industry;
+        }
+        if (isset($param['latitude']) && $param['latitude'] !== null) {
+            $user->latitude = $param['latitude'];
+        }
+        if (isset($param['longitude']) && $param['longitude'] !== null) {
+            $user->longitude = $param['longitude'];
+        }
         $user->save();
     }
 
@@ -2018,19 +2448,25 @@ class UserService extends BaseService
                         $query->where('pic_beizhu', 'like', '%'.$param['key'].'%')
                             ->whereOr('pic_name', 'like', '%'.$param['key'].'%');
                     }
-                })
-                ->where("DATE_FORMAT(FROM_UNIXTIME(create_time), '%Y-%m')", $month)
-                ->order('id desc')
-                ->field('id, imgurl, uniacid, file_type, pic_beizhu, create_time, pic_name')
-                ->select()
-                ->each(function ($item){
-                    $item->isChecked = false;
-                    $item->upload_time = date('Y年m月d日 H:i', $item->getData('create_time'));
-                    $item->nickname = $item->UserInfo['nickname'];
-                    $item->pic_id = $item->id;
-                    $item->picture_url = $item->TruePic;
-                    $item->picture_url_original = removePicStyle($item->TruePic);
-                });
+	                })
+	                ->where("DATE_FORMAT(FROM_UNIXTIME(create_time), '%Y-%m')", $month)
+	                ->order('id desc')
+	                ->field('id, imgurl, uniacid, file_type, pic_beizhu, create_time, pic_name')
+	                ->select()
+	                ->each(function ($item){
+	                    $imageUrls = buildPictureImageUrls($item);
+	                    $item->isChecked = false;
+	                    $item->upload_time = date('Y年m月d日 H:i', $item->getData('create_time'));
+	                    $item->nickname = $item->UserInfo['nickname'];
+	                    $item->pic_id = $item->id;
+	                    $item->picture_url = $imageUrls['preview'];
+	                    $item->picture_url_original = $imageUrls['origin'] ?: removePicStyle($imageUrls['preview']);
+	                    $item->thumbnail_url = $imageUrls['thumb'];
+	                    $item->preview_url = $imageUrls['preview'];
+	                    $item->file_url = $imageUrls['origin'];
+	                    $item->image_urls = $imageUrls;
+	                    $item->imageUrls = $imageUrls;
+	                });
 
             $result[] = [
                 'collect_date' => $month, // 保持字段名一致以便前端兼容
@@ -2060,6 +2496,8 @@ class UserService extends BaseService
      */
     public function getUserAllDeleteProductLists($user_id, $params = [])
     {
+        $this->clearExpiredRecycleProducts($user_id);
+
         $limit = isset($params['limit']) ? $params['limit'] : 30;
         $key = isset($params['key']) ? $params['key'] : '';
 
@@ -2070,8 +2508,8 @@ class UserService extends BaseService
             $query->where('folder_name', 'like', "%{$key}%");
         }
 
-        $lists = $query->order('id desc')
-            ->field('id, folder_name, folder_type, new_thumb, pic_ids, detail_pic_ids, create_time')
+        $lists = $query->order('delete_time desc, id desc')
+            ->field('id, folder_name, folder_type, new_thumb, pic_ids, detail_pic_ids, create_time, delete_time')
             ->paginate($limit)->each(function ($item){
                 $thumb = $item->NewThumb;
                 if (!$thumb && $item->folder_type == 2) {
@@ -2097,9 +2535,244 @@ class UserService extends BaseService
                 $item->pic_name = $item->folder_name;
                 $item->isChecked = false;
                 $item->create_time_str = date('Y/m/d H:i', $item->getData('create_time'));
+                $deleteTime = (int)$item->getData('delete_time');
+                $item->delete_time_str = $deleteTime > 0 ? date('Y/m/d H:i', $deleteTime) : '';
+                $item->expire_time_str = $deleteTime > 0 ? date('Y/m/d H:i', $deleteTime + 30 * 86400) : '';
                 unset($item->pic_ids, $item->detail_pic_ids);
             });
         return $lists;
+    }
+
+    private function clearExpiredRecycleProducts($user_id)
+    {
+        $expireTime = time() - 30 * 86400;
+        $products = WdXcxAlbumFolder::onlyTrashed()
+            ->where('uid', $user_id)
+            ->whereNotNull('delete_time')
+            ->where('delete_time', '<=', $expireTime)
+            ->select();
+        $picIds = WdXcxPic::onlyTrashed()
+            ->where('uid', $user_id)
+            ->whereNotNull('delete_time')
+            ->where('delete_time', '<=', $expireTime)
+            ->column('id');
+        if (count($products) === 0 && empty($picIds)) {
+            return 0;
+        }
+        Db::startTrans();
+        try{
+            $folders = $this->getRecycleFolderTree($products, $user_id);
+            $folderIds = $this->getRecycleFolderIds($folders);
+            $count = $this->forceDestroyRecycleProducts($folders, $user_id);
+            $count += $this->forceDestroyRecyclePictures($picIds, $user_id, $folderIds);
+            Db::commit();
+            return $count;
+        }catch (\Exception $e){
+            Db::rollback();
+            Log::error('清理过期回收站失败：' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    private function normalizeRecycleIds($raw)
+    {
+        if (is_string($raw)) {
+            $raw = trim($raw);
+            if ($raw === '') {
+                return [];
+            }
+            if (strpos($raw, '[') !== false) {
+                $decoded = json_decode($raw, true);
+                $raw = json_last_error() === JSON_ERROR_NONE ? $decoded : explode(',', $raw);
+            } else {
+                $raw = explode(',', $raw);
+            }
+        }
+        if (!is_array($raw)) {
+            $raw = [$raw];
+        }
+        $ids = [];
+        foreach ($raw as $item) {
+            $id = (int)$item;
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    private function getRecycleFolderTree($products, $user_id)
+    {
+        $folders = [];
+        foreach ($products as $product) {
+            if ($product) {
+                $folders[(int)$product->id] = $product;
+            }
+        }
+        $cursor = array_keys($folders);
+        while (!empty($cursor)) {
+            $children = WdXcxAlbumFolder::onlyTrashed()
+                ->where('uid', $user_id)
+                ->whereIn('pid', $cursor)
+                ->select();
+            $cursor = [];
+            foreach ($children as $child) {
+                $childId = (int)$child->id;
+                if (!isset($folders[$childId])) {
+                    $folders[$childId] = $child;
+                    $cursor[] = $childId;
+                }
+            }
+        }
+        return array_values($folders);
+    }
+
+    private function getRecycleFolderIds($folders)
+    {
+        $ids = [];
+        foreach ($folders as $folder) {
+            if ($folder) {
+                $id = (int)$folder->id;
+                if ($id > 0) {
+                    $ids[] = $id;
+                }
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    private function collectRecycleProductPicIds($product)
+    {
+        if (!$product) {
+            return [];
+        }
+        $ids = array_merge(
+            $this->normalizeRecycleIds($product->pic_ids ?? ''),
+            $this->normalizeRecycleIds($product->detail_pic_ids ?? '')
+        );
+        $relationPicIds = WdXcxUserAlbumPic::withTrashed()
+            ->where('folder_id', (int)$product->id)
+            ->column('pic_id');
+        foreach ($relationPicIds as $picId) {
+            $picId = (int)$picId;
+            if ($picId > 0) {
+                $ids[] = $picId;
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    private function hasRecyclePictureReferenceOutsideFolders($picId, $folderIds, $user_id)
+    {
+        $relationQuery = WdXcxUserAlbumPic::withTrashed()
+            ->where('pic_id', (int)$picId);
+        if (!empty($folderIds)) {
+            $relationQuery->whereNotIn('folder_id', $folderIds);
+        }
+        if ((int)$relationQuery->count() > 0) {
+            return true;
+        }
+
+        $folderQuery = WdXcxAlbumFolder::withTrashed()
+            ->where(function ($query) use ($picId) {
+                $query->whereRaw('(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))', [$picId, $picId]);
+            });
+        if (!empty($folderIds)) {
+            $folderQuery->whereNotIn('id', $folderIds);
+        }
+        return (int)$folderQuery->count() > 0;
+    }
+
+    private function prepareRecyclePicturesForRemoteDestroy($picIds, $folderIds, $user_id)
+    {
+        $deletablePicIds = [];
+        foreach (array_values(array_unique(array_map('intval', $picIds))) as $picId) {
+            if ($picId <= 0 || $this->hasRecyclePictureReferenceOutsideFolders($picId, $folderIds, $user_id)) {
+                continue;
+            }
+            $pic = WdXcxPic::withTrashed()->where('id', $picId)->find();
+            if (!$pic) {
+                continue;
+            }
+            $isTrashed = (int)$pic->getData('delete_time') > 0;
+            if ((int)$pic->uid !== (int)$user_id) {
+                continue;
+            }
+            if (!$isTrashed) {
+                $pic->delete();
+            }
+            $deletablePicIds[] = $picId;
+        }
+        return array_values(array_unique($deletablePicIds));
+    }
+
+    private function deleteRemoteRecyclePictures($picIds)
+    {
+        if (empty($picIds)) {
+            return;
+        }
+        $pics = WdXcxPic::onlyTrashed()
+            ->whereIn('id', $picIds)
+            ->field('id, uniacid')
+            ->select();
+        $groups = [];
+        foreach ($pics as $pic) {
+            $uniacid = (int)$pic->uniacid ?: $this->uniacid;
+            if (!isset($groups[$uniacid])) {
+                $groups[$uniacid] = [];
+            }
+            $groups[$uniacid][] = (int)$pic->id;
+        }
+        $remoteService = new RemoteObjectService($this->app);
+        foreach ($groups as $uniacid => $ids) {
+            if (!empty($ids)) {
+                $remoteService->deleteRemoteObject($uniacid, $ids);
+            }
+        }
+    }
+
+    private function forceDeleteRecycleRelations($folderIds)
+    {
+        if (empty($folderIds)) {
+            return;
+        }
+        $relations = WdXcxUserAlbumPic::withTrashed()
+            ->whereIn('folder_id', $folderIds)
+            ->select();
+        foreach ($relations as $relation) {
+            $relation->force()->delete();
+        }
+    }
+
+    private function forceDestroyRecycleProducts($products, $user_id)
+    {
+        $folders = $this->getRecycleFolderTree($products, $user_id);
+        if (empty($folders)) {
+            return 0;
+        }
+        $folderIds = [];
+        $picIds = [];
+        foreach ($folders as $folder) {
+            $folderIds[] = (int)$folder->id;
+            $picIds = array_merge($picIds, $this->collectRecycleProductPicIds($folder));
+        }
+        $folderIds = array_values(array_unique(array_filter($folderIds)));
+        $deletablePicIds = $this->prepareRecyclePicturesForRemoteDestroy($picIds, $folderIds, $user_id);
+        $this->deleteRemoteRecyclePictures($deletablePicIds);
+        $this->forceDeleteRecycleRelations($folderIds);
+        WdXcxProductCategoryBind::whereIn('category_id', $folderIds)->delete();
+        WdXcxProductCategoryBind::whereIn('product_id', $folderIds)->delete();
+        foreach ($folders as $folder) {
+            $folder->force()->delete();
+        }
+        return count($folderIds);
+    }
+
+    private function forceDestroyRecyclePictures($picIds, $user_id, $ignoreFolderIds = [])
+    {
+        $deletablePicIds = $this->prepareRecyclePicturesForRemoteDestroy($picIds, $ignoreFolderIds, $user_id);
+        $this->deleteRemoteRecyclePictures($deletablePicIds);
+        return count($deletablePicIds);
     }
 
     /**用户还原回收站产品
@@ -2110,14 +2783,7 @@ class UserService extends BaseService
      */
     public function userRestoreDeleteProducts($param, $user_id)
     {
-        $ids = isset($param['product_ids']) && !empty($param['product_ids']) ? $param['product_ids'] : (isset($param['pic_ids']) ? $param['pic_ids'] : []);
-        if(is_string($ids)){
-             if (strpos($ids, '[') !== false) {
-                 $ids = json_decode($ids, true);
-             } else {
-                 $ids = explode(',', $ids);
-             }
-        }
+        $ids = $this->normalizeRecycleIds(isset($param['product_ids']) && !empty($param['product_ids']) ? $param['product_ids'] : (isset($param['pic_ids']) ? $param['pic_ids'] : []));
         if(empty($ids)){
             throwError('请选择要恢复的产品');
         }
@@ -2145,31 +2811,50 @@ class UserService extends BaseService
      */
     public function userDestroyDeleteProducts($param, $user_id)
     {
-        $ids = isset($param['product_ids']) && !empty($param['product_ids']) ? $param['product_ids'] : (isset($param['pic_ids']) ? $param['pic_ids'] : []);
-        if(is_string($ids)){
-             if (strpos($ids, '[') !== false) {
-                 $ids = json_decode($ids, true);
-             } else {
-                 $ids = explode(',', $ids);
-             }
-        }
+        $ids = $this->normalizeRecycleIds(isset($param['product_ids']) && !empty($param['product_ids']) ? $param['product_ids'] : (isset($param['pic_ids']) ? $param['pic_ids'] : []));
         if(empty($ids)){
             throwError('请选择要删除的产品');
         }
 
         Db::startTrans();
         try{
-            foreach ($ids as $id){
-                $product = WdXcxAlbumFolder::onlyTrashed()->where('id', $id)->where('uid', $user_id)->find();
-                if($product){
-                    $product->force()->delete();
-                }
-            }
+            $products = WdXcxAlbumFolder::onlyTrashed()
+                ->where('uid', $user_id)
+                ->whereIn('id', $ids)
+                ->select();
+            $this->forceDestroyRecycleProducts($products, $user_id);
         }catch (\Exception $e){
             Db::rollback();
             throwError($e->getMessage());
         }
         Db::commit();
+    }
+
+    /**清空用户回收站
+     * @param $user_id
+     * @return int
+     * @throws \cores\exception\BaseException
+     */
+    public function clearUserRecycleBin($user_id)
+    {
+        Db::startTrans();
+        try{
+            $products = WdXcxAlbumFolder::onlyTrashed()
+                ->where('uid', $user_id)
+                ->select();
+            $folders = $this->getRecycleFolderTree($products, $user_id);
+            $folderIds = $this->getRecycleFolderIds($folders);
+            $count = $this->forceDestroyRecycleProducts($folders, $user_id);
+            $trashPicIds = WdXcxPic::onlyTrashed()
+                ->where('uid', $user_id)
+                ->column('id');
+            $count += $this->forceDestroyRecyclePictures($trashPicIds, $user_id, $folderIds);
+        }catch (\Exception $e){
+            Db::rollback();
+            throwError($e->getMessage());
+        }
+        Db::commit();
+        return $count;
     }
 
     /**获取用户收藏图片列表
@@ -2764,6 +3449,85 @@ class UserService extends BaseService
         }
     }
 
+    /**记录下载外网流量，自己下载和他人下载都记录
+     * @param $param
+     * @param $user_id
+     * @return array
+     * @throws \cores\exception\BaseException
+     */
+    public function recordDownloadTraffic($param, $user_id)
+    {
+        $picId = (int)($param['pic_id'] ?? ($param['id'] ?? 0));
+        if ($picId <= 0) {
+            throwError('图片不存在');
+        }
+        $pic = WdXcxPic::where('id', $picId)->find();
+        if (!$pic) {
+            throwError('图片不存在');
+        }
+        $fileSize = (int)($param['file_size'] ?? 0);
+        if ($fileSize <= 0) {
+            $fileUrl = trim((string)($param['file_url'] ?? ''));
+            if ($fileUrl === '') {
+                $fileUrl = removePicStyle($pic->TruePic);
+            }
+            $fileSize = $this->resolveOriginalDownloadFileSize($pic, $fileUrl);
+        }
+        if ($fileSize <= 0) {
+            throwError('文件大小为空');
+        }
+        $fileUrl = trim((string)($param['file_url'] ?? ''));
+        if ($fileUrl === '') {
+            $fileUrl = removePicStyle($pic->TruePic);
+        }
+        $mediaType = ((int)$pic->getData('file_type') === 2) ? 'video' : 'image';
+
+        $result = [
+            'pic_id' => $picId,
+            'owner_uid' => (int)$pic->uid,
+            'file_size' => $fileSize,
+            'bridge_synced' => false,
+        ];
+
+        try {
+            $bridgeClient = new JiafangyunBridgeClient($this->app);
+            $owner = $bridgeClient->getUser((int)$pic->uid);
+            $payload = array_merge($bridgeClient->userPayload($owner), [
+                'owner_b_user_id' => (int)$pic->uid,
+                'downloader_b_user_id' => (int)$user_id,
+                'b_pic_id' => $picId,
+                'file_size' => $fileSize,
+                'file_url' => $fileUrl,
+                'media_type' => $mediaType,
+                'source' => 'pc_album',
+                'trace_id' => 'download_' . $user_id . '_' . $picId . '_' . time(),
+                'metadata' => [
+                    'self_download' => ((int)$pic->uid === (int)$user_id),
+                    'downloader_b_user_id' => (int)$user_id,
+                ],
+            ]);
+            $bridgeResp = $bridgeClient->post('/jiafangyun/bridge/traffic/download', $payload);
+            $result['bridge_synced'] = true;
+            $result['used_traffic_gb'] = (float)($bridgeResp['used_traffic_gb'] ?? 0);
+            $result['used_traffic_bytes'] = (int)($bridgeResp['used_traffic_bytes'] ?? 0);
+        } catch (\Throwable $e) {
+            Log::error('[DownloadTraffic] bridge sync failed: ' . $e->getMessage());
+            $message = $e->getMessage() ?: '流量扣减失败，请稍后重试';
+            throwError($message);
+        }
+
+        try {
+            $base = WdXcxBase::where('uniacid', $this->uniacid)->find();
+            if ($base) {
+                $base->inc('down_count', 1)->update();
+            }
+        } catch (\Throwable $e) {
+            Log::error('[DownloadTraffic] increment down_count failed: ' . $e->getMessage());
+        }
+
+        return $result;
+    }
+
     /**删除用户收藏图片
      * @param $param
      * @param $user_id
@@ -2798,7 +3562,8 @@ class UserService extends BaseService
      */
     public function userDeleteMyPics($param, $user_id)
     {
-        $pic_ids = explode(',', $param['pic_ids']);
+        $pic_ids = array_values(array_filter(array_map('intval', explode(',', $param['pic_ids']))));
+        $deletedSyncItems = [];
         Db::startTrans();
         try{
             foreach ($pic_ids as $pic_id){
@@ -2808,8 +3573,22 @@ class UserService extends BaseService
                     //查询关联的 也删除
                     $user_pics =  WdXcxUserAlbumPic::where('pic_id', $pic_id)->select();
                     foreach ($user_pics as $user_pic){
+                        $deletedSyncItems[] = [
+                            'pic_id' => (int)$pic_id,
+                            'folder_id' => (int)$user_pic->folder_id,
+                            'relation_id' => (int)$user_pic->id,
+                            'role' => 'album',
+                            'delete_resource' => false,
+                        ];
                         $user_pic->delete();
                     }
+                    $deletedSyncItems[] = [
+                        'pic_id' => (int)$pic_id,
+                        'folder_id' => 0,
+                        'relation_id' => 0,
+                        'role' => 'upload',
+                        'delete_resource' => true,
+                    ];
                 }else{
                     throwError('图片不存在');
                 }
@@ -2819,6 +3598,101 @@ class UserService extends BaseService
             throwError($e->getMessage());
         }
         Db::commit();
+        $this->syncDeletedPicturesToResourceBridge($user_id, $deletedSyncItems);
+    }
+
+    public function discardUploadedPicture($picId, $userId)
+    {
+        $picId = (int)$picId;
+        $userId = (int)$userId;
+        $pic = WdXcxPic::where('id', $picId)->where('uid', $userId)->find();
+        if (!$pic) {
+            throwError('图片不存在');
+        }
+        $relationCount = WdXcxUserAlbumPic::where('pic_id', $picId)->count();
+        $fieldReferenceCount = WdXcxAlbumFolder::where('uid', $userId)
+            ->whereRaw('(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))', [$picId, $picId])
+            ->count();
+        if ($relationCount > 0 || (int)$fieldReferenceCount > 0) {
+            throwError('图片已保存到产品，请在产品中删除');
+        }
+
+        Db::startTrans();
+        try {
+            $pic->delete();
+        } catch (\Exception $e) {
+            Db::rollback();
+            throwError($e->getMessage());
+        }
+        Db::commit();
+
+        (new AiResourceBridgeService($this->app))->safeMarkPictureDeleted($userId, $picId, [
+            'role' => 'upload',
+            'delete_resource' => true,
+        ]);
+    }
+
+    public function discardUploadedAlbumPicture($albumPicId, $userId)
+    {
+        $albumPicId = (int)$albumPicId;
+        $userId = (int)$userId;
+        $relation = WdXcxUserAlbumPic::where('id', $albumPicId)->find();
+        if (!$relation) {
+            throwError('图片不存在');
+        }
+        $folder = WdXcxAlbumFolder::where('id', (int)$relation->folder_id)->find();
+        if (!$folder || (int)$folder->uid !== $userId) {
+            throwError('您没有权限操作此图片');
+        }
+        $picId = (int)$relation->pic_id;
+        $folderId = (int)$relation->folder_id;
+        $deleteResource = false;
+        Db::startTrans();
+        try {
+            $relation->delete();
+            $remainingRelationCount = WdXcxUserAlbumPic::where('pic_id', $picId)->count();
+            $fieldReferenceCount = WdXcxAlbumFolder::whereRaw(
+                '(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))',
+                [$picId, $picId]
+            )->count();
+            if ($remainingRelationCount <= 0 && (int)$fieldReferenceCount <= 0) {
+                $pic = WdXcxPic::where('id', $picId)->where('uid', $userId)->find();
+                $isImportedResource = $pic && method_exists($pic, 'isImportedResourcePicture') && $pic->isImportedResourcePicture();
+                if ($pic && !$isImportedResource) {
+                    $pic->delete();
+                    $deleteResource = true;
+                }
+            }
+        } catch (\Exception $e) {
+            Db::rollback();
+            throwError($e->getMessage());
+        }
+        Db::commit();
+
+        (new AiResourceBridgeService($this->app))->safeMarkPictureDeleted($userId, $picId, [
+            'b_folder_id' => $folderId,
+            'b_relation_id' => $albumPicId,
+            'external_product_id' => (string)$folderId,
+            'role' => 'album',
+            'delete_resource' => $deleteResource,
+        ]);
+    }
+
+    private function syncDeletedPicturesToResourceBridge($userId, $items)
+    {
+        if (empty($items)) {
+            return;
+        }
+        $bridge = new AiResourceBridgeService($this->app);
+        foreach ($items as $item) {
+            $bridge->safeMarkPictureDeleted($userId, (int)$item['pic_id'], [
+                'b_folder_id' => (int)($item['folder_id'] ?? 0),
+                'b_relation_id' => (int)($item['relation_id'] ?? 0),
+                'external_product_id' => (string)($item['folder_id'] ?? ''),
+                'role' => (string)($item['role'] ?? ''),
+                'delete_resource' => !empty($item['delete_resource']),
+            ]);
+        }
     }
 
     /**用户访问记录

@@ -80,7 +80,6 @@ export default {
 		}
 	},
 	onLoad(options) {
-		console.log(options)
 		this.uploadd_code = options.uploadd_code
 		this.user_pwd = options.user_pwd
 		this.getInfo()
@@ -91,17 +90,15 @@ export default {
 			this.submitInfo()
 		},
 		submitInfo() {
-			// 验证昵称
-				// 验证批量上传密码(如果填写了)
-				if (this.userInfo.upload_pwd && !/^[A-Za-z0-9]{4}$/.test(this.userInfo.upload_pwd)) {
-					uni.showToast({
-						title: '批量上传密码需为4位字母或数字',
-						icon: 'none'
-					});
-					return;
-				}
-				
-				const querys = {
+			if (this.userInfo.upload_pwd && !/^[A-Za-z0-9]{4}$/.test(this.userInfo.upload_pwd)) {
+				uni.showToast({
+					title: '批量上传密码需为4位字母或数字',
+					icon: 'none'
+				});
+				return;
+			}
+
+					const querys = {
 					nickname: this.userInfo.nickname,
 					avatar: this.userInfo.avatar,
 					wx_ewm: this.ermImg,

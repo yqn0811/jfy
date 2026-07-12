@@ -3,7 +3,7 @@
 namespace app\common\model\user;
 
 use app\common\model\BaseModel;
-use app\index\model\WdXcxBase;
+use app\common\model\WdXcxBase;
 use think\facade\Config;
 
 class WdXcxUserPlayRecord extends BaseModel

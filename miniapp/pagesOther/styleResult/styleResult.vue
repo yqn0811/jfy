@@ -81,7 +81,7 @@
                 >花色 {{ variantPictures.length }} 张</text
               >
               <text v-if="detailPictures.length"
-                >细节 {{ detailPictures.length }} 张</text
+                >详情 {{ detailPictures.length }} 张</text
               >
             </view>
           </view>
@@ -98,11 +98,12 @@
             class="main-picture-item"
             v-for="(item, index) in mainPictures"
             :key="item.render_key"
-            @click="handleProductClick(item)"
+            :data-index="index"
+            @click="handleProductClick(item, index, $event, 'main')"
           >
             <image
               class="main-picture-image"
-              :src="item.src || '/static/image/pic.png'"
+              :src="getPictureSrc(item)"
               mode="aspectFill"
             ></image>
             <view class="main-picture-label">{{
@@ -123,11 +124,12 @@
             :class="{ selected: isProductSelected(item.id) }"
             v-for="(item, index) in variantPictures"
             :key="item.render_key"
-            @click="handleProductClick(item)"
+            :data-index="index"
+            @click="handleProductClick(item, index, $event, 'variant')"
           >
             <image
               class="product-image"
-              :src="item.src || '/static/image/pic.png'"
+              :src="getPictureSrc(item)"
               mode="aspectFill"
             ></image>
             <view class="product-name">{{
@@ -148,7 +150,8 @@
             <view
               v-if="isEditMode"
               class="delete-btn"
-              @click.stop="deleteProduct(item)"
+              :data-index="index"
+              @click.stop="deleteProduct(item, index, $event)"
             >
               <image
                 class="delete-icon"
@@ -175,7 +178,7 @@
 
       <view class="section-card" v-if="detailPictures.length">
         <view class="section-header">
-          <text class="section-title">细节图</text>
+          <text class="section-title">详情图</text>
           <text class="section-count">{{ detailPictures.length }} 张</text>
         </view>
         <view class="detail-picture-list">
@@ -183,11 +186,12 @@
             class="detail-picture-item"
             v-for="(item, index) in detailPictures"
             :key="item.render_key"
-            @click="handleProductClick(item)"
+            :data-index="index"
+            @click="handleProductClick(item, index, $event, 'detail')"
           >
             <image
               class="detail-picture-image"
-              :src="item.src || '/static/image/pic.png'"
+              :src="getPictureSrc(item)"
               mode="aspectFill"
             ></image>
           </view>
@@ -205,25 +209,7 @@
     </view>
 
     <view class="nav-bottom-btns" v-if="fromPage === 'my'">
-      <view v-if="!isEditMode" class="bottom-btns-wrap">
-        <view class="btns-items">
-          <view class="item" @click="goToStyleList">
-            <image
-              class="item-icon"
-              src="/static/icon/24＊24@2x(1).png"
-              mode="scaleToFill"
-            />
-            <text class="item-text">选款单</text>
-          </view>
-          <view class="item" @click="enterEditMode">
-            <image
-              class="item-icon"
-              src="/static/icon/24＊24@2x(9).png"
-              mode="scaleToFill"
-            />
-            <text class="item-text">编辑</text>
-          </view>
-        </view>
+      <view v-if="!isEditMode" class="bottom-btns-wrap normal-actions">
         <view class="shrae-btns" @click="handleShare">
           <image
             class="item-icon"
@@ -231,6 +217,14 @@
             mode="scaleToFill"
           />
           <text class="item-text">分享</text>
+        </view>
+        <view class="edit-btns" @click="enterEditMode">
+          <image
+            class="item-icon"
+            src="/static/icon/24＊24@2x(9).png"
+            mode="scaleToFill"
+          />
+          <text class="item-text">编辑</text>
         </view>
       </view>
 
@@ -282,6 +276,13 @@
 
 <script>
 import SharePopup from "@/components/SharePopup/index.vue";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
+import { setPictureNavigationContext } from "@/common/helper/pictureNavigation.js";
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
 
 export default {
   components: {
@@ -324,9 +325,12 @@ export default {
     this.totalHeight = this.statusBarHeight + this.navigationBarHeight;
     if (options.id) {
       this.styleId = options.id;
-      this.uid = options.uid;
+      this.uid = this.normalizeShareParam(options.uid);
       this.fromPage = options.fromPage;
       this.shareUrl = this.buildShareUrl();
+      if ((this.uid || options.source === "share") && !ensureSharedPageLogin("pagesOther/styleResult/styleResult", options, this.uid)) {
+        return;
+      }
       this.getStyleDetail();
     }
   },
@@ -349,19 +353,59 @@ export default {
       return text;
     },
     buildShareUrl() {
-      const uid = this.normalizeShareParam(this.uid);
-      return `/pagesOther/styleResult/styleResult?id=${this.styleId}${uid ? `&uid=${uid}` : ""}`;
+      const uid = this.getShareOwnerId();
+      const query = [`id=${encodeURIComponent(this.styleId)}`];
+      if (uid) query.push(`uid=${encodeURIComponent(uid)}`);
+      query.push("source=share");
+      return `/pagesOther/styleResult/styleResult?${query.join("&")}`;
+    },
+    getShareOwnerId() {
+      return (
+        this.normalizeShareParam(this.uid) ||
+        this.normalizeShareParam(this.orderInfo.factory_uid) ||
+        (this.$getCurrentUserId ? this.$getCurrentUserId() : "")
+      );
     },
     getShareImage() {
       return (
         this.orderInfo.share_img ||
-        this.productList[0]?.src ||
+        this.getPictureSrc(this.productList[0]) ||
         this.productList[0]?.image ||
         ""
       );
     },
+    getPictureSrc(item = {}) {
+      if (!item) return "/static/image/pic.png";
+      return (
+        item.src ||
+        item.preview_url ||
+        item.picture_url ||
+        item.thumbnail_url ||
+        item.imgurl ||
+        item.url ||
+        (item.image_urls && (item.image_urls.preview || item.image_urls.thumb)) ||
+        (item.imageUrls && (item.imageUrls.preview || item.imageUrls.thumb)) ||
+        "/static/image/pic.png"
+      );
+    },
     goBack() {
       uni.navigateBack();
+    },
+    getPictureId(item) {
+      return getObjectId(item, ["pic_id", "id", "selection_item_id"]);
+    },
+    getPictureListByType(type) {
+      if (type === "main") return this.mainPictures;
+      if (type === "detail") return this.detailPictures;
+      return this.variantPictures;
+    },
+    getClickedPicture(item, index, event, type = "variant") {
+      return resolveClickedListItem(
+        item,
+        index,
+        event,
+        this.getPictureListByType(type),
+      );
     },
 
     showMore() {
@@ -385,22 +429,40 @@ export default {
     },
 
     toProductDetail(data) {
+      const picId = this.getPictureId(data);
+      if (!picId) {
+        showInvalidRecordToast();
+        return;
+      }
+      const pictureContext = setPictureNavigationContext(
+        data,
+        [...this.mainPictures, ...this.variantPictures, ...this.detailPictures],
+        {
+          product_id: this.orderInfo.product_id,
+          folder_id: this.orderInfo.product_id,
+        },
+      );
       uni.navigateTo({
         url:
           "/pagesOther/picDetail/picDetail?pic_id=" +
-          data.id +
+          (pictureContext.current.pic_id || picId) +
           "&uid=" +
           this.uid +
           "&fromPage=styleResult",
       });
     },
 
-    handleProductClick(item) {
-      if (this.isEditMode) {
-        this.toggleSelectProduct(item);
+    handleProductClick(item, index, event, type = "variant") {
+      const current = this.getClickedPicture(item, index, event, type);
+      if (!current || !this.getPictureId(current)) {
+        showInvalidRecordToast();
         return;
       }
-      this.toProductDetail(item);
+      if (this.isEditMode) {
+        this.toggleSelectProduct(current);
+        return;
+      }
+      this.toProductDetail(current);
     },
 
     enterEditMode() {
@@ -422,13 +484,19 @@ export default {
       });
     },
 
-    deleteProduct(item) {
+    deleteProduct(item, index, event) {
+      const current = this.getClickedPicture(item, index, event, "variant");
+      const picId = this.getPictureId(current);
+      if (!current || !picId) {
+        showInvalidRecordToast();
+        return;
+      }
       uni.showModal({
         title: "提示",
-        content: `确定要删除"${item.pic_name || item.name || "该图片"}"吗？`,
+        content: `确定要删除"${current.pic_name || current.name || "该图片"}"吗？`,
         success: (res) => {
           if (res.confirm) {
-            this.performDeleteSingle(item.id);
+            this.performDeleteSingle(picId);
           }
         },
       });
@@ -439,9 +507,16 @@ export default {
     },
 
     performRemoveImages(productIds) {
+      const validProductIds = (productIds || []).filter(
+        (id) => id !== undefined && id !== null && id !== "",
+      );
+      if (!validProductIds.length) {
+        showInvalidRecordToast("请选择有效图片");
+        return;
+      }
       const querys = {
         selection_id: this.styleId,
-        pic_ids: productIds.join(","),
+        pic_ids: validProductIds.join(","),
         product_id: this.orderInfo.product_id,
         timestamp: new Date().getTime(),
       };
@@ -464,7 +539,7 @@ export default {
               icon: "success",
             });
             this.selectedProducts = this.selectedProducts.filter(
-              (id) => !productIds.includes(id),
+              (id) => !validProductIds.includes(id),
             );
             this.getStyleDetail();
           }
@@ -476,11 +551,16 @@ export default {
     },
 
     toggleSelectProduct(item) {
-      const index = this.selectedProducts.indexOf(item.id);
+      const picId = this.getPictureId(item);
+      if (!picId) {
+        showInvalidRecordToast();
+        return;
+      }
+      const index = this.selectedProducts.indexOf(picId);
       if (index > -1) {
         this.selectedProducts.splice(index, 1);
       } else {
-        this.selectedProducts.push(item.id);
+        this.selectedProducts.push(picId);
       }
     },
 
@@ -1026,18 +1106,24 @@ export default {
   position: fixed;
   bottom: 0;
   left: 0;
-  padding-bottom: calc(24rpx + constant(safe-area-inset-bottom));
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  z-index: 1200;
+  padding: 20rpx 32rpx calc(24rpx + constant(safe-area-inset-bottom));
+  padding: 20rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
   background: #fff;
   box-shadow: 0 -8rpx 24rpx rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+  overflow: hidden;
 
   .bottom-btns-wrap {
-    min-height: 112rpx;
-    padding: 20rpx 32rpx 0;
+    min-height: 96rpx;
     box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: space-between;
+  }
+
+  .normal-actions {
+    gap: 24rpx;
   }
 
   .btns-items {
@@ -1080,7 +1166,6 @@ export default {
 
   .shrae-btns {
     flex: 1;
-    margin: 0 20rpx;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1092,6 +1177,25 @@ export default {
     .item-text {
       font-size: 32rpx;
       color: #333;
+    }
+  }
+
+  .edit-btns {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px solid #00000099;
+    border-radius: 96rpx;
+    padding: 24rpx 0;
+    gap: 8rpx;
+    box-sizing: border-box;
+
+    .item-text {
+      font-size: 32rpx;
+      color: #333;
+      font-weight: bold;
     }
   }
 

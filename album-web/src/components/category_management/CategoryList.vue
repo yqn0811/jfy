@@ -373,228 +373,235 @@ watch([keyword, visibilityFilter], () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full gap-6">
+  <div class="flex h-full min-h-0 flex-col bg-background">
     <!-- 页面标题 -->
-    <div class="flex items-center justify-between">
-      <h1 class="text-page-title">分类管理</h1>
-      <Button
-        variant="default"
-        size="lg"
-        class="gap-2"
-        @click="handleCreateCategory"
-      >
-        <SafeIcon name="Plus" :size="18" />
-        新建分类
-      </Button>
-    </div>
-
-    <!-- 筛选栏 -->
-    <div class="filter-bar gap-3">
-      <SearchBar
-        :model-value="keyword"
-        placeholder="搜索分类名称或简介..."
-        @update:model-value="handleKeywordChange"
-      />
-
-      <Select :model-value="visibilityFilter" @update:model-value="handleVisibilityChange">
-        <SelectTrigger class="w-40 h-10">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部可见性</SelectItem>
-          <SelectItem value="public">公开</SelectItem>
-          <SelectItem value="private">私密</SelectItem>
-          <SelectItem value="shared">分享可见</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Select :model-value="sortBy" @update:model-value="handleSortChange">
-        <SelectTrigger class="w-40 h-10">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="name">按名称排序</SelectItem>
-          <SelectItem value="productCount">按产品数排序</SelectItem>
-          <SelectItem value="updatedAt">按更新时间排序</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Button
-        variant="outline"
-        size="icon"
-        class="h-10 w-10"
-        @click="toggleSortDirection"
-        :title="`当前排序: ${sortDirection === 'asc' ? '升序' : '降序'}`"
-      >
-        <SafeIcon
-          :name="sortDirection === 'asc' ? 'ArrowUp' : 'ArrowDown'"
-          :size="16"
-        />
-      </Button>
-    </div>
-
-    <!-- 列表区域 -->
-    <div class="flex-1 overflow-y-auto min-h-0 surface-raised">
-      <div class="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow class="border-b border-border hover:bg-transparent">
-              <TableHead class="min-w-[360px] whitespace-nowrap font-semibold">分类名称</TableHead>
-              <TableHead class="w-48 whitespace-nowrap font-semibold">简介</TableHead>
-              <TableHead class="w-24 whitespace-nowrap font-semibold text-center">产品数</TableHead>
-              <TableHead class="w-24 whitespace-nowrap font-semibold text-center">子分类</TableHead>
-              <TableHead class="w-44 whitespace-nowrap font-semibold">权限状态</TableHead>
-              <TableHead class="w-40 whitespace-nowrap font-semibold">更新时间</TableHead>
-              <TableHead class="w-36 whitespace-nowrap font-semibold text-center">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="paginatedRows.length > 0">
-              <TableRow
-                v-for="row in paginatedRows"
-                :key="row.category.id"
-                class="table-row-hover border-b border-border/50"
-              >
-                <TableCell>
-                  <div
-                    class="flex min-w-0 items-center gap-2"
-                    :style="{ paddingLeft: `${row.level * 24}px` }"
-                  >
-                    <Button
-                      v-if="row.hasChildren"
-                      variant="ghost"
-                      size="icon"
-                      class="h-7 w-7 shrink-0"
-                      :title="expandedIds.has(row.category.id) ? '收起子分类' : '展开子分类'"
-                      @click="toggleExpanded(row.category.id)"
-                    >
-                      <SafeIcon
-                        :name="expandedIds.has(row.category.id) ? 'ChevronDown' : 'ChevronRight'"
-                        :size="16"
-                      />
-                    </Button>
-                    <span v-else class="h-7 w-7 shrink-0" />
-                    <div class="flex min-w-0 flex-1 items-center gap-2">
-                      <SafeIcon
-                        :name="row.hasChildren ? 'FolderTree' : 'Folder'"
-                        :size="16"
-                        class="shrink-0 text-muted-foreground"
-                      />
-                      <Input
-                        v-model="rowDraft(row.category).name"
-                        class="h-9 min-w-[220px] max-w-[520px] flex-1 border-transparent bg-transparent px-2 font-medium shadow-none hover:border-input hover:bg-background focus-visible:border-input"
-                        :disabled="isRowSaving(row.category.id)"
-                        @keyup.enter="handleSaveRow(row.category)"
-                      />
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell class="text-muted-foreground text-sm truncate max-w-xs">
-                  {{ row.category.intro || '暂无简介' }}
-                </TableCell>
-                <TableCell class="text-center text-sm">
-                  {{ row.category.productCount }}
-                </TableCell>
-                <TableCell class="text-center text-sm">
-                  <button
-                    v-if="row.hasChildren"
-                    type="button"
-                    class="rounded-md px-2 py-1 text-sm font-medium text-primary hover:bg-primary/10"
-                    @click="toggleExpanded(row.category.id)"
-                  >
-                    {{ row.category.childCount }}
-                  </button>
-                  <span v-else>{{ row.category.childCount }}</span>
-                </TableCell>
-                <TableCell>
-                  <Select
-                    :model-value="rowDraft(row.category).visibility"
-                    :disabled="isRowSaving(row.category.id)"
-                    @update:model-value="(value) => updateRowVisibility(row.category, value)"
-                  >
-                    <SelectTrigger class="h-9 w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">公开</SelectItem>
-                      <SelectItem value="private">私密</SelectItem>
-                      <SelectItem value="shared">分享可见</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell class="text-sm text-muted-foreground">
-                  {{ row.category.updatedAt }}
-                </TableCell>
-                <TableCell class="text-center">
-                  <div class="flex items-center justify-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0"
-                      :disabled="!isRowDirty(row.category) || isRowSaving(row.category.id)"
-                      @click="handleSaveRow(row.category)"
-                      title="保存行内修改"
-                    >
-                      <SafeIcon
-                        :name="isRowSaving(row.category.id) ? 'Loader2' : 'Check'"
-                        :size="16"
-                        :class="cn(isRowSaving(row.category.id) ? 'animate-spin' : 'text-muted-foreground hover:text-primary')"
-                      />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0"
-                      :disabled="!isRowDirty(row.category) || isRowSaving(row.category.id)"
-                      @click="resetRow(row.category)"
-                      title="撤销行内修改"
-                    >
-                      <SafeIcon name="RotateCcw" :size="16" class="text-muted-foreground hover:text-primary" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0"
-                      @click="handleEditCategory(row.category)"
-                      title="编辑分类"
-                    >
-                      <SafeIcon name="Edit2" :size="16" class="text-muted-foreground hover:text-primary" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0"
-                      @click="handleDeleteCategory(row.category.id)"
-                      title="删除分类"
-                    >
-                      <SafeIcon name="Trash2" :size="16" class="text-muted-foreground hover:text-destructive" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            </template>
-            <TableRow v-else>
-              <TableCell colspan="7" class="h-32">
-                <EmptyState
-                  icon="FolderOpen"
-                  title="暂无分类"
-                  description="还没有创建任何分类，点击'新建分类'开始添加"
-                />
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+    <div class="page-body border-b border-border">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-page-title">分类管理</h1>
+          <p class="text-caption mt-1">维护产品分类、层级、权限和排序设置</p>
+        </div>
+        <Button
+          variant="default"
+          size="lg"
+          class="gap-2"
+          @click="handleCreateCategory"
+        >
+          <SafeIcon name="Plus" :size="18" />
+          新建分类
+        </Button>
       </div>
     </div>
 
-    <!-- 分页 -->
-    <div v-if="isClient && totalItems > 0" class="border-t border-border pt-4">
-      <Pagination
-        :current="currentPage"
-        :total="totalItems"
-        :page-size="pageSize"
-        @update:current="(page) => (currentPage = page)"
-      />
+    <div class="flex min-h-0 flex-1 flex-col gap-6 p-6">
+      <!-- 筛选栏 -->
+      <div class="filter-bar gap-3">
+        <SearchBar
+          :model-value="keyword"
+          placeholder="搜索分类名称或简介..."
+          @update:model-value="handleKeywordChange"
+        />
+
+        <Select :model-value="visibilityFilter" @update:model-value="handleVisibilityChange">
+          <SelectTrigger class="w-40 h-10">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部可见性</SelectItem>
+            <SelectItem value="public">公开</SelectItem>
+            <SelectItem value="private">私密</SelectItem>
+            <SelectItem value="shared">分享可见</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select :model-value="sortBy" @update:model-value="handleSortChange">
+          <SelectTrigger class="w-40 h-10">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">按名称排序</SelectItem>
+            <SelectItem value="productCount">按产品数排序</SelectItem>
+            <SelectItem value="updatedAt">按更新时间排序</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant="outline"
+          size="icon"
+          class="h-10 w-10"
+          @click="toggleSortDirection"
+          :title="`当前排序: ${sortDirection === 'asc' ? '升序' : '降序'}`"
+        >
+          <SafeIcon
+            :name="sortDirection === 'asc' ? 'ArrowUp' : 'ArrowDown'"
+            :size="16"
+          />
+        </Button>
+      </div>
+
+      <!-- 列表区域 -->
+      <div class="flex-1 overflow-y-auto min-h-0 surface-raised">
+        <div class="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow class="border-b border-border hover:bg-transparent">
+                <TableHead class="min-w-[360px] whitespace-nowrap font-semibold">分类名称</TableHead>
+                <TableHead class="w-48 whitespace-nowrap font-semibold">简介</TableHead>
+                <TableHead class="w-24 whitespace-nowrap font-semibold text-center">产品数</TableHead>
+                <TableHead class="w-24 whitespace-nowrap font-semibold text-center">子分类</TableHead>
+                <TableHead class="w-44 whitespace-nowrap font-semibold">权限状态</TableHead>
+                <TableHead class="w-40 whitespace-nowrap font-semibold">更新时间</TableHead>
+                <TableHead class="w-36 whitespace-nowrap font-semibold text-center">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="paginatedRows.length > 0">
+                <TableRow
+                  v-for="row in paginatedRows"
+                  :key="row.category.id"
+                  class="table-row-hover border-b border-border/50"
+                >
+                  <TableCell>
+                    <div
+                      class="flex min-w-0 items-center gap-2"
+                      :style="{ paddingLeft: `${row.level * 24}px` }"
+                    >
+                      <Button
+                        v-if="row.hasChildren"
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7 shrink-0"
+                        :title="expandedIds.has(row.category.id) ? '收起子分类' : '展开子分类'"
+                        @click="toggleExpanded(row.category.id)"
+                      >
+                        <SafeIcon
+                          :name="expandedIds.has(row.category.id) ? 'ChevronDown' : 'ChevronRight'"
+                          :size="16"
+                        />
+                      </Button>
+                      <span v-else class="h-7 w-7 shrink-0" />
+                      <div class="flex min-w-0 flex-1 items-center gap-2">
+                        <SafeIcon
+                          :name="row.hasChildren ? 'FolderTree' : 'Folder'"
+                          :size="16"
+                          class="shrink-0 text-muted-foreground"
+                        />
+                        <Input
+                          v-model="rowDraft(row.category).name"
+                          class="h-9 min-w-[220px] max-w-[520px] flex-1 border-transparent bg-transparent px-2 font-medium shadow-none hover:border-input hover:bg-background focus-visible:border-input"
+                          :disabled="isRowSaving(row.category.id)"
+                          @keyup.enter="handleSaveRow(row.category)"
+                        />
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell class="text-muted-foreground text-sm truncate max-w-xs">
+                    {{ row.category.intro || '暂无简介' }}
+                  </TableCell>
+                  <TableCell class="text-center text-sm">
+                    {{ row.category.productCount }}
+                  </TableCell>
+                  <TableCell class="text-center text-sm">
+                    <button
+                      v-if="row.hasChildren"
+                      type="button"
+                      class="rounded-md px-2 py-1 text-sm font-medium text-primary hover:bg-primary/10"
+                      @click="toggleExpanded(row.category.id)"
+                    >
+                      {{ row.category.childCount }}
+                    </button>
+                    <span v-else>{{ row.category.childCount }}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      :model-value="rowDraft(row.category).visibility"
+                      :disabled="isRowSaving(row.category.id)"
+                      @update:model-value="(value) => updateRowVisibility(row.category, String(value))"
+                    >
+                      <SelectTrigger class="h-9 w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="public">公开</SelectItem>
+                        <SelectItem value="private">私密</SelectItem>
+                        <SelectItem value="shared">分享可见</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell class="text-sm text-muted-foreground">
+                    {{ row.category.updatedAt }}
+                  </TableCell>
+                  <TableCell class="text-center">
+                    <div class="flex items-center justify-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-8 w-8 p-0"
+                        :disabled="!isRowDirty(row.category) || isRowSaving(row.category.id)"
+                        @click="handleSaveRow(row.category)"
+                        title="保存行内修改"
+                      >
+                        <SafeIcon
+                          :name="isRowSaving(row.category.id) ? 'Loader2' : 'Check'"
+                          :size="16"
+                          :class="cn(isRowSaving(row.category.id) ? 'animate-spin' : 'text-muted-foreground hover:text-primary')"
+                        />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-8 w-8 p-0"
+                        :disabled="!isRowDirty(row.category) || isRowSaving(row.category.id)"
+                        @click="resetRow(row.category)"
+                        title="撤销行内修改"
+                      >
+                        <SafeIcon name="RotateCcw" :size="16" class="text-muted-foreground hover:text-primary" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-8 w-8 p-0"
+                        @click="handleEditCategory(row.category)"
+                        title="编辑分类"
+                      >
+                        <SafeIcon name="Edit2" :size="16" class="text-muted-foreground hover:text-primary" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-8 w-8 p-0"
+                        @click="handleDeleteCategory(row.category.id)"
+                        title="删除分类"
+                      >
+                        <SafeIcon name="Trash2" :size="16" class="text-muted-foreground hover:text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </template>
+              <TableRow v-else>
+                <TableCell colspan="7" class="h-32">
+                  <EmptyState
+                    icon="FolderOpen"
+                    title="暂无分类"
+                    description="还没有创建任何分类，点击'新建分类'开始添加"
+                  />
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <!-- 分页 -->
+      <div v-if="isClient && totalItems > 0" class="border-t border-border pt-4">
+        <Pagination
+          :current="currentPage"
+          :total="totalItems"
+          :page-size="pageSize"
+          @update:current="(page) => (currentPage = page)"
+        />
+      </div>
     </div>
 
     <!-- 编辑对话框 -->

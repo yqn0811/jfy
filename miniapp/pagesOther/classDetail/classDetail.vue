@@ -7,6 +7,7 @@
         :avatar="user.avatar"
         :name="user.name"
         :subtitle="user.subtitle"
+        :show-contact="shouldShowContactButton"
         @contact="contactOwner"
       />
 
@@ -57,6 +58,12 @@
         <view class="state-btn" @tap="retryLoad">重新加载</view>
       </view>
 
+      <view v-if="!pageError && loading" class="state-card">
+        <view class="state-loading"></view>
+        <text class="state-title">加载中</text>
+        <text class="state-desc">正在加载分类内容</text>
+      </view>
+
       <!-- 子分类与产品网格 -->
       <view class="content" v-if="!pageError && hasContent">
         <ImageGrid
@@ -68,7 +75,7 @@
 
         <!-- 当有图片但少于一行时也显示“没有更多了~” -->
         <view
-          v-if="totalContentCount > 0 && totalContentCount < minShowCount"
+          v-if="shouldShowLessThanMinHint"
           class="empty-sub"
         >
           <text class="empty-text">没有更多了~</text>
@@ -76,18 +83,42 @@
       </view>
       <!-- 无内容时的占位 -->
       <view v-if="!pageError && !hasContent && !loading" class="class-empty">
-        <image
-          v-if="canManageChildCategory"
-          src="/pagesOther/static/icon/Frame@2x(25).png"
-          mode="widthFix"
-          class="empty-img"
-        ></image>
-        <text v-else class="empty-text">{{ emptyMessage }}</text>
+        <view v-if="canManageCategoryContent" class="empty-visual">
+          <view class="visual-card visual-card-back"></view>
+          <view class="visual-card visual-card-front">
+            <view class="visual-image"></view>
+            <view class="visual-lines">
+              <view class="visual-line visual-line-long"></view>
+              <view class="visual-line visual-line-short"></view>
+            </view>
+          </view>
+          <view class="visual-plus">+</view>
+        </view>
+        <text v-if="canManageCategoryContent" class="empty-title">当前合集还没有作品</text>
+        <text class="empty-text">{{ canManageCategoryContent ? "新建产品或从已有产品中添加，作品会展示在这里" : emptyMessage }}</text>
+        <view v-if="canManageCategoryContent" class="actions">
+          <view class="btn" @tap="createProductInCategory">
+            <image
+              class="btn-icon"
+              src="/static/icon/add-yellow-icon.png"
+              mode="scaleToFill"
+            />
+            <text class="btn-text">新建产品</text>
+          </view>
+          <view class="btn secondary" @tap="selectExistingProducts">
+            <image
+              class="btn-icon"
+              src="/static/icon/image-3@2x(2).png"
+              mode="scaleToFill"
+            />
+            <text class="btn-text">添加产品</text>
+          </view>
+        </view>
       </view>
 
       <!-- 底部固定操作栏 -->
       <view v-if="!pageError" class="bottom-bar">
-        <view class="action-btn" @tap="contactOwner">
+        <view v-if="shouldShowContactButton" class="action-btn" @tap="contactOwner">
           <image
             src="/static/icon/user.png"
             class="action-icon"
@@ -109,13 +140,22 @@
           <text class="action-text">{{ isFavorited ? "已收藏" : "收藏" }}</text>
         </view>
 
-        <view class="action-btn" @tap="openShare">
+        <view v-if="canShareCategory" class="action-btn" @tap="openShare">
           <image
             src="/static/icon/24＊24@2x(4).png"
             class="action-icon"
             mode="widthFix"
           />
           <text class="action-text">分享</text>
+        </view>
+
+        <view v-if="!uid" class="action-btn" @tap="openCategorySettings">
+          <image
+            src="/static/icon/Frame.png"
+            class="action-icon"
+            mode="widthFix"
+          />
+          <text class="action-text">设置</text>
         </view>
       </view>
     </view>
@@ -154,6 +194,8 @@ import {
   consumeRefreshMarker,
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
+import { imageUrlFor } from "@/common/helper/imageUrls.js";
 
 export default {
   components: { UserCard, ImageGrid, SharePopup, PersonalDetails },
@@ -173,6 +215,10 @@ export default {
         pid: 0,
         level: 1,
         private_type: 1,
+        show_connect: 1,
+        other_share: 0,
+        set_top: 0,
+        share_version: 0,
       },
       children: [],
       products: [],
@@ -187,8 +233,10 @@ export default {
       minShowCount: 1, // 控制“没有更多了~”显示逻辑
       columns: 2,
       uid: "", // 用户分享的用户ID
+      routeShareVersion: "",
       shareOwnerId: "",
       lastCategoryRefreshAt: "",
+      createdPreview: false,
     };
   },
   computed: {
@@ -221,8 +269,14 @@ export default {
     totalContentCount() {
       return this.children.length + this.products.length;
     },
+    shouldShowLessThanMinHint() {
+      return this.totalContentCount > 0 && this.totalContentCount < this.minShowCount;
+    },
     canManageChildCategory() {
       return !this.uid && this.isTopLevelCategory;
+    },
+    canManageCategoryContent() {
+      return !this.uid && !!this.categoryId;
     },
     hasOwnerInfo() {
       return !!(
@@ -261,6 +315,14 @@ export default {
     serviceActionLabel() {
       return this.normalizeText(this.user.serviceName) || "服务";
     },
+    shouldShowContactButton() {
+      return !!this.uid && Number(this.category.show_connect) !== 0;
+    },
+    canShareCategory() {
+      if (Number(this.category.private_type) === 2) return false;
+      if (this.uid && Number(this.category.other_share) === 1) return false;
+      return true;
+    },
     shareCoverUrl() {
       const product = this.products.find((item) => this.normalizeText(item.new_thumb));
       const child = this.children.find((item) => {
@@ -283,8 +345,21 @@ export default {
     // 支持通过 options 传入分类 id
     if (options && options.id) this.categoryId = options.id;
     this.uid = this.resolveOwnerUid(options);
+    this.routeShareVersion = this.normalizeShareParam(options.share_v || options.sv || "");
+    this.createdPreview = !this.uid && String(options.created_preview || "") === "1";
+    this.applyRouteCategoryOptions(options);
+    if (!this.categoryId) {
+      this.setPageError("分类信息缺失，请返回后重试");
+      return;
+    }
+    if (this.createdPreview) {
+      this.applyCreatedPreviewOptions(options);
+    }
     this.shareOwnerId = this.uid;
     this.shareUrl = this.buildShareUrl();
+    if (this.uid && !ensureSharedPageLogin("pagesOther/classDetail/classDetail", options, this.uid)) {
+      return;
+    }
     this.initUserFromCache();
 
     // 通过 eventChannel 接收上一页面传递的数据
@@ -304,6 +379,10 @@ export default {
             classDetailData.class_desc ||
             classDetailData.desc ||
             "";
+          if (classDetailData.private_type !== undefined && classDetailData.private_type !== null) {
+            this.category.private_type = this.normalizePrivateType(classDetailData.private_type);
+          }
+          this.applyCategorySwitchOptions(classDetailData);
           this.applyCategoryLevel(classDetailData);
           this.columns = this.normalizeColumns(
             classDetailData.layout_type || classDetailData.pic_layout || 2
@@ -313,22 +392,34 @@ export default {
       });
     }
 
-    this.loadOwnerInfo();
-    this.loadInitialData();
+    if (!this.createdPreview) {
+      this.loadOwnerInfo();
+      this.loadInitialData();
+    }
     const token = uni.getStorageSync("token");
-    if (token) {
+    if (token && !this.createdPreview) {
       this.$addVisit({ id: options.id, type: "category" });
     }
     // 监听分类更新事件
     uni.$on("refreshClassDetailData", this.handleRefreshData);
   },
   onShow() {
+    if (this.createdPreview) return;
+    this.syncShareMenu();
     this.consumeCategoryRefreshMarker();
   },
   onUnload() {
     uni.$off("refreshClassDetailData", this.handleRefreshData);
   },
   onShareAppMessage() {
+    if (!this.canShareCategory) {
+      uni.showToast({ title: "该分类不允许分享", icon: "none" });
+      return {
+        title: this.shareTitle || this.buildCategoryShareTitle(),
+        path: this.shareUrl || this.buildShareUrl(),
+        imageUrl: this.shareCoverUrl,
+      };
+    }
     this.updateShareMeta();
     return {
       title: this.shareTitle || this.buildCategoryShareTitle(),
@@ -356,6 +447,66 @@ export default {
         this.normalizeText(err && err.message) ||
         fallback
       );
+    },
+    safeDecodeRouteValue(value) {
+      const text = this.normalizeText(value);
+      if (!text) return "";
+      try {
+        return decodeURIComponent(text);
+      } catch (e) {
+        return text;
+      }
+    },
+    applyRouteCategoryOptions(options = {}) {
+      const routeName = this.safeDecodeRouteValue(
+        options.category_name || options.name || options.title || "",
+      );
+      const routeDesc = this.safeDecodeRouteValue(
+        options.category_desc || options.desc || "",
+      );
+      if (routeName) {
+        this.category.title = routeName;
+      }
+      if (routeDesc) {
+        this.category.desc = routeDesc;
+      }
+      if (options.private_type !== undefined && options.private_type !== null) {
+        this.category.private_type = this.normalizePrivateType(options.private_type);
+      }
+      this.applyCategorySwitchOptions(options);
+      if (options.parent_id !== undefined || options.pid !== undefined) {
+        this.category.pid = Number(options.parent_id || options.pid || 0);
+        this.category.level = this.category.pid > 0 ? 2 : 1;
+      }
+      const layoutValue =
+        options.layout_type !== undefined &&
+        options.layout_type !== null &&
+        options.layout_type !== ""
+          ? options.layout_type
+          : options.pic_layout;
+      if (layoutValue !== undefined && layoutValue !== null && layoutValue !== "") {
+        this.columns = this.normalizeColumns(layoutValue);
+      }
+      this.updateShareMeta();
+    },
+    applyCreatedPreviewOptions(options = {}) {
+      this.category.title =
+        this.safeDecodeRouteValue(options.name) || this.category.title;
+      this.category.desc =
+        this.safeDecodeRouteValue(options.desc) || this.category.desc;
+      if (options.private_type !== undefined && options.private_type !== null) {
+        this.category.private_type = this.normalizePrivateType(options.private_type);
+      }
+      this.applyCategorySwitchOptions(options);
+      this.category.pid = Number(options.parent_id || options.pid || 0);
+      this.category.level = this.category.pid > 0 ? 2 : 1;
+      if (options.layout_type !== undefined && options.layout_type !== null) {
+        this.columns = this.normalizeColumns(options.layout_type);
+      }
+      this.children = [];
+      this.products = [];
+      this.clearPageError();
+      this.updateShareMeta();
     },
     setPageError(message) {
       this.pageError = this.normalizeText(message) || "该分类暂不可访问";
@@ -436,6 +587,31 @@ export default {
       this.shareTitle = this.buildCategoryShareTitle();
       this.shareUrl = this.buildShareUrl();
     },
+    applyCategorySwitchOptions(info = {}) {
+      if (info.show_connect !== undefined && info.show_connect !== null && info.show_connect !== "") {
+        this.category.show_connect = Number(info.show_connect) === 0 ? 0 : 1;
+      }
+      if (info.other_share !== undefined && info.other_share !== null && info.other_share !== "") {
+        this.category.other_share = Number(info.other_share) === 1 ? 1 : 0;
+      }
+      if (info.set_top !== undefined && info.set_top !== null && info.set_top !== "") {
+        this.category.set_top = Number(info.set_top) === 1 ? 1 : 0;
+      }
+      if (info.share_version !== undefined && info.share_version !== null && info.share_version !== "") {
+        this.category.share_version = Number(info.share_version) || 0;
+      }
+      this.syncShareMenu();
+    },
+    syncShareMenu() {
+      if (typeof wx === "undefined") return;
+      try {
+        if (this.canShareCategory) {
+          wx.showShareMenu && wx.showShareMenu({ withShareTicket: true });
+        } else {
+          wx.hideShareMenu && wx.hideShareMenu();
+        }
+      } catch (e) {}
+    },
     loadOwnerInfo() {
       if (this.uid) {
         this.shareOwnerId = this.uid;
@@ -479,9 +655,11 @@ export default {
       }
       const ownerId =
         this.getShareOwnerId();
+      const shareVersion = Number(this.category.share_version || 0);
+      const shareVersionQuery = shareVersion ? `&share_v=${encodeURIComponent(shareVersion)}` : "";
       return this.$buildPublicSharePath
-        ? this.$buildPublicSharePath("category", this.categoryId, ownerId)
-        : `/pagesOther/classDetail/classDetail?id=${this.categoryId}${ownerId ? `&uid=${ownerId}` : ""}`;
+        ? `${this.$buildPublicSharePath("category", this.categoryId, ownerId)}${shareVersionQuery}`
+        : `/pagesOther/classDetail/classDetail?id=${this.categoryId}${ownerId ? `&uid=${ownerId}` : ""}${shareVersionQuery}`;
     },
     getShareOwnerId() {
       return (
@@ -535,7 +713,7 @@ export default {
       try {
         const res = await this.$go(
           "user/home/categories",
-          { target_user_id: this.uid, fid: this.categoryId, include_current: 1 },
+          { target_user_id: this.uid, fid: this.categoryId, include_current: 1, share_v: this.routeShareVersion },
           "get",
           { show_err: false }
         );
@@ -567,10 +745,11 @@ export default {
     },
     handleRefreshData(marker) {
       this.markCategoryRefreshConsumed(marker);
+      this.createdPreview = false;
       this.loadInitialData();
     },
     consumeCategoryRefreshMarker() {
-      if (this.uid) return;
+      if (this.uid || this.createdPreview) return;
       const marker = consumeRefreshMarker(
         "category",
         "categoryListNeedsRefreshDetailConsumed",
@@ -597,6 +776,7 @@ export default {
       if (info.private_type !== undefined && info.private_type !== null) {
         this.category.private_type = this.normalizePrivateType(info.private_type);
       }
+      this.applyCategorySwitchOptions(info);
       this.applyCategoryLevel(info);
       const layoutValue =
         info.layout_type !== undefined &&
@@ -722,7 +902,7 @@ export default {
               level,
               nameField: this.getDisplayCategoryName(item),
               imageField:
-                item.new_thumb || item.icon || "/static/icon/folder-open@2x.png",
+                imageUrlFor(item, "thumb") || item.new_thumb || item.icon || "/static/icon/folder-open@2x.png",
               countField,
             };
           });
@@ -824,7 +1004,7 @@ export default {
           this.normalizeArray(item.pic_ids_arr || item.pic_ids).length;
       return {
         ...item,
-        new_thumb: item.new_thumb || item.imageField || "/static/image/pic.png",
+        new_thumb: imageUrlFor(item, "thumb") || item.new_thumb || item.imageField || "/static/image/pic.png",
         folder_count: pictureCount,
       };
     },
@@ -885,6 +1065,60 @@ export default {
         url: `/pagesOther/classSort/classSort?fid=${this.categoryId}&fromPage=classDetail`,
       });
     },
+    buildCurrentCategoryQuery(extra = {}) {
+      const query = {
+        category_id: this.categoryId,
+        category_name: this.displayCategoryTitle,
+        ...extra,
+      };
+      return Object.keys(query)
+        .filter((key) => query[key] !== undefined && query[key] !== null && query[key] !== "")
+        .map((key) => `${key}=${encodeURIComponent(query[key])}`)
+        .join("&");
+    },
+    createProductInCategory() {
+      if (!this.canManageCategoryContent) return;
+      const query = this.buildCurrentCategoryQuery({ fromPage: "classDetail" });
+      uni.navigateTo({
+        url: `/pagesOther/addProduct/addProduct?${query}`,
+      });
+    },
+    selectExistingProducts() {
+      if (!this.canManageCategoryContent) return;
+      const query = this.buildCurrentCategoryQuery({
+        fromPage: "classDetail",
+        albumId: this.categoryId,
+      });
+      uni.navigateTo({
+        url: `/pagesOther/productSelect/productSelect?${query}`,
+      });
+    },
+    openCategorySettings() {
+      if (this.uid || !this.categoryId) return;
+      uni.setStorageSync("folderInfo", {
+        id: this.categoryId,
+        folder_type: 1,
+        folder_name: this.displayCategoryTitle,
+        folder_desc: this.category.desc || "",
+        pid: this.category.pid || 0,
+        private_type: this.category.private_type || 1,
+        layout_type: this.columns === 1 ? 2 : 1,
+        pic_layout: this.columns === 1 ? 2 : 1,
+        uid: this.shareOwnerId || (uni.getStorageSync("userInfo") || {}).id || "",
+        show_connect: this.category.show_connect,
+        set_top: this.category.set_top,
+        other_share: this.category.other_share,
+        show_upload_date: 0,
+        show_search: 0,
+        upload_field: [],
+        editer_create: 1,
+        editer_delete: 1,
+        editer_delete_pic: 1,
+      });
+      uni.navigateTo({
+        url: "/pagesOther/setPage/setPage",
+      });
+    },
     contactOwner() {
       // 跳转或打开聊天/拨号
       this.personalVisible = true;
@@ -915,6 +1149,10 @@ export default {
       }
     },
     openShare() {
+      if (!this.canShareCategory) {
+        uni.showToast({ title: "该分类不允许分享", icon: "none" });
+        return;
+      }
       if (!this.uid && !this.$checkLoginStatus()) {
         uni.showModal({
           title: "未登录，是否立即登录？",
@@ -944,7 +1182,13 @@ export default {
 <style scoped lang="scss">
 .page {
   background: #f5f5f5;
+  min-height: 100vh;
   padding: 16rpx;
+  box-sizing: border-box;
+}
+
+.page-scoll {
+  padding-bottom: 180rpx;
   box-sizing: border-box;
 }
 
@@ -1079,6 +1323,15 @@ export default {
   font-weight: 600;
 }
 
+.state-loading {
+  width: 52rpx;
+  height: 52rpx;
+  margin-bottom: 24rpx;
+  border-radius: 50%;
+  border: 6rpx solid #f0f0f0;
+  border-top-color: #ffd800;
+}
+
 .bottom-bar {
   position: fixed;
   left: 50%;
@@ -1119,129 +1372,129 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  min-height: 520rpx;
+  padding: 44rpx 12rpx 40rpx;
+  box-sizing: border-box;
 
-  .empty-img {
-    width: 545rpx;
-    height: 545rpx;
-    margin-bottom: 18rpx;
+  .empty-visual {
+    position: relative;
+    width: 320rpx;
+    height: 250rpx;
+    margin-bottom: 20rpx;
+  }
+
+  .visual-card {
+    position: absolute;
+    border-radius: 24rpx;
+    box-sizing: border-box;
+  }
+
+  .visual-card-back {
+    left: 42rpx;
+    top: 10rpx;
+    width: 210rpx;
+    height: 150rpx;
+    background: #eeeeee;
+    border: 2rpx solid #e2e2e2;
+    transform: rotate(-8deg);
+  }
+
+  .visual-card-front {
+    left: 50%;
+    bottom: 12rpx;
+    width: 238rpx;
+    height: 178rpx;
+    padding: 22rpx;
+    background: #f8f8f8;
+    border: 2rpx solid #222222;
+    box-shadow: 0 18rpx 40rpx rgba(34, 34, 34, 0.12);
+    transform: translateX(-50%);
+  }
+
+  .visual-image {
+    height: 74rpx;
+    border-radius: 18rpx;
+    background: linear-gradient(135deg, #ffd800 0%, #fff3a6 48%, #f1f1f1 100%);
+  }
+
+  .visual-lines {
+    margin-top: 22rpx;
+  }
+
+  .visual-line {
+    height: 12rpx;
+    border-radius: 12rpx;
+    background: #e0e0e0;
+  }
+
+  .visual-line-long {
+    width: 152rpx;
+  }
+
+  .visual-line-short {
+    width: 94rpx;
+    margin-top: 14rpx;
+  }
+
+  .visual-plus {
+    position: absolute;
+    right: 30rpx;
+    top: 26rpx;
+    width: 58rpx;
+    height: 58rpx;
+    border-radius: 50%;
+    background: #ffd800;
+    color: #222222;
+    font-size: 46rpx;
+    line-height: 56rpx;
+    text-align: center;
+    font-weight: 600;
+    box-shadow: 0 10rpx 24rpx rgba(255, 216, 0, 0.35);
+  }
+
+  .empty-title {
+    color: #222222;
+    font-size: 32rpx;
+    font-weight: 600;
+    line-height: 44rpx;
+  }
+
+  .empty-text {
+    max-width: 480rpx;
+    margin-top: 14rpx;
+    color: #7a7a7a;
+    font-size: 26rpx;
+    line-height: 38rpx;
+    text-align: center;
   }
 
   .actions {
     display: flex;
     gap: 16rpx;
-    margin-top: 12rpx;
+    margin-top: 40rpx;
   }
 
   .btn {
-    padding: 24rpx 68rpx;
+    width: 268rpx;
+    height: 96rpx;
     border-radius: 96rpx;
-    background: #222;
+    background: #222222;
     display: flex;
     align-items: center;
-    gap: 8rpx;
+    justify-content: center;
+    gap: 10rpx;
   }
 
   .btn-icon {
-    width: 48rpx;
-    height: 48rpx;
+    width: 40rpx;
+    height: 40rpx;
   }
 
   .btn-text {
-    font-weight: bold;
-    font-size: 32rpx;
-    color: #ffd000;
-  }
-  .image-list-wrap {
-    padding-bottom: 200rpx;
-  }
-  .upload-card {
-    margin-top: 20rpx;
-    height: 160rpx;
-    background: rgba(235, 235, 235, 1);
-    padding: 0 24rpx;
-    border-radius: 12rpx;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .upload-icon {
-    width: 48rpx;
-    height: 48rpx;
-  }
-
-  .upload-text {
-    color: rgba(0, 0, 0, 1);
-    font-size: 28rpx;
-    margin-top: 10rpx;
-  }
-
-  /* 底部栏容器（兼容安全区） */
-  .bottom-bar {
-    position: fixed;
-    background: #ffffff;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    box-sizing: border-box;
-    z-index: 50;
-  }
-
-  /* 左侧大按钮容器（居中宽度受限） */
-  .left-btn {
-    display: flex;
-    align-items: center;
-    padding: 16rpx 48rpx;
-    gap: 60rpx;
-    padding-bottom: calc(env(safe-area-inset-bottom) + 10rpx);
-  }
-
-  /* 黄色胶囊（包含图标框和文字） */
-  .share-inner {
-    width: 438rpx;
-    background: #ffd800;
-    height: 96rpx;
-    border-radius: 96rpx;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8rpx;
-  }
-
-  /* 左侧小图标的虚线方块 */
-  .icon-box {
-    width: 48rpx;
-    height: 48rpx;
-  }
-
-  /* 图标与文字样式 */
-  .icon {
     font-size: 30rpx;
-    color: #222;
-  }
-
-  .share-text {
-    font-weight: bold;
-    font-size: 32rpx;
-    color: #333333;
-  }
-
-  /* 右侧齿轮按钮 */
-  .settings-btn {
-    height: 88rpx;
-    background: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8rpx;
-  }
-
-  /* 齿轮图标 */
-  .settings-icon {
-    font-size: 28rpx;
-    color: #333;
+    font-weight: 600;
+    color: #ffd800;
   }
 }
 </style>

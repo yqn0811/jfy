@@ -7,7 +7,7 @@
 					<image src="@/static/icon/slices/Frame 1000004377@2x.png" class="upload-icon" alt="" />
 					<view class="upload-text">新建相册</view>
 				</view>
-				<view class="select-item" @click="openUploadBox(1)" v-if="this.level < 4">
+				<view class="select-item" @click="openUploadBox(1)" v-if="canCreateChildFolder">
 					<image src="@/static/icon/slices/Frame 1000004894@2x.png" class="upload-icon" alt="" />
 					<view class="upload-text">新建文件夹</view>
 				</view>
@@ -51,13 +51,13 @@
 		<!-- 文件/相册列表 -->
 		<view class="content" v-if="albumList.length > 0 && passwordShow == false">
 			<view class="album-list">
-				<view class="album-item" v-for="(item, index) in albumList" :key="index" @click="toDetail(item)">
+					<view class="album-item" v-for="(item, index) in albumList" :key="getAlbumKey(item, index)" :data-index="index" @click="toDetail(item, index, $event)">
 					<view class="album-cover">
 						<image v-if="item.folder_type == 1" src="../../static/icon/slices/x@2x.png" mode="aspectFill">
 						</image>
 						<view class="aspectFill-bg" v-else-if="item.new_thumb">
-							<image :src="item.new_thumb + '?x-oss-process=video/snapshot,t_0,f_jpg,w_180,h_360'"
-								mode="aspectFill"></image>
+								<image :src="item.new_thumb + '?x-oss-process=video/snapshot,t_0,f_jpg,w_180,h_360'"
+									lazy-load mode="aspectFill"></image>
 						</view>
 
 						<image v-else src="../../static/image/pic.png" mode="aspectFill"></image>
@@ -163,6 +163,12 @@ import {
 	getMiniCode
 } from '@/common/request/api.js';
 import { notifyFolderRefresh } from '@/common/helper/refresh.js';
+import { buildListItemKey } from '@/common/helper/listKey.js';
+import {
+	getObjectId,
+	resolveClickedListItem,
+	showInvalidRecordToast,
+} from '@/common/helper/clickItem.js';
 export default {
 	data() {
 		return {
@@ -276,6 +282,12 @@ export default {
 		// TODO: 实现上拉加载更多
 	},
 
+	computed: {
+		canCreateChildFolder() {
+			return Number(this.level || 0) < 4;
+		},
+	},
+
 
 	onShareAppMessage() {
 		let path = ''
@@ -285,21 +297,23 @@ export default {
 			title = '邀请你一起加入我的相册！'
 			path = `/pagesOther/filePage/filePage?id=${this.fid}&share_str=${this.share_str}&folder_name=${encodedFolderName}&share_uid=${this.folderInfo.uid}`
 		}
-		if (this.shareType == 'share') {
-			title = '分享了相册给你,来看看吧',
-				path = `/pagesOther/filePage/filePage?id=${this.fid}&share_str=${this.share_str}&folder_name=${encodedFolderName}`
-		}
-		console.log(path, 'path')
-		return {
-			title: title,
-			path: path,
-			imageUrl: this.baseInfo.share_thumb
-		}
-	},
+			if (this.shareType == 'share') {
+				title = '分享了相册给你,来看看吧',
+					path = `/pagesOther/filePage/filePage?id=${this.fid}&share_str=${this.share_str}&folder_name=${encodedFolderName}`
+			}
+			return {
+				title: title,
+				path: path,
+				imageUrl: this.baseInfo.share_thumb
+			}
+		},
 
 
-	methods: {
-		openUploadBox(type) {
+		methods: {
+			getAlbumKey(item, index) {
+				return buildListItemKey(item, index, 'album');
+			},
+			openUploadBox(type) {
 			this.folder_type = type
 			this.show = true
 		},
@@ -420,15 +434,22 @@ export default {
 		/**
 		 * 跳转到详情页
 		 */
-		toDetail(item) {
-			if (item.folder_type == 2) {
+		toDetail(item, index, event) {
+			const current = resolveClickedListItem(item, index, event, this.albumList);
+			const folderId = getObjectId(current, ['id', 'folder_id', 'fid']);
+			if (!current || !folderId) {
+				showInvalidRecordToast();
+				return;
+			}
+			const folderName = encodeURIComponent(current.folder_name || '');
+			if (current.folder_type == 2) {
 				// 相册类型
 				uni.navigateTo({
-					url: `/pagesOther/imgBook/imgBook?id=${item.id}&folder_name=${item.folder_name}&folder_type=2&visit_times=${item.visit_times}&is_follow=${this.is_follow}`
+					url: `/pagesOther/imgBook/imgBook?id=${folderId}&folder_name=${folderName}&folder_type=2&visit_times=${current.visit_times || 0}&is_follow=${this.is_follow}`
 				});
 			}
 
-			if (item.folder_type == 1) {
+			if (current.folder_type == 1) {
 				// 文件夹类型
 				// if (item.level == 5) {
 				// 	// 最后一级，跳转到相册
@@ -442,7 +463,7 @@ export default {
 				// 	});
 				// }
 				uni.navigateTo({
-					url: `/pagesOther/filePage/filePage?id=${item.id}&folder_name=${item.folder_name}&folder_type=1&visit_times=${item.visit_times}&is_follow=${this.is_follow}&level=${item.level}`
+					url: `/pagesOther/filePage/filePage?id=${folderId}&folder_name=${folderName}&folder_type=1&visit_times=${current.visit_times || 0}&is_follow=${this.is_follow}&level=${current.level || 0}`
 				});
 			}
 		},

@@ -440,7 +440,7 @@
     <script src="./md5.js"></script>
     <script>
         // 配置
-        const API_BASE = "https://api.jfyuntu.com/api";
+        const API_BASE = "https://api-test.jfyuntu.com/api";
 
         // 状态管理
         let state = {
@@ -631,7 +631,7 @@
             }
             
             const result = await apiRequest("account/login", {
-                link: 'https://api.jfyuntu.com/account/h5.html',
+                link: 'https://api-test.jfyuntu.com/account/h5.html',
                 code: state.code
             });
             
@@ -643,7 +643,6 @@
             if(result && result.data && result.data.user_info){
                 state.openid = result.data.user_info.openid;
                 state.is_new_user = result.data.user_info.is_new_user;
-                console.log('用户openid:', state.openid);
             }
         }
 

@@ -17,9 +17,9 @@ use app\common\model\user\WdXcxUserCollectAlbums;
 use app\common\model\user\WdXcxUserReportAlbum;
 use app\common\model\user\WdXcxVipgrade;
 use app\common\service\BaseService;
-use app\index\model\WdXcxBase;
-use app\index\model\WdXcxPic;
-use app\index\service\upload\UploadService;
+use app\common\model\WdXcxBase;
+use app\common\model\WdXcxPic;
+use app\common\service\upload\UploadService;
 use cores\utils\Utils;
 use think\App;
 use think\cache\driver\Redis;
@@ -127,6 +127,28 @@ class AlbumService extends BaseService
             || stripos($message, 'Duplicate column') !== false
             || stripos($message, 'Duplicate key name') !== false
             || stripos($message, 'Column already exists') !== false;
+    }
+
+    public static function getFolderShareVersion($fid)
+    {
+        $fid = (int)$fid;
+        if ($fid <= 0) {
+            return 0;
+        }
+        $redis = new Redis(GetRedisConf());
+        return (int)$redis->get('share_album_version_'.$fid);
+    }
+
+    public static function bumpFolderShareVersion($fid)
+    {
+        $fid = (int)$fid;
+        if ($fid <= 0) {
+            return 0;
+        }
+        $version = time();
+        $redis = new Redis(GetRedisConf());
+        $redis->set('share_album_version_'.$fid, $version);
+        return $version;
     }
 
     private function ensureBindTable()
@@ -913,9 +935,15 @@ class AlbumService extends BaseService
             ->orderRaw('FIELD(id, ' . $order . ')')
             ->select()
             ->each(function($pic){
-                $pic->imgurl = $pic->TruePic;
-                $pic->picture_url = $pic->TruePic;
-                $pic->picture_url_original = removePicStyle($pic->TruePic);
+                $imageUrls = buildPictureImageUrls($pic);
+                $pic->image_urls = $imageUrls;
+                $pic->imageUrls = $imageUrls;
+                $pic->thumbnail_url = $imageUrls['thumb'];
+                $pic->preview_url = $imageUrls['preview'];
+                $pic->file_url = $imageUrls['origin'];
+                $pic->imgurl = $imageUrls['preview'];
+                $pic->picture_url = $imageUrls['preview'];
+                $pic->picture_url_original = $imageUrls['origin'] ?: removePicStyle($imageUrls['preview']);
             });
     }
 
@@ -924,13 +952,19 @@ class AlbumService extends BaseService
         if (!$pic) {
             return [];
         }
-        $url = $pic->TruePic;
+        $imageUrls = buildPictureImageUrls($pic);
+        $url = $imageUrls['preview'];
         return [
             'id' => (int)$pic->id,
             'pic_id' => (int)$pic->id,
             'imgurl' => $url,
             'picture_url' => $url,
-            'picture_url_original' => removePicStyle($url),
+            'picture_url_original' => $imageUrls['origin'] ?: removePicStyle($url),
+            'thumbnail_url' => $imageUrls['thumb'],
+            'preview_url' => $imageUrls['preview'],
+            'file_url' => $imageUrls['origin'],
+            'image_urls' => $imageUrls,
+            'imageUrls' => $imageUrls,
             'pic_name' => $pic->pic_name ?: ('图片' . ($index + 1)),
             'file_type' => (int)$pic->file_type,
             'size' => $pic->getData('size'),
@@ -956,19 +990,33 @@ class AlbumService extends BaseService
         return $result;
     }
 
-    private function getProductUploadedPictures($productId, $fileType)
+    private function normalizeProductUploadRole($value)
     {
+        $value = strtolower(trim((string)$value));
+        if (in_array($value, ['detail', 'detail_chart', 'detailchart', 'detail_pic', 'detail_pic_ids', '2'], true)) {
+            return 'detail';
+        }
+        return 'cover';
+    }
+
+    private function getProductUploadedPictures($productId, $role)
+    {
+        $role = $this->normalizeProductUploadRole($role);
         $rows = WdXcxUserAlbumPic::where('folder_id', $productId)
             ->with(['picture'])
-            ->order('sort asc, set_top_time desc, id desc')
+            ->order('sort asc, id asc')
             ->select();
         $result = [];
         foreach ($rows as $row) {
-            if (!$row->picture || (int)$row->picture->file_type !== (int)$fileType) {
+            if (!$row->picture || (int)$row->picture->file_type !== 1) {
+                continue;
+            }
+            if ($this->normalizeProductUploadRole($row->upload_field ?? '') !== $role) {
                 continue;
             }
             $item = $this->mapProductPictureItem($row->picture, count($result));
             $item['album_pic_id'] = (int)$row->id;
+            $item['role'] = $role;
             $result[] = $item;
         }
         return $result;
@@ -1025,29 +1073,85 @@ class AlbumService extends BaseService
             return;
         }
         $bridge = new AiResourceBridgeService($this->app);
+        $newCoverIds = isset($param['pic_ids']) ? $this->normalizeIdList($param['pic_ids']) : $oldCoverIds;
+        $newDetailIds = isset($param['detail_pic_ids']) ? $this->normalizeIdList($param['detail_pic_ids']) : $oldDetailIds;
+        $newProductIds = array_values(array_unique(array_merge($newCoverIds, $newDetailIds)));
         if (isset($param['pic_ids'])) {
-            $newCoverIds = $this->normalizeIdList($param['pic_ids']);
             foreach (array_diff($oldCoverIds, $newCoverIds) as $removedPicId) {
+                $isImportedResource = $this->isImportedResourcePictureId((int)$removedPicId, $uid);
+                $deleteResource = !in_array((int)$removedPicId, $newProductIds, true)
+                    && !$isImportedResource
+                    && !$this->isPictureReferencedElsewhere($uid, (int)$removedPicId);
+                if ($deleteResource) {
+                    $this->deleteLocalPictureIfUnreferenced($uid, (int)$removedPicId);
+                }
                 $bridge->safeMarkPictureDeleted($uid, $removedPicId, [
                     'b_folder_id' => (int)$folder->id,
                     'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$removedPicId, 'cover'),
                     'external_product_id' => (string)$folder->id,
                     'role' => 'cover',
-                    'delete_resource' => false,
+                    'delete_resource' => $deleteResource,
                 ]);
             }
         }
         if (isset($param['detail_pic_ids'])) {
-            $newDetailIds = $this->normalizeIdList($param['detail_pic_ids']);
             foreach (array_diff($oldDetailIds, $newDetailIds) as $removedPicId) {
+                $isImportedResource = $this->isImportedResourcePictureId((int)$removedPicId, $uid);
+                $deleteResource = !in_array((int)$removedPicId, $newProductIds, true)
+                    && !$isImportedResource
+                    && !$this->isPictureReferencedElsewhere($uid, (int)$removedPicId);
+                if ($deleteResource) {
+                    $this->deleteLocalPictureIfUnreferenced($uid, (int)$removedPicId);
+                }
                 $bridge->safeMarkPictureDeleted($uid, $removedPicId, [
                     'b_folder_id' => (int)$folder->id,
                     'b_relation_id' => $this->virtualProductRelationId((int)$folder->id, (int)$removedPicId, 'detail'),
                     'external_product_id' => (string)$folder->id,
                     'role' => 'detail',
-                    'delete_resource' => false,
+                    'delete_resource' => $deleteResource,
                 ]);
             }
+        }
+    }
+
+    private function isPictureReferencedElsewhere($uid, $picId)
+    {
+        $picId = (int)$picId;
+        if ($picId <= 0) {
+            return false;
+        }
+        $relationCount = WdXcxUserAlbumPic::alias('ap')
+            ->join('wd_xcx_album_folder af', 'af.id = ap.folder_id')
+            ->where('ap.pic_id', $picId)
+            ->where('af.uid', $uid)
+            ->count();
+        if ((int)$relationCount > 0) {
+            return true;
+        }
+        $fieldReferenceCount = WdXcxAlbumFolder::where('uid', $uid)
+            ->whereRaw('(FIND_IN_SET(?, pic_ids) OR FIND_IN_SET(?, detail_pic_ids))', [$picId, $picId])
+            ->count();
+        return (int)$fieldReferenceCount > 0;
+    }
+
+    private function isImportedResourcePictureId($picId, $uid = 0)
+    {
+        $query = WdXcxPic::where('id', (int)$picId);
+        if ($uid) {
+            $query->where('uid', (int)$uid);
+        }
+        $pic = $query->find();
+        return $pic && method_exists($pic, 'isImportedResourcePicture') && $pic->isImportedResourcePicture();
+    }
+
+    private function deleteLocalPictureIfUnreferenced($uid, $picId)
+    {
+        if ($this->isPictureReferencedElsewhere($uid, $picId)) {
+            return;
+        }
+        $pic = WdXcxPic::where('id', (int)$picId)->where('uid', (int)$uid)->find();
+        if ($pic) {
+            $pic->delete();
         }
     }
 
@@ -1129,6 +1233,7 @@ class AlbumService extends BaseService
                     $need_pwd = 1;
                 }
             }
+            $folder_info->share_version = self::getFolderShareVersion($fid);
             $user_pwd = WdXcxUser::where('id', $folder_info->uid)->value('upload_pwd');
             $folder_info->upload_field = $folder_info->upload_field ? $folder_info->upload_field : [];
 
@@ -1329,8 +1434,10 @@ class AlbumService extends BaseService
                 $item->detail_pic_ids_arr = [];
                 $item->son_count = $this->getCategoryChildCount($item->id);
                 $item->child_count = $item->son_count;
-                $item->product_count = 0;
-                $item->children = $this->getCategoryChildren($item->id, $item->uid);
+                $item->product_count = $this->getCategoryProductCount($item->id, $item->uid, $visitor_uid);
+                $item->product_num = $item->product_count;
+                $item->folder_count = $item->product_count;
+                $item->children = $this->getCategoryChildren($item->id, $item->uid, $visitor_uid);
                 if($item->uid != $visitor_uid){
                     $item->folder_name = '@'.$item->UserInfo['nickname'].$item->folder_name;
                 }
@@ -1381,7 +1488,35 @@ class AlbumService extends BaseService
             ->count();
     }
 
-    private function getCategoryChildren($categoryId, $uid)
+    private function getCategoryProductCount($categoryId, $ownerUid, $visitorUid = 0)
+    {
+        $categoryId = (int)$categoryId;
+        $ownerUid = (int)$ownerUid;
+        $visitorUid = (int)$visitorUid;
+        if ($categoryId <= 0 || $ownerUid <= 0) {
+            return 0;
+        }
+        $boundIds = WdXcxProductCategoryBind::where('category_id', $categoryId)
+            ->where('userid', $ownerUid)
+            ->column('product_id');
+        $directIds = WdXcxAlbumFolder::where('pid', $categoryId)
+            ->where('uid', $ownerUid)
+            ->where('folder_type', 2)
+            ->column('id');
+        $productIds = array_values(array_unique(array_filter(array_map('intval', array_merge($boundIds ?: [], $directIds ?: [])))));
+        if (empty($productIds)) {
+            return 0;
+        }
+        $query = WdXcxAlbumFolder::whereIn('id', $productIds)
+            ->where('uid', $ownerUid)
+            ->where('folder_type', 2);
+        if ($visitorUid > 0 && $visitorUid !== $ownerUid) {
+            $query->where('private_type', '<>', 2);
+        }
+        return (int)$query->count();
+    }
+
+    private function getCategoryChildren($categoryId, $uid, $visitor_uid = 0)
     {
         return WdXcxAlbumFolder::where('folder_type', 1)
             ->where('uid', $uid)
@@ -1389,13 +1524,15 @@ class AlbumService extends BaseService
             ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,share_times,visit_times,uid,set_top,pid')
             ->order('sort desc, set_top desc, set_top_time desc, id desc')
             ->select()
-            ->each(function ($child){
+            ->each(function ($child)use($visitor_uid){
                 $child->pic_ids_arr = [];
                 $child->detail_pic_ids_arr = [];
                 $child->son_count = $this->getCategoryChildCount($child->id);
                 $child->child_count = $child->son_count;
-                $child->product_count = 0;
-                $child->children = $this->getCategoryChildren($child->id, $child->uid);
+                $child->product_count = $this->getCategoryProductCount($child->id, $child->uid, $visitor_uid);
+                $child->product_num = $child->product_count;
+                $child->folder_count = $child->product_count;
+                $child->children = $this->getCategoryChildren($child->id, $child->uid, $visitor_uid);
                 $child->level = $child->FolderLeval;
             });
     }
@@ -2147,7 +2284,7 @@ class AlbumService extends BaseService
             'fid' => $fid,
             'uid' => $folder->uid,
         ])->find();
-        $url = 'https://pic.jfyuntu.com/assets/page/product-list.html?uploadd_code=' . urlencode($code);
+        $url = getJiafangyunPcBaseUrl() . 'batch-upload?uploadd_code=' . urlencode($code);
         (new WdXcxUser())->ensureUploadPasswordColumns();
         $user = WdXcxUser::where('id', $folder->uid)->field('upload_pwd,upload_pwd_expire_time')->find();
         $expireTime = $user ? (int)$user->upload_pwd_expire_time : 0;
@@ -2388,8 +2525,33 @@ class AlbumService extends BaseService
         if (!empty($createdRelations)) {
             $bridge = new AiResourceBridgeService($this->app);
             foreach ($createdRelations as $relation) {
-                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, 'album');
+                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, 'album', [
+                    'file_hash' => (string)($params['file_hash'] ?? ''),
+                    'content_hash' => (string)($params['content_hash'] ?? ($params['file_hash'] ?? '')),
+                ]);
             }
+        }
+        foreach ($data as $index => $item) {
+            $picId = (int)($item['pid'] ?? $item['id'] ?? 0);
+            if ($picId <= 0) {
+                continue;
+            }
+            $pic = WdXcxPic::where('id', $picId)->find();
+            if (!$pic) {
+                continue;
+            }
+            $imageUrls = buildPictureImageUrls($pic);
+            $data[$index]['url'] = $imageUrls['preview'];
+            $data[$index]['imgurl'] = $imageUrls['preview'];
+            $data[$index]['picture_url'] = $imageUrls['preview'];
+            $data[$index]['picture_url_original'] = $imageUrls['origin'] ?: removePicStyle($imageUrls['preview']);
+            $data[$index]['thumbnail_url'] = $imageUrls['thumb'];
+            $data[$index]['preview_url'] = $imageUrls['preview'];
+            $data[$index]['file_url'] = $imageUrls['origin'];
+            $data[$index]['image_urls'] = $imageUrls;
+            $data[$index]['imageUrls'] = $imageUrls;
+            $data[$index]['file_hash'] = (string)($params['file_hash'] ?? '');
+            $data[$index]['content_hash'] = (string)($params['content_hash'] ?? ($params['file_hash'] ?? ''));
         }
         return [
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',
@@ -2791,11 +2953,26 @@ class AlbumService extends BaseService
 
     public function userResetShareLink($param, $uid)
     {
-        $fid = $param['fid'];
+        $fid = (int)$param['fid'];
+        if (empty($fid)) {
+            throwError('请选择文件夹');
+        }
+        $folder = WdXcxAlbumFolder::where('id', $fid)->find();
+        if (!$folder) {
+            throwError('文件夹不存在');
+        }
+        if ((int)$folder->uid !== (int)$uid) {
+            throwError('您没有权限操作此文件夹');
+        }
         $redis = new Redis(GetRedisConf());
         $share_str = $redis->get('share_album_'.$fid);
-        $redis->delete($share_str);
+        if ($share_str) {
+            $redis->delete($share_str);
+        }
         $redis->delete('share_album_'.$fid);
+        return [
+            'share_version' => self::bumpFolderShareVersion($fid),
+        ];
     }
 
     /**修改文件夹密码
@@ -2872,7 +3049,7 @@ class AlbumService extends BaseService
 
         $product->pic_list = $this->mergeProductPictures(
             $this->getProductFieldPictures($product->pic_ids),
-            $this->getProductUploadedPictures($product->id, 1)
+            $this->getProductUploadedPictures($product->id, 'cover')
         );
         $product->pic_ids_arr = $product->pic_list;
 
@@ -2883,7 +3060,7 @@ class AlbumService extends BaseService
         } else {
             $product->detail_pic_list = $this->mergeProductPictures(
                 $this->getProductFieldPictures($product->detail_pic_ids),
-                $this->getProductUploadedPictures($product->id, 2)
+                $this->getProductUploadedPictures($product->id, 'detail')
             );
         }
         $product->detail_pic_ids_arr = $product->detail_pic_list;

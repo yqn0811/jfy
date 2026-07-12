@@ -39,8 +39,13 @@ class SelectionApiController extends ApiBaseController
     {
         $param = $this->request->postMore([
             ['selection_id', 0],
+            ['uid', 0],
+            ['target_user_id', 0],
+            ['code', ''],
+            ['share_code', ''],
         ]);
-        $info = $this->selection_service->getSelectionDetail($param['selection_id']);
+        $factoryTarget = $param['code'] ?: ($param['share_code'] ?: ($param['target_user_id'] ?: $param['uid']));
+        $info = $this->selection_service->getSelectionDetail($param['selection_id'], request()->userID(), $factoryTarget);
         $this->result($info);
     }
 

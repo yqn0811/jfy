@@ -138,6 +138,13 @@
 </template>
 
 <script>
+import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
+import {
+  buildOriginalDownloadRequest,
+  imageUrlFor,
+} from "@/common/helper/imageUrls.js";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
+
 export default {
   data() {
     return {
@@ -154,6 +161,7 @@ export default {
       styleId: "",
       mode: "",
       existingProductIds: [], // 已存在的产品图片ID列表
+      ownerSaveAllowed: false,
     };
   },
   computed: {
@@ -176,6 +184,9 @@ export default {
       this.uid = options.uid;
       this.mode = options.mode;
       this.styleId = options.styleId;
+      if (this.uid && !ensureSharedPageLogin("pagesOther/selectStyle/selectStyle", options, this.uid)) {
+        return;
+      }
 
       // 如果是 add 模式，接收已存在的产品列表
       if (this.mode === "add") {
@@ -187,7 +198,6 @@ export default {
             data.productList.forEach((product) => {
               this.existingProductIds.push(String(product.id));
             });
-            console.log("已存在的图片ID列表:", this.existingProductIds);
           }
           this.loadProductDetail();
         });
@@ -208,6 +218,9 @@ export default {
           const url = "user/home/products/detail";
           const res = await this.$go(url, data, "get", { show_err: true });
           const d = res && res.data ? res.data : {};
+          const ownerInfo = d.user_info || {};
+          this.ownerSaveAllowed =
+            Number(d.visit_allow_save_pic || ownerInfo.visit_allow_save_pic || 0) === 1;
 
           // 映射图片列表
           const picList = Array.isArray(d.pic_list) ? d.pic_list : [];
@@ -224,7 +237,7 @@ export default {
             return {
               ...item,
               id: item.id,
-              image: item.imgurl,
+              image: imageUrlFor(item, "thumb") || item.imgurl,
               title: item.pic_name,
               selected: isDisabled,
               disabled: isDisabled,
@@ -251,13 +264,6 @@ export default {
       this.bottomBarPaddingBottom = this.safeAreaBottom + 12;
       this.bottomBarHeight = 70 + this.bottomBarPaddingBottom;
 
-      console.log("系统信息:", {
-        statusBarHeight: this.statusBarHeight,
-        navBarHeight: this.navBarHeight,
-        safeAreaBottom: this.safeAreaBottom,
-        bottomBarPaddingBottom: this.bottomBarPaddingBottom,
-        bottomBarHeight: this.bottomBarHeight,
-      });
     },
 
     // 关闭页面
@@ -359,7 +365,11 @@ export default {
       const selectedItems = this.imageList.filter(
         (item) => item.selected && !item.disabled,
       );
-      const pic_ids = selectedItems.map((res) => res.id);
+      const pic_ids = selectedItems.map((res) => getObjectId(res, ["id", "pic_id"])).filter(Boolean);
+      if (!pic_ids.length) {
+        showInvalidRecordToast("请选择有效图片");
+        return;
+      }
       const params = {
         selection_id: this.styleId,
         pic_ids: pic_ids,
@@ -402,6 +412,16 @@ export default {
     },
     closeTranspondPopup() {
       this.showTranspondPopup = false;
+      uni.navigateBack({
+        fail: () => {
+          this.imageList.forEach((item) => {
+            if (!item.disabled) {
+              item.selected = false;
+            }
+          });
+          this.$forceUpdate();
+        },
+      });
     },
 
     // 确认生成选品清单
@@ -410,7 +430,11 @@ export default {
         (item) => item.selected && !item.disabled,
       );
       console.log(selectedItems);
-      const pic_ids = selectedItems.map((res) => res.id);
+      const pic_ids = selectedItems.map((res) => getObjectId(res, ["id", "pic_id"])).filter(Boolean);
+      if (!pic_ids.length) {
+        showInvalidRecordToast("请选择有效图片");
+        return;
+      }
 
       this.showConfirmPopup = false;
       const data = {
@@ -423,6 +447,12 @@ export default {
         show_err: true,
       });
       if (res.code === 0) {
+        this.imageList.forEach((item) => {
+          if (!item.disabled) {
+            item.selected = false;
+          }
+        });
+        this.$forceUpdate();
         this.showTranspondPopup = true;
         this.styleId = res.data.id;
       }
@@ -439,8 +469,161 @@ export default {
       });
     },
 
+    downloadFile(request) {
+      return new Promise((resolve, reject) => {
+        if (!request || !request.url) {
+          reject(new Error("下载地址无效"));
+          return;
+        }
+        uni.downloadFile({
+          url: request.url,
+          header: request.header || {},
+          success: (res) => {
+            if (res.statusCode === 200 && res.tempFilePath) {
+              const contentType = this.getDownloadContentType(res);
+              if (contentType.indexOf("application/json") !== -1 || contentType.indexOf("text/") !== -1) {
+                this.readDownloadErrorFile(res.tempFilePath)
+                  .then((message) => reject(new Error(message || "下载失败")))
+                  .catch(() => reject(new Error("下载失败")));
+                return;
+              }
+              resolve(res.tempFilePath);
+              return;
+            }
+            reject(new Error(this.extractDownloadErrorMessage(res)));
+          },
+          fail: reject,
+        });
+      });
+    },
+    getDownloadContentType(res = {}) {
+      const header = res.header || res.headers || {};
+      return String(
+        header["Content-Type"] ||
+          header["content-type"] ||
+          header["CONTENT-TYPE"] ||
+          "",
+      ).toLowerCase();
+    },
+    readDownloadErrorFile(filePath) {
+      return new Promise((resolve, reject) => {
+        const fs = typeof wx !== "undefined" && wx.getFileSystemManager
+          ? wx.getFileSystemManager()
+          : null;
+        if (!fs || !filePath) {
+          reject(new Error("无法读取错误内容"));
+          return;
+        }
+        fs.readFile({
+          filePath,
+          encoding: "utf8",
+          success: (result) => {
+            resolve(this.extractDownloadErrorMessage({ data: result.data }));
+          },
+          fail: reject,
+        });
+      });
+    },
+    extractDownloadErrorMessage(res = {}) {
+      const defaultMessage = "下载失败";
+      const candidates = [
+        res.errMsg,
+        res.data && res.data.msg,
+        res.data && res.data.message,
+      ];
+      if (typeof res.data === "string") {
+        try {
+          const payload = JSON.parse(res.data);
+          candidates.push(payload.msg, payload.message);
+        } catch (e) {
+          candidates.push(res.data);
+        }
+      }
+      for (const value of candidates) {
+        const text = value === null || value === undefined ? "" : String(value).trim();
+        if (text && text !== "downloadFile:ok") {
+          return text;
+        }
+      }
+      return defaultMessage;
+    },
+    saveImageFile(filePath) {
+      return new Promise((resolve, reject) => {
+        uni.saveImageToPhotosAlbum({
+          filePath,
+          success: resolve,
+          fail: reject,
+        });
+      });
+    },
+    canUseOriginalImage() {
+      const userInfo = uni.getStorageSync("userInfo") || {};
+      const gradeLevel = Number(
+        userInfo.grade_level ||
+          userInfo.gradeLevel ||
+          userInfo.vip_grade ||
+          userInfo.vipGrade ||
+          0,
+      );
+      const rawEndTime =
+        userInfo.end_time ||
+        userInfo.endTime ||
+        userInfo.vip_end_time ||
+        userInfo.vipEndTime ||
+        userInfo.expire_time ||
+        userInfo.expireTime ||
+        0;
+      let endTime = Number(rawEndTime || 0);
+      if (!endTime && typeof rawEndTime === "string" && rawEndTime) {
+        const parsed = new Date(rawEndTime).getTime();
+        endTime = Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+      }
+      return gradeLevel > 0 && (!endTime || endTime > Math.floor(Date.now() / 1000));
+    },
+    async downloadSingleImages(items) {
+      let successCount = 0;
+      for (const item of items) {
+        const filePath = await this.downloadFile(
+          buildOriginalDownloadRequest(item, {
+            target_user_id: this.uid,
+            product_id: this.productId,
+            file_size: item.file_size || item.size,
+          }),
+        );
+        await this.saveImageFile(filePath);
+        successCount += 1;
+      }
+      return successCount;
+    },
     // 下载
-    handleDownload() {
+    async handleDownload() {
+      if (!this.$checkLoginStatus()) {
+        uni.showToast({
+          title: "请先登录",
+          icon: "none",
+        });
+        ensureSharedPageLogin("pagesOther/selectStyle/selectStyle", {
+          id: this.productId,
+          uid: this.uid,
+          mode: this.mode,
+          styleId: this.styleId,
+        }, this.uid);
+        return;
+      }
+      if (!this.canUseOriginalImage()) {
+        uni.showToast({
+          title: "请先升级成为会员",
+          icon: "none",
+        });
+        return;
+      }
+      if (this.uid && !this.ownerSaveAllowed) {
+        uni.showToast({
+          title: "该用户未开放下载",
+          icon: "none",
+        });
+        return;
+      }
       const selectedItems = this.imageList.filter(
         (item) => item.selected && !item.disabled,
       );
@@ -451,17 +634,40 @@ export default {
         });
         return;
       }
+      const validItems = selectedItems
+        .map((item) => ({
+          ...item,
+          pic_id: getObjectId(item, ["pic_id", "id"]),
+          product_id: this.productId,
+          folder_id: this.productId,
+        }))
+        .filter((item) => item.pic_id);
+      if (!validItems.length) {
+        showInvalidRecordToast("请选择有效图片");
+        return;
+      }
+
       uni.showLoading({
-        title: "下载中...",
+        title: "保存中...",
       });
-      // 这里实现下载逻辑
-      setTimeout(() => {
+      try {
+        const successCount = await this.downloadSingleImages(validItems);
         uni.hideLoading();
         uni.showToast({
-          title: "下载成功",
+          title: `已保存${successCount}张`,
           icon: "success",
         });
-      }, 1500);
+      } catch (err) {
+        uni.hideLoading();
+        const rawMessage = (err && (err.message || err.errMsg)) || "";
+        const message = rawMessage.includes("auth")
+          ? "请授权保存到相册"
+          : rawMessage || "下载失败";
+        uni.showToast({
+          title: message,
+          icon: "none",
+        });
+      }
     },
   },
 };

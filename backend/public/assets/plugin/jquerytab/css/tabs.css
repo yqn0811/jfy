@@ -1,8 +1,0 @@
-.tabs div{clear: both;}
-.tabs{border-bottom: 1px solid #eee;height: 42px;line-height: 42px;margin-bottom: 20px;}
-.tabs .horizontal{margin: 0px;padding: 0px;}
-.tabs .horizontal li{float: left;list-style: none;height: 41px;line-height: 41px;background-color: #ffffff;width:120px;text-align: center;cursor: pointer;font-size: 20px;border-radius: 6px 6px 0 0;color: #333333;font-size: 14px;border-left: 1px solid #eee;border-top: 1px solid #eee;border-right: 1px solid #eee;}
-.tabs .horizontal li a{color: #333333;display: block;width:100%;height:100%}
-.tabs .horizontal li:hover a,.tabs .horizontal li.selectActive a{color:#ffffff;}
-.tabs .horizontal li:not(:first-child){margin-left: 15px;}
-.tabs .horizontal li:hover,.tabs .horizontal li.selectActive{background-color:#6954F0;border:1px solid #6954F0;border-bottom:0;color:#ffffff;}

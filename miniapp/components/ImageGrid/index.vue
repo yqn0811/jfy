@@ -4,8 +4,7 @@
       <view
         class="card"
         v-for="(item, index) in list"
-        :key="index"
-        :data-item="item"
+        :key="getItemKey(item, index)"
         @click="handleClick($event, item, index)"
       >
         <view
@@ -18,6 +17,8 @@
             class="thumb"
             :style="imageStyle"
             mode="aspectFill"
+            :lazy-load="lazyLoad"
+            :show-menu-by-longpress="showMenuByLongpress"
           >
           </image>
           <view class="badge" v-if="showBadge">
@@ -33,6 +34,8 @@
 </template>
 
 <script>
+import { imageUrlFor } from "@/common/helper/imageUrls.js";
+
 export default {
   name: "ImageGrid",
   props: {
@@ -102,6 +105,19 @@ export default {
       type: String,
       default: "",
     },
+    // 自定义稳定 key 字段，未传时自动从常见 id 字段中选择
+    itemKey: {
+      type: String,
+      default: "",
+    },
+    lazyLoad: {
+      type: Boolean,
+      default: true,
+    },
+    showMenuByLongpress: {
+      type: Boolean,
+      default: false,
+    },
   },
   computed: {
     normalizedColumns() {
@@ -134,11 +150,45 @@ export default {
       return `${(height / width) * 100}%`;
     },
     getImageSrc(item) {
-      const src = item[this.imageField];
+      const src = item[this.imageField] || imageUrlFor(item, "thumb");
       if (src) {
-        return src;
+        return this.appendImageParams(src);
       }
       return this.defaultImage;
+    },
+    appendImageParams(src) {
+      if (!this.imageParams || !src || src.indexOf("/static/") === 0) {
+        return src;
+      }
+      return src.indexOf("?") === -1
+        ? `${src}?${this.imageParams}`
+        : `${src}&${this.imageParams}`;
+    },
+    getItemKey(item, index) {
+      if (!item || typeof item !== "object") return `idx-${index}`;
+      if (this.itemKey && item[this.itemKey] !== undefined && item[this.itemKey] !== null) {
+        return `${this.itemKey}-${item[this.itemKey]}`;
+      }
+      const keyFields = [
+        "id",
+        "_id",
+        "uid",
+        "pic_id",
+        "picture_id",
+        "product_id",
+        "folder_id",
+        "fid",
+        "uuid",
+        "imageField",
+        this.imageField,
+      ];
+      for (const field of keyFields) {
+        const value = item[field];
+        if (value !== undefined && value !== null && value !== "") {
+          return `${field}-${value}`;
+        }
+      }
+      return `idx-${index}`;
     },
     getBadgeText(item) {
       const count = item[this.countField];
@@ -154,8 +204,7 @@ export default {
       return /^tmp[_-]/i.test(text) ? "" : text;
     },
     handleClick(e, item, index) {
-      const data = item ? item : e.currentTarget.dataset.item;
-      this.$emit("click", data, index);
+      this.$emit("click", item, index);
     },
   },
 };

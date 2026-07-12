@@ -113,9 +113,12 @@ class VipgradeService extends BaseService
 
     private function formatBridgeVipgradeLists($plans)
     {
-        $resourcePlans = $this->formatResourceStoragePlans($plans);
-        if (!empty($resourcePlans)) {
-            return $resourcePlans;
+        $packagePlans = array_merge(
+            $this->formatResourceStoragePlans($plans),
+            $this->formatTrafficMonthlyPlans($plans)
+        );
+        if (!empty($packagePlans)) {
+            return $packagePlans;
         }
 
         $groups = [];
@@ -167,7 +170,7 @@ class VipgradeService extends BaseService
     {
         $result = [];
         foreach ((array)$plans as $plan) {
-            if (($plan['plan_category'] ?? '') !== 'resource_storage') {
+            if (!$this->isResourceStoragePlan($plan)) {
                 continue;
             }
             $benefits = $plan['benefits_json'] ?? [];
@@ -184,6 +187,7 @@ class VipgradeService extends BaseService
                 'grade_level' => $grade_level,
                 'grade_key' => $plan['level'] ?? '',
                 'grade_name' => $plan['name'] ?? '资源包',
+                'package_type' => 'resource_storage',
                 'annual_fee' => $this->centsToMoney($plan['current_price_cents'] ?? 0),
                 'market_annual_fee' => $this->centsToMoney($plan['original_price_cents'] ?? ($plan['current_price_cents'] ?? 0)),
                 'midd_month_fee' => '0.00',
@@ -207,6 +211,51 @@ class VipgradeService extends BaseService
         }
         usort($result, function ($a, $b) {
             return ($a['cloud_size'] <=> $b['cloud_size']);
+        });
+        return $result;
+    }
+
+    private function formatTrafficMonthlyPlans($plans)
+    {
+        $result = [];
+        foreach ((array)$plans as $plan) {
+            if (!$this->isTrafficMonthlyPlan($plan)) {
+                continue;
+            }
+            $benefits = is_array($plan['benefits_json'] ?? null) ? $plan['benefits_json'] : (is_array($plan['benefits'] ?? null) ? $plan['benefits'] : []);
+            $traffic_gb = $this->resolveTrafficGb($plan, $benefits);
+            $result[] = [
+                'grade_level' => 9000 + (int)($plan['id'] ?? 0),
+                'grade_key' => $plan['level'] ?? ('traffic_' . (int)($plan['id'] ?? 0)),
+                'grade_name' => $plan['name'] ?? '流量月度包',
+                'package_type' => 'traffic_monthly',
+                'annual_fee' => $this->centsToMoney($plan['current_price_cents'] ?? 0),
+                'market_annual_fee' => $this->centsToMoney($plan['original_price_cents'] ?? ($plan['current_price_cents'] ?? 0)),
+                'midd_month_fee' => '0.00',
+                'market_midd_month_fee' => '0.00',
+                'month_fee' => $this->centsToMoney($plan['current_price_cents'] ?? 0),
+                'market_month_fee' => $this->centsToMoney($plan['original_price_cents'] ?? ($plan['current_price_cents'] ?? 0)),
+                'new_buy_annual' => '0.00',
+                'cloud_size' => 0,
+                'cloud_size_str' => '不增加容量',
+                'traffic_gb' => $traffic_gb,
+                'traffic_size_str' => $traffic_gb > 0 ? $this->formatTrafficSize($traffic_gb) : '按套餐配置',
+                'editor_number' => (int)($benefits['concurrency_limit'] ?? 1),
+                'upload_size_type' => 1,
+                'upload_size' => (int)($benefits['upload_size_mb'] ?? 20),
+                'upload_size_value' => (int)($benefits['upload_size_mb'] ?? 20),
+                'display_unit' => $plan['display_unit'] ?? '/月',
+                'duration_label' => $plan['duration_label'] ?? ($plan['plan_subtitle'] ?? '当月有效'),
+                'show_annual_del_str' => $plan['plan_subtitle'] ?? ($plan['duration_label'] ?? '月度流量包'),
+                'show_month_del_str' => $plan['plan_subtitle'] ?? ($plan['duration_label'] ?? '月度流量包'),
+                'annual_plan_id' => (int)($plan['id'] ?? 0),
+                'midd_month_plan_id' => 0,
+                'month_plan_id' => (int)($plan['id'] ?? 0),
+                'benefits_json' => $benefits,
+            ];
+        }
+        usort($result, function ($a, $b) {
+            return ((float)($a['traffic_gb'] ?? 0) <=> (float)($b['traffic_gb'] ?? 0));
         });
         return $result;
     }
@@ -250,10 +299,49 @@ class VipgradeService extends BaseService
     {
         $level = $plan['level'] ?? '';
         $category = $plan['plan_category'] ?? '';
-        if (in_array($level, ['free', 'trial'], true) || $category === 'resource_storage') {
+        if (in_array($level, ['free', 'trial'], true) || $this->isResourceStoragePlan($plan) || $this->isTrafficMonthlyPlan($plan)) {
             return false;
         }
         return in_array($category, ['auto_monthly', 'auto_quarterly', 'auto_yearly'], true);
+    }
+
+    private function isResourceStoragePlan($plan)
+    {
+        return ($plan['plan_category'] ?? '') === 'resource_storage';
+    }
+
+    private function isTrafficMonthlyPlan($plan)
+    {
+        $category = strtolower(trim((string)($plan['plan_category'] ?? '')));
+        $level = strtolower(trim((string)($plan['level'] ?? '')));
+        $name = strtolower(trim((string)($plan['name'] ?? '')));
+        if (in_array($category, ['traffic_monthly', 'monthly_traffic', 'traffic_package', 'bandwidth_monthly', 'traffic_addon'], true)) {
+            return true;
+        }
+        if (strpos($category, 'traffic') !== false && strpos($category, 'month') !== false) {
+            return true;
+        }
+        if (strpos($level, 'traffic') !== false || strpos($level, 'flow') !== false) {
+            return true;
+        }
+        return strpos($name, '流量') !== false || strpos($name, 'traffic') !== false;
+    }
+
+    private function resolveTrafficGb($plan, $benefits)
+    {
+        foreach (['traffic_gb', 'monthly_traffic_gb', 'flow_gb'] as $key) {
+            $value = (float)($plan[$key] ?? ($benefits[$key] ?? 0));
+            if ($value > 0) {
+                return $value;
+            }
+        }
+        foreach (['traffic_bytes', 'monthly_traffic_bytes', 'flow_bytes'] as $key) {
+            $value = (float)($plan[$key] ?? ($benefits[$key] ?? 0));
+            if ($value > 0) {
+                return round($value / 1024 / 1024 / 1024, 2);
+            }
+        }
+        return 0;
     }
 
     private function planSlot($plan)
@@ -348,6 +436,16 @@ class VipgradeService extends BaseService
             return rtrim(rtrim(number_format($gb, 2, '.', ''), '0'), '.') . 'GB';
         }
         return $mb . 'MB';
+    }
+
+    private function formatTrafficSize($gb)
+    {
+        $gb = (float)$gb;
+        if ($gb >= 1024) {
+            $tb = $gb / 1024;
+            return rtrim(rtrim(number_format($tb, 2, '.', ''), '0'), '.') . 'TB';
+        }
+        return rtrim(rtrim(number_format($gb, 2, '.', ''), '0'), '.') . 'GB';
     }
 
     private function centsToMoney($cents)

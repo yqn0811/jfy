@@ -38,36 +38,25 @@
 			closePopup() {
 				this.$emit("update:show", false);
 			},
-			chooseAvatar(e) {
-				let token = uni.getStorageSync('TOKEN')
-				let myUpload = new Upload()
-				wx.uploadFile({
-					url: `${config.domain}/api/file/upload`,
-					filePath: e.detail.avatarUrl,
-					name: 'image',
-					header: {
-						'content-type': 'multipart/form-data', // 默认值
-						'authorization': `Bearer ${token}` // 携带token的请求头
-					},
-					success: (res) => {
-						let jsonRes = JSON.parse(res.data)
-						this.avatarUrl = jsonRes.data.full_url
-						this.userImg = jsonRes.data.full_url
-					},
-					fail: (res) => {
-						uni.showToast({
-							title:'上传图片失败,请重试',
-							icon:'none'
-						})
-					},
-				});
-			},
-			getPhoneNumber(e) {
-				console.log(e)
-				if (e.detail.errMsg === "getPhoneNumber:ok") {
-					console.log("手机号加密信息：", e.detail);
-					this.phone_code = e.detail.code
-				} else {
+				chooseAvatar(e) {
+					const uploader = new Upload();
+					uploader.upload(e.detail.avatarUrl).then((res) => {
+						const url = res && res.data && (res.data.full_url || res.data.url);
+						if (!url) {
+							uni.showToast({
+								title: '上传响应异常,请重试',
+								icon: 'none'
+							});
+							return;
+						}
+						this.avatarUrl = url;
+						this.userImg = url;
+					}).catch(() => {});
+				},
+				getPhoneNumber(e) {
+					if (e.detail.errMsg === "getPhoneNumber:ok") {
+						this.phone_code = e.detail.code
+					} else {
 					uni.showToast({
 						title: "获取手机号失败",
 						icon: "none"
@@ -100,21 +89,20 @@
 					phone_code: this.phone_code,
 					nickname: this.nickname,
 					logo:this.avatarUrl,
-				},'post',{
-					show_err: false
-				}).then(res => {
-					console.log(res)
-					this.closePopup();
-					let userInfo = {
-						nickname:res.data.nickname,
+					},'post',{
+						show_err: false
+					}).then(res => {
+						this.closePopup();
+						let userInfo = {
+							nickname:res.data.nickname,
 						phone:res.data.phone,
 						openid:res.data.openid,
-						logo:res.data.logo,
-					}
-					uni.setStorageSync('userInfo',JSON.stringify(userInfo))
-					this.$emit('handleAuthSubmit')
-				})
-			}
+							logo:res.data.logo,
+						}
+						uni.setStorageSync('userInfo', userInfo)
+						this.$emit('handleAuthSubmit')
+					})
+				}
 		}
 	};
 </script>

@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,6 +21,7 @@ import OrderHistoryTable from '@/components/billing_usage/OrderHistoryTable.vue'
 import { toast } from 'vue-sonner'
 import { pcApi } from '@/lib/api'
 import { unwrapList } from '@/lib/jfyuntu-mappers'
+import { navigateTo } from '@/navigation'
 import type { PlanPackageData } from '@/data/PlanPackageData'
 import type { OrderData } from '@/data/OrderData'
 
@@ -38,8 +39,14 @@ const orders = ref<OrderData[]>([])
 const isLoading = ref(false)
 const isCreatingOrder = ref(false)
 const paymentDialogOpen = ref(false)
+const paymentDialogMode = ref<'confirm' | 'pay'>('confirm')
+const pendingPlan = ref<PlanPackageData | null>(null)
+const couponCode = ref('')
+const couponError = ref('')
 const activePayment = ref<any>(null)
-let paymentTimer: ReturnType<typeof window.setInterval> | null = null
+let paymentTimer: number | null = null
+type PackageViewType = 'resource_storage' | 'traffic_monthly'
+const activePackageType = ref<PackageViewType>('resource_storage')
 
 onMounted(() => {
   loadBilling()
@@ -81,6 +88,7 @@ const normalizePrice = (item: any) => {
 }
 
 const normalizeCapacityMb = (item: any) => {
+  if (normalizePlanPackageType(item) === 'traffic_monthly') return 0
   const benefits = item.benefits_json || item.benefits || {}
   return (
     Number(item.capacity_mb || item.space_size || item.capacity || 0) ||
@@ -90,24 +98,116 @@ const normalizeCapacityMb = (item: any) => {
   )
 }
 
+const normalizePlanTrafficGb = (item: any) => {
+  const benefits = item.benefits_json || item.benefits || {}
+  return (
+    Number(item.traffic_gb || item.flow_gb || item.traffic || 0) ||
+    Number(benefits.traffic_addon_gb || benefits.monthly_traffic_limit_gb || benefits.traffic_gb || 0) ||
+    bytesToGb(benefits.monthly_traffic_limit_bytes || benefits.traffic_limit_bytes)
+  )
+}
+
 const normalizeFeatures = (item: any) => {
   const benefits = item.benefits_json || item.benefits || {}
   const features = item.promo_features || benefits.features || item.features || []
   return Array.isArray(features) ? features.map((feature: any) => String(feature)).filter(Boolean) : []
 }
 
+const bytesToGb = (value: any) => {
+  const bytes = Number(value || 0)
+  return bytes > 0 ? bytes / 1024 / 1024 / 1024 : 0
+}
+
+const normalizeTrafficLimitGb = (profile: any) => {
+  return (
+    Number(profile?.monthly_traffic_limit_gb || profile?.traffic_limit_gb || profile?.traffic_gb || profile?.flow_gb || 0) ||
+    bytesToGb(profile?.monthly_traffic_limit_bytes || profile?.traffic_limit_bytes)
+  )
+}
+
+const normalizePlanPackageType = (item: any) => {
+  const category = String(item.plan_category || item.package_type || item.type || '').trim().toLowerCase()
+  const level = String(item.level || item.grade_key || '').trim().toLowerCase()
+  const name = String(item.name || item.title || item.grade_name || '').trim()
+  if (
+    ['traffic_monthly', 'monthly_traffic', 'traffic_package', 'bandwidth_monthly', 'traffic_addon'].includes(category) ||
+    (category.includes('traffic') && category.includes('month')) ||
+    level.includes('traffic') ||
+    level.includes('flow') ||
+    name.includes('流量')
+  ) {
+    return 'traffic_monthly'
+  }
+  if (category === 'resource_storage' || category.includes('storage') || name.includes('资源包')) {
+    return 'resource_storage'
+  }
+  return 'membership'
+}
+
+const normalizeUsedTrafficGb = (profile: any) => {
+  return (
+    Number(profile?.used_traffic_gb || profile?.traffic_used_gb || 0) ||
+    bytesToGb(profile?.used_traffic_bytes)
+  )
+}
+
+const normalizeDisplayMemberName = (profile: any) => {
+  const gradeLevel = Number(profile?.grade_level || profile?.vip_grade || 0)
+  const membershipLevel = String(profile?.membership_level || '').trim().toLowerCase()
+  const planId = Number(profile?.membership_plan_id || 0)
+  const storageBytes = Number(profile?.resource_storage_capacity_bytes || 0)
+  const hasActiveMembership =
+    gradeLevel > 0 ||
+    (membershipLevel && !['free', 'user'].includes(membershipLevel)) ||
+    planId > 0 ||
+    storageBytes > 50 * 1024 * 1024
+  if (hasActiveMembership) return '标准会员'
+  return profile?.grade_name || '免费版'
+}
+
 const mapPlan = (item: any): PlanPackageData => ({
   id: String(item.id || item.plan_id || item.grade || ''),
   name: item.name || item.title || item.grade_name || '资源包',
+  packageType: normalizePlanPackageType(item),
   capacityMb: normalizeCapacityMb(item),
   price: normalizePrice(item),
   originalPrice: formatMoney(item, 'original_price_cents'),
   concurrentRights: Number(item.concurrent_rights || item.concurrent || item.concurrent_limit || 0),
-  trafficGb: Number(item.traffic_gb || item.flow_gb || item.traffic || 0),
+  trafficGb: normalizePlanTrafficGb(item),
   durationLabel: item.duration_label || item.buy_time_text || item.period || item.plan_subtitle || '长期有效',
   features: normalizeFeatures(item),
   isRecommended: Number(item.is_recommend || item.recommended || item.is_popular || 0) === 1,
   createdAt: item.create_time || item.created_at || '',
+})
+
+const resourcePlans = computed(() => plans.value.filter(plan => plan.packageType !== 'traffic_monthly'))
+const trafficPlans = computed(() => plans.value.filter(plan => plan.packageType === 'traffic_monthly'))
+const hasAvailablePlans = computed(() => resourcePlans.value.length > 0 || trafficPlans.value.length > 0)
+const packageTabOptions = computed<Array<{ type: PackageViewType; label: string; description: string; icon: string; count: number }>>(() => [
+  {
+    type: 'resource_storage',
+    label: '资源包',
+    description: '增加资源库存储空间，资源包会计入当前容量权益。',
+    icon: 'Database',
+    count: resourcePlans.value.length,
+  },
+  {
+    type: 'traffic_monthly',
+    label: '流量包',
+    description: '补充访客浏览、预览和下载产生的月度流量。',
+    icon: 'Wifi',
+    count: trafficPlans.value.length,
+  },
+])
+const activePackageMeta = computed(() => packageTabOptions.value.find(option => option.type === activePackageType.value) || packageTabOptions.value[0])
+const activePlans = computed(() => activePackageType.value === 'traffic_monthly' ? trafficPlans.value : resourcePlans.value)
+
+watch([resourcePlans, trafficPlans], ([resources, traffic]) => {
+  if (activePackageType.value === 'resource_storage' && resources.length === 0 && traffic.length > 0) {
+    activePackageType.value = 'traffic_monthly'
+  } else if (activePackageType.value === 'traffic_monthly' && traffic.length === 0 && resources.length > 0) {
+    activePackageType.value = 'resource_storage'
+  }
 })
 
 const mapOrder = (item: any): OrderData => ({
@@ -132,11 +232,11 @@ const loadBilling = async () => {
     const usedMb = Number(profile?.use_space || 0) / 1024 / 1024
     const percent = Number(profile?.space_used || 0)
     storageUsage.value = {
-      planName: profile?.grade_name || '',
+      planName: normalizeDisplayMemberName(profile),
       totalCapacityMb: totalMb || 50,
       usedCapacityMb: usedMb,
-      monthlyTrafficGb: Number(profile?.traffic_gb || 0),
-      usedTrafficGb: Number(profile?.used_traffic_gb || 0),
+      monthlyTrafficGb: normalizeTrafficLimitGb(profile),
+      usedTrafficGb: normalizeUsedTrafficGb(profile),
       concurrentRights: Number(profile?.concurrent_rights || 0),
       status: percent >= 95 ? 'insufficient' : percent >= 80 ? 'warning' : 'normal',
     }
@@ -182,6 +282,20 @@ const paymentAmount = computed(() => {
   return cents > 0 ? (cents / 100).toFixed(2) : '0.00'
 })
 
+const paymentOriginalAmount = computed(() => {
+  const order = activePayment.value || {}
+  const cents = Number(order.original_amount || order.original_amount_cents || 0)
+  if (cents > Number(order.amount_cents || 0)) {
+    return (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)
+  }
+  return ''
+})
+
+const paymentDiscountAmount = computed(() => {
+  const cents = Number(activePayment.value?.discount_cents || 0)
+  return cents > 0 ? (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2) : ''
+})
+
 const paymentOrderNo = computed(() => {
   const order = activePayment.value || {}
   return order.order_no || order.order_id || ''
@@ -196,6 +310,10 @@ const stopPaymentPolling = () => {
 
 const closePaymentDialog = () => {
   paymentDialogOpen.value = false
+  pendingPlan.value = null
+  activePayment.value = null
+  couponCode.value = ''
+  couponError.value = ''
   stopPaymentPolling()
 }
 
@@ -227,23 +345,43 @@ const pollPaymentStatus = (orderNo: string) => {
 const handleUpgrade = async (planId: string) => {
   const plan = plans.value.find(p => p.id === planId)
   if (!plan) return
+  stopPaymentPolling()
+  pendingPlan.value = plan
+  activePayment.value = null
+  couponCode.value = ''
+  couponError.value = ''
+  paymentDialogMode.value = 'confirm'
+  paymentDialogOpen.value = true
+}
 
+const normalizeCouponCode = (value: string) => value.trim().toUpperCase()
+
+const submitPaymentOrder = async () => {
+  const plan = pendingPlan.value
+  if (!plan || isCreatingOrder.value) return
   isCreatingOrder.value = true
+  couponError.value = ''
   try {
-    const order = await pcApi.createMembershipOrder({ membership_plan_id: plan.id, plan_id: plan.id })
+    const normalizedCouponCode = normalizeCouponCode(couponCode.value)
+    const order = await pcApi.createMembershipOrder({
+      membership_plan_id: plan.id,
+      plan_id: plan.id,
+      package_type: plan.packageType,
+      ...(normalizedCouponCode ? { coupon_code: normalizedCouponCode } : {}),
+    })
     activePayment.value = { ...order, plan_name: plan.name }
-    paymentDialogOpen.value = true
+    paymentDialogMode.value = 'pay'
     toast.success('订单已创建，请使用微信扫码支付')
     pollPaymentStatus(order?.order_no || order?.order_id || '')
   } catch (error: any) {
-    toast.error(error?.message || '下单失败')
+    couponError.value = error?.message || '下单失败'
   } finally {
     isCreatingOrder.value = false
   }
 }
 
 const handleBackToWorkbench = () => {
-  window.location.href = './management-workbench.html'
+  navigateTo('./management-workbench')
 }
 </script>
 
@@ -314,15 +452,68 @@ const handleBackToWorkbench = () => {
 
       <!-- 套餐列表 Tab -->
       <TabsContent value="plans" class="mt-6 space-y-4">
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <PlanCard 
-            v-for="plan in plans"
-            :key="plan.id"
-            :plan="plan"
-            :is-current="storageUsage?.planName === plan.name"
-            :is-loading="isCreatingOrder"
-            @upgrade="handleUpgrade(plan.id)"
-          />
+        <div v-if="hasAvailablePlans" class="space-y-5">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-lg font-semibold text-foreground">可用套餐</h2>
+              <p class="mt-1 text-sm text-muted-foreground">切换查看资源包和流量包，按需要购买对应权益。</p>
+            </div>
+            <div class="inline-grid w-full grid-cols-2 rounded-lg bg-muted/60 p-1 sm:w-auto">
+              <button
+                v-for="option in packageTabOptions"
+                :key="option.type"
+                type="button"
+                :class="[
+                  'inline-flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors',
+                  activePackageType === option.type
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                ]"
+                @click="activePackageType = option.type"
+              >
+                <SafeIcon :name="option.icon" :size="16" class="shrink-0" />
+                <span>{{ option.label }}</span>
+                <span
+                  :class="[
+                    'rounded px-1.5 py-0.5 text-xs',
+                    activePackageType === option.type
+                      ? 'bg-primary-foreground/20 text-primary-foreground'
+                      : 'bg-background/80 text-muted-foreground',
+                  ]"
+                >
+                  {{ option.count }}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <section class="space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 class="inline-flex items-center gap-2 text-lg font-semibold text-foreground">
+                  <SafeIcon :name="activePackageMeta.icon" :size="18" class="text-primary" />
+                  {{ activePackageMeta.label }}
+                </h3>
+                <p class="mt-1 text-sm text-muted-foreground">{{ activePackageMeta.description }}</p>
+              </div>
+            </div>
+            <div v-if="activePlans.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <PlanCard
+                v-for="plan in activePlans"
+                :key="plan.id"
+                :plan="plan"
+                :is-current="activePackageType === 'resource_storage' && storageUsage?.planName === plan.name"
+                :is-loading="isCreatingOrder"
+                @upgrade="handleUpgrade(plan.id)"
+              />
+            </div>
+            <div v-else class="rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center text-sm text-muted-foreground">
+              暂无{{ activePackageMeta.label }}
+            </div>
+          </section>
+        </div>
+        <div v-else class="rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center text-sm text-muted-foreground">
+          暂无可购买套餐
         </div>
       </TabsContent>
 
@@ -372,11 +563,38 @@ const handleBackToWorkbench = () => {
     <Dialog :open="paymentDialogOpen" @update:open="(val) => val ? (paymentDialogOpen = val) : closePaymentDialog()">
       <DialogContent class="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>微信扫码支付</DialogTitle>
-          <DialogDescription>订单创建成功，请使用微信扫描二维码完成支付</DialogDescription>
+          <DialogTitle>{{ paymentDialogMode === 'confirm' ? '确认订单' : '微信扫码支付' }}</DialogTitle>
+          <DialogDescription>
+            {{ paymentDialogMode === 'confirm' ? '可填写优惠券码后生成支付二维码' : '订单创建成功，请使用微信扫描二维码完成支付' }}
+          </DialogDescription>
         </DialogHeader>
 
-        <div class="grid gap-5 py-2 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
+        <form v-if="paymentDialogMode === 'confirm'" class="space-y-5 py-2" @submit.prevent="submitPaymentOrder">
+          <div class="rounded-lg border border-border bg-muted/30 p-4">
+            <p class="text-sm text-muted-foreground">购买套餐</p>
+            <h3 class="mt-1 text-lg font-semibold text-foreground">{{ pendingPlan?.name || '资源包' }}</h3>
+            <p class="mt-3 text-3xl font-bold text-primary">{{ pendingPlan?.price || '¥0' }}</p>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-foreground" for="album-payment-coupon">优惠券码</label>
+            <input
+              id="album-payment-coupon"
+              v-model="couponCode"
+              type="text"
+              autocomplete="off"
+              class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm uppercase tracking-wide outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              placeholder="请输入优惠券码"
+              :disabled="isCreatingOrder"
+              @input="couponCode = normalizeCouponCode(couponCode)"
+            />
+            <p v-if="couponError" class="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {{ couponError }}
+            </p>
+          </div>
+        </form>
+
+        <div v-else class="grid gap-5 py-2 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
           <div class="mx-auto flex h-56 w-56 items-center justify-center rounded-lg border border-border bg-white p-3">
             <img
               v-if="paymentQrImage"
@@ -393,7 +611,13 @@ const handleBackToWorkbench = () => {
           <div class="min-w-0 text-center sm:text-left">
             <p class="text-sm text-muted-foreground">购买套餐</p>
             <h3 class="mt-1 text-lg font-semibold text-foreground">{{ activePayment?.plan_name || '资源包' }}</h3>
-            <p class="mt-4 text-3xl font-bold text-primary">¥{{ paymentAmount }}</p>
+            <div class="mt-4 flex flex-wrap items-end justify-center gap-2 sm:justify-start">
+              <p class="text-3xl font-bold text-primary">¥{{ paymentAmount }}</p>
+              <p v-if="paymentOriginalAmount" class="pb-1 text-sm text-muted-foreground line-through">¥{{ paymentOriginalAmount }}</p>
+              <p v-if="paymentDiscountAmount" class="mb-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                已优惠 ¥{{ paymentDiscountAmount }}
+              </p>
+            </div>
             <p class="mt-3 break-all text-xs text-muted-foreground">订单号：{{ paymentOrderNo || '-' }}</p>
             <p class="mt-4 inline-flex items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm text-primary">
               <SafeIcon name="Loader2" :size="14" class="animate-spin" />
@@ -404,6 +628,10 @@ const handleBackToWorkbench = () => {
 
         <DialogFooter class="sm:justify-between">
           <Button variant="outline" @click="closePaymentDialog">稍后支付</Button>
+          <Button v-if="paymentDialogMode === 'confirm'" :disabled="isCreatingOrder" @click="submitPaymentOrder">
+            <SafeIcon name="QrCode" :size="14" class="mr-2" />
+            {{ isCreatingOrder ? '正在创建订单' : '生成支付二维码' }}
+          </Button>
           <Button v-if="paymentUrl" as-child>
             <a :href="paymentUrl" target="_blank" rel="noopener noreferrer">
               <SafeIcon name="ExternalLink" :size="14" class="mr-2" />

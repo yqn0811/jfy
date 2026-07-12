@@ -6,31 +6,38 @@ import ImageViewerHeader from './ImageViewerHeader.vue'
 import ImageViewerContent from './ImageViewerContent.vue'
 import ImageViewerFooter from './ImageViewerFooter.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
-import { authStore } from '@/lib/api'
+import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
+import { downloadUrl } from '@/lib/download'
+import { isVipMember } from '@/lib/account'
 
 interface ImageData {
+  id: string
   url: string
+  originalUrl: string
+  downloadUrl: string
   name: string
   type: 'colorChart' | 'detailChart'
   isOriginalLarge: boolean
+  sizeBytes: number
 }
 
 const isClient = ref(true)
-const imageUrls = ref<string[]>([])
+const images = ref<ImageData[]>([])
 const currentIndex = ref(0)
 const productId = ref('')
 const isAuthenticated = ref(false)
+const canUseOriginal = ref(false)
 const isLoadingOriginal = ref(false)
 const showLoginDialog = ref(false)
 const imageLoadError = ref(false)
 
 const currentImage = computed(() => {
-  if (imageUrls.value.length === 0) return null
+  const image = images.value[currentIndex.value]
+  if (!image) return null
   return {
-    url: imageUrls.value[currentIndex.value],
+    ...image,
     index: currentIndex.value + 1,
-    total: imageUrls.value.length,
-    type: 'colorChart'
+    total: images.value.length,
   }
 })
 
@@ -42,7 +49,7 @@ const handlePrevious = () => {
 }
 
 const handleNext = () => {
-  if (currentIndex.value < imageUrls.value.length - 1) {
+  if (currentIndex.value < images.value.length - 1) {
     currentIndex.value++
     updateUrlParams()
   }
@@ -54,36 +61,51 @@ const updateUrlParams = () => {
   window.history.replaceState(null, '', `?${params.toString()}`)
 }
 
-const handleViewOriginal = () => {
-  if (!isAuthenticated.value) {
-    showLoginDialog.value = true
-    return
+const resolveCurrentDownloadUrl = async () => {
+  const image = currentImage.value
+  if (!image) return ''
+  const entry = image.downloadUrl || image.originalUrl || image.url
+  if (!entry) return ''
+  if (/\/api\/user\/download\/original(?:\?|$)/.test(entry) && image.id) {
+    const data = await pcApi.getOriginalDownloadUrl(image.id)
+    return String(data?.download_url || data?.downloadUrl || data?.url || '')
   }
-
-  if (currentImage.value?.isOriginalLarge) {
-    isLoadingOriginal.value = true
-    setTimeout(() => {
-      isLoadingOriginal.value = false
-      toast.success('原图已加载')
-    }, 1500)
-  }
+  return entry
 }
 
-const handleDownload = () => {
+const handleViewOriginal = async () => {
   if (!isAuthenticated.value) {
     showLoginDialog.value = true
     return
   }
+  if (!canUseOriginal.value) {
+    toast.warning('开通会员后可查看原图')
+    return
+  }
 
-  const url = currentImage.value?.url
+  const url = await resolveCurrentDownloadUrl()
   if (!url) return
-  const link = document.createElement('a')
-  link.href = url
-  link.download = url.split('/').pop() || 'image.jpg'
-  link.target = '_blank'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  if (url !== currentImage.value?.url) {
+    const next = [...images.value]
+    next[currentIndex.value] = { ...next[currentIndex.value], url }
+    images.value = next
+  }
+  isLoadingOriginal.value = false
+}
+
+const handleDownload = async () => {
+  if (!isAuthenticated.value) {
+    showLoginDialog.value = true
+    return
+  }
+  if (!canUseOriginal.value) {
+    toast.warning('开通会员后可下载原图')
+    return
+  }
+
+  const url = await resolveCurrentDownloadUrl()
+  if (!url) return
+  downloadUrl(url, currentImage.value?.name || url.split('/').pop() || 'image.jpg')
 }
 
 const handleClose = () => {
@@ -107,6 +129,18 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
 }
 
+const parseJsonArrayParam = (params: URLSearchParams, key: string) => {
+  const raw = params.get(key)
+  if (!raw) return params.getAll(key).filter(Boolean)
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return parsed
+  } catch {
+    return raw.split(',').map(item => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
 onMounted(() => {
   isClient.value = false
   requestAnimationFrame(() => {
@@ -115,25 +149,33 @@ onMounted(() => {
 
   // 从URL读取参数
   const params = new URLSearchParams(window.location.search)
-  const rawUrls = params.get('imageUrls')
-  let urls: string[] = params.getAll('imageUrls')
-  if (rawUrls) {
-    try {
-      const parsed = JSON.parse(rawUrls)
-      if (Array.isArray(parsed)) urls = parsed.filter(Boolean)
-    } catch {
-      urls = rawUrls.split(',').map(item => item.trim()).filter(Boolean)
-    }
-  }
+  const urls = parseJsonArrayParam(params, 'imageUrls').map(item => String(item || '')).filter(Boolean)
+  const ids = parseJsonArrayParam(params, 'imageIds')
+  const names = parseJsonArrayParam(params, 'imageNames')
+  const sizes = parseJsonArrayParam(params, 'imageSizes')
+  const originalUrls = parseJsonArrayParam(params, 'imageOriginalUrls')
+  const downloadUrls = parseJsonArrayParam(params, 'imageDownloadUrls')
+  const types = parseJsonArrayParam(params, 'imageTypes')
   const index = parseInt(params.get('currentIndex') || '0', 10)
   const pId = params.get('productId') || ''
 
-  imageUrls.value = urls
-  currentIndex.value = Math.min(Math.max(index, 0), imageUrls.value.length - 1)
+  images.value = urls.map((url, itemIndex) => ({
+    id: String(ids[itemIndex] || ''),
+    url,
+    originalUrl: String(originalUrls[itemIndex] || url),
+    downloadUrl: String(downloadUrls[itemIndex] || originalUrls[itemIndex] || url),
+    name: String(names[itemIndex] || url.split('/').pop() || 'image.jpg'),
+    type: types[itemIndex] === 'detailChart' ? 'detailChart' : 'colorChart',
+    isOriginalLarge: Number(sizes[itemIndex] || 0) > 3 * 1024 * 1024,
+    sizeBytes: Number(sizes[itemIndex] || 0),
+  }))
+  currentIndex.value = Math.min(Math.max(index, 0), Math.max(images.value.length - 1, 0))
   productId.value = pId
   isAuthenticated.value = authStore.isLoggedIn()
   if (!isAuthenticated.value) {
     showLoginDialog.value = true
+  } else {
+    loadCurrentUserPermission()
   }
 
   window.addEventListener('keydown', handleKeyDown)
@@ -141,6 +183,25 @@ onMounted(() => {
     window.removeEventListener('keydown', handleKeyDown)
   }
 })
+
+const loadCurrentUserPermission = async () => {
+  try {
+    let user = authStore.getUser<any>() || {}
+    if (!getCurrentUserId(user)) {
+      user = await pcApi.getCurrentUser()
+      authStore.setUser(user)
+    }
+    canUseOriginal.value = isVipMember(user)
+  } catch {
+    canUseOriginal.value = false
+  }
+}
+
+const handleLoginSuccess = () => {
+  isAuthenticated.value = true
+  showLoginDialog.value = false
+  loadCurrentUserPermission()
+}
 </script>
 
 <template>
@@ -163,7 +224,7 @@ onMounted(() => {
         :image-index="currentImage.index"
         :total-images="currentImage.total"
         :can-go-prev="currentIndex > 0"
-        :can-go-next="currentIndex < imageUrls.length - 1"
+        :can-go-next="currentIndex < images.length - 1"
         @previous="handlePrevious"
         @next="handleNext"
         @load-error="imageLoadError = true"
@@ -188,7 +249,7 @@ onMounted(() => {
     <ImageViewerFooter
       v-if="isAuthenticated"
       :current-index="currentIndex + 1"
-      :total-images="imageUrls.length"
+      :total-images="images.length"
       :image-type="currentImage?.type || 'colorChart'"
     />
 
@@ -196,7 +257,7 @@ onMounted(() => {
     <LoginDialog
       :open="showLoginDialog"
       @update:open="showLoginDialog = $event"
-      @login-success="isAuthenticated = true"
+      @login-success="handleLoginSuccess"
     />
   </div>
 </template>

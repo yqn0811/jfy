@@ -111,7 +111,6 @@ export default {
 
     // 当 shmily-drag-image 组件发出排序变更（常见事件名）
     onOrderChange(newList) {
-      console.log(newList);
       // newList 可能是完整对象数组或 id 数组，按实际处理
       if (!newList) return;
       if (Array.isArray(newList) && newList.length > 0) {
@@ -122,7 +121,6 @@ export default {
               sort: idx + 1,
             };
           });
-          console.log(this.orderedIds);
         }
       }
     },
@@ -167,7 +165,6 @@ export default {
             uni.navigateBack();
           }, 700);
         } else {
-          console.log("submitOrder demo params:", params);
           uni.showToast({ title: "已保存（示例）", icon: "none" });
           setTimeout(() => uni.navigateBack(), 700);
         }

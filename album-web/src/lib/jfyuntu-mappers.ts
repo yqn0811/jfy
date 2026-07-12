@@ -1,13 +1,16 @@
 import type { HomeProfileData } from '@/data/HomeProfileData'
 import type { CategoryData } from '@/data/CategoryData'
 import type { ProductData } from '@/data/ProductData'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { buildProductImageUrls, type ProductImageData, type ProductImageUrls } from '@/data/ProductImageData'
 
 const fallbackImage = 'https://api.jfyuntu.com/image/static/footer/jfyuntu.png'
 
 export const toArray = (value: any): any[] => {
   if (!value) return []
   if (Array.isArray(value)) return value
+  if (Array.isArray(value?.data?.data)) return value.data.data
+  if (Array.isArray(value?.data?.list)) return value.data.list
+  if (Array.isArray(value?.data?.lists)) return value.data.lists
   if (Array.isArray(value.data)) return value.data
   if (Array.isArray(value.list)) return value.list
   if (Array.isArray(value?.list?.data)) return value.list.data
@@ -20,6 +23,9 @@ export const toArray = (value: any): any[] => {
 
 export const unwrapList = (value: any): any[] => {
   if (Array.isArray(value)) return value
+  if (Array.isArray(value?.data?.data)) return value.data.data
+  if (Array.isArray(value?.data?.list)) return value.data.list
+  if (Array.isArray(value?.data?.lists)) return value.data.lists
   if (Array.isArray(value?.data)) return value.data
   if (Array.isArray(value?.list)) return value.list
   if (Array.isArray(value?.list?.data)) return value.list.data
@@ -35,6 +41,9 @@ export const unwrapList = (value: any): any[] => {
 export const pickImage = (...values: any[]) => {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value
+    if (value?.TruePic) return value.TruePic
+    if (value?.true_pic) return value.true_pic
+    if (value?.truePic) return value.truePic
     if (value?.url) return value.url
     if (value?.file_url) return value.file_url
     if (value?.fileUrl) return value.fileUrl
@@ -69,6 +78,98 @@ export const pickImage = (...values: any[]) => {
   return ''
 }
 
+const pickNestedImageUrls = (...values: any[]): ProductImageUrls => {
+  for (const value of values) {
+    const urls = value?.image_urls || value?.imageUrls || value?.urls
+    if (urls && typeof urls === 'object') {
+      return {
+        thumb: pickImage(urls.thumb, urls.thumbnail, urls.thumbnail_url, urls.thumbnailUrl),
+        preview: pickImage(urls.preview, urls.preview_url, urls.previewUrl),
+        edit: pickImage(urls.edit, urls.edit_url, urls.editUrl, urls.preview, urls.preview_url, urls.previewUrl),
+        origin: pickImage(urls.origin, urls.original, urls.origin_url, urls.originUrl, urls.original_url, urls.originalUrl),
+        download: pickImage(urls.download, urls.download_url, urls.downloadUrl),
+      }
+    }
+  }
+  return {}
+}
+
+export const normalizeProductImageUrls = (...values: any[]): ProductImageUrls => {
+  const nested = pickNestedImageUrls(...values)
+  const thumb = pickImage(
+    nested.thumb,
+    ...values.map(value => value?.thumbnail_url ?? value?.thumbnailUrl ?? value?.thumb_url ?? value?.thumbUrl ?? value?.thumb)
+  )
+  const preview = pickImage(
+    nested.preview,
+    ...values.map(value => value?.preview_url ?? value?.previewUrl ?? value?.picture_url ?? value?.pictureUrl ?? value?.image_url ?? value?.imageUrl)
+  )
+  const edit = pickImage(
+    nested.edit,
+    ...values.map(value => value?.edit_url ?? value?.editUrl ?? value?.preview_url ?? value?.previewUrl)
+  )
+  const origin = pickImage(
+    nested.origin,
+    ...values.map(value => value?.origin_url ?? value?.originUrl ?? value?.original_url ?? value?.originalUrl ?? value?.picture_url_original ?? value?.pictureUrlOriginal ?? value?.file_url ?? value?.fileUrl ?? value?.url ?? value?.imgurl)
+  )
+  const download = pickImage(
+    nested.download,
+    ...values.map(value => value?.download_url ?? value?.downloadUrl ?? value?.signed_url ?? value?.signedUrl)
+  )
+
+  return buildProductImageUrls(
+    {
+      thumb,
+      preview,
+      edit,
+      origin,
+      download,
+    },
+    {
+      url: pickImage(origin, download, edit, preview, thumb),
+      thumbnailUrl: pickImage(thumb, preview, edit, origin, download),
+    }
+  )
+}
+
+const uniqueImages = (...values: any[]) => {
+  const result: string[] = []
+  const seen = new Set<string>()
+  values.flat(Infinity).forEach((value) => {
+    const url = pickImage(value)
+    if (!url || seen.has(url)) return
+    seen.add(url)
+    result.push(url)
+  })
+  return result
+}
+
+const buildCoverUrlCandidates = (raw: any, ...fallbacks: any[]) => {
+  const imageUrls = normalizeProductImageUrls(raw, ...fallbacks)
+  return uniqueImages(
+    raw?.thumbnail_url,
+    raw?.thumbnailUrl,
+    raw?.thumb_url,
+    raw?.thumbUrl,
+    raw?.thumb,
+    raw?.new_thumb,
+    imageUrls.thumb,
+    imageUrls.preview,
+    raw?.preview_url,
+    raw?.previewUrl,
+    raw?.cover,
+    raw?.cover_url,
+    raw?.coverUrl,
+    raw?.picture_url,
+    raw?.pictureUrl,
+    raw?.image,
+    raw?.image_url,
+    raw?.imageUrl,
+    ...fallbacks,
+    fallbackImage
+  )
+}
+
 const countImages = (value: any) => {
   if (Array.isArray(value)) return value.length
   if (typeof value === 'string' && value.trim()) {
@@ -85,6 +186,12 @@ const splitStringList = (value: any) => {
   return []
 }
 
+const importedResourceIdFromName = (value: any) => {
+  const text = String(value || '').trim()
+  const match = text.match(/^(?:我的资源库|AI资源库)-(-?\d+)$/u)
+  return match ? match[1] : ''
+}
+
 const formatDateText = (value: any) => {
   if (!value) return ''
   if (typeof value === 'string' && /[年/-]/.test(value)) return value
@@ -94,6 +201,38 @@ const formatDateText = (value: any) => {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return String(value)
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
+const pickNested = (...values: any[]) => {
+  for (const value of values) {
+    if (value && typeof value === 'object') return value
+  }
+  return {}
+}
+
+const booleanFromFlag = (value: any, fallback = false) => {
+  if (value === undefined || value === null || value === '') return fallback
+  if (typeof value === 'boolean') return value
+  return Number(value) === 1 || value === 'true'
+}
+
+const resolveDownloadPermission = (raw: any, fallback = false) => {
+  const ownerInfo = pickNested(raw?.user_info, raw?.owner_info, raw?.home_info, raw?.home, raw?.user)
+  return booleanFromFlag(
+    raw?.visit_allow_save_pic ??
+      raw?.allow_save_pic ??
+      raw?.allowSavePic ??
+      raw?.allow_download ??
+      raw?.allowDownload ??
+      raw?.can_download ??
+      raw?.canDownload ??
+      ownerInfo?.visit_allow_save_pic ??
+      ownerInfo?.allow_save_pic ??
+      ownerInfo?.allowSavePic ??
+      ownerInfo?.allow_download ??
+      ownerInfo?.allowDownload,
+    fallback
+  )
 }
 
 export const mapHomeProfile = (raw: any): HomeProfileData => {
@@ -117,7 +256,8 @@ export const mapHomeProfile = (raw: any): HomeProfileData => {
     region,
     address: info.address_detail || info.address || '',
     isPublic: Number(info.is_show_home ?? 1) === 1,
-    allowSavePic: Number(info.visit_allow_save_pic ?? info.allowSavePic ?? 1) === 1,
+    allowSavePic: resolveDownloadPermission(info, true),
+    allowDownload: resolveDownloadPermission(info, true),
     shareTitle: info.home_share_title || `${companyName}的产品主页`,
     shareDescription: info.home_share_desc || info.company_desc || info.user_desc || '',
     shareCoverUrl: pickImage(info.home_share_image, info.company_logo, info.avatar),
@@ -138,13 +278,15 @@ export const mapHomeProfile = (raw: any): HomeProfileData => {
 
 export const mapCategory = (raw: any, homeId = ''): CategoryData => {
   const children = toArray(raw.children || raw.child || raw.son || raw.sub_categories)
+  const coverUrlCandidates = buildCoverUrlCandidates(raw, raw.new_thumb, raw.cover, raw.picture_url)
   return {
     id: String(raw.id || raw.fid || ''),
     homeId: String(homeId || raw.uid || raw.home_id || ''),
     parentId: raw.pid ? String(raw.pid) : undefined,
     name: raw.folder_name || raw.name || '未命名分类',
     intro: raw.folder_desc || raw.desc || '',
-    coverUrl: pickImage(raw.new_thumb, raw.cover, raw.picture_url) || fallbackImage,
+    coverUrl: coverUrlCandidates[0] || fallbackImage,
+    coverUrlCandidates,
     productCount: Number(raw.product_count || raw.products_count || raw.total_album || raw.son_product_count || 0),
     childCount: Number(raw.child_count || raw.son_count || children.length || 0),
     visibility: Number(raw.private_type) === 2 ? 'private' : Number(raw.private_type) === 4 ? 'shared' : 'public',
@@ -158,9 +300,11 @@ export const mapCategory = (raw: any, homeId = ''): CategoryData => {
 
 export const mapProduct = (raw: any, homeId = ''): ProductData => {
   const colorImages = raw.pic_ids_arr || raw.pic_list || raw.color_images || raw.pictures || []
+  const firstColorImage = Array.isArray(colorImages) ? colorImages[0] : undefined
   const detailImages = raw.detail_pic_ids_arr || raw.detail_pic_list || raw.detail_pictures || []
   const categoryIds = splitStringList(raw.category_ids || raw.categoryIds || raw.category_id || raw.pid)
   const categoryNames = splitStringList(raw.category_names || raw.categoryNames || raw.category_name || raw.categoryName)
+  const coverUrlCandidates = buildCoverUrlCandidates(raw, firstColorImage, raw.new_thumb, raw.picture_url)
   return {
     id: String(raw.id || raw.fid || raw.product_id || ''),
     homeId: String(homeId || raw.uid || raw.home_id || ''),
@@ -171,9 +315,11 @@ export const mapProduct = (raw: any, homeId = ''): ProductData => {
     ownerUserId: String(raw.uid || raw.owner_uid || raw.ownerUserId || ''),
     name: raw.folder_name || raw.name || '未命名产品',
     intro: raw.folder_desc || raw.desc || raw.intro || '',
-    coverUrl: pickImage(raw.new_thumb, raw.picture_url, colorImages?.[0]) || fallbackImage,
+    coverUrl: coverUrlCandidates[0] || fallbackImage,
+    coverUrlCandidates,
     visibility: Number(raw.private_type) === 2 ? 'private' : Number(raw.private_type) === 4 ? 'shared' : 'public',
     hideDetailImage: Number(raw.hide_detail_pictures || raw.hideDetailImage || 0) === 1,
+    allowDownload: resolveDownloadPermission(raw, false),
     isHot: Number(raw.is_hot || 0) === 1,
     sortOrder: Number(raw.sort || raw.sortOrder || 0),
     colorChartCount: Number(raw.color_chart_count || raw.pic_count || 0) || countImages(colorImages || raw.pic_ids),
@@ -183,32 +329,78 @@ export const mapProduct = (raw: any, homeId = ''): ProductData => {
   }
 }
 
+export const mapProductDetail = (raw: any, homeId = ''): ProductData => {
+  const detail = raw?.folder_info || raw?.product || raw?.data?.folder_info || raw?.data?.product || raw?.data || raw || {}
+  const product = mapProduct(detail, homeId)
+  product.allowDownload = resolveDownloadPermission(raw, product.allowDownload)
+  return product
+}
+
 const mapImageItem = (raw: any, productId: string, type: 'colorChart' | 'detailChart', index: number): ProductImageData => {
   const source = raw?.picture || raw || {}
-  const url = pickImage(raw?.picture_url, raw?.imgurl, raw?.picture_url_original, raw?.url, raw?.src, source, raw)
+  const imageUrls = normalizeProductImageUrls(raw, source)
+  const url = pickImage(imageUrls.origin, imageUrls.edit, imageUrls.preview, imageUrls.thumb, raw?.picture_url, raw?.imgurl, raw?.picture_url_original, raw?.url, raw?.src, source, raw, imageUrls.download)
+  const thumbnailUrl = pickImage(imageUrls.thumb, raw?.thumbnailUrl, raw?.thumb, raw?.picture_url, raw?.url, source, raw) || url
   const id = String(raw?.pic_id || source?.id || raw?.id || `${productId}_${type}_${index}`)
+  const name = raw?.pic_name || source?.pic_name || raw?.name || source?.name || raw?.file_name || `${type === 'colorChart' ? '花色图' : '详情图'} ${index + 1}`
+  const resourceId = String(
+    raw?.resource_id ||
+      raw?.resourceId ||
+      source?.resource_id ||
+      source?.resourceId ||
+      importedResourceIdFromName(name)
+  )
   return {
     id,
     productId,
     type,
-    name: raw?.pic_name || source?.pic_name || raw?.name || source?.name || raw?.file_name || `${type === 'colorChart' ? '花色图' : '详情图'} ${index + 1}`,
+    name,
+    imageUrls: buildProductImageUrls(imageUrls, { url, thumbnailUrl }),
     url,
-    thumbnailUrl: pickImage(raw?.thumbnailUrl, raw?.thumb, raw?.picture_url, raw?.url, source, raw) || url,
+    thumbnailUrl,
     sizeLabel: raw?.sizeLabel || raw?.size_label || source?.sizeLabel || source?.size_label || '',
     sizeBytes: Number(raw?.sizeBytes || raw?.size || source?.sizeBytes || source?.size || 0),
     sortOrder: Number(raw?.sort || raw?.sortOrder || index),
     isOriginalLarge: Number(raw?.size || raw?.sizeBytes || source?.size || source?.sizeBytes || 0) > 3 * 1024 * 1024,
     createdAt: raw?.create_time || raw?.createdAt || source?.create_time || source?.createdAt || '',
+    albumPicId: raw?.album_pic_id || raw?.albumPicId || raw?.relation_id || raw?.relationId || '',
+    resourceId: resourceId || undefined,
+    source: resourceId ? 'ai_resource' : 'saved',
   }
 }
 
 export const mapProductImagesFromDetail = (raw: any, productId: string) => {
-  const rawPictures = toArray(raw.pictures)
+  const detailSource = raw?.folder_info || raw?.product || raw?.data?.folder_info || raw?.data?.product || raw?.data || raw || {}
+  const rawPictures = toArray(detailSource.pictures || raw?.pictures)
   const getFileType = (item: any) => Number(item?.file_type ?? item?.fileType ?? item?.picture?.file_type ?? item?.picture?.fileType ?? 1)
   const typedColor = rawPictures.filter(item => getFileType(item) === 1)
   const typedDetail = rawPictures.filter(item => getFileType(item) === 2)
-  const color = toArray(raw.pic_ids_arr || raw.pic_list || raw.color_images || raw.color_pictures || raw.colorCharts || typedColor)
-  const detail = toArray(raw.detail_pic_ids_arr || raw.detail_pic_list || raw.detail_pictures || raw.detail_images || raw.detailCharts || typedDetail)
+  const color = toArray(
+    detailSource.pic_ids_arr ||
+      detailSource.pic_list ||
+      detailSource.color_images ||
+      detailSource.color_pictures ||
+      detailSource.colorCharts ||
+      raw?.pic_ids_arr ||
+      raw?.pic_list ||
+      raw?.color_images ||
+      raw?.color_pictures ||
+      raw?.colorCharts ||
+      typedColor
+  )
+  const detail = toArray(
+    detailSource.detail_pic_ids_arr ||
+      detailSource.detail_pic_list ||
+      detailSource.detail_pictures ||
+      detailSource.detail_images ||
+      detailSource.detailCharts ||
+      raw?.detail_pic_ids_arr ||
+      raw?.detail_pic_list ||
+      raw?.detail_pictures ||
+      raw?.detail_images ||
+      raw?.detailCharts ||
+      typedDetail
+  )
   return [
     ...color.map((item, index) => mapImageItem(item, productId, 'colorChart', index)),
     ...detail.map((item, index) => mapImageItem(item, productId, 'detailChart', index)),
@@ -226,6 +418,7 @@ export interface PcRecordItem {
   title: string
   subtitle: string
   coverUrl: string
+  coverUrlCandidates?: string[]
   time: number
   timeText: string
   createdAt: string
@@ -290,6 +483,16 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
     raw.subtitle ||
     raw.type_name ||
     (targetType === 'home' ? '商户主页' : targetType === 'category' ? '分类' : '产品')
+  const coverUrlCandidates = buildCoverUrlCandidates(
+    raw,
+    raw.image,
+    raw.new_thumb,
+    raw.cover,
+    raw.avatar,
+    raw.company_logo,
+    raw.logo,
+    raw.picture_url
+  )
 
   return {
     id: String(raw.id || `${targetType}_${targetId}_${time || Date.now()}`),
@@ -299,7 +502,8 @@ export const mapPcRecord = (raw: any): PcRecordItem => {
     targetShareCode,
     title,
     subtitle,
-    coverUrl: pickImage(raw.image, raw.new_thumb, raw.cover, raw.avatar, raw.company_logo, raw.logo, raw.picture_url) || fallbackImage,
+    coverUrl: coverUrlCandidates[0] || fallbackImage,
+    coverUrlCandidates,
     time,
     timeText: raw.time_str || formatTimeValue(time),
     createdAt: time ? new Date(time * 1000).toISOString() : '',
@@ -311,13 +515,13 @@ export const buildPcTargetUrl = (type: PcTargetType, id: string, targetUserId = 
   const params = new URLSearchParams()
   if (targetShareCode) params.set('code', targetShareCode)
   else if (targetUserId) params.set('uid', targetUserId)
-  if (type === 'home') return `./share-home.html${params.toString() ? `?${params.toString()}` : ''}`
+  if (type === 'home') return `./share-home${params.toString() ? `?${params.toString()}` : ''}`
   if (type === 'category') {
     params.set('categoryId', id)
-    return `./category.html?${params.toString()}`
+    return `./category?${params.toString()}`
   }
   params.set('productId', id)
-  return `./share-home.html?${params.toString()}`
+  return `./share-home?${params.toString()}`
 }
 
 export const normalizeHomePayload = (homeRaw: any, categoriesRaw: any, productsRaw: any) => {

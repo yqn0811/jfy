@@ -4,7 +4,7 @@ namespace app\common\model\album;
 
 use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserAlbumPic;
-use app\index\model\WdXcxPic;
+use app\common\model\WdXcxPic;
 use think\Model;
 use think\model\concern\SoftDelete;
 
@@ -14,6 +14,7 @@ class WdXcxAlbumFolder extends Model
     protected $pk = 'id';
     protected $name = 'wd_xcx_album_folder';
     protected $autoWriteTimestamp = true;
+    protected $deleteTime = 'delete_time';
 
     protected $type = [
         'upload_field' => 'array',

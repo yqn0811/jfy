@@ -7,8 +7,8 @@ use app\common\model\user\WdXcxUserAlbumPic;
 use app\common\model\user\WdXcxUserExampleSet;
 use app\common\service\album\AiResourceBridgeService;
 use app\common\service\CommonService;
-use app\index\model\WdXcxBase;
-use app\index\model\WdXcxPic;
+use app\common\model\WdXcxBase;
+use app\common\model\WdXcxPic;
 use think\App;
 use think\facade\Config;
 use think\Response;
@@ -33,6 +33,8 @@ class CommonApiController extends ApiBaseController
         $this->result([
             'url' => $res['url'],
             'id' => $res['pid'],
+            'size' => (int)($res['size'] ?? 0),
+            'file_size' => (int)($res['file_size'] ?? ($res['size'] ?? 0)),
         ]);
     }
 
@@ -55,6 +57,11 @@ class CommonApiController extends ApiBaseController
     public function getWorkbenchMenu()
     {
         $this->result($this->service->getWorkbenchMenu());
+    }
+
+    public function memberUpgradeConfig()
+    {
+        $this->result($this->service->memberUpgradeConfig());
     }
 
     /**获取游戏排行榜
@@ -167,11 +174,18 @@ class CommonApiController extends ApiBaseController
             ->field('id, pic_id')
             ->paginate(30)->each(function ($item){
                 $picture_url = '';
+                $imageUrls = null;
                 if($item->picture){
-                    $picture_url = $item->picture->TruePic;
+                    $imageUrls = buildPictureImageUrls($item->picture);
+                    $picture_url = $imageUrls['preview'];
+                    $item->thumbnail_url = $imageUrls['thumb'];
+                    $item->preview_url = $imageUrls['preview'];
+                    $item->file_url = $imageUrls['origin'];
+                    $item->image_urls = $imageUrls;
+                    $item->imageUrls = $imageUrls;
                 }
                 $item->picture_url = $picture_url;
-                $item->picture_url_original = removePicStyle($picture_url);
+                $item->picture_url_original = $imageUrls ? ($imageUrls['origin'] ?: removePicStyle($picture_url)) : removePicStyle($picture_url);
                 unset($item->picture);
             });
         $this->result([
@@ -229,7 +243,6 @@ class CommonApiController extends ApiBaseController
             ['url', ''],
         ])['url'];
         $url = html_entity_decode(trim((string)$url), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $url = removePicStyle($url);
         if (!$url || !isProxyableExternalImageUrl($url)) {
             throwError('图片地址不允许');
         }
@@ -289,7 +302,18 @@ class CommonApiController extends ApiBaseController
         if (!$url || !isProxyableExternalImageUrl(removePicStyle($url))) {
             throwError('图片读取失败');
         }
+        if ($type !== 'original') {
+            return $this->redirectRemoteImage($url, 240);
+        }
         return $this->streamRemoteImage($url, $type === 'original' ? 300 : 1800);
+    }
+
+    private function redirectRemoteImage($url, $maxAge = 240)
+    {
+        return Response::create('', 'html', 302)->header([
+            'Location' => $url,
+            'Cache-Control' => 'public, max-age=' . (int)$maxAge,
+        ]);
     }
 
     private function streamRemoteImage($url, $maxAge = 1800)

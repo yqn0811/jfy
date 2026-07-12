@@ -2,9 +2,10 @@
 
 namespace app\common\service\album;
 
+use app\common\model\album\WdXcxAlbumFolder;
 use app\common\model\user\WdXcxUser;
 use app\common\service\BaseService;
-use app\index\model\WdXcxPic;
+use app\common\model\WdXcxPic;
 use think\App;
 use think\facade\Cache;
 use think\facade\Log;
@@ -56,6 +57,40 @@ class AiResourceBridgeService extends BaseService
         return $this->dedupeResourceResponse($resp);
     }
 
+    public function findDuplicateResource($uid, $params)
+    {
+        $hash = strtolower(trim((string)($params['file_hash'] ?? ($params['content_hash'] ?? ($params['source_hash'] ?? '')))));
+        if ($hash === '') {
+            return [];
+        }
+        $this->assertBridgeAllowed($uid);
+        $user = $this->getBridgeUser($uid);
+        $query = [
+            'b_user_id' => $user->id,
+            'mini_openid' => $user->openid,
+            'unionid' => $user->unionid ?: '',
+            'page' => 1,
+            'page_size' => 1,
+            'status' => 'active',
+            'file_hash' => $hash,
+            'content_hash' => $hash,
+            'source_hash' => $hash,
+        ];
+        if (!empty($params['file_size'])) {
+            $query['file_size'] = (int)$params['file_size'];
+        }
+        $resp = $this->dedupeResourceResponse(
+            $this->requestAiResource('GET', '/jiafangyun/bridge/resources?' . http_build_query($query), null)
+        );
+        $resources = [];
+        if (isset($resp['resources']) && is_array($resp['resources'])) {
+            $resources = $resp['resources'];
+        } elseif (isset($resp['list']) && is_array($resp['list'])) {
+            $resources = $resp['list'];
+        }
+        return $resources[0] ?? [];
+    }
+
     public function importResource($uid, $resourceId, $role = 'cover')
     {
         $this->assertBridgeAllowed($uid);
@@ -87,11 +122,15 @@ class AiResourceBridgeService extends BaseService
             })
             ->find();
         if ($exists) {
-            $displayUrl = $exists->TruePic;
+            $imageUrls = buildPictureImageUrls($exists);
             return [
                 'id' => $exists->id,
-                'url' => $displayUrl,
-                'file_url' => $displayUrl,
+                'url' => $imageUrls['thumb'] ?: $imageUrls['preview'],
+                'thumbnail_url' => $imageUrls['thumb'],
+                'preview_url' => $imageUrls['preview'],
+                'file_url' => $imageUrls['origin'],
+                'image_urls' => $imageUrls,
+                'imageUrls' => $imageUrls,
                 'original_url' => $fileUrl,
                 'resource_id' => $resourceId,
                 'role' => $role,
@@ -110,12 +149,16 @@ class AiResourceBridgeService extends BaseService
             'uid' => $uid,
             'file_type' => 1,
         ]);
-        $displayUrl = $pic->TruePic;
+        $imageUrls = buildPictureImageUrls($pic);
 
         return [
             'id' => $pic->id,
-            'url' => $displayUrl,
-            'file_url' => $displayUrl,
+            'url' => $imageUrls['thumb'] ?: $imageUrls['preview'],
+            'thumbnail_url' => $imageUrls['thumb'],
+            'preview_url' => $imageUrls['preview'],
+            'file_url' => $imageUrls['origin'],
+            'image_urls' => $imageUrls,
+            'imageUrls' => $imageUrls,
             'original_url' => $fileUrl,
             'resource_id' => $resourceId,
             'role' => $role,
@@ -127,12 +170,14 @@ class AiResourceBridgeService extends BaseService
         if (!$pic || !$this->isBridgeEnabledForUser($uid)) {
             return null;
         }
-        if ($this->isImportedResourcePicture($pic)) {
+        if ($this->shouldSkipPicture($pic)) {
             return null;
         }
         $user = $this->getBridgeUser($uid);
         $fileUrl = removePicStyle(remote($pic->uniacid ?: 1, $pic->imgurl, 1));
         $previewUrl = remote($pic->uniacid ?: 1, $pic->imgurl, 1);
+        $remoteType = (int)(cacheRemoteSet($pic->uniacid ?: 1)['remote'] ?? 0);
+        $thumbnailUrl = appendPicThumbStyle($fileUrl, $remoteType);
         if (!$fileUrl) {
             return null;
         }
@@ -146,7 +191,7 @@ class AiResourceBridgeService extends BaseService
             'sort_order' => (int)($options['sort_order'] ?? 0),
             'file_url' => $fileUrl,
             'preview_url' => $previewUrl,
-            'thumbnail_url' => $previewUrl,
+            'thumbnail_url' => $thumbnailUrl ?: $previewUrl,
             'name' => $pic->pic_name ?: '佳方云图片',
             'mime_type' => $this->guessMimeType($fileUrl, (int)$pic->file_type),
             'file_size' => (int)$pic->getData('size'),
@@ -157,9 +202,24 @@ class AiResourceBridgeService extends BaseService
                 'external_product_id' => (string)($options['external_product_id'] ?? ''),
                 'role' => (string)($options['role'] ?? 'detail'),
                 'source' => 'jiafangyun',
+                'file_hash' => (string)($options['file_hash'] ?? ''),
+                'content_hash' => (string)($options['content_hash'] ?? ($options['file_hash'] ?? '')),
             ],
         ]);
+        if (!empty($options['file_hash'])) {
+            $payload['file_hash'] = (string)$options['file_hash'];
+            $payload['content_hash'] = (string)($options['content_hash'] ?? $options['file_hash']);
+        }
+        if (!empty($options['category_name'])) {
+            $payload['category_name'] = (string)$options['category_name'];
+            $payload['metadata']['category_name'] = (string)$options['category_name'];
+        }
         return $this->requestAiResource('POST', '/jiafangyun/bridge/resources/sync', $payload);
+    }
+
+    public function shouldSkipPicture($pic)
+    {
+        return $this->isImportedResourcePicture($pic);
     }
 
     public function syncProductPictures($uid, $product)
@@ -171,18 +231,23 @@ class AiResourceBridgeService extends BaseService
         $this->syncProductPictureIds($uid, $product, $product->detail_pic_ids ?? '', 'detail');
     }
 
-    public function syncAlbumRelation($uid, $relation, $role = 'album')
+    public function syncAlbumRelation($uid, $relation, $role = 'album', $options = [])
     {
         if (!$relation || !$relation->picture) {
             return null;
         }
-        return $this->syncPicture($uid, $relation->picture, [
+        $resourceId = $this->getResourceIdFromPicture($relation->picture);
+        if ($resourceId > 0) {
+            return $this->syncImportedResourceCategory($uid, $relation, $resourceId);
+        }
+        return $this->syncPicture($uid, $relation->picture, array_merge([
             'b_folder_id' => (int)$relation->folder_id,
             'b_relation_id' => (int)$relation->id,
             'external_product_id' => (string)$relation->folder_id,
             'role' => $role,
             'sort_order' => (int)$relation->sort,
-        ]);
+            'category_name' => $this->folderName((int)$relation->folder_id),
+        ], $options));
     }
 
     public function markPictureDeleted($uid, $picId, $options = [])
@@ -221,14 +286,44 @@ class AiResourceBridgeService extends BaseService
         }
     }
 
-    public function safeSyncAlbumRelation($uid, $relation, $role = 'album')
+    public function safeSyncAlbumRelation($uid, $relation, $role = 'album', $options = [])
     {
         try {
-            return $this->syncAlbumRelation($uid, $relation, $role);
+            return $this->syncAlbumRelation($uid, $relation, $role, $options);
         } catch (\Throwable $e) {
             Log::error('[AiResourceBridge] sync album relation failed: ' . $e->getMessage());
             return null;
         }
+    }
+
+    public function syncImportedResourceCategory($uid, $relation, $resourceId)
+    {
+        if (!$relation || !$this->isBridgeEnabledForUser($uid)) {
+            return null;
+        }
+        $resourceId = (int)$resourceId;
+        if ($resourceId <= 0) {
+            return null;
+        }
+        $user = $this->getBridgeUser($uid);
+        $categoryName = $this->folderName((int)$relation->folder_id);
+        if ($categoryName === '') {
+            return null;
+        }
+        $payload = array_merge($this->bridgeUserPayload($user), [
+            'b_folder_id' => (int)$relation->folder_id,
+            'b_pic_id' => (int)$relation->pic_id,
+            'b_relation_id' => (int)$relation->id,
+            'category_name' => $categoryName,
+            'metadata' => [
+                'b_pic_id' => (int)$relation->pic_id,
+                'b_folder_id' => (int)$relation->folder_id,
+                'b_relation_id' => (int)$relation->id,
+                'category_name' => $categoryName,
+                'source' => 'jiafangyun_imported_resource_category',
+            ],
+        ]);
+        return $this->requestAiResource('POST', '/jiafangyun/bridge/resources/' . $resourceId . '/category', $payload);
     }
 
     public function safeMarkPictureDeleted($uid, $picId, $options = [])
@@ -252,6 +347,7 @@ class AiResourceBridgeService extends BaseService
         }
         $type = in_array($type, ['thumb', 'preview', 'original'], true) ? $type : 'thumb';
         $cacheKey = 'ai_resource_image_url_' . (int)$pic->id . '_' . md5($resourceId . '|' . $type);
+        $cacheTtl = $this->resourceImageUrlCacheTtl($type);
         $cached = Cache::get($cacheKey);
         if ($cached) {
             return $cached;
@@ -263,25 +359,77 @@ class AiResourceBridgeService extends BaseService
             'mini_openid' => $user->openid,
             'unionid' => $user->unionid ?: '',
         ];
-        $resp = $this->requestAiResource('GET', '/jiafangyun/bridge/resources/' . $resourceId . '?' . http_build_query($query), null);
+        try {
+            $resp = $this->requestAiResource('GET', '/jiafangyun/bridge/resources/' . $resourceId . '?' . http_build_query($query), null);
+        } catch (\Throwable $e) {
+            Log::warning('[AiResourceBridge] resource lookup failed, fallback to stored picture: ' . $e->getMessage());
+            $url = $this->getSignedStoredPictureUrl($pic, $type);
+            Cache::set($cacheKey, $url, $cacheTtl);
+            return $url;
+        }
         $resource = $resp['resource'] ?? null;
         if (!$resource) {
-            return '';
+            $url = $this->getSignedStoredPictureUrl($pic, $type);
+            Cache::set($cacheKey, $url, $cacheTtl);
+            return $url;
         }
         $url = '';
         if ($type === 'original') {
             $url = $this->firstResourceImageUrl($resource, $this->resourceOriginalUrlFields());
-            Cache::set($cacheKey, $url, 300);
+            if (!$url) {
+                $url = $this->getSignedStoredPictureUrl($pic, $type);
+            }
+            Cache::set($cacheKey, $url, $cacheTtl);
             return $url;
         }
         if ($type === 'preview') {
             $url = $this->firstResourceImageUrl($resource, $this->resourcePreviewUrlFields());
-            Cache::set($cacheKey, $url, 1800);
+            if (!$url) {
+                $url = $this->getSignedStoredPictureUrl($pic, $type);
+            }
+            Cache::set($cacheKey, $url, $cacheTtl);
             return $url;
         }
         $url = $this->firstResourceImageUrl($resource, $this->resourceThumbnailUrlFields());
-        Cache::set($cacheKey, $url, 1800);
+        if (!$url) {
+            $url = $this->getSignedStoredPictureUrl($pic, $type);
+        }
+        Cache::set($cacheKey, $url, $cacheTtl);
         return $url;
+    }
+
+    private function resourceImageUrlCacheTtl($type)
+    {
+        return $type === 'original' ? 300 : 240;
+    }
+
+    private function getSignedStoredPictureUrl($pic, $type = 'thumb')
+    {
+        $url = trim((string)($pic->imgurl ?? ''));
+        if ($url === '') {
+            return '';
+        }
+        if (strpos($url, '//') === 0) {
+            $url = 'https:' . $url;
+        } elseif (WdXcxPic::isSchemeLessHttpUrl($url)) {
+            $url = 'https://' . ltrim($url, '/');
+        } elseif (!WdXcxPic::isHttpUrl($url)) {
+            $url = removePicStyle(remote($pic->uniacid ?: $this->uniacid, $url, 1));
+        }
+        $url = removePicStyle($url);
+        if ($url === '') {
+            return '';
+        }
+        try {
+            $resp = $this->requestAiResource('POST', '/jiafangyun/bridge/images/sign', [
+                'url' => $url,
+                'expire_minutes' => $type === 'original' ? 10 : 30,
+            ]);
+            return trim((string)($resp['signed_url'] ?? ($resp['url'] ?? '')));
+        } catch (\Throwable $e) {
+            Log::error('[AiResourceBridge] sign stored picture failed: ' . $e->getMessage());
+            return '';
+        }
     }
 
     private function getResourceIdFromPicture($pic)
@@ -388,8 +536,21 @@ class AiResourceBridgeService extends BaseService
                 'external_product_id' => (string)$product->id,
                 'role' => $role,
                 'sort_order' => $sort,
+                'category_name' => trim((string)($product->folder_name ?? '')),
             ]);
         }
+    }
+
+    private function folderName($folderId)
+    {
+        if ($folderId <= 0) {
+            return '';
+        }
+        $folder = WdXcxAlbumFolder::where('id', $folderId)->find();
+        if (!$folder) {
+            return '';
+        }
+        return trim((string)($folder->folder_name ?? ''));
     }
 
     private function normalizeIds($raw)
@@ -486,20 +647,38 @@ class AiResourceBridgeService extends BaseService
 
     private function normalizeResourceImageUrls($item)
     {
+        $rawItem = $item;
         foreach ($this->resourceImageUrlFields() as $field) {
             if (!empty($item[$field])) {
-                $item[$field] = proxyExternalImageUrl($item[$field]);
+                $item[$field] = proxyExternalImageUrl(
+                    $item[$field],
+                    in_array($field, $this->resourcePreviewImageUrlFields(), true)
+                );
             }
         }
-        if (empty($item['thumbnail_url'])) {
-            $item['thumbnail_url'] = $this->firstResourceImageUrl($item, $this->resourceThumbnailUrlFields());
+        $originalUrl = $this->firstResourceImageUrl($rawItem, $this->resourceOriginalUrlFields());
+        $previewUrl = $this->firstResourceImageUrl($rawItem, $this->resourcePreviewUrlFields());
+        $thumbUrl = $this->firstResourceImageUrl($rawItem, $this->resourceThumbnailUrlFields());
+        if ($thumbUrl === '') {
+            $thumbUrl = $previewUrl ?: $originalUrl;
         }
-        if (empty($item['preview_url'])) {
-            $item['preview_url'] = $this->firstResourceImageUrl($item, $this->resourcePreviewUrlFields());
+        if ($previewUrl === '') {
+            $previewUrl = $thumbUrl ?: $originalUrl;
         }
-        if (empty($item['file_url'])) {
-            $item['file_url'] = $this->firstResourceImageUrl($item, $this->resourceOriginalUrlFields());
+        if ($originalUrl === '') {
+            $originalUrl = $previewUrl ?: $thumbUrl;
         }
+        $item['thumbnail_url'] = proxyExternalImageUrl($thumbUrl, true);
+        $item['preview_url'] = proxyExternalImageUrl($previewUrl, true);
+        $item['file_url'] = proxyExternalImageUrl($originalUrl, false);
+        $item['image_urls'] = [
+            'thumb' => (string)($item['thumbnail_url'] ?? ''),
+            'preview' => (string)($item['preview_url'] ?? ''),
+            'edit' => (string)($item['preview_url'] ?? ''),
+            'origin' => (string)($item['file_url'] ?? ''),
+            'download' => (string)($item['download_url'] ?? ($item['file_url'] ?? '')),
+        ];
+        $item['imageUrls'] = $item['image_urls'];
         return $item;
     }
 
@@ -598,6 +777,26 @@ class AiResourceBridgeService extends BaseService
         ];
     }
 
+    private function resourcePreviewImageUrlFields()
+    {
+        return [
+            'thumbnail_url',
+            'thumbnailUrl',
+            'thumb_url',
+            'thumbUrl',
+            'thumb',
+            'preview_url',
+            'previewUrl',
+            'image_url',
+            'imageUrl',
+            'cover_url',
+            'coverUrl',
+            'picture_url',
+            'pictureUrl',
+            'url',
+        ];
+    }
+
     private function firstResourceImageUrl($item, $fields)
     {
         foreach ($fields as $field) {
@@ -610,15 +809,10 @@ class AiResourceBridgeService extends BaseService
 
     private function isImportedResourcePicture($pic)
     {
-        $imgurl = trim((string)($pic->imgurl ?? ''));
-        if ($imgurl === '') {
-            return false;
-        }
-        if (WdXcxPic::isHttpUrl($imgurl) || WdXcxPic::isSchemeLessHttpUrl($imgurl) || strpos($imgurl, '//') === 0) {
-            return true;
-        }
         $name = (string)($pic->pic_name ?? '');
-        return strpos($name, '我的资源库-') === 0 || strpos($name, 'AI资源库-') === 0;
+        return $this->getResourceIdFromPicture($pic) > 0
+            || strpos($name, '我的资源库-') === 0
+            || strpos($name, 'AI资源库-') === 0;
     }
 
     private function requestAiResource($method, $path, $payload = null)

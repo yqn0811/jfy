@@ -10,7 +10,7 @@
 							<image class="backIcon" src="../../static/icon/back2.png" mode=""></image>
 						</view>
 						<view class="info-box">
-							<view class="title">资源包</view>
+							<view class="title">资源与流量包</view>
 						</view>
 					</view>
 				</view>
@@ -23,20 +23,35 @@
 		<!-- 内容区域 -->
 		<view class="content" :style="{ paddingTop: totalHeight + 'px' }">
 			<view class="resource-summary">
-				<view>
-					<view class="summary-title">资源包</view>
-					<view class="summary-subtitle">单独扩容我的资源库</view>
+				<view class="summary-main">
+					<view class="package-switch">
+						<view
+							class="package-switch-item"
+							:class="{ active: activePackageType === 'resource_storage' }"
+							@click="switchPackageType('resource_storage')"
+						>
+							资源包
+						</view>
+						<view
+							class="package-switch-item"
+							:class="{ active: activePackageType === 'traffic_monthly' }"
+							@click="switchPackageType('traffic_monthly')"
+						>
+							流量包
+						</view>
+					</view>
+					<view class="summary-subtitle">{{ packageSubtitle }}</view>
 				</view>
-				<view class="current-space" v-if="currentSpaceText">
-					当前空间：<text>{{ currentSpaceText }}</text>
+				<view class="current-space" v-if="currentMetricText">
+					{{ currentMetricLabel }}：<text>{{ currentMetricText }}</text>
 				</view>
 			</view>
 
-			<scroll-view scroll-x="true" class="package-scroll" :scroll-into-view="'package-' + currentLevel">
+			<scroll-view v-if="displayedVipList.length" scroll-x="true" class="package-scroll" :scroll-into-view="'package-' + currentLevel">
 				<view class="package-wrapper">
 						<view
 							class="resource-card"
-							v-for="(level, index) in vipList"
+							v-for="(level, index) in displayedVipList"
 							:key="index"
 							:id="'package-' + index"
 							:class="{ active: currentLevel === index }"
@@ -50,7 +65,7 @@
 						<view class="price-line">
 							<text class="price-symbol">¥</text>
 							<text class="price-value">{{ level.annual_fee }}</text>
-							<text class="price-unit">/年</text>
+							<text class="price-unit">{{ getPlanPriceUnit(level) }}</text>
 						</view>
 						<view class="market-price" v-if="level.market_annual_fee">原价 ¥{{ level.market_annual_fee }}</view>
 						<view class="feature-list">
@@ -62,10 +77,14 @@
 					</view>
 				</view>
 			</scroll-view>
+			<view v-else class="package-empty">
+				<view class="empty-title">暂无{{ activePackageLabel }}</view>
+				<view class="empty-desc">请稍后刷新，或前往电脑端查看最新套餐</view>
+			</view>
 
 			<view class="benefits-section">
 				<view class="section-header">
-					<text class="section-title">资源包权益</text>
+					<text class="section-title">{{ currentBenefitTitle }}</text>
 				</view>
 				<view class="benefits-content">
 					<view class="vip-tab" v-for="(benefit, index) in resourceBenefits" :key="index">
@@ -78,8 +97,8 @@
 				</view>
 			</view>
 
-			<view class="bottom-upgrade" @click="toBuy">
-				<view class="upgrade-text">前往电脑端购买{{ selectedPackageName }}</view>
+			<view class="bottom-upgrade" :class="{ disabled: !hasSelectedPackage }" @click="toBuy">
+				<view class="upgrade-text">{{ upgradeButtonText }}</view>
 			</view>
 		</view>
 		
@@ -87,7 +106,7 @@
 		<view class="ios-modal" v-if="showIOSModal" @click="closeIOSModal">
 			<view class="modal-content" @click.stop>
 				<view class="modal-text">
-					资源包购买请在电脑浏览器完成<br/>
+					套餐购买请在电脑浏览器完成<br/>
 					完成后回到小程序，权益会自动同步
 				</view>
 				<view class="modal-tip">{{ upgradeGuideDescription }}</view>
@@ -118,6 +137,7 @@
 				baseInfo:{},
 				userInfo:{},
 				canShowUpgrade: false,
+				activePackageType: 'resource_storage',
 				upgradeUrl: 'https://pic.jfyuntu.com/assets/page/product-list.html'
 			};
 		},
@@ -176,7 +196,7 @@
 				}
 				if (!this.levelInfo || !this.levelInfo.grade_level) {
 					uni.showToast({
-						title: '请选择资源包',
+						title: '请选择套餐',
 						icon: 'none'
 					});
 					return;
@@ -242,8 +262,7 @@
 					show_err: true
 				}).then(res => {
 					this.vipList = Array.isArray(res.data) ? res.data : []
-					this.levelInfo = this.vipList[0] || {}
-					this.payFee = this.levelInfo.annual_fee || 0
+					this.syncSelectedPackage()
 				})
 			},
 			
@@ -256,7 +275,26 @@
 				this.currentLevel = index;
 				this.payFee = level.annual_fee
 			},
+			switchPackageType(type) {
+				if (this.activePackageType === type) {
+					return;
+				}
+				this.activePackageType = type;
+				this.syncSelectedPackage();
+			},
+			syncSelectedPackage() {
+				const list = this.displayedVipList;
+				this.currentLevel = 0;
+				this.levelInfo = list[0] || {};
+				this.payFee = this.levelInfo.annual_fee || 0;
+			},
+			getPackageType(level = {}) {
+				return this.isTrafficPackage(level) ? 'traffic_monthly' : 'resource_storage';
+			},
 			getPlanTag(level) {
+				if (this.isTrafficPackage(level)) {
+					return level.duration_label || level.show_month_del_str || level.show_annual_del_str || '月度流量包';
+				}
 				return level.show_annual_del_str || level.show_month_del_str || '资源扩容';
 			},
 			getPlanFeatures(level) {
@@ -265,22 +303,124 @@
 				if (features.length) {
 					return features.slice(0, 3);
 				}
+				if (this.isTrafficPackage(level)) {
+					return [
+						`月度流量 ${level.traffic_size_str || '按套餐配置'}`,
+						'适合访客预览和下载',
+						'每月按套餐周期生效'
+					];
+				}
 				return [
 					`资源库存储空间 ${level.cloud_size_str || ''}`.trim(),
 					'适合商品素材沉淀',
 					'按实际上传文件大小计算容量'
 				];
 			},
-		}
-		,
+			isTrafficPackage(level = {}) {
+				const type = String(level.package_type || level.plan_category || '').toLowerCase();
+				const name = String(level.grade_name || '').toLowerCase();
+				return type.indexOf('traffic') !== -1 || name.indexOf('流量') !== -1;
+			},
+			getPlanPriceUnit(level = {}) {
+				if (level.display_unit) return level.display_unit;
+				return this.isTrafficPackage(level) ? '/月' : '/年';
+			},
+			pickPositiveNumber(values) {
+				for (let i = 0; i < values.length; i += 1) {
+					const value = Number(values[i]);
+					if (Number.isFinite(value) && value > 0) {
+						return value;
+					}
+				}
+				return 0;
+			},
+			formatBytes(bytes) {
+				const value = Number(bytes) || 0;
+				if (value <= 0) return '0B';
+				const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+				let size = value;
+				let unitIndex = 0;
+				while (size >= 1024 && unitIndex < units.length - 1) {
+					size /= 1024;
+					unitIndex += 1;
+				}
+				const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
+				return `${size.toFixed(precision)}${units[unitIndex]}`;
+			},
+		},
 		computed: {
+			displayedVipList() {
+				return this.vipList.filter(level => this.getPackageType(level) === this.activePackageType);
+			},
+			activePackageLabel() {
+				return this.activePackageType === 'traffic_monthly' ? '流量包' : '资源包';
+			},
+			packageSubtitle() {
+				if (this.activePackageType === 'traffic_monthly') {
+					return '流量包补充月度访问、预览和下载流量';
+				}
+				return '资源包计入容量权益，用于商品素材沉淀';
+			},
+			currentMetricLabel() {
+				return this.activePackageType === 'traffic_monthly' ? '本月流量' : '当前空间';
+			},
+			currentMetricText() {
+				return this.activePackageType === 'traffic_monthly' ? this.currentTrafficText : this.currentSpaceText;
+			},
 			currentSpaceText() {
 				return this.userInfo && this.userInfo.all_space ? this.userInfo.all_space : '';
 			},
+			currentTrafficText() {
+				const userInfo = this.userInfo || {};
+				const usedGb = this.pickPositiveNumber([
+					userInfo.used_traffic_gb,
+					userInfo.traffic_used_gb,
+				]);
+				const usedBytes = this.pickPositiveNumber([
+					userInfo.used_traffic_bytes,
+					userInfo.traffic_used_bytes,
+					usedGb * 1024 * 1024 * 1024,
+				]);
+				const limitGb = this.pickPositiveNumber([
+					userInfo.monthly_traffic_limit_gb,
+					userInfo.traffic_limit_gb,
+					userInfo.traffic_gb,
+				]);
+				const limitBytes = this.pickPositiveNumber([
+					userInfo.monthly_traffic_limit_bytes,
+					userInfo.traffic_limit_bytes,
+					limitGb * 1024 * 1024 * 1024,
+				]);
+				if (!usedBytes && !limitBytes) {
+					return '';
+				}
+				return `${this.formatBytes(usedBytes)} / ${this.formatBytes(limitBytes)}`;
+			},
+			hasSelectedPackage() {
+				return Boolean(this.levelInfo && (
+					this.levelInfo.grade_level !== undefined ||
+					this.levelInfo.annual_plan_id ||
+					this.levelInfo.month_plan_id
+				));
+			},
 			selectedPackageName() {
-				return this.levelInfo && this.levelInfo.grade_name ? this.levelInfo.grade_name : '资源包';
+				return this.levelInfo && this.levelInfo.grade_name ? this.levelInfo.grade_name : this.activePackageLabel;
+			},
+			upgradeButtonText() {
+				return this.hasSelectedPackage ? `前往电脑端购买${this.selectedPackageName}` : `暂无${this.activePackageLabel}`;
+			},
+			currentBenefitTitle() {
+				return this.isTrafficPackage(this.levelInfo) ? '流量包权益' : '资源包权益';
 			},
 			resourceBenefits() {
+				if (this.isTrafficPackage(this.levelInfo)) {
+					return [
+						{ title: `月度流量${this.levelInfo.traffic_size_str || ''}`, desc: '用于访客浏览、预览和下载' },
+						{ title: '电脑端购买', desc: '小程序内复制地址后前往电脑浏览器开通' },
+						{ title: '自动同步', desc: '购买完成后回到小程序自动刷新权益' },
+						{ title: '月度生效', desc: '按套餐周期补充月度流量' }
+					];
+				}
 				const storageText = this.levelInfo.cloud_size_str || '';
 				return [
 					{ title: `资源库空间${storageText}`, desc: '按实际上传文件大小计算容量' },
@@ -294,15 +434,15 @@
 				];
 			},
 			upgradeGuideDescription() {
-				const gradeName = this.levelInfo?.grade_name || '资源包';
+				const gradeName = this.levelInfo?.grade_name || '套餐';
 				const price = this.levelInfo?.annual_fee || '';
-				return `${gradeName}${price ? ` ¥${price}/年` : ''}，请复制地址后在电脑浏览器打开`;
+				return `${gradeName}${price ? ` ¥${price}${this.getPlanPriceUnit(this.levelInfo)}` : ''}，请复制地址后在电脑浏览器打开`;
 			},
 			vipH5Link() {
 				const gradeLevel = this.levelInfo?.grade_level || 0;
-				const planId = this.levelInfo?.annual_plan_id || gradeLevel;
+				const planId = this.levelInfo?.annual_plan_id || this.levelInfo?.month_plan_id || gradeLevel;
 				const separator = this.upgradeUrl.indexOf('?') === -1 ? '?' : '&';
-				return `${this.upgradeUrl}${separator}grade=${gradeLevel}&plan_id=${planId}`;
+				return `${this.upgradeUrl}${separator}grade=${gradeLevel}&plan_id=${planId}&package_type=${this.levelInfo?.package_type || ''}`;
 			}
 		}
 	};
@@ -391,21 +531,47 @@
 		display: flex;
 		align-items: flex-end;
 		justify-content: space-between;
+		gap: 20rpx;
 		padding: 40rpx 32rpx 24rpx;
 		box-sizing: border-box;
 	}
 
-	.summary-title {
-		font-size: 44rpx;
+	.summary-main {
+		min-width: 0;
+		flex: 1;
+	}
+
+	.package-switch {
+		display: inline-flex;
+		padding: 6rpx;
+		background: #262626;
+		border: 1rpx solid #4d4d4d;
+		border-radius: 12rpx;
+		box-sizing: border-box;
+	}
+
+	.package-switch-item {
+		min-width: 132rpx;
+		height: 56rpx;
+		line-height: 56rpx;
+		text-align: center;
+		font-size: 28rpx;
 		font-weight: 800;
-		color: #ffffff;
-		line-height: 1.2;
+		color: #b8b8b8;
+		border-radius: 8rpx;
+		transition: background 0.2s, color 0.2s;
+
+		&.active {
+			background: #ffe329;
+			color: #333333;
+		}
 	}
 
 	.summary-subtitle {
 		margin-top: 12rpx;
 		font-size: 26rpx;
 		color: #b8b8b8;
+		line-height: 1.35;
 	}
 
 	.current-space {
@@ -429,6 +595,31 @@
 		display: inline-flex;
 		padding: 0 28rpx 20rpx;
 		box-sizing: border-box;
+	}
+
+	.package-empty {
+		margin: 0 32rpx 20rpx;
+		min-height: 280rpx;
+		border: 2rpx dashed #555555;
+		border-radius: 14rpx;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		box-sizing: border-box;
+		background: #3a3a3a;
+	}
+
+	.empty-title {
+		font-size: 30rpx;
+		font-weight: 800;
+		color: #ffffff;
+	}
+
+	.empty-desc {
+		margin-top: 12rpx;
+		font-size: 24rpx;
+		color: #b8b8b8;
 	}
 
 	.resource-card {
@@ -645,6 +836,13 @@
 		padding: 24rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
 		box-sizing: border-box;
 		border-top: 1rpx solid #4d4d4d;
+
+		&.disabled {
+			.upgrade-text {
+				background: #666666;
+				color: #b8b8b8;
+			}
+		}
 
 		.upgrade-text {
 			height: 92rpx;

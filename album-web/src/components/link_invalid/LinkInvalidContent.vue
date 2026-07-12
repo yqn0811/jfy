@@ -2,9 +2,10 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
+import { navigateToInternal } from '@/navigation'
 
 const handleReturnHome = () => {
-  window.location.href = './share-home.html'
+  navigateToInternal('./share-home')
 }
 </script>
 

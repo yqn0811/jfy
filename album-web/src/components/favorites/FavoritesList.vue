@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import SafeIcon from '@/components/common/SafeIcon.vue'
+import FallbackImage from '@/components/common/FallbackImage.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -13,6 +14,7 @@ import LoginDialog from '@/components/common/LoginDialog.vue'
 import { toast } from 'vue-sonner'
 import { authStore, pcApi } from '@/lib/api'
 import { buildPcTargetUrl, mapPcRecord, unwrapList, type PcRecordItem } from '@/lib/jfyuntu-mappers'
+import { navigateToInternal } from '@/navigation'
 
 type FavoriteType = 'all' | 'homepage' | 'category' | 'product'
 
@@ -23,6 +25,10 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   embedded: false,
 })
+
+const emit = defineEmits<{
+  (e: 'navigate'): void
+}>()
 
 const isClient = ref(true)
 const isLoading = ref(false)
@@ -106,10 +112,6 @@ const getFavoriteSubtitle = (fav: any): string => {
   return fav.subtitle || ''
 }
 
-const getFavoriteCover = (fav: any): string => {
-  return fav.coverUrl || ''
-}
-
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr)
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -127,13 +129,8 @@ const handleSearch = () => {
 }
 
 const handleView = (fav: any) => {
-  window.location.href = buildPcTargetUrl(fav.targetType, fav.targetId, fav.targetUserId, fav.targetShareCode)
-}
-
-const handleDownload = (fav: any) => {
-  if (fav.targetType === 'product') {
-    toast.success('下载已开始')
-  }
+  emit('navigate')
+  navigateToInternal(buildPcTargetUrl(fav.targetType, fav.targetId, fav.targetUserId, fav.targetShareCode))
 }
 
 const openRemoveConfirm = (favorite: PcRecordItem) => {
@@ -161,11 +158,8 @@ const handleRemoveFavorite = async () => {
 }
 
 const handleGoToBrowse = () => {
-  if (props.embedded) {
-    window.location.href = './share-home.html'
-    return
-  }
-  window.location.href = './share-home.html'
+  emit('navigate')
+  navigateToInternal('./share-home')
 }
 
 const handlePageChange = (page: number) => {
@@ -278,11 +272,16 @@ const handleLoginSuccess = async () => {
                   <!-- Cover -->
                   <TableCell class="w-20 py-3">
                     <div class="w-16 h-16 rounded-md overflow-hidden bg-muted/50 flex-shrink-0">
-                      <img
-                        :src="getFavoriteCover(fav)"
+                      <FallbackImage
+                        :src="fav.coverUrl"
+                        :candidates="fav.coverUrlCandidates"
                         :alt="getFavoriteTitle(fav)"
                         class="w-full h-full object-cover"
-                      />
+                      >
+                        <div class="flex h-full w-full items-center justify-center bg-muted">
+                          <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
+                        </div>
+                      </FallbackImage>
                     </div>
                   </TableCell>
 
@@ -319,17 +318,6 @@ const handleLoginSuccess = async () => {
                       >
                         <SafeIcon name="Eye" :size="14" class="mr-1" />
                         查看
-                      </Button>
-
-                      <Button
-                        v-if="fav.targetType === 'product'"
-                        variant="outline"
-                        size="sm"
-                        class="h-8 px-3 text-xs"
-                        @click="handleDownload(fav)"
-                      >
-                        <SafeIcon name="Download" :size="14" class="mr-1" />
-                        下载
                       </Button>
 
                       <Button

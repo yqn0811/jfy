@@ -119,12 +119,12 @@ const baseUser = {
   address_city: '杭州市',
   address_district: '余杭区',
   address_detail: '文一西路 998 号云纺大厦 8F',
-  grade_name: '专业版 10G',
+  grade_name: '基础资源包',
   all_space: '10G',
   use_space: 3.2 * 1024 * 1024 * 1024,
   space_used: 32,
-  traffic_gb: 500,
-  monthly_traffic_gb: 500,
+  traffic_gb: 10,
+  monthly_traffic_gb: 10,
   used_traffic_gb: 86.5,
   concurrent_rights: 5,
   concurrency_limit: 5,
@@ -209,33 +209,33 @@ const makeInitialState = (): MockState => {
       },
       {
         id: 'plan_5g',
-        name: '基础版 5G',
+        name: '入门资源包',
         capacityMb: 5 * 1024,
-        price: '¥29 / 年',
-        concurrentRights: 2,
-        trafficGb: 100,
+        price: '¥59 / 年',
+        concurrentRights: 3,
+        trafficGb: 5,
         durationLabel: '1 年',
         isRecommended: false,
         createdAt: '2026-07-01 10:05:00',
       },
       {
         id: 'plan_10g',
-        name: '专业版 10G',
+        name: '基础资源包',
         capacityMb: 10 * 1024,
-        price: '¥59 / 年',
+        price: '¥109 / 年',
         concurrentRights: 5,
-        trafficGb: 500,
+        trafficGb: 10,
         durationLabel: '1 年',
         isRecommended: true,
         createdAt: '2026-07-01 10:10:00',
       },
       {
         id: 'plan_200g',
-        name: '旗舰版 200G',
+        name: '企业资源包',
         capacityMb: 200 * 1024,
-        price: '¥1099 / 年',
-        concurrentRights: 20,
-        trafficGb: 5000,
+        price: '¥1999 / 年',
+        concurrentRights: 10,
+        trafficGb: 200,
         durationLabel: '1 年',
         isRecommended: false,
         createdAt: '2026-07-01 10:15:00',
@@ -396,7 +396,7 @@ const currentOrigin = () => {
   return window.location.origin
 }
 
-const buildBatchLink = (code: string) => `${currentOrigin()}/assets/page/product-list.html?uploadd_code=${code}`
+const buildBatchLink = (code: string) => `${currentOrigin()}/batch-upload?uploadd_code=${code}`
 
 const ensureBatchLink = (state: MockState, fid: string) => {
   if (!state.batchLinks[fid]) {
@@ -522,7 +522,8 @@ const parseFormUpload = (formData: FormData) => {
   const file = (formData.get('files') || formData.get('file')) as File | null
   const fid = String(formData.get('fid') || formData.get('pid') || '')
   const fileType = String(formData.get('file_type') || '1')
-  const type = fileType === '2' ? 'detailChart' : 'colorChart'
+  const uploadField = String(formData.get('upload_field') || formData.get('image_role') || '').toLowerCase()
+  const type = uploadField.includes('detail') || fileType === '2' ? 'detailChart' : 'colorChart'
   return { file, fid, type: type as 'colorChart' | 'detailChart' }
 }
 
@@ -666,16 +667,20 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
       const uid = String(params.target_user_id || ownerUid)
       const code = String(params.code || params.share_code || state.user.home_share_code || state.user.share_code || `HFY${ownerUid}`)
       const mobileLink = `https://wxmpurl.cn/${encodeURIComponent(uid).slice(0, 8)}`
+      const pcParams = new URLSearchParams({ code })
+      if (params.type === 'product' && params.id) pcParams.set('productId', String(params.id))
+      if (params.type === 'category' && params.id) pcParams.set('categoryId', String(params.id))
+      if (params.type === 'selection' && params.id) pcParams.set('selectionId', String(params.id))
       return ok({
         share_link: mobileLink,
         link: mobileLink,
         url_link: mobileLink,
-        pc_link: `${currentOrigin()}/share-home.html?code=${encodeURIComponent(code)}`,
-        web_link: `${currentOrigin()}/share-home.html?code=${encodeURIComponent(code)}`,
+        mobile_link: mobileLink,
+        pc_link: `${currentOrigin()}/share-home?${pcParams.toString()}`,
+        web_link: `${currentOrigin()}/share-home?${pcParams.toString()}`,
         share_code: code,
         code,
         invite_code: state.user.invite_code,
-        mini_path: `/pages/index/index?uid=${encodeURIComponent(uid)}`,
       }) as T
     }
 
@@ -683,16 +688,10 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
       const uid = String(params.target_user_id || ownerUid)
       const type = String(params.type || 'home')
       const id = String(params.id || '')
-      const miniPath =
-        type === 'product'
-          ? `/pages/product/detail?uid=${uid}&productId=${id}`
-          : type === 'category'
-            ? `/pages/category/index?uid=${uid}&categoryId=${id}`
-            : `/pages/index/index?uid=${uid}`
+      const qrPayload = `jfyuntu-mini:${type}:${uid}:${id}`
       return ok({
-        qrcode: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(miniPath)}`,
-        qrcode_url: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(miniPath)}`,
-        mini_path: miniPath,
+        qrcode: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrPayload)}`,
+        qrcode_url: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrPayload)}`,
       }) as T
     }
 
@@ -883,6 +882,11 @@ export async function mockApiRequest<T = any>(path: string, options: MockRequest
       saveState(state)
       return ok({ success: true }) as T
 
+    case 'user/recycle/clear':
+      state.trash = []
+      saveState(state)
+      return ok({ success: true }) as T
+
     default:
       return ok({ success: true, path: cleanPath, params, body }) as T
   }
@@ -893,6 +897,19 @@ export async function mockApiUpload<T = any>(path: string, formData: FormData): 
   const state = getState()
   const cleanPath = path.replace(/^\/+/, '').split('?')[0]
   const { file, fid, type } = parseFormUpload(formData)
+
+  if (cleanPath === 'common/upload') {
+    if (!file) throw new Error('上传参数不完整')
+    const image = createImageFromFile(file, 'common', type)
+    return ok({
+      url: image.url,
+      file_url: image.url,
+      id: image.id,
+      size: file.size,
+      file_size: file.size,
+    }) as T
+  }
+
   if (!file || !fid) throw new Error('上传参数不完整')
 
   if (cleanPath === 'album/upload/folder' || cleanPath === 'web/folder/pic/upload') {

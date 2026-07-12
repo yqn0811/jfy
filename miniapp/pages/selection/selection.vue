@@ -79,6 +79,8 @@ export default {
       baseInfo: {},
       currentTime: "9:41",
       disableAutoRedirect: false,
+      autoRedirectTimer: null,
+      isAutoRedirecting: false,
     };
   },
   onLoad(options = {}) {
@@ -91,13 +93,18 @@ export default {
   },
   onShow() {
     const token = uni.getStorageSync("token");
-    console.log(token);
     if (token && !this.disableAutoRedirect) {
-      uni.redirectTo({ url: "/pages/index/index" });
+      this.redirectToWorkbench();
       return;
     }
     this.getList();
     this.getBaseInfo();
+  },
+  onHide() {
+    this.clearAutoRedirectTimer();
+  },
+  onUnload() {
+    this.clearAutoRedirectTimer();
   },
   // 分享给好友
   onShareAppMessage(res) {
@@ -145,7 +152,6 @@ export default {
       this.currentTime = `${hours}:${minutes}`;
     },
     handleImageError(e) {
-      console.log("图片加载失败:", e);
       // 可以设置默认图片
     },
     handleFollow() {
@@ -169,6 +175,26 @@ export default {
       // 这个方法现在不需要了，因为使用了 button open-type="share"
       // 但保留以防其他地方调用
       console.log("触发分享");
+    },
+    clearAutoRedirectTimer() {
+      if (!this.autoRedirectTimer) return;
+      clearTimeout(this.autoRedirectTimer);
+      this.autoRedirectTimer = null;
+    },
+    redirectToWorkbench() {
+      if (this.isAutoRedirecting) return;
+      this.isAutoRedirecting = true;
+      this.clearAutoRedirectTimer();
+      this.autoRedirectTimer = setTimeout(() => {
+        uni.redirectTo({
+          url: "/pages/index/index",
+          fail: () => {
+            this.isAutoRedirecting = false;
+            this.getList();
+            this.getBaseInfo();
+          },
+        });
+      }, 120);
     },
     getBaseInfo() {
       const querys = {

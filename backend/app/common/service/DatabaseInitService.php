@@ -88,7 +88,7 @@ class DatabaseInitService extends BaseService
               `mobile` varchar(20) DEFAULT NULL,
               `leaguer_id` varchar(64) DEFAULT NULL,
               `vip_grade` int(11) unsigned NOT NULL DEFAULT 0,
-              `space_size` int(11) unsigned NOT NULL DEFAULT 300,
+              `space_size` int(11) unsigned NOT NULL DEFAULT 50,
               `join_time` int(11) unsigned NOT NULL DEFAULT 0,
               `wx_ewm` varchar(255) DEFAULT NULL,
               `user_desc` text,
@@ -199,7 +199,7 @@ class DatabaseInitService extends BaseService
             CREATE TABLE `wd_xcx_base` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `uniacid` int(11) unsigned NOT NULL DEFAULT 1,
-              `space_size` int(11) unsigned NOT NULL DEFAULT 300,
+              `space_size` int(11) unsigned NOT NULL DEFAULT 50,
               `about` text,
               `news_link` varchar(255) DEFAULT NULL,
               `kf_link` varchar(255) DEFAULT NULL,

@@ -59,7 +59,7 @@
       >
         <swiper-item
           v-for="(item, index) in picList"
-          :key="index"
+          :key="getPictureKey(item, index)"
           style="width: 100%; height: 100%; background-color: #333"
         >
           <!-- 视频项 -->
@@ -90,6 +90,7 @@
               :src="item.picture_url"
               mode="aspectFit"
               class="preview-image"
+              lazy-load
             />
             <view v-if="displayWatermarkText" class="watermark-layer">
               <text
@@ -209,11 +210,12 @@
           <view class="add-btn" @click="showCreatePopup">新建</view>
         </view>
         <view class="album-box">
-          <view class="album" v-for="(item, index) in albumList" :key="index">
+          <view class="album" v-for="(item, index) in albumList" :key="getAlbumKey(item, index)">
             <view class="album-img" @click="selectAlbum(item, index)">
               <image
                 :src="item.new_thumb || '/static/image/pic.png'"
                 mode="aspectFill"
+                lazy-load
               ></image>
               <view class="select-box" v-if="item.isChecked">
                 <image src="/static/icon/checked.png" mode=""></image>
@@ -291,6 +293,17 @@
 <script>
 import { notifyFolderRefresh } from "@/common/helper/refresh.js";
 import { notifyRefresh } from "@/common/helper/refresh.js";
+import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
+import {
+  buildOriginalDownloadRequest,
+  imageUrlFor,
+  resolveImageDownloadUrl,
+} from "@/common/helper/imageUrls.js";
+import {
+  buildPictureListForNavigation,
+  normalizePictureForNavigation,
+} from "@/common/helper/pictureNavigation.js";
+import { buildListItemKey } from "@/common/helper/listKey.js";
 
 export default {
   data() {
@@ -413,7 +426,6 @@ export default {
     if (optionUid || options.fromPage === "styleResult") {
       this.uid = optionUid;
 
-      console.log(options);
       this.toolList = [
         {
           icon: "/static/icon/down-yuantu.png",
@@ -427,11 +439,13 @@ export default {
         },
       ];
     }
+    if (this.isVisitorMode() && !ensureSharedPageLogin("pagesOther/picDetail/picDetail", options, this.uid)) {
+      return;
+    }
     this.option_flag = options.option_flag;
     this.source = options.source || "";
-    console.log(this.option_flag, "this.option_flag");
 
-    this.picList = this.isVisitorMode() ? [] : uni.getStorageSync("picList");
+    this.picList = uni.getStorageSync("picList");
     if (!Array.isArray(this.picList)) {
       this.picList = [];
     }
@@ -467,6 +481,12 @@ export default {
   },
 
   methods: {
+    getPictureKey(item, index) {
+      return buildListItemKey(item, index, "pic");
+    },
+    getAlbumKey(item, index) {
+      return buildListItemKey(item, index, "album");
+    },
     parseSceneOptions(options = {}) {
       if (!options.scene || !this.$parseShareScene) return {};
       return this.$parseShareScene(options.scene);
@@ -478,28 +498,19 @@ export default {
       return text;
     },
     normalizePictureItem(item = {}) {
-      const id = item.pic_id || item.id || this.picId || "";
-      const pictureUrl =
-        item.picture_url ||
-        item.imgurl ||
-        item.imageField ||
-        item.src ||
-        item.url ||
-        this.currentImageUrl ||
-        "";
-      const originalUrl =
-        item.picture_url_original ||
-        item.original_url ||
-        item.originalUrl ||
-        pictureUrl;
+      const normalized = normalizePictureForNavigation(item, {
+        pic_id: this.picId,
+      });
       return {
-        ...item,
-        id,
-        pic_id: id,
-        picture_url: pictureUrl,
-        picture_url_original: originalUrl,
-        pic_beizhu: item.pic_beizhu || item.pic_name || item.name || "",
-        pic_name: item.pic_name || item.pic_beizhu || item.name || "",
+        ...normalized,
+        pic_id: normalized.pic_id || this.picId || "",
+        id: normalized.id || normalized.pic_id || this.picId || "",
+        picture_url: normalized.picture_url || this.currentImageUrl || "",
+        picture_url_original:
+          normalized.picture_url_original ||
+          normalized.picture_url ||
+          this.currentImageUrl ||
+          "",
       };
     },
     getCurrentPictureId() {
@@ -591,18 +602,73 @@ export default {
         );
         if (res && res.code === 0 && res.data) {
           const item = this.normalizePictureItem(res.data);
-          this.picList = [item];
-          this.currentIndex = 0;
+          const existingList = buildPictureListForNavigation(this.picList, {
+            product_id: item.product_id || item.folder_id,
+            folder_id: item.product_id || item.folder_id,
+          });
+          if (existingList.length) {
+            this.picList = existingList;
+            const foundIndex = existingList.findIndex(
+              (picture) => String(picture.pic_id) === String(item.pic_id),
+            );
+            this.currentIndex = foundIndex >= 0 ? foundIndex : 0;
+          } else {
+            this.picList = [item];
+            this.currentIndex = 0;
+          }
           this.currentItem = item;
           this.imageInfo = { ...this.imageInfo, ...item };
           this.picId = item.pic_id || item.id;
           this.currentImageUrl = item.picture_url;
           this.remark = item.pic_beizhu || item.pic_name || "";
+          await this.loadSharedPictureContext(item);
         }
       } catch (err) {
         console.error("加载分享图片失败:", err);
       } finally {
         this.remotePictureLoading = false;
+      }
+    },
+    async loadSharedPictureContext(item = {}) {
+      const productId = item.product_id || item.folder_id;
+      if (!this.isVisitorMode() || !this.uid || !productId) return;
+      if (this.picList.length > 1) return;
+      try {
+        const res = await this.$go(
+          "user/home/products/detail",
+          {
+            target_user_id: this.uid,
+            product_id: productId,
+          },
+          "get",
+          { show_err: false, loading: false },
+        );
+        const detail = res && res.code === 0 && res.data ? res.data : {};
+        const coverPictures = Array.isArray(detail.pic_list) ? detail.pic_list : [];
+        const detailPictures = Array.isArray(detail.detail_pic_list)
+          ? detail.detail_pic_list
+          : [];
+        const pictures = buildPictureListForNavigation(
+          [...coverPictures, ...detailPictures],
+          {
+            product_id: productId,
+            folder_id: productId,
+          },
+        );
+        if (!pictures.length) return;
+        const foundIndex = pictures.findIndex(
+          (picture) => String(picture.pic_id) === String(this.picId),
+        );
+        this.picList = pictures;
+        this.currentIndex = foundIndex >= 0 ? foundIndex : 0;
+        this.currentItem = this.normalizePictureItem(this.picList[this.currentIndex]);
+        this.imageInfo = { ...this.imageInfo, ...this.currentItem };
+        this.picId = this.currentItem.pic_id || this.currentItem.id || this.picId;
+        this.currentImageUrl = this.currentItem.picture_url;
+        this.remark = this.imageInfo.pic_beizhu || this.imageInfo.pic_name || "";
+        uni.setStorageSync("picList", this.picList);
+      } catch (err) {
+        console.error("加载分享图片上下文失败:", err);
       }
     },
     ensureCurrentPicture() {
@@ -626,13 +692,30 @@ export default {
     },
     // 返回上一页
     goBack() {
-      uni.navigateBack();
+      const pages = getCurrentPages();
+      if (pages && pages.length > 1) {
+        uni.navigateBack();
+        return;
+      }
+      const current = this.currentItem || this.imageInfo || {};
+      const productId = current.product_id || current.folder_id || "";
+      if (this.uid && productId) {
+        uni.redirectTo({
+          url: `/pagesOther/productDetail/productDetail?id=${productId}&uid=${this.uid}`,
+          fail: () => uni.reLaunch({ url: `/pages/index/index?uid=${this.uid}` }),
+        });
+        return;
+      }
+      if (this.uid) {
+        uni.reLaunch({ url: `/pages/index/index?uid=${this.uid}` });
+        return;
+      }
+      uni.reLaunch({ url: "/pages/index/index" });
     },
 
     // 显示更多操作
     showMoreActions() {
       // 可以在这里添加更多操作的弹窗
-      console.log("显示更多操作");
     },
 
     // 收藏/取消收藏
@@ -667,7 +750,6 @@ export default {
             `video-player-${this.currentIndex}`,
             this,
           );
-          console.log("视频上下文初始化成功:", this.videoContext);
         } catch (error) {
           console.error("视频上下文初始化失败:", error);
         }
@@ -683,13 +765,11 @@ export default {
 
     // 播放视频
     playVideo() {
-      console.log("尝试播放视频，当前索引:", this.currentIndex);
       if (this.videoContext) {
         this.videoContext.play();
         this.isPlaying = true;
       } else {
         // 如果视频上下文不存在，重新初始化
-        console.log("视频上下文不存在，重新初始化");
         this.$nextTick(() => {
           this.initVideoContext();
           if (this.videoContext) {
@@ -702,12 +782,10 @@ export default {
 
     // 暂停视频
     pauseVideo() {
-      console.log("尝试暂停视频");
       if (this.videoContext) {
         this.videoContext.pause();
         this.isPlaying = false;
       } else {
-        console.log("视频上下文不存在，状态设置为暂停");
         this.isPlaying = false;
       }
     },
@@ -724,7 +802,6 @@ export default {
 
     // 播放/暂停切换
     handlePlay() {
-      console.log("播放/暂停切换，当前状态:", this.isPlaying);
       // 先重新初始化确保视频上下文正确
       this.initVideoContext();
       if (this.isPlaying) {
@@ -955,17 +1032,7 @@ export default {
     // 保存媒体到相册
     async handleDownload() {
       const currentItem = this.currentItem || this.imageInfo;
-      const fileUrl =
-        currentItem.picture_url_original || currentItem.picture_url;
       const isVideo = currentItem.is_video;
-
-      if (!fileUrl) {
-        uni.showToast({
-          title: "媒体地址无效",
-          icon: "none",
-        });
-        return;
-      }
 
       if (this.isVisitorMode()) {
         if (!this.ownerHomeInfo && this.uid) {
@@ -973,17 +1040,29 @@ export default {
         }
         if (!this.isOwnerSaveAllowed()) {
           uni.showToast({
-            title: "商户未开放保存权限",
+            title: "该用户未开放下载",
             icon: "none",
           });
           return;
         }
       }
 
-      let userInfo = uni.getStorageSync("userInfo") || {};
-      if (userInfo.grade_level == 0) {
+      if (!this.canUseOriginalImage()) {
         uni.showToast({
           title: "请先升级成为会员",
+          icon: "none",
+        });
+        return;
+      }
+
+      const downloadRequest = buildOriginalDownloadRequest(currentItem, {
+        target_user_id: this.uid,
+        product_id: currentItem.product_id || currentItem.folder_id,
+        file_size: currentItem.file_size || currentItem.size,
+      });
+      if (!downloadRequest.url) {
+        uni.showToast({
+          title: "媒体地址无效",
           icon: "none",
         });
         return;
@@ -992,7 +1071,8 @@ export default {
       uni.showLoading({ title: "保存中..." });
 
       uni.downloadFile({
-        url: fileUrl,
+        url: downloadRequest.url,
+        header: downloadRequest.header,
         success: (res) => {
           if (res.statusCode === 200) {
             if (isVideo) {
@@ -1079,26 +1159,57 @@ export default {
     },
 
     // 查看原图
-    handleViewOriginal() {
+    async handleViewOriginal() {
       // 只有图片才可以查看原图
       if (this.currentItem && this.currentItem.is_video) {
         return;
       }
 
-      let userInfo = uni.getStorageSync("userInfo") || {};
-      if (userInfo.grade_level == 0) {
+      if (!this.canUseOriginalImage()) {
         uni.showToast({
           title: "请先升级成为会员",
           icon: "none",
         });
-      } else {
-        if (this.imageInfo.picture_url_original) {
-          this.currentImageUrl = this.imageInfo.picture_url_original;
-          this.handleDownload();
+        return;
+      }
+      const currentItem = this.currentItem || this.imageInfo || {};
+      const originalUrl = await resolveImageDownloadUrl(this.$go, currentItem, {
+        target_user_id: this.uid,
+        product_id: currentItem.product_id || currentItem.folder_id,
+        file_size: currentItem.file_size || currentItem.size,
+      });
+      if (originalUrl) {
+        this.currentImageUrl = originalUrl;
+        if (this.currentItem) {
+          this.currentItem.picture_url = originalUrl;
         }
+        this.imageInfo.picture_url = originalUrl;
       }
     },
-
+    canUseOriginalImage() {
+      const userInfo = uni.getStorageSync("userInfo") || {};
+      const gradeLevel = Number(
+        userInfo.grade_level ||
+          userInfo.gradeLevel ||
+          userInfo.vip_grade ||
+          userInfo.vipGrade ||
+          0,
+      );
+      const rawEndTime =
+        userInfo.end_time ||
+        userInfo.endTime ||
+        userInfo.vip_end_time ||
+        userInfo.vipEndTime ||
+        userInfo.expire_time ||
+        userInfo.expireTime ||
+        0;
+      let endTime = Number(rawEndTime || 0);
+      if (!endTime && typeof rawEndTime === "string" && rawEndTime) {
+        const parsed = new Date(rawEndTime).getTime();
+        endTime = Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+      }
+      return gradeLevel > 0 && (!endTime || endTime > Math.floor(Date.now() / 1000));
+    },
     // 添加到相册
     handleAddToAlbum() {
       if (this.option_flag == "false") {

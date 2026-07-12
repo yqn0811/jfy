@@ -87,7 +87,7 @@ class WechatController extends ApiBaseController
                                     'avatar' => $userInfo['headimgurl'] ?? '',
                                     'create_time' => time(),
                                     'user_uuid' => (new WdXcxUser())->getUuId(),
-                                    'space_size' => 300, // Default size
+                                    'space_size' => WdXcxUser::DEFAULT_FREE_SPACE_MB,
                                 ]);
                                 // Initialize grade
                                 \app\common\model\user\WdXcxUserVipGradeInfo::create([

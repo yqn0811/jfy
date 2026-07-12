@@ -88,7 +88,7 @@ const formatCapacity = (mb: number): string => {
         :disabled="props.isLoading"
         @click="emit('upgrade')"
       >
-        <SafeIcon :name="props.isLoading ? 'Loader2' : 'ShoppingCart'" :size="16" :class="['mr-2', props.isLoading && 'animate-spin']" />
+        <SafeIcon :name="props.isLoading ? 'Loader2' : 'ShoppingCart'" :size="16" :class="props.isLoading ? 'mr-2 animate-spin' : 'mr-2'" />
         {{ props.isLoading ? '正在创建订单' : '立即升级' }}
       </Button>
       <Button 

@@ -35,7 +35,7 @@
 					<view class="ming-title">所有照片</view>
 					<view class="ming-tip">照片已使用空间 40G</view>
 				</view>
-				<view class="img-content" v-for="(item, index) in picList" :key="index">
+					<view class="img-content" v-for="(item, index) in picList" :key="getGroupKey(item, index)">
 					<view class="time-box">
 						<view class="img-time">{{ item.collect_date }}</view>
 						<!-- <view class="select-box select-box1" @click="handleRadioClickAll(item)" v-if="state == 1">
@@ -43,16 +43,16 @@
 							<image src="@/static/icon/checked.png" v-if='item.isChecked' /> 全选
 						</view> -->
 					</view>
-					<view class="img-box" v-for="(pic, idx) in item.pictures" v-if="pic && (pic.file_type || pic.picture_url)" @longpress="state = 1">
-						<image class="pic" @click="toPicDetail(pic)" v-if="pic.file_type == 2 && pic.picture_url"
-							:src="pic.picture_url + '?x-oss-process=video/snapshot,t_0,f_jpg,w_800,h_600'" mode="aspectFill">
-						</image>
-						<image class="pic" @click="toPicDetail(pic)" v-if="pic.file_type == 1 && pic.picture_url"
-							:src="pic.picture_url" mode="aspectFill"></image>
+						<view class="img-box" v-for="(pic, idx) in item.pictures" :key="getPictureKey(pic, idx)" v-if="pic && (pic.file_type || pic.picture_url)" @longpress="state = 1">
+							<image class="pic" :data-group-index="index" :data-pic-index="idx" @click="toPicDetail(pic, index, idx, $event)" v-if="pic.file_type == 2 && pic.picture_url"
+								:src="pic.picture_url + '?x-oss-process=video/snapshot,t_0,f_jpg,w_800,h_600'" lazy-load mode="aspectFill">
+							</image>
+							<image class="pic" :data-group-index="index" :data-pic-index="idx" @click="toPicDetail(pic, index, idx, $event)" v-if="pic.file_type == 1 && pic.picture_url"
+								:src="pic.picture_url" lazy-load mode="aspectFill"></image>
 						<template v-if="state == 1">
-							<view class="top" v-if="pic.set_top == 0" @click="setTop(pic)">置顶</view>
-							<view class="top" v-if="pic.set_top == 1" @click="setTop(pic)">取消置顶</view>
-							<view class="select-box" @click.stop="handleRadioClick(pic)">
+							<view class="top" v-if="pic.set_top == 0" :data-group-index="index" :data-pic-index="idx" @click="setTop(pic, index, idx, $event)">置顶</view>
+							<view class="top" v-if="pic.set_top == 1" :data-group-index="index" :data-pic-index="idx" @click="setTop(pic, index, idx, $event)">取消置顶</view>
+							<view class="select-box" :data-group-index="index" :data-pic-index="idx" @click.stop="handleRadioClick(pic, index, idx, $event)">
 								<image src="../../static/icon/check.png" mode="" v-if='!pic.isChecked'></image>
 								<image src="../../static/icon/checked.png" mode="" v-if='pic.isChecked'></image>
 							</view>
@@ -108,9 +108,9 @@
 							@click="addAlbum">新建</view>
 					</view>
 					<view class="album-box">
-						<view class="album" v-for="(item, index) in albumList" :key="index">
-							<view class="album-img" @click="selectAlbum(item, index)">
-								<image v-if="item.new_thumb" :src="item.new_thumb" mode="aspectFill"></image>
+							<view class="album" v-for="(item, index) in albumList" :key="getAlbumKey(item, index)">
+								<view class="album-img" @click="selectAlbum(item, index)">
+									<image v-if="item.new_thumb" :src="item.new_thumb" lazy-load mode="aspectFill"></image>
 								<image v-else src="/static/image/pic.png" mode="aspectFill"></image>
 								<view class="select-box" v-if="item.isChecked">
 									<image src="../../static/icon/checked.png" mode=""></image>
@@ -148,12 +148,20 @@
 
 <script>
 import config from '@/common/config'
+import Upload from '@/common/request/upload.js';
 import { notifyFolderRefresh } from '@/common/helper/refresh.js';
 import {
 	buildUploadNameFormData,
 	normalizeSelectedUploadFile,
 	prepareNamedUploadFile,
 } from '@/common/helper/uploadName.js';
+import {
+	buildPictureListForNavigation,
+	setPictureNavigationContext,
+} from '@/common/helper/pictureNavigation.js';
+import { buildListItemKey } from '@/common/helper/listKey.js';
+import { getObjectId, resolveClickedListItem, showInvalidRecordToast } from '@/common/helper/clickItem.js';
+const uploader = new Upload();
 export default {
 	data() {
 		return {
@@ -214,6 +222,40 @@ export default {
 		}
 	},
 	methods: {
+		getGroupKey(item, index) {
+			return buildListItemKey(item, index, 'pic-group', ['collect_date', 'id']);
+		},
+		getPictureKey(item, index) {
+			return buildListItemKey(item, index, 'pic');
+		},
+		getAlbumKey(item, index) {
+			return buildListItemKey(item, index, 'album');
+		},
+		getPictureId(item) {
+			return getObjectId(item, ['pic_id', 'id']);
+		},
+		getCollectId(item) {
+			return getObjectId(item, ['id', 'collect_id']);
+		},
+		resolvePictureItem(pic, groupIndex, picIndex, event) {
+			if (pic && typeof pic === 'object' && !pic.currentTarget) {
+				return pic;
+			}
+			const dataset = event && event.currentTarget && event.currentTarget.dataset
+				? event.currentTarget.dataset
+				: {};
+			const resolvedGroupIndex = groupIndex !== null && groupIndex !== undefined
+				? Number(groupIndex)
+				: Number(dataset.groupIndex);
+			const resolvedPicIndex = picIndex !== null && picIndex !== undefined
+				? Number(picIndex)
+				: Number(dataset.picIndex);
+			if (Number.isInteger(resolvedGroupIndex) && this.picList[resolvedGroupIndex]) {
+				const pictures = this.picList[resolvedGroupIndex].pictures || [];
+				return pictures[resolvedPicIndex] || null;
+			}
+			return null;
+		},
 		// 处理右侧按钮区域点击事件
 		handleRightBoxClick() {
 			if (this.state == 1) {
@@ -222,10 +264,16 @@ export default {
 				this.showUploadMenu();
 			}
 		},
-		toPicDetail(pic) {
-			uni.setStorageSync('picInfo', pic)
+		toPicDetail(pic, groupIndex, picIndex, event) {
+			const current = this.resolvePictureItem(pic, groupIndex, picIndex, event);
+			const picId = this.getPictureId(current);
+			if (!current || !picId) {
+				showInvalidRecordToast();
+				return;
+			}
+			const pictureContext = setPictureNavigationContext(current, this.picList)
 			uni.navigateTo({
-				url: `/pagesOther/picDetail/picDetail?option_flag=${this.option_flag}&pic_id=${pic.id}&source=mineImg&pic_type=3`
+				url: `/pagesOther/picDetail/picDetail?option_flag=${this.option_flag}&pic_id=${pictureContext.current.pic_id || picId}&source=mineImg&pic_type=3`
 			})
 		},
 		toVideoDetail(pic) {
@@ -236,10 +284,11 @@ export default {
 		},
 
 		addToAlbum() {
-			let pics = []
-			this.pics.forEach(item => {
-				pics.push(item.pic_id)
-			})
+			let pics = this.pics.map(item => this.getPictureId(item)).filter(Boolean)
+			if (!pics.length) {
+				showInvalidRecordToast('请选择有效图片')
+				return
+			}
 			const querys = {
 				fid: this.fidList[this.fidList.length - 1],
 				pic_ids: pics.join(','),
@@ -262,9 +311,15 @@ export default {
 			})
 		},
 
-		selectAlbum(item, index) {
-			if (item.folder_type == 2) {
-				this.fidList.push(item.id)
+		selectAlbum(item, index, event) {
+			const current = resolveClickedListItem(item, index, event, this.albumList);
+			const folderId = getObjectId(current, ['id', 'folder_id', 'fid']);
+			if (!current || !folderId) {
+				showInvalidRecordToast();
+				return;
+			}
+			if (current.folder_type == 2) {
+				this.fidList.push(folderId)
 				this.albumList.forEach((item, idx) => {
 					if (index == idx) {
 						this.albumList[idx].isChecked = true
@@ -273,8 +328,8 @@ export default {
 					}
 				})
 			}
-			if (item.folder_type == 1) {
-				this.fidList.push(item.id)
+			if (current.folder_type == 1) {
+				this.fidList.push(folderId)
 				const querys = {
 					fid: this.fidList[this.fidList.length - 1],
 					timestamp: new Date().getTime(),
@@ -303,7 +358,7 @@ export default {
 			this.$go('user/pic/collect', data, 'get', {
 				show_err: true
 			}).then(res => {
-				uni.setStorageSync('picList', res.data.pictures)
+				uni.setStorageSync('picList', buildPictureListForNavigation(res.data.pictures || []))
 			})
 		},
 
@@ -373,10 +428,11 @@ export default {
 
 		//删除
 		delPic(e) {
-			let pics = []
-			this.pics.forEach(item => {
-				pics.push(item.id)
-			})
+			let pics = this.pics.map(item => this.getCollectId(item)).filter(Boolean)
+			if (!pics.length) {
+				showInvalidRecordToast('请选择有效图片')
+				return
+			}
 			const querys = {
 				collect_ids: pics.join(','),
 				del_type: e,
@@ -409,9 +465,15 @@ export default {
 		},
 
 		//置顶
-		setTop(item) {
+		setTop(item, groupIndex, picIndex, event) {
+			const current = this.resolvePictureItem(item, groupIndex, picIndex, event);
+			const picId = this.getPictureId(current);
+			if (!current || !picId) {
+				showInvalidRecordToast();
+				return;
+			}
 			const querys = {
-				pic_id: item.id,
+				pic_id: picId,
 				timestamp: new Date().getTime(),
 			}
 			const data = {
@@ -455,8 +517,12 @@ export default {
 		},
 
 		handleRadioClickAll(item) {
+			if (!item || !Array.isArray(item.pictures)) {
+				showInvalidRecordToast()
+				return
+			}
 			if (item.isChecked === false) {
-				item.pictures.forEach(ele => {
+				item.pictures.filter(ele => this.getPictureId(ele)).forEach(ele => {
 					this.pics.push(ele);
 					ele.isChecked = true;
 				});
@@ -474,17 +540,24 @@ export default {
 
 		},
 
-		handleRadioClick(pic) {
-			if (pic.isChecked) {
-				pic.isChecked = false;
-				this.pics.forEach((item, index) => {
-					if (item.pic_id == pic.pic_id) {
-						this.pics.splice(index, 1)
-					}
-				})
+		handleRadioClick(pic, groupIndex, picIndex, event) {
+			const current = this.resolvePictureItem(pic, groupIndex, picIndex, event)
+			const picId = this.getPictureId(current)
+			if (!current || !picId) {
+				showInvalidRecordToast()
+				return
+			}
+			if (current.isChecked) {
+				current.isChecked = false;
+				const selectedIndex = this.pics.findIndex(item => String(this.getPictureId(item)) === String(picId))
+				if (selectedIndex !== -1) {
+					this.pics.splice(selectedIndex, 1)
+				}
 			} else {
-				pic.isChecked = true;
-				this.pics.push(pic)
+				current.isChecked = true;
+				if (!this.pics.some(item => String(this.getPictureId(item)) === String(picId))) {
+					this.pics.push(current)
+				}
 			}
 		},
 		changeState() {
@@ -526,7 +599,6 @@ export default {
 					}
 				},
 				fail: (err) => {
-					console.log('取消选择', err);
 				}
 			});
 		},
@@ -536,22 +608,13 @@ export default {
 				return Promise.reject(new Error('文件路径为空'))
 			}
 			return prepareNamedUploadFile(selectedFile.path, selectedFile.name).then((uploadPath) => {
-				return new Promise((resolve, reject) => {
-					uni.uploadFile({
-						url: config.domain + '/api/common/upload',
-						filePath: uploadPath,
-						name: 'file',
-						header: {
-							'content-type': 'multipart/form-data',
-							'authorization-token': `Bearer ${uni.getStorageSync('token')}`
-						},
-						formData: {
-							...params,
-							...buildUploadNameFormData(selectedFile.name)
-						},
-						success: resolve,
-						fail: reject
-					})
+				return uploader.upload(uploadPath, {
+					endpoint: '/api/common/upload',
+					formData: {
+						...params,
+						...buildUploadNameFormData(selectedFile.name)
+					},
+					showErrorToast: false
 				})
 			})
 		},
@@ -582,12 +645,10 @@ export default {
 						collect_flag: 1
 					}
 					let params = {
-						...querys,
-						sign: this.$base.getASCII(querys)
-					}
-					console.log(params)
-
-					tempFiles.forEach((file, index) => {
+							...querys,
+							sign: this.$base.getASCII(querys)
+						}
+						tempFiles.forEach((file, index) => {
 						this.uploadSelectedFile(file, params)
 							.then((uploadRes) => {
 								uploadCount++;
@@ -665,7 +726,6 @@ export default {
 				type: 'image',
 				success: (res) => {
 					const tempFiles = res.tempFiles;
-					console.log('从微信聊天中选取的文件:', tempFiles);
 
 					if (tempFiles.length === 0) {
 						uni.showToast({

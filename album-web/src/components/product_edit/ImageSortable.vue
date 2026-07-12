@@ -4,7 +4,8 @@ import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { cn } from '@/lib/utils'
-import type { ProductImageData, ProductImageType } from '@/data/ProductData'
+import type { ProductImageType } from '@/data/ProductData'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
 
 interface Props {
   images: ProductImageData[]
@@ -100,12 +101,19 @@ const handleRemove = (id: string) => {
 const typeLabel = computed(() => {
   return props.type === 'colorChart' ? '花色图' : '详情图'
 })
+
+const finishedCount = computed(() =>
+  props.images.filter(image => image.uploadStatus !== 'uploading' && image.uploadStatus !== 'error').length
+)
+
+const isUploading = (image: ProductImageData) => image.uploadStatus === 'uploading'
+const isFailed = (image: ProductImageData) => image.uploadStatus === 'error'
 </script>
 
 <template>
   <div :class="props.class">
     <p class="mb-2 text-sm font-medium text-muted-foreground">
-      已上传 {{ images.length }} 张{{ typeLabel }}（可拖拽排序）
+      已上传 {{ finishedCount }} 张{{ typeLabel }}（可拖拽排序）
     </p>
 
     <div
@@ -116,12 +124,14 @@ const typeLabel = computed(() => {
       <div
         v-for="(image, index) in images"
         :key="image.id"
-        draggable="true"
-        class="group relative h-28 w-28 overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted/30 cursor-move transition-all hover:border-primary"
+        :draggable="!isUploading(image)"
+        class="group relative h-28 w-28 overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted/30 transition-all hover:border-primary"
         :class="
           cn(
             dragOverIndex === index && 'border-primary bg-primary/10',
-            draggedIndex === index && 'opacity-50'
+            draggedIndex === index && 'opacity-50',
+            isUploading(image) ? 'cursor-default animate-pulse border-primary/40 bg-primary/5' : 'cursor-move',
+            isFailed(image) && 'border-destructive/60 bg-destructive/5'
           )
         "
         :aria-grabbed="draggedIndex === index"
@@ -133,11 +143,27 @@ const typeLabel = computed(() => {
       >
         <!-- Image Preview -->
         <img
-          :src="image.thumbnailUrl"
+          :src="productImageUrl(image, 'thumb')"
           :alt="image.name"
           draggable="false"
           class="w-full h-full object-cover"
         />
+
+        <div
+          v-if="isUploading(image)"
+          class="absolute inset-0 flex flex-col items-center justify-center bg-white/70 text-primary backdrop-blur-[1px]"
+        >
+          <SafeIcon name="Loader2" :size="22" class="animate-spin" />
+          <span class="mt-2 text-xs font-medium">上传中</span>
+        </div>
+
+        <div
+          v-else-if="isFailed(image)"
+          class="absolute inset-0 flex flex-col items-center justify-center bg-destructive/80 px-2 text-center text-white"
+        >
+          <SafeIcon name="CircleAlert" :size="22" />
+          <span class="mt-2 line-clamp-2 text-xs">{{ image.uploadError || '上传失败' }}</span>
+        </div>
 
         <!-- Overlay -->
         <div
@@ -158,7 +184,10 @@ const typeLabel = computed(() => {
           {{ index + 1 }}
         </div>
 
-        <div class="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded bg-black/50 text-white opacity-80">
+        <div
+          v-if="!isUploading(image)"
+          class="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded bg-black/50 text-white opacity-80"
+        >
           <SafeIcon name="GripVertical" :size="14" />
         </div>
 
@@ -177,6 +206,8 @@ const typeLabel = computed(() => {
       >
         放到末尾
       </div>
+
+      <slot name="after" />
     </div>
   </div>
 </template>

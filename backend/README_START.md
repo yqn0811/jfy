@@ -8,6 +8,7 @@
 - 扩展要求：
   - openssl
   - pdo_mysql
+  - pdo_pgsql / pgsql（文件传输模块）
   - mbstring
   - curl
   - fileinfo
@@ -61,6 +62,22 @@ DATABASE_HOSTPORT = 3306
 DATABASE_CHARSET = utf8mb4
 DATABASE_PREFIX = 
 
+# 文件传输模块 PostgreSQL 配置
+# 103 测试服使用 AI 生图同库 ai_jf，不同表前缀 ft_。
+[FILE_DB]
+TYPE = pgsql
+HOSTNAME = 127.0.0.1
+DATABASE = ai_jf
+USERNAME = ai_jf_user
+PASSWORD = your_file_db_password
+HOSTPORT = 5433
+CHARSET = utf8
+PREFIX = ft_
+SCHEMA = public
+
+[FILE_TRANSFER]
+MAX_UPLOAD_MB = 500
+
 # 日志配置
 LOG_CHANNEL = file
 
@@ -110,7 +127,6 @@ php -S localhost:8080
 
 访问地址：
 - API接口：http://localhost:8000/api/
-- 管理后台：http://localhost:8000/index/
 
 #### 方式二：使用Nginx（生产环境）
 
@@ -157,8 +173,7 @@ sudo nginx -s reload  # 重载配置
 # 测试API接口
 curl http://localhost:8000/api/index
 
-# 测试管理后台
-curl http://localhost:8000/index/
+# 旧 PHP 管理后台已废弃并移除，后台管理统一在 AI 管理后台维护。
 ```
 
 ## 三、常见问题
@@ -275,7 +290,6 @@ curl -H "authorization-token: Bearer YOUR_TOKEN" \
 newjfybackend/
 ├── app/              # 应用目录
 │   ├── api/         # API应用
-│   ├── index/       # 管理后台应用
 │   └── common/      # 公共模块
 ├── config/          # 配置文件
 ├── public/          # Web根目录（入口文件）

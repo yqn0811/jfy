@@ -4,13 +4,16 @@ namespace app\common\service;
 
 use cores\utils\HasHttpRequest;
 use EasyWeChat\Factory;
+use GuzzleHttp\Client;
 use think\facade\Config;
+use think\facade\Log;
 
 class WxService
 {
     use HasHttpRequest;
 
     const NOTIFY_URL = '/api/pay/callback';
+    const WECHAT_INVALID_TOKEN_CODES = [40001, 42001, 40014];
     private function ensureDir($path)
     {
         if (!is_dir($path)) {
@@ -105,7 +108,6 @@ class WxService
 //        $result = [
 //            'openid' => 'oCzgA7RnL28lGwTP5bK1Nt09_wfU',
 //        ];
-        $this->getApp()->access_token->getToken();
         $result = $this->getApp()->auth->session($code);
         if(!empty($result['errcode'])){
             throwError($result['errmsg']);
@@ -115,8 +117,98 @@ class WxService
 
     public function getAccessToken()
     {
-        $access_token = $this->getApp()->access_token->getToken();
-        return $access_token['access_token'];
+        return $this->getStableAccessToken();
+    }
+
+    public function getStableAccessToken($forceRefresh = false)
+    {
+        if ($this->app_type !== 1) {
+            $access_token = $this->getApp()->access_token->getToken($forceRefresh);
+            return $access_token['access_token'];
+        }
+
+        $cacheKey = 'wechat_stable_access_token_' . Config::get('miniprogram.appid');
+        if (!$forceRefresh) {
+            $cachedToken = cache($cacheKey);
+            if ($cachedToken) {
+                return $cachedToken;
+            }
+        }
+
+        $result = $this->postJson('https://api.weixin.qq.com/cgi-bin/stable_token', [
+            'grant_type' => 'client_credential',
+            'appid' => Config::get('miniprogram.appid'),
+            'secret' => Config::get('miniprogram.appsecret'),
+            'force_refresh' => (bool)$forceRefresh,
+        ]);
+
+        if (!empty($result['access_token'])) {
+            $expire = isset($result['expires_in']) ? max(60, (int)$result['expires_in'] - 300) : 6900;
+            cache($cacheKey, $result['access_token'], $expire);
+            return $result['access_token'];
+        }
+
+        Log::error('wechat stable access token failed: ' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        throwError('微信凭证获取失败，请稍后重试');
+    }
+
+    private function isInvalidAccessTokenResult($result)
+    {
+        if (empty($result['errcode'])) {
+            return false;
+        }
+        return in_array((int)$result['errcode'], self::WECHAT_INVALID_TOKEN_CODES, true);
+    }
+
+    private function requestMiniProgramApi($url, $data, $errorMessage, $forceRefresh = false)
+    {
+        $result = $this->postJson($url, $data, ['access_token' => $this->getStableAccessToken($forceRefresh)]);
+        if (!$forceRefresh && $this->isInvalidAccessTokenResult($result)) {
+            Log::warning('wechat access token expired, retrying stable token: ' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            return $this->requestMiniProgramApi($url, $data, $errorMessage, true);
+        }
+        if (!empty($result['errcode']) && (int)$result['errcode'] !== 0) {
+            Log::error('wechat api failed: ' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            throwError($errorMessage);
+        }
+        return $result;
+    }
+
+    private function saveMiniProgramBinaryApi($url, $data, $filepath, $filename, $errorMessage, $forceRefresh = false)
+    {
+        try {
+            $response = (new Client(['timeout' => 60.0]))->post($url, [
+                'query' => ['access_token' => $this->getStableAccessToken($forceRefresh)],
+                'headers' => ['content-type' => 'application/json'],
+                'body' => json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('wechat binary api request failed: ' . $e->getMessage());
+            throwError($errorMessage);
+        }
+
+        $contentType = $response->getHeaderLine('Content-type');
+        $contents = $response->getBody()->getContents();
+        if (false !== stripos($contentType, 'json')) {
+            $result = json_decode($contents, true);
+            if (!$forceRefresh && $this->isInvalidAccessTokenResult($result)) {
+                Log::warning('wechat binary api token expired, retrying stable token: ' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $this->saveMiniProgramBinaryApi($url, $data, $filepath, $filename, $errorMessage, true);
+            }
+            Log::error('wechat binary api failed: ' . $contents);
+            throwError($errorMessage);
+        }
+
+        if ($contents === '') {
+            Log::error('wechat binary api returned empty body');
+            throwError($errorMessage);
+        }
+
+        $this->ensureDir($filepath);
+        if (file_put_contents($filepath . '/' . $filename, $contents) === false) {
+            Log::error('wechat binary api save failed: ' . $filepath . '/' . $filename);
+            throwError($errorMessage);
+        }
     }
 
     /**获取用户绑定的手机号码
@@ -130,10 +222,7 @@ class WxService
         $data = [
             'code' => $code
         ];
-        $result = $this->postJson($url, $data, ['access_token' => $this->getAccessToken()]);
-        if(!empty($result['errcode'])){
-            throwError($result['errmsg']);
-        }
+        $result = $this->requestMiniProgramApi($url, $data, '手机号授权失败，请稍后重试');
         return  $result['phone_info']['purePhoneNumber'];
     }
 
@@ -147,11 +236,7 @@ class WxService
         if ($pageTitle !== '') {
             $data['page_title'] = $pageTitle;
         }
-        $result = $this->postJson($url, $data, ['access_token' => $this->getAccessToken()]);
-        if (!empty($result['errcode']) && $result['errcode'] != 0) {
-            $msg = isset($result['errmsg']) ? $result['errmsg'] : '获取短链失败';
-            throwError($msg);
-        }
+        $result = $this->requestMiniProgramApi($url, $data, '获取短链失败，请稍后重试');
         if (empty($result['link'])) {
             throwError('获取短链失败');
         }
@@ -170,11 +255,7 @@ class WxService
             'expire_time' => $expireTime,
             'env_version' => 'release',
         ];
-        $result = $this->postJson($url, $data, ['access_token' => $this->getAccessToken()]);
-        if (!empty($result['errcode']) && $result['errcode'] != 0) {
-            $msg = isset($result['errmsg']) ? $result['errmsg'] : '获取链接失败';
-            throwError($msg);
-        }
+        $result = $this->requestMiniProgramApi($url, $data, '获取链接失败，请稍后重试');
         if (empty($result['url_link'])) {
             throwError('获取链接失败');
         }
@@ -189,16 +270,10 @@ class WxService
      */
     public function getWxQrcode($data)
     {
-        $result = $this->getApp()->app_code->get($data['path'], [
+        return $this->saveMiniProgramBinaryApi('https://api.weixin.qq.com/wxa/getwxacode', [
+            'path' => $data['path'],
             'width' => 100,
-        ]);
-        if ($result instanceof \EasyWeChat\Kernel\Http\StreamResponse) {
-            $this->ensureDir($data['filepath']);
-            $result->save($data['filepath'], $data['filename']);
-        }else{
-            $msg = is_array($result) ? ($result['errmsg'] ?? '生成二维码失败') : '生成二维码失败';
-            throwError($msg);
-        }
+        ], $data['filepath'], $data['filename'], '生成二维码失败，请稍后重试');
     }
 
     /**不限制小程序码
@@ -208,19 +283,14 @@ class WxService
      */
     public function getUnlimitQrcode($data)
     {
-        $options = [];
+        $options = [
+            'scene' => $data['scene'],
+            'check_path' => false,
+        ];
         if (!empty($data['path'])) {
             $options['page'] = ltrim($data['path'], '/');
         }
-        $options['check_path'] = false;
-        $result = $this->getApp()->app_code->getUnlimit($data['scene'], $options);
-        if ($result instanceof \EasyWeChat\Kernel\Http\StreamResponse) {
-            $this->ensureDir($data['filepath']);
-            $result->save($data['filepath'], $data['filename']);
-        }else{
-            $msg = is_array($result) ? ($result['errmsg'] ?? '生成二维码失败') : '生成二维码失败';
-            throwError($msg);
-        }
+        return $this->saveMiniProgramBinaryApi('https://api.weixin.qq.com/wxa/getwxacodeunlimit', $options, $data['filepath'], $data['filename'], '生成二维码失败，请稍后重试');
     }
 
     /**回调地址

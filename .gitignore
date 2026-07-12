@@ -38,3 +38,8 @@ miniapp/node_modules/
 miniapp/dist/
 miniapp/unpackage/
 miniapp/*.zip
+
+# Local test artifacts
+/.playwright-cli/
+/output/
+/album-web/output/

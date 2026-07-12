@@ -65,7 +65,12 @@
 </template>
 
 <script>
-import { getMiniCode, login, setPendingInviteCode } from "@/common/request/api.js";
+import {
+  consumeShareLoginRedirect,
+  getMiniCode,
+  login,
+  setPendingInviteCode,
+} from "@/common/request/api.js";
 
 export default {
   data() {
@@ -88,14 +93,12 @@ export default {
     // 页面加载时先获取 openid
     this.initOpenId();
     this.checkPrivacySetting();
-    console.log(this.$go);
   },
   methods: {
     // 初始化获取 openid
     async initOpenId() {
       try {
         await getMiniCode(this.inviteCode);
-        console.log("openid 获取成功");
       } catch (error) {
         console.error("获取 openid 失败:", error);
       }
@@ -185,16 +188,7 @@ export default {
 
             // 登录成功后，延迟跳转
             setTimeout(() => {
-              // 返回上一页或跳转到首页
-              const pages = getCurrentPages();
-              console.log(pages)
-              if (pages.length > 1 || this.uid) {
-                uni.navigateBack();
-              } else {
-                uni.redirectTo({
-                  url: "/pages/index/index",
-                });
-              }
+              this.redirectAfterLogin();
             }, 1500);
           } else {
             uni.showToast({
@@ -230,6 +224,26 @@ export default {
       } else {
         uni.redirectTo({
           url: "/pages/selection/selection",
+        });
+      }
+    },
+    redirectAfterLogin() {
+      const redirectUrl = consumeShareLoginRedirect();
+      if (redirectUrl) {
+        uni.redirectTo({
+          url: redirectUrl,
+          fail: () => {
+            uni.reLaunch({ url: redirectUrl });
+          },
+        });
+        return;
+      }
+      const pages = getCurrentPages();
+      if (pages.length > 1 || this.uid) {
+        uni.navigateBack();
+      } else {
+        uni.redirectTo({
+          url: "/pages/index/index",
         });
       }
     },

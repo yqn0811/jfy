@@ -251,7 +251,6 @@ export default {
           if (res.confirm) {
             await this.setVisibility(2);
           } else if (res.cancel) {
-            console.log("用户点击取消");
           }
         },
       });

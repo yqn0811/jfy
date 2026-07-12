@@ -58,6 +58,29 @@ return [
             'fields_cache'    => false,
         ],
 
+        // 文件传输模块专用 PostgreSQL 连接。默认库为 103 测试服 AI 生图库 ai_jf，
+        // 只通过 ft_ 前缀表读写，不影响默认 MySQL 相册业务。
+        'pgsql_file' => [
+            'type'            => env('FILE_DB_TYPE', env('file_db.type', 'pgsql')),
+            'hostname'        => env('FILE_DB_HOSTNAME', env('file_db.hostname', '127.0.0.1')),
+            'database'        => env('FILE_DB_DATABASE', env('file_db.database', 'ai_jf')),
+            'username'        => env('FILE_DB_USERNAME', env('file_db.username', 'ai_jf_user')),
+            'password'        => env('FILE_DB_PASSWORD', env('file_db.password', '')),
+            'hostport'        => env('FILE_DB_HOSTPORT', env('file_db.hostport', '5433')),
+            'params'          => [],
+            'charset'         => env('FILE_DB_CHARSET', env('file_db.charset', 'utf8')),
+            'prefix'          => env('FILE_DB_PREFIX', env('file_db.prefix', 'ft_')),
+            'schema'          => env('FILE_DB_SCHEMA', env('file_db.schema', 'public')),
+            'deploy'          => 0,
+            'rw_separate'     => false,
+            'master_num'      => 1,
+            'slave_no'        => '',
+            'fields_strict'   => true,
+            'break_reconnect' => false,
+            'trigger_sql'     => env('app_debug', true),
+            'fields_cache'    => false,
+        ],
+
         // 更多的数据库配置信息
     ],
 ];

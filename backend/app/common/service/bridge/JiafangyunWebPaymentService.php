@@ -41,9 +41,13 @@ class JiafangyunWebPaymentService extends BaseService
         if ($planId <= 0) {
             throwError('请选择会员套餐');
         }
+        $packageType = strtolower(trim((string)($param['package_type'] ?? '')));
         return $this->createNativeOrder($user, [
             'scene' => 'membership_open',
             'membership_plan_id' => $planId,
+            'plan_id' => $planId,
+            'package_type' => $packageType,
+            'coupon_code' => $this->normalizeCouponCode($param['coupon_code'] ?? ''),
         ], 'b-web-vip');
     }
 
@@ -57,6 +61,7 @@ class JiafangyunWebPaymentService extends BaseService
         return $this->createNativeOrder($user, [
             'scene' => 'points_recharge',
             'points_plan_id' => $planId,
+            'coupon_code' => $this->normalizeCouponCode($param['coupon_code'] ?? ''),
         ], 'b-web-recharge');
     }
 
@@ -106,6 +111,9 @@ class JiafangyunWebPaymentService extends BaseService
             'payment_method' => 'native',
             'client_request_id' => $prefix . '-' . (int)$user->id . '-' . $planId . '-' . time(),
         ]);
+        if (empty($payload['coupon_code'])) {
+            unset($payload['coupon_code']);
+        }
         $resp = $this->bridgeClient->post('/jiafangyun/bridge/payment/create-order', $payload);
         $order = $resp['order'] ?? [];
         if (empty($order['order_no']) && empty($order['order_id'])) {
@@ -126,6 +134,8 @@ class JiafangyunWebPaymentService extends BaseService
             'order_type' => $order['order_type'] ?? '',
             'amount_cents' => $amountCents,
             'amount' => $this->centsToMoney($amountCents),
+            'original_amount' => (int)($order['original_amount'] ?? $amountCents),
+            'discount_cents' => (int)($order['discount_cents'] ?? 0),
             'payment_method' => $order['payment_method'] ?? 'wechatpay',
             'payment_url' => $codeUrl,
             'code_url' => $codeUrl,
@@ -211,6 +221,11 @@ class JiafangyunWebPaymentService extends BaseService
             }
         }
         return 0;
+    }
+
+    private function normalizeCouponCode($value)
+    {
+        return strtoupper(trim((string)$value));
     }
 
     private function normalizeOrderStatus($order)

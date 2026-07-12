@@ -1,4 +1,6 @@
 const DEFAULT_API_BASE = 'https://api.jfyuntu.com/api'
+const TEST_API_BASE = 'https://api-test.jfyuntu.com/api'
+const TEST_ALBUM_HOSTS = new Set(['pic-test.jfyuntu.com'])
 
 export interface ApiResponse<T = any> {
   code: number
@@ -30,10 +32,16 @@ const SHOULD_BUNDLE_MOCK =
   import.meta.env.PUBLIC_JFYUNTU_MOCK === '1' ||
   import.meta.env.PUBLIC_JFYUNTU_MOCK === 'true'
 
+const getHostApiBase = () => {
+  if (typeof window === 'undefined') return ''
+  const hostname = window.location.hostname
+  return TEST_ALBUM_HOSTS.has(hostname) || hostname.endsWith('.pic-test.jfyuntu.com') ? TEST_API_BASE : ''
+}
+
 const getRuntimeApiBase = () => {
-  if (typeof window === 'undefined') return DEFAULT_API_BASE
+  if (typeof window === 'undefined') return import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
   const injected = (window as any).__JFYUNTU_API_BASE__
-  return injected || import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
+  return injected || getHostApiBase() || import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
 }
 
 const joinUrl = (base: string, path: string) => {
@@ -82,6 +90,13 @@ export const buildHomeTargetParams = (target: HomeTargetRef = {}) => {
   return value.shareCode ? { code: value.shareCode } : { target_user_id: value.targetUserId }
 }
 
+export type MiniProgramShareType = 'home' | 'category' | 'product' | 'selection'
+
+const buildApiUrl = (path: string, params?: Record<string, any>) => {
+  const query = buildQuery(params)
+  return `${joinUrl(getRuntimeApiBase(), path)}${query ? `?${query}` : ''}`
+}
+
 export const isMockEnabled = () => {
   if (!SHOULD_BUNDLE_MOCK) return false
   const envValue = import.meta.env.PUBLIC_ENABLE_MOCK || import.meta.env.PUBLIC_JFYUNTU_MOCK
@@ -119,7 +134,19 @@ const removeAuthCallbackParams = () => {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
   let changed = false
-  ;['token', 'access_token', 'authorization', 'login', 'error'].forEach((key) => {
+  ;[
+    'token',
+    'access_token',
+    'accessToken',
+    'authorization',
+    'auth_token',
+    'authToken',
+    'pc_token',
+    'pcToken',
+    'jwt',
+    'login',
+    'error',
+  ].forEach((key) => {
     if (url.searchParams.has(key)) {
       url.searchParams.delete(key)
       changed = true
@@ -174,7 +201,16 @@ export const authStore = {
     if (typeof window === 'undefined') return ''
     const params = new URLSearchParams(window.location.search)
     const token = normalizeToken(
-      params.get('token') || params.get('access_token') || params.get('authorization') || ''
+      params.get('token') ||
+        params.get('access_token') ||
+        params.get('accessToken') ||
+        params.get('authorization') ||
+        params.get('auth_token') ||
+        params.get('authToken') ||
+        params.get('pc_token') ||
+        params.get('pcToken') ||
+        params.get('jwt') ||
+        ''
     )
     if (token) {
       this.setToken(token)
@@ -230,12 +266,11 @@ export async function apiRequest<T = any>(
   }
 
   const method = options.method || 'GET'
-  const query = buildQuery(options.params)
-  const url = `${joinUrl(getRuntimeApiBase(), path)}${query ? `?${query}` : ''}`
+  const url = buildApiUrl(path, options.params)
   const token = normalizeToken(options.token || (options.auth === false ? '' : authStore.getToken()))
-  const headers: Record<string, string> = {
-    'X-Requested-With': 'XMLHttpRequest',
-  }
+  const headers: Record<string, string> = {}
+  const isPublicSimpleGet = method === 'GET' && options.auth === false && !token
+  if (!isPublicSimpleGet) headers['X-Requested-With'] = 'XMLHttpRequest'
   if (token) headers.Authorization = `Bearer ${token}`
 
   const init: RequestInit = { method, headers }
@@ -283,6 +318,47 @@ export async function apiUpload<T = any>(
   return payload.data
 }
 
+export async function apiBlobRequest(
+  path: string,
+  options: {
+    method?: 'GET' | 'POST'
+    params?: Record<string, any>
+    body?: Record<string, any>
+    token?: string
+    auth?: boolean
+  } = {}
+): Promise<Response> {
+  const method = options.method || 'GET'
+  const query = buildQuery(options.params)
+  const url = `${joinUrl(getRuntimeApiBase(), path)}${query ? `?${query}` : ''}`
+  const token = normalizeToken(options.token || (options.auth === false ? '' : authStore.getToken()))
+  const headers: Record<string, string> = {
+    'X-Requested-With': 'XMLHttpRequest',
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const init: RequestInit = { method, headers }
+  if (method !== 'GET') {
+    headers['Content-Type'] = 'application/json'
+    init.body = JSON.stringify(options.body || {})
+  }
+
+  const response = await fetch(url, init)
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    const payload = (await response.json().catch(() => null)) as ApiResponse | null
+    if (!payload) throw new ApiError('接口响应异常', response.status)
+    if (Number(payload.code) !== 0) {
+      throw new ApiError(payload.msg || payload.message || '请求失败', Number(payload.code), payload.data)
+    }
+    throw new ApiError('文件响应异常', response.status)
+  }
+  if (!response.ok) {
+    throw new ApiError('文件下载失败', response.status)
+  }
+  return response
+}
+
 export const pcApi = {
   getLoginOauthConfig: (redirect = '') =>
     apiRequest<any>('user/login/oauth_config', { params: { redirect, timestamp: Date.now() }, auth: false }),
@@ -292,6 +368,25 @@ export const pcApi = {
   getCurrentUser: async () => normalizeCurrentUser(await apiRequest<any>('user/show_info')),
   updatePcSettings: (body: Record<string, any>) =>
     apiRequest<any>('user/update_pc_settings', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
+  uploadCommonImage: (file: File, extra: Record<string, any> = {}) => {
+    const form = new FormData()
+    form.append('file', file, file.name)
+    form.append('filename', file.name)
+    form.append('file_name', file.name)
+    form.append('original_name', file.name)
+    form.append('name', file.name)
+    form.append('file_size', String(file.size || 0))
+    form.append('size', String(file.size || 0))
+    if (extra.file_type === undefined && extra.fileType === undefined) {
+      form.append('file_type', '1')
+    }
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        form.append(key, String(value))
+      }
+    })
+    return apiUpload<any>('common/upload', form)
+  },
 
   getHomeInfo: (target: HomeTargetRef = '') =>
     apiRequest<any>('user/home/info', { params: { ...buildHomeTargetParams(target), timestamp: Date.now() } }),
@@ -307,15 +402,23 @@ export const pcApi = {
     apiRequest<any>('user/home/products/detail', {
       params: { ...buildHomeTargetParams(target), product_id: productId, timestamp: Date.now() },
     }),
-  getHomeShareLink: (target: HomeTargetRef, path = '') =>
+  getHomeShareLink: (target: HomeTargetRef, type: MiniProgramShareType = 'home', id = '') =>
     apiRequest<any>('user/home/share_link', {
-      params: { ...buildHomeTargetParams(target), path, timestamp: Date.now() },
+      params: { ...buildHomeTargetParams(target), type, id, timestamp: Date.now() },
       auth: false,
     }),
-  getHomeMiniCode: (target: HomeTargetRef, type: 'home' | 'category' | 'product' = 'home', id = '', path = '') =>
+  getHomeMiniCode: (target: HomeTargetRef, type: MiniProgramShareType = 'home', id = '', path = '') =>
     apiRequest<any>('user/home/minicode', {
       params: { ...buildHomeTargetParams(target), type, id, path, timestamp: Date.now() },
       auth: false,
+    }),
+  getHomeMiniCodeImageUrl: (target: HomeTargetRef, type: MiniProgramShareType = 'home', id = '', path = '', extra: Record<string, any> = {}) =>
+    buildApiUrl('user/home/minicode_image', {
+      ...buildHomeTargetParams(target),
+      type,
+      id,
+      path,
+      ...extra,
     }),
 
   getManagementCategories: (params: Record<string, any>) =>
@@ -332,7 +435,7 @@ export const pcApi = {
     apiRequest<any>('album/product/update_status', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
   deleteProductOrFolder: (fid: string, delType = 1) =>
     apiRequest<any>('album/delete/folder', { method: 'POST', body: { fid, del_type: delType, timestamp: Date.now() } }),
-  uploadProductImage: (fid: string, file: File, type: 'colorChart' | 'detailChart') => {
+  uploadProductImage: (fid: string, file: File, type: 'colorChart' | 'detailChart', extra: Record<string, any> = {}) => {
     const form = new FormData()
     form.append('pid', fid)
     form.append('files', file, file.name)
@@ -340,7 +443,14 @@ export const pcApi = {
     form.append('file_name', file.name)
     form.append('original_name', file.name)
     form.append('name', file.name)
+    form.append('file_size', String(file.size || 0))
+    form.append('size', String(file.size || 0))
     form.append('file_type', type === 'detailChart' ? '2' : '1')
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        form.append(key, String(value))
+      }
+    })
     return apiUpload<any>('album/upload/folder', form)
   },
 
@@ -355,7 +465,13 @@ export const pcApi = {
     apiRequest<any>('web/upload', { params: { code, timestamp: Date.now() }, auth: false }),
   getWebUploadToken: (code: string, password = '') =>
     apiRequest<any>('web/token/upload', { method: 'POST', body: { code, password }, auth: false }),
-  uploadWebProductImage: (fid: string, file: File, type: 'colorChart' | 'detailChart', token: string) => {
+  uploadWebProductImage: (
+    fid: string,
+    file: File,
+    type: 'colorChart' | 'detailChart',
+    token: string,
+    meta: { batchId?: string; batchStartedAt?: number; sortOrder?: number; batchTotal?: number } = {}
+  ) => {
     const form = new FormData()
     form.append('fid', fid)
     form.append('files', file, file.name)
@@ -363,7 +479,15 @@ export const pcApi = {
     form.append('file_name', file.name)
     form.append('original_name', file.name)
     form.append('name', file.name)
-    form.append('file_type', type === 'detailChart' ? '2' : '1')
+    form.append('file_size', String(file.size || 0))
+    form.append('size', String(file.size || 0))
+    form.append('file_type', '1')
+    form.append('upload_field', type === 'detailChart' ? 'detail_chart' : 'color_chart')
+    form.append('image_role', type === 'detailChart' ? 'detail' : 'cover')
+    if (meta.batchId) form.append('batch_id', meta.batchId)
+    if (meta.batchStartedAt) form.append('batch_started_at', String(meta.batchStartedAt))
+    if (meta.sortOrder) form.append('sort_order', String(meta.sortOrder))
+    if (meta.batchTotal) form.append('batch_total', String(meta.batchTotal))
     return apiUpload<any>('web/folder/pic/upload', form, token)
   },
 
@@ -374,6 +498,35 @@ export const pcApi = {
     }),
   addVisit: (type: 'homepage' | 'product' | 'category', id: string) =>
     apiRequest<any>('user/add/visit', { method: 'POST', body: { type, id, timestamp: Date.now() } }),
+  recordDownloadTraffic: (picId: string, fileUrl = '', fileSize = 0) =>
+    apiRequest<any>('user/download/traffic', {
+      method: 'POST',
+      body: { pic_id: picId, file_url: fileUrl, file_size: fileSize, timestamp: Date.now() },
+    }),
+  discardUploadedPicture: (picIdOrBody: string | Record<string, any>) => {
+    const body =
+      typeof picIdOrBody === 'string'
+        ? { pic_id: picIdOrBody }
+        : picIdOrBody
+    return apiRequest<any>('user/discard/uploaded_pic', {
+      method: 'POST',
+      body: { timestamp: Date.now(), ...body },
+    })
+  },
+  getOriginalDownloadUrl: (picId: string, params: Record<string, any> = {}) =>
+    apiRequest<any>('user/download/original', {
+      method: 'POST',
+      body: { pic_id: picId, timestamp: Date.now(), ...params },
+    }),
+  getOriginalDownloadBlob: (picId: string, params: Record<string, any> = {}) =>
+    apiBlobRequest('user/download/original', {
+      params: { pic_id: picId, stream: 1, timestamp: Date.now(), ...params },
+    }),
+  downloadOriginalZip: (picIds: string[], filename = 'product-images.zip', params: Record<string, any> = {}) =>
+    apiBlobRequest('user/download/original_zip', {
+      method: 'POST',
+      body: { pic_ids: picIds, filename, timestamp: Date.now(), ...params },
+    }),
   getFavorites: (type = 'all', key = '', page = 1) =>
     apiRequest<any>('user/collect/records', { params: { type, key, page, timestamp: Date.now() } }),
   getVisits: (type = 'all', key = '', page = 1) =>
@@ -391,6 +544,8 @@ export const pcApi = {
 
   getAiResources: (params: Record<string, any> = {}) =>
     apiRequest<any>('album/ai/resources', { params: { page: 1, page_size: 30, timestamp: Date.now(), ...params } }),
+  findAiResourceDuplicate: (params: Record<string, any> = {}) =>
+    apiRequest<any>('album/ai/find_duplicate', { params: { timestamp: Date.now(), ...params } }),
   importAiResource: (resourceId: string, role: 'cover' | 'detail' = 'cover', productId = '') =>
     apiRequest<any>('album/ai/import_resource', {
       method: 'POST',
@@ -403,4 +558,30 @@ export const pcApi = {
     apiRequest<any>('user/restore/product', { method: 'POST', body: { product_ids: id, timestamp: Date.now() } }),
   deleteRecycleItem: (id: string) =>
     apiRequest<any>('user/destroy/product', { method: 'POST', body: { product_ids: id, timestamp: Date.now() } }),
+  clearRecycleBin: () =>
+    apiRequest<any>('user/recycle/clear', { method: 'POST', body: { timestamp: Date.now() } }),
+
+  createSelection: (body: Record<string, any>) =>
+    apiRequest<any>('album/selection/create', { method: 'POST', body: { timestamp: Date.now(), ...body } }),
+  getMySelections: (params: Record<string, any> = {}) =>
+    apiRequest<any>('album/selection/my_lists', { method: 'POST', body: { limit: 20, timestamp: Date.now(), ...params } }),
+  getCustomerSelections: (params: Record<string, any> = {}) =>
+    apiRequest<any>('album/selection/customer_lists', { method: 'POST', body: { limit: 20, timestamp: Date.now(), ...params } }),
+  getSelectionDetail: (selectionId: string, params: Record<string, any> = {}) =>
+    apiRequest<any>('album/selection/detail', {
+      method: 'POST',
+      body: { selection_id: selectionId, timestamp: Date.now(), ...params },
+    }),
+  addSelectionImages: (selectionId: string, picIds: string[]) =>
+    apiRequest<any>('album/selection/add_images', {
+      method: 'POST',
+      body: { selection_id: selectionId, pic_ids: picIds, timestamp: Date.now() },
+    }),
+  removeSelectionImages: (selectionId: string, picIds: string[]) =>
+    apiRequest<any>('album/selection/remove_images', {
+      method: 'POST',
+      body: { selection_id: selectionId, pic_ids: picIds, timestamp: Date.now() },
+    }),
+  deleteSelection: (selectionId: string) =>
+    apiRequest<any>('album/selection/delete', { method: 'POST', body: { selection_id: selectionId, timestamp: Date.now() } }),
 }

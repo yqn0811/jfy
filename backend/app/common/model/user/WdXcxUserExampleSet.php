@@ -3,7 +3,7 @@
 namespace app\common\model\user;
 
 use app\common\model\BaseModel;
-use app\index\model\WdXcxPic;
+use app\common\model\WdXcxPic;
 use think\model\concern\SoftDelete;
 
 class WdXcxUserExampleSet extends BaseModel

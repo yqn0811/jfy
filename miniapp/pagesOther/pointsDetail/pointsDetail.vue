@@ -44,7 +44,7 @@
         <view
           class="record-item"
           v-for="(item, index) in recordList"
-          :key="index"
+          :key="getRecordKey(item, index)"
         >
           <view class="record-left">
             <view class="record-title">{{ item.message}}</view>
@@ -76,6 +76,8 @@
 </template>
 
 <script>
+import { buildListItemKey } from "@/common/helper/listKey.js";
+
 export default {
   data() {
     return {
@@ -123,6 +125,9 @@ export default {
   },
 
   methods: {
+    getRecordKey(item, index) {
+      return buildListItemKey(item, index, "points-record", ["id", "record_id", "create_time", "message"]);
+    },
     // 返回上一页
     goBack() {
       uni.navigateBack();

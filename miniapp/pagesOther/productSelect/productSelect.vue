@@ -10,9 +10,10 @@
       <view
         class="cell"
         v-for="(item, idx) in productList"
-        :key="item.id"
-        :class="{ 'is-selected': selectedMap[item.id] }"
-        @tap="toggle(item)"
+        :key="item._key"
+        :class="{ 'is-selected': selectedMap[item._selectId] }"
+        :data-index="idx"
+        @tap="toggle(idx)"
       >
         <image class="thumb" :src="item.new_thumb || '/static/image/pic.png'" mode="aspectFill"></image>
 
@@ -29,10 +30,10 @@
         </view>
 
         <!-- 右上角选择 -->
-        <view class="check" :class="{ active: selectedMap[item.id] }">
+        <view class="check" :class="{ active: selectedMap[item._selectId] }">
           <image
             class="check-icon"
-            v-if="selectedMap[item.id]"
+            v-if="selectedMap[item._selectId]"
             src="/static/icon/Frame 1000006316@2x.png"
             mode="scaleToFill"
           />
@@ -59,6 +60,16 @@
 </template>
 
 <script>
+import {
+  createRefreshMarker,
+  emitRefreshEvents,
+  markRefresh,
+} from "@/common/helper/refresh.js";
+import {
+  getObjectId,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
+
 export default {
   data() {
     return {
@@ -72,14 +83,18 @@ export default {
       loading: false,
       fromPage: "",
       mode: "",
+      categoryName: "",
     };
   },
-  onLoad(options) {
+  onLoad(options = {}) {
     // 接受参数：可传 albumId / fid / maxSelect / preselected (逗号分隔 id)
     const aid = options.albumId || options.fid || options.album_id;
     if (aid) this.albumId = aid;
     this.fromPage = options.fromPage;
     this.mode = options.mode || "";
+    this.categoryName = this.safeDecodeRouteValue(
+      options.category_name || options.name || "",
+    );
     if (options.maxSelect) this.maxSelect = Number(options.maxSelect) || 0;
     if (options.preselected) {
       const arr = String(options.preselected)
@@ -93,10 +108,77 @@ export default {
   },
   computed: {
     selectedItems() {
-      return this.productList.filter((i) => this.selectedMap[i.id]);
+      return this.productList.filter((item) => this.isProductSelected(item));
     },
   },
   methods: {
+    normalizeText(value) {
+      if (value === null || value === undefined) return "";
+      const text = String(value).trim();
+      if (!text || text === "null" || text === "undefined") return "";
+      return text;
+    },
+    safeDecodeRouteValue(value) {
+      const text = this.normalizeText(value);
+      if (!text) return "";
+      try {
+        return decodeURIComponent(text);
+      } catch (e) {
+        return text;
+      }
+    },
+    getProductId(item) {
+      return getObjectId(item, ["id", "product_id", "folder_id"]);
+    },
+    isProductSelected(item) {
+      const id = this.getProductId(item);
+      return !!(id && this.selectedMap[id]);
+    },
+    refreshPreviousCategoryDetail(marker) {
+      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+      const previousPage = pages && pages[pages.length - 2];
+      const previousVm = previousPage && previousPage.$vm;
+      if (
+        previousVm &&
+        previousVm.categoryId &&
+        String(previousVm.categoryId) === String(this.albumId) &&
+        typeof previousVm.handleRefreshData === "function"
+      ) {
+        previousVm.handleRefreshData(marker);
+        return true;
+      }
+      uni.$emit("refreshClassDetailData", marker);
+      return false;
+    },
+    returnToPreviousPage(marker) {
+      const refreshed = this.refreshPreviousCategoryDetail(marker);
+      uni.navigateBack({
+        fail: () => {
+          if (!refreshed) {
+            this.openCategoryDetail(this.albumId, marker);
+          }
+        },
+      });
+    },
+    openCategoryDetail(categoryId, marker = "") {
+      if (!categoryId) {
+        uni.navigateBack();
+        return;
+      }
+      const query = [
+        `id=${encodeURIComponent(categoryId)}`,
+        "refresh=1",
+        `ts=${Date.now()}`,
+      ];
+      if (marker) {
+        query.push(`marker=${encodeURIComponent(marker)}`);
+      }
+      if (this.categoryName) {
+        query.push(`name=${encodeURIComponent(this.categoryName)}`);
+      }
+      const detailUrl = `/pagesOther/classDetail/classDetail?${query.join("&")}`;
+      uni.redirectTo({ url: detailUrl });
+    },
     // 获取所有产品
     async getAllProduct() {
       if (this.$go) {
@@ -133,17 +215,24 @@ export default {
         ]);
 
         // 提取分类下已有产品的 id 列表
-        this.selectedIds = categoryProducts.map((item) => item.id);
+        this.selectedIds = categoryProducts
+          .map((item) => this.getProductId(item))
+          .filter(Boolean);
 
         // 构建 selectedMap 对象 { id: true }
         this.selectedMap = {};
         categoryProducts.forEach((item) => {
-          this.$set(this.selectedMap, item.id, true);
+          const id = this.getProductId(item);
+          if (id) {
+            this.$set(this.selectedMap, id, true);
+          }
         });
 
         // 设置所有产品列表
-        this.productList = allProducts.map((item) => ({
+        this.productList = allProducts.map((item, index) => ({
           ...item,
+          _selectId: this.getProductId(item),
+          _key: this.getProductId(item) || `product-${index}`,
         }));
 
         console.log("所有产品数量:", this.productList.length);
@@ -155,9 +244,13 @@ export default {
     },
 
     // 切换选中
-    toggle(item) {
-      const id = item.id;
-      if (!id) return;
+    toggle(index) {
+      const current = this.productList[index];
+      const id = current && (current._selectId || this.getProductId(current));
+      if (!id) {
+        showInvalidRecordToast();
+        return;
+      }
       const isSelected = !!this.selectedMap[id];
       if (isSelected) {
         this.$delete(this.selectedMap, id);
@@ -197,7 +290,7 @@ export default {
       try {
         const payload = {
           fid: this.albumId,
-          product_ids: this.selectedIds,
+          product_ids: this.selectedIds.join(","),
           timestamp: Date.now(),
         };
         // 使用项目签名函数（若有）
@@ -215,20 +308,30 @@ export default {
               show_err: true,
             },
           );
+          if (!res || Number(res.code) !== 0) {
+            return;
+          }
           // 后端成功返回后处理（可根据实际返回逻辑调整）
           uni.showToast({
             title: res && res.msg ? res.msg : "操作成功",
             icon: "none",
           });
-          // 返回上一页并携带结果（通过页面栈更新或直接 navigateBack）
+          const marker = createRefreshMarker();
+          markRefresh(["product", "category", "home"], marker);
+          emitRefreshEvents(["product", "home"], marker);
           setTimeout(() => {
+            if (this.fromPage === "categoryPreview") {
+              this.openCategoryDetail(this.albumId, marker);
+              return;
+            }
             if (this.fromPage === "classDetail") {
-              uni.$emit("refreshClassDetailData");
+              this.returnToPreviousPage(marker);
+              return;
             } else {
-              uni.$emit("refreshClassManageData");
+              uni.$emit("refreshClassManageData", marker);
             }
             uni.navigateBack();
-          }, 800);
+          }, 300);
         }
       } catch (e) {
         console.error("submit error", e);

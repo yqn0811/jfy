@@ -6,9 +6,9 @@ use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserCollectPics;
 use app\common\model\user\WdXcxUserPlayRecord;
 use app\common\service\album\AiResourceBridgeService;
-use app\index\model\WdXcxPic;
-use app\index\model\WdXcxBase;
-use app\index\service\upload\UploadService;
+use app\common\model\WdXcxPic;
+use app\common\model\WdXcxBase;
+use app\common\service\upload\UploadService;
 use think\App;
 use think\facade\Config;
 
@@ -57,7 +57,11 @@ class CommonService extends BaseService
                     }
                     $picture = WdXcxPic::where('id', $pic['pid'])->find();
                     if ($picture) {
-                        $bridge->safeSyncPicture($uid, $picture, ['role' => 'upload']);
+                        $bridge->safeSyncPicture($uid, $picture, [
+                            'role' => 'upload',
+                            'file_hash' => strtolower(trim((string)($new_param['file_hash'] ?? ''))),
+                            'content_hash' => strtolower(trim((string)($new_param['content_hash'] ?? ($new_param['file_hash'] ?? '')))),
+                        ]);
                     }
                 }
             }

@@ -68,12 +68,13 @@
             <view
               class="upload-cell"
               v-for="(img, idx) in coverImages"
-              :key="idx"
+              :key="getUploadImageKey(img, idx)"
             >
               <image
                 :src="img.src"
                 mode="aspectFill"
                 class="upload-preview"
+                lazy-load
                 @click="previewImage(img.src)"
               >
               </image>
@@ -83,7 +84,7 @@
 
             <view
               class="upload-cell"
-              v-if="coverImages.length < maxCoverImages"
+              v-if="canAddCoverImage"
               @click="openUploadPicker('cover')"
             >
               <view class="upload-plus">+</view>
@@ -93,17 +94,29 @@
 
         <!-- 上传详情图（多张） -->
         <view class="form-item">
-          <text class="label">上传详情图</text>
+          <view class="label-row">
+            <text class="label">上传详情图</text>
+            <view class="hide-detail-switch">
+              <text class="hide-detail-label">隐藏详情图</text>
+              <u-switch
+                v-model="hideDetailPictures"
+                activeColor="#333"
+                inactiveColor="#e4e4e4"
+                @change="handleHideDetailPicturesChange"
+              ></u-switch>
+            </view>
+          </view>
           <view class="detail-uploads">
             <view
               class="upload-cell"
               v-for="(img, idx) in detailImages"
-              :key="idx"
+              :key="getUploadImageKey(img, idx)"
             >
               <image
                 :src="img.src"
                 mode="aspectFill"
                 class="upload-preview"
+                lazy-load
                 @click="previewImage(img.src)"
               >
               </image>
@@ -113,7 +126,7 @@
 
             <view
               class="upload-cell"
-              v-if="detailImages.length < maxDetailImages"
+              v-if="canAddDetailImage"
               @click="openUploadPicker('detail')"
             >
               <view class="upload-plus">+</view>
@@ -166,13 +179,28 @@
 <script>
 import UploadPicker from "./components/UploadPicker.vue"; // 根据项目路径调整
 import CategoryMultiSelect from "./components/CategoryMultiSelect.vue";
-import { notifyRefresh } from "@/common/helper/refresh.js";
+import Upload from "@/common/request/upload.js";
+import {
+  createRefreshMarker,
+  emitRefreshEvents,
+  markRefresh,
+} from "@/common/helper/refresh.js";
+import { imageUrlFor } from "@/common/helper/imageUrls.js";
 import {
   buildUploadNameFormData,
   getSelectedUploadFileName,
   normalizeSelectedUploadFile,
   prepareNamedUploadFile,
 } from "@/common/helper/uploadName.js";
+import { buildListItemKey } from "@/common/helper/listKey.js";
+const uploader = new Upload();
+const safeDecodeRouteValue = (value = "") => {
+  try {
+    return decodeURIComponent(value);
+  } catch (e) {
+    return value;
+  }
+};
 export default {
   components: {
     UploadPicker,
@@ -189,7 +217,7 @@ export default {
       detailImages: [], // 数组元素为对象同上
       detailImageIds: [],
       maxDetailImages: 100,
-      coverImages: [], // 花色图数组，元素格式 { src, uploadedUrl, uploading }
+      coverImages: [], // 花色图数组，元素格式 { id, src, uploadedUrl, uploading, source }
       coverImageIds: [],
       maxCoverImages: 100, // 根据需要调整上限
       hideDetailPictures: false,
@@ -204,14 +232,21 @@ export default {
       selectedCategoryIds: [], // 选中的分类ID数组
       selectedCategoryNames: [], // 选中的分类名称数组
       categoryPickerShow: false, // 分类选择器显示状态
+      initialCategoryId: "",
+      initialCategoryName: "",
     };
   },
-    async onLoad(options) {
+    async onLoad(options = {}) {
     this.pid = options.id;
-    this.fromPage = options.fromPage;
+    this.fromPage = options.fromPage || "";
+    this.initialCategoryId = options.category_id || options.fid || "";
+    this.initialCategoryName = options.category_name
+      ? safeDecodeRouteValue(options.category_name)
+      : "";
 
     // 加载分类列表
     await this.getCategoryList();
+    this.applyInitialCategory();
 
     if (options.id) {
       // 查询产品详情
@@ -232,8 +267,18 @@ export default {
       console.error("读取我的资源库选择失败", e);
     }
   },
-  computed: {},
+  computed: {
+    canAddCoverImage() {
+      return this.coverImages.length < this.maxCoverImages;
+    },
+    canAddDetailImage() {
+      return this.detailImages.length < this.maxDetailImages;
+    },
+  },
   methods: {
+    getUploadImageKey(item, index) {
+      return buildListItemKey(item, index, "upload-img", ["id", "uploadedUrl", "src", "url"]);
+    },
     openUploadPicker(target) {
       this.uploadTarget = target; // 'cover' 或 'detail'
       this.uploadPickerVisible = true;
@@ -249,32 +294,19 @@ export default {
         return;
       }
       paths.forEach((tempPath) => {
-        const idx =
-          this.coverImages.push({
-            src: tempPath,
-            uploadedUrl: "",
-            uploading: true,
-          }) - 1;
-        this.uploadSingleFile(tempPath)
+        this.coverImages.push({
+          src: tempPath,
+          uploadedUrl: "",
+          uploading: true,
+          source: "upload",
+        });
+        this.uploadSingleFile(tempPath, 1, "", 0, "cover")
           .then((res) => {
-            if (this.coverImages[idx]) {
-              this.$set(this.coverImages, idx, {
-                src: res.url,
-                uploadedUrl: res.url,
-                uploading: false,
-              });
-            }
-            this.coverImageIds.push(res.id);
+            this.applyUploadSuccess("cover", tempPath, res);
           })
           .catch((err) => {
             console.error("初始图片上传失败", err);
-            if (this.coverImages[idx]) {
-              this.$set(this.coverImages, idx, {
-                src: tempPath,
-                uploadedUrl: "",
-                uploading: false,
-              });
-            }
+            this.applyUploadFailure("cover", tempPath);
             uni.showToast({ title: "部分图片上传失败", icon: "none" });
           });
       });
@@ -329,6 +361,25 @@ export default {
       this.categoryPickerShow = false;
     },
 
+    normalizeCategoryIds(ids) {
+      return (Array.isArray(ids) ? ids : [ids])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+    },
+
+    applyInitialCategory() {
+      if (!this.initialCategoryId) return;
+      const categoryId = Number(this.initialCategoryId);
+      if (!Number.isFinite(categoryId) || categoryId <= 0) return;
+      const matched = this.categoryList.find(
+        (item) => Number(item.id) === categoryId,
+      );
+      this.selectedCategoryIds = [categoryId];
+      this.selectedCategoryNames = [
+        (matched && matched.folder_name) || this.initialCategoryName,
+      ].filter(Boolean);
+    },
+
     async getProductDetail() {
       const payload = {
         fid: this.pid,
@@ -337,7 +388,6 @@ export default {
         show_err: true,
       });
       if (res.code === 0) {
-        console.log(res);
         this.productName = res.data.folder_name;
         this.productIntro = res.data.folder_desc;
         this.hideDetailPictures =
@@ -364,22 +414,14 @@ export default {
           console.log(this.selectedCategoryNames);
         }
 
-        this.coverImages = res.data.pic_list.map((res) => {
-          return {
-            src: res.imgurl,
-            uploadedUrl: res.imgurl,
-            uploading: false,
-          };
-        });
-        this.coverImageIds = res.data.pic_list.map((res) => res.id);
-        this.detailImages = res.data.detail_pic_list.map((res) => {
-          return {
-            src: res.imgurl,
-            uploadedUrl: res.imgurl,
-            uploading: false,
-          };
-        });
-        this.detailImageIds = res.data.detail_pic_list.map((res) => res.id);
+        this.coverImages = res.data.pic_list.map((item) =>
+          this.normalizeProductImage(item, "saved"),
+        );
+        this.coverImageIds = this.getImageIds("cover");
+        this.detailImages = res.data.detail_pic_list.map((item) =>
+          this.normalizeProductImage(item, "saved"),
+        );
+        this.detailImageIds = this.getImageIds("detail");
       }
     },
     // 由 UploadPicker 发出选择事件（selectType: 'image'|'video'|'from_chat'|'batch'）
@@ -445,23 +487,16 @@ export default {
     appendAiResourceImages(target, items) {
       if (!Array.isArray(items) || items.length === 0) return;
       const imageList = target === "detail" ? this.detailImages : this.coverImages;
-      const idList = target === "detail" ? this.detailImageIds : this.coverImageIds;
       const max = target === "detail" ? this.maxDetailImages : this.maxCoverImages;
-      const exists = new Set(idList.map((id) => String(id)));
+      const exists = new Set(imageList.map((image) => String((image && image.id) || "")));
       items.forEach((item) => {
         if (!item || !item.id || exists.has(String(item.id)) || imageList.length >= max) {
           return;
         }
-        imageList.push({
-          src: item.url || item.file_url,
-          uploadedUrl: item.file_url || item.url,
-          uploading: false,
-          source: "ai_resource",
-          resourceId: item.resource_id,
-        });
-        idList.push(item.id);
+        imageList.push(this.normalizeProductImage(item, "ai_resource"));
         exists.add(String(item.id));
       });
+      this.syncImageIds();
     },
     chooseVideo(target) {
       uni.chooseVideo({
@@ -475,51 +510,33 @@ export default {
           const tempPath = selectedFile.path;
           // 将视频当作图片处理上传：复用 uploadSingleFile，随后把返回地址存入对应数组
           if (target === "cover") {
-            const idx =
-              this.coverImages.push({
-                src: tempPath,
-                uploadedUrl: "",
-                uploading: true,
-              }) - 1;
-            this.uploadSingleFile(tempPath, 2, selectedFile.name)
+            this.coverImages.push({
+              src: tempPath,
+              uploadedUrl: "",
+              uploading: true,
+              source: "upload",
+            });
+            this.uploadSingleFile(tempPath, 2, selectedFile.name, selectedFile.size, "cover")
               .then((res) => {
-                this.$set(this.coverImages, idx, {
-                  src: res.url,
-                  uploadedUrl: res.url,
-                  uploading: false,
-                });
-                this.coverImageIds.push(res.id);
+                this.applyUploadSuccess("cover", tempPath, res);
               })
               .catch(() => {
-                this.$set(this.coverImages, idx, {
-                  src: tempPath,
-                  uploadedUrl: "",
-                  uploading: false,
-                });
+                this.applyUploadFailure("cover", tempPath);
                 uni.showToast({ title: "视频上传失败", icon: "none" });
               });
           } else {
-            const idx =
-              this.detailImages.push({
-                src: tempPath,
-                uploadedUrl: "",
-                uploading: true,
-              }) - 1;
-            this.uploadSingleFile(tempPath, 2, selectedFile.name)
+            this.detailImages.push({
+              src: tempPath,
+              uploadedUrl: "",
+              uploading: true,
+              source: "upload",
+            });
+            this.uploadSingleFile(tempPath, 2, selectedFile.name, selectedFile.size, "detail")
               .then((res) => {
-                this.$set(this.detailImages, idx, {
-                  src: res.url,
-                  uploadedUrl: res.url,
-                  uploading: false,
-                });
-                this.detailImageIds.push(res.id);
+                this.applyUploadSuccess("detail", tempPath, res);
               })
               .catch(() => {
-                this.$set(this.detailImages, idx, {
-                  src: tempPath,
-                  uploadedUrl: "",
-                  uploading: false,
-                });
+                this.applyUploadFailure("detail", tempPath);
                 uni.showToast({ title: "视频上传失败", icon: "none" });
               });
           }
@@ -541,51 +558,33 @@ export default {
             const tempPath = selectedFile.path;
             // 立即上传并保存结果（同上）
             if (target === "cover") {
-              const idx =
-                this.coverImages.push({
-                  src: tempPath,
-                  uploadedUrl: "",
-                  uploading: true,
-                }) - 1;
-              this.uploadSingleFile(tempPath, 1, selectedFile.name)
+              this.coverImages.push({
+                src: tempPath,
+                uploadedUrl: "",
+                uploading: true,
+                source: "upload",
+              });
+              this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size, "cover")
                 .then((res) => {
-                  this.$set(this.coverImages, idx, {
-                    src: res.url,
-                    uploadedUrl: res.url,
-                    uploading: false,
-                  });
-                  this.coverImageIds.push(res.id);
+                  this.applyUploadSuccess("cover", tempPath, res);
                 })
                 .catch(() => {
-                  this.$set(this.coverImages, idx, {
-                    src: tempPath,
-                    uploadedUrl: "",
-                    uploading: false,
-                  });
+                  this.applyUploadFailure("cover", tempPath);
                   uni.showToast({ title: "上传失败", icon: "none" });
                 });
             } else {
-              const idx =
-                this.detailImages.push({
-                  src: tempPath,
-                  uploadedUrl: "",
-                  uploading: true,
-                }) - 1;
-              this.uploadSingleFile(tempPath, 1, selectedFile.name)
+              this.detailImages.push({
+                src: tempPath,
+                uploadedUrl: "",
+                uploading: true,
+                source: "upload",
+              });
+              this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size, "detail")
                 .then((res) => {
-                  this.$set(this.detailImages, idx, {
-                    src: res.url,
-                    uploadedUrl: res.url,
-                    uploading: false,
-                  });
-                  this.detailImageIds.push(res.id);
+                  this.applyUploadSuccess("detail", tempPath, res);
                 })
                 .catch(() => {
-                  this.$set(this.detailImages, idx, {
-                    src: tempPath,
-                    uploadedUrl: "",
-                    uploading: false,
-                  });
+                  this.applyUploadFailure("detail", tempPath);
                   uni.showToast({ title: "上传失败", icon: "none" });
                 });
             }
@@ -611,33 +610,20 @@ export default {
           files.forEach((file) => {
             const selectedFile = normalizeSelectedUploadFile(file, 1);
             const tempPath = selectedFile.path;
-            const idx =
-              this.coverImages.push({
-                src: tempPath,
-                uploadedUrl: "",
-                uploading: true,
-              }) - 1;
-            this.uploadSingleFile(tempPath, 1, selectedFile.name)
+            this.coverImages.push({
+              src: tempPath,
+              uploadedUrl: "",
+              uploading: true,
+              source: "upload",
+            });
+            this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size, "cover")
               .then((res) => {
                 console.log(res);
-                if (this.coverImages[idx]) {
-                  this.$set(this.coverImages, idx, {
-                    src: res.url,
-                    uploadedUrl: res.url,
-                    uploading: false,
-                  });
-                }
-                this.coverImageIds.push(res.id);
+                this.applyUploadSuccess("cover", tempPath, res);
               })
               .catch((err) => {
                 console.error("花色图上传失败", err);
-                if (this.coverImages[idx]) {
-                  this.$set(this.coverImages, idx, {
-                    src: tempPath,
-                    uploadedUrl: "",
-                    uploading: false,
-                  });
-                }
+                this.applyUploadFailure("cover", tempPath);
                 uni.showToast({ title: "部分图片上传失败", icon: "none" });
               });
           });
@@ -647,10 +633,69 @@ export default {
         },
       });
     },
+    applyUploadSuccess(target, tempPath, res) {
+      const imageList = target === "detail" ? this.detailImages : this.coverImages;
+      const idx = imageList.findIndex((item) => item && item.src === tempPath && item.uploading);
+      if (idx < 0) {
+        if (res && res.id && res.source !== "ai_resource") {
+          this.discardUploadedPicture(res.id);
+        }
+        return;
+      }
+      this.$set(imageList, idx, {
+        id: res.id,
+        src: res.thumbUrl || res.previewUrl || res.url,
+        uploadedUrl: res.originUrl || res.uploadedUrl || res.url,
+        previewUrl: res.previewUrl || res.url,
+        originUrl: res.originUrl || res.uploadedUrl || res.url,
+        image_urls: res.image_urls || {},
+        imageUrls: res.imageUrls || {},
+        uploading: false,
+        source: res.source || "upload",
+        resourceId: res.resourceId || "",
+      });
+      this.syncImageIds();
+    },
+    applyUploadFailure(target, tempPath) {
+      const imageList = target === "detail" ? this.detailImages : this.coverImages;
+      const idx = imageList.findIndex((item) => item && item.src === tempPath && item.uploading);
+      if (idx < 0) return;
+      this.$set(imageList, idx, {
+        src: tempPath,
+        uploadedUrl: "",
+        uploading: false,
+      });
+    },
+    getImageIds(target) {
+      const imageList = target === "detail" ? this.detailImages : this.coverImages;
+      return imageList
+        .filter((image) => image && !image.uploading && image.id)
+        .map((image) => image.id);
+    },
+    syncImageIds() {
+      this.coverImageIds = this.getImageIds("cover");
+      this.detailImageIds = this.getImageIds("detail");
+    },
+    handleHideDetailPicturesChange(e) {
+      if (typeof e === "boolean") {
+        this.hideDetailPictures = e;
+      } else if (e && typeof e.value === "boolean") {
+        this.hideDetailPictures = e.value;
+      } else if (e && e.detail && typeof e.detail.value === "boolean") {
+        this.hideDetailPictures = e.detail.value;
+      } else {
+        this.hideDetailPictures = !!e;
+      }
+    },
     // 删除花色图
     removeCover(idx) {
+      const image = this.coverImages[idx] || {};
+      const picId = image.id || this.coverImageIds[idx];
       this.coverImages.splice(idx, 1);
-      this.coverImageIds.splice(idx, 1);
+      this.syncImageIds();
+      if (picId && image.source === "upload") {
+        this.discardUploadedPicture(picId);
+      }
     },
 
     // 选择并上传多张详情图（选择后每张立即上传）
@@ -667,34 +712,21 @@ export default {
           files.forEach((file) => {
             const selectedFile = normalizeSelectedUploadFile(file, 1);
             const tempPath = selectedFile.path;
-            const idx =
-              this.detailImages.push({
-                src: tempPath,
-                uploadedUrl: "",
-                uploading: true,
-              }) - 1;
+            this.detailImages.push({
+              src: tempPath,
+              uploadedUrl: "",
+              uploading: true,
+              source: "upload",
+            });
             // 立即上传每张图片
-            this.uploadSingleFile(tempPath, 1, selectedFile.name)
+            this.uploadSingleFile(tempPath, 1, selectedFile.name, selectedFile.size, "detail")
               .then((res) => {
-                if (this.detailImages[idx]) {
-                  this.$set(this.detailImages, idx, {
-                    src: res.url,
-                    uploadedUrl: res.url,
-                    uploading: false,
-                  });
-                }
-                this.detailImageIds.push(res.id);
+                this.applyUploadSuccess("detail", tempPath, res);
               })
               .catch((err) => {
                 console.error("详情图上传失败", err);
                 // 上传失败将该项标为未上传（保留本地路径并提示）
-                if (this.detailImages[idx]) {
-                  this.$set(this.detailImages, idx, {
-                    src: tempPath,
-                    uploadedUrl: "",
-                    uploading: false,
-                  });
-                }
+                this.applyUploadFailure("detail", tempPath);
                 uni.showToast({ title: "部分图片上传失败", icon: "none" });
               });
           });
@@ -707,17 +739,26 @@ export default {
     // 预览图片（合并花色图和详情图）
     previewImage(src) {
       const urls = [];
-      this.coverImages.forEach((i) => urls.push(i.src));
-      this.detailImages.forEach((i) => urls.push(i.src));
+      this.coverImages.forEach((i) => urls.push(this.getPreviewImageUrl(i)));
+      this.detailImages.forEach((i) => urls.push(this.getPreviewImageUrl(i)));
+      const current = this.getPreviewImageUrl({ src });
       uni.previewImage({
-        current: src,
-        urls: urls.length > 0 ? urls : [src],
+        current,
+        urls: urls.filter(Boolean).length > 0 ? urls.filter(Boolean) : [current],
       });
+    },
+    getPreviewImageUrl(item = {}) {
+      return item.previewUrl || imageUrlFor(item, "preview") || item.src || "";
     },
     // 删除详情某一张
     removeDetail(idx) {
+      const image = this.detailImages[idx] || {};
+      const picId = image.id || this.detailImageIds[idx];
       this.detailImages.splice(idx, 1);
-      this.detailImageIds.splice(idx, 1);
+      this.syncImageIds();
+      if (picId && image.source === "upload") {
+        this.discardUploadedPicture(picId);
+      }
     },
     // 复制上传链接到剪贴板
     copyLink() {
@@ -739,7 +780,9 @@ export default {
         return;
       }
       // 简单校验
-      if (!this.coverImageIds.length && !this.detailImageIds.length) {
+      const coverImageIds = this.getImageIds("cover");
+      const detailImageIds = this.getImageIds("detail");
+      if (!coverImageIds.length && !detailImageIds.length) {
         uni.showToast({ title: "请上传至少一张图片", icon: "none" });
         return;
       }
@@ -754,24 +797,27 @@ export default {
 
       uni.showLoading({ title: "提交中..." });
       try {
+        const categoryIds = this.normalizeCategoryIds(this.selectedCategoryIds);
         const payload = {
           folder_type: 2,
           folder_name: this.productName,
           folder_desc: this.productIntro,
-          pic_ids: this.coverImageIds,
-          detail_pic_ids: this.detailImageIds,
+          pic_ids: coverImageIds,
+          detail_pic_ids: detailImageIds,
           hide_detail_pictures: this.hideDetailPictures ? 1 : 0,
           new_thumb:
             (this.coverImages[0] &&
               (this.coverImages[0].uploadedUrl || this.coverImages[0].src)) ||
             "",
-          category_ids: this.selectedCategoryIds, // 多个分类ID数组
+          category_ids: categoryIds, // 多个分类ID数组
           timestamp: new Date().getTime(),
         };
         let url = "album/create/folder";
         if (this.pid) {
           payload.fid = this.pid;
           url = "album/edit/folder";
+        } else if (categoryIds.length) {
+          payload.fid = categoryIds;
         }
 
         if (this.$go) {
@@ -783,8 +829,17 @@ export default {
             this.finishIntegralTask("upload_product");
           }
           uni.showToast({ title: "提交成功", icon: "none" });
-          this.notifyProductChanged();
+          const marker = this.notifyProductChanged();
           setTimeout(() => {
+            const targetCategoryId = this.getReturnCategoryId();
+            if (this.fromPage === "categoryPreview" && targetCategoryId) {
+              this.openCategoryDetail(targetCategoryId, marker);
+              return;
+            }
+            if (this.fromPage === "classDetail") {
+              this.returnToPreviousCategoryDetail(targetCategoryId, marker);
+              return;
+            }
             uni.navigateBack();
           }, 1000);
         } else {
@@ -814,7 +869,8 @@ export default {
       const payload = Array.isArray(data.data)
         ? data.data[0] || {}
         : data.data || data;
-      const url =
+      const urls = payload.image_urls || payload.imageUrls || payload.urls || {};
+      const url = imageUrlFor(payload, "thumb") ||
         payload.url ||
         payload.imgurl ||
         payload.src ||
@@ -838,10 +894,122 @@ export default {
         throw new Error("上传返回缺少图片ID");
       }
 
-      return { id, url };
+      return {
+        id,
+        url,
+        thumbUrl: imageUrlFor(payload, "thumb") || url,
+        previewUrl: imageUrlFor(payload, "preview") || url,
+        originUrl: imageUrlFor(payload, "origin") || payload.file_url || payload.original_url || url,
+        uploadedUrl: imageUrlFor(payload, "origin") || payload.file_url || payload.original_url || url,
+        image_urls: urls,
+        imageUrls: urls,
+        source: payload.source || data.source || "upload",
+        resourceId: payload.resource_id || payload.resourceId || data.resource_id || data.resourceId || "",
+      };
+    },
+    normalizeProductImage(item = {}, source = "saved") {
+      const thumbUrl = imageUrlFor(item, "thumb") || item.url || item.imgurl || "";
+      const previewUrl = imageUrlFor(item, "preview") || thumbUrl;
+      const originUrl = imageUrlFor(item, "origin") || item.file_url || item.original_url || previewUrl;
+      return {
+        id: item.id || item.pid || item.pic_id,
+        src: thumbUrl || previewUrl || originUrl,
+        uploadedUrl: originUrl,
+        previewUrl,
+        originUrl,
+        image_urls: item.image_urls || item.imageUrls || item.urls || {},
+        imageUrls: item.imageUrls || item.image_urls || item.urls || {},
+        uploading: false,
+        source,
+        resourceId: item.resource_id || item.resourceId || "",
+      };
+    },
+    discardUploadedPicture(picId) {
+      if (!picId || !this.$go) {
+        return Promise.resolve();
+      }
+      const querys = {
+        pic_id: picId,
+        timestamp: new Date().getTime(),
+      };
+      const data = {
+        ...querys,
+        sign: this.$base ? this.$base.getASCII(querys) : "",
+      };
+      return this.$go("user/discard/uploaded_pic", data, "post", {
+        show_err: false,
+        loading: false,
+      }).catch((err) => {
+        console.error("清理未保存图片失败:", err);
+      });
+    },
+    getReturnCategoryId() {
+      const selectedCategoryIds = this.normalizeCategoryIds(this.selectedCategoryIds);
+      const initialCategoryIds = this.normalizeCategoryIds(this.initialCategoryId);
+      return selectedCategoryIds[0] || initialCategoryIds[0] || "";
+    },
+    refreshPreviousCategoryDetail(categoryId, marker) {
+      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+      const previousPage = pages && pages[pages.length - 2];
+      const previousVm = previousPage && previousPage.$vm;
+      if (
+        previousVm &&
+        previousVm.categoryId &&
+        String(previousVm.categoryId) === String(categoryId) &&
+        typeof previousVm.handleRefreshData === "function"
+      ) {
+        previousVm.handleRefreshData(marker);
+        return true;
+      }
+      uni.$emit("refreshClassDetailData", marker);
+      return false;
+    },
+    returnToPreviousCategoryDetail(categoryId, marker) {
+      if (!categoryId) {
+        uni.navigateBack();
+        return;
+      }
+      const refreshed = this.refreshPreviousCategoryDetail(categoryId, marker);
+      uni.navigateBack({
+        fail: () => {
+          if (!refreshed) {
+            this.openCategoryDetail(categoryId, marker);
+          }
+        },
+      });
+    },
+    openCategoryDetail(categoryId, marker = "") {
+      if (!categoryId) {
+        uni.navigateBack();
+        return;
+      }
+      const query = [
+        `id=${encodeURIComponent(categoryId)}`,
+        "refresh=1",
+        `ts=${Date.now()}`,
+      ];
+      if (marker) {
+        query.push(`marker=${encodeURIComponent(marker)}`);
+      }
+      if (this.initialCategoryName) {
+        query.push(`name=${encodeURIComponent(this.initialCategoryName)}`);
+      }
+      const detailUrl = `/pagesOther/classDetail/classDetail?${query.join("&")}`;
+      uni.redirectTo({ url: detailUrl });
     },
     notifyProductChanged() {
-      notifyRefresh(["product", "home"]);
+      const types = ["product", "home"];
+      if (this.fromPage === "classDetail" || this.fromPage === "categoryPreview") {
+        types.push("category");
+      }
+      const marker = createRefreshMarker();
+      markRefresh(types, marker);
+      if (this.fromPage === "classDetail" || this.fromPage === "categoryPreview") {
+        emitRefreshEvents(["product", "home"], marker);
+      } else {
+        emitRefreshEvents(types, marker);
+      }
+      return marker;
     },
     finishIntegralTask(taskKey) {
       if (!this.$go || !taskKey) {
@@ -859,7 +1027,6 @@ export default {
         show_err: false,
         loading: false,
       }).catch((err) => {
-        console.log("积分任务完成失败:", err);
       });
     },
     buildUploadFileName(filePath, fileType = 1, originalName = "") {
@@ -868,36 +1035,148 @@ export default {
     prepareUploadFilePath(filePath, uploadName) {
       return prepareNamedUploadFile(filePath, uploadName);
     },
+    getLocalFileSize(filePath) {
+      return new Promise((resolve) => {
+        if (!filePath) {
+          resolve(0);
+          return;
+        }
+        const getter =
+          (typeof uni !== "undefined" && uni.getFileInfo) ||
+          (typeof wx !== "undefined" && wx.getFileInfo);
+        if (!getter) {
+          resolve(0);
+          return;
+        }
+        getter({
+          filePath,
+          success: (res) => resolve(Number(res.size || 0)),
+          fail: () => resolve(0),
+        });
+      });
+    },
+    getLocalFileHash(filePath) {
+      return new Promise((resolve) => {
+        if (!filePath) {
+          resolve("");
+          return;
+        }
+        const getter =
+          (typeof uni !== "undefined" && uni.getFileInfo) ||
+          (typeof wx !== "undefined" && wx.getFileInfo);
+        if (!getter) {
+          resolve("");
+          return;
+        }
+        getter({
+          filePath,
+          digestAlgorithm: "sha256",
+          success: (res) => resolve(String(res.digest || res.hash || "").toLowerCase()),
+          fail: () => resolve(""),
+        });
+      });
+    },
+    compressImageWhenSizeMissing(filePath, fileType = 1) {
+      return new Promise((resolve) => {
+        if (Number(fileType) !== 1 || !uni.compressImage) {
+          resolve(filePath);
+          return;
+        }
+        uni.compressImage({
+          src: filePath,
+          quality: 92,
+          success: (res) => resolve(res.tempFilePath || filePath),
+          fail: () => resolve(filePath),
+        });
+      });
+    },
+    async prepareUploadSource(filePath, fileType = 1, fileSize = 0) {
+      let uploadPath = filePath;
+      let size = Number(fileSize || 0);
+      if (size <= 0) {
+        size = await this.getLocalFileSize(uploadPath);
+      }
+      if (size <= 0) {
+        uploadPath = await this.compressImageWhenSizeMissing(uploadPath, fileType);
+        size = await this.getLocalFileSize(uploadPath);
+      }
+      const hash = Number(fileType) === 1 ? await this.getLocalFileHash(uploadPath) : "";
+      return {
+        path: uploadPath,
+        size,
+        hash,
+      };
+    },
+    async importDuplicateResource(sourceFile, role = "cover") {
+      if (!this.$go || !sourceFile || !sourceFile.hash || Number(sourceFile.size || 0) <= 0) {
+        return null;
+      }
+      const duplicateRes = await this.$go(
+        "album/ai/find_duplicate",
+        {
+          file_hash: sourceFile.hash,
+          content_hash: sourceFile.hash,
+          file_size: Number(sourceFile.size || 0),
+        },
+        "get",
+        { show_err: false, loading: false }
+      );
+      const duplicate = (duplicateRes && duplicateRes.data) || {};
+      const resourceId =
+        duplicate.resource_id ||
+        duplicate.id ||
+        (duplicate.resource && duplicate.resource.id) ||
+        "";
+      if (!resourceId) {
+        return null;
+      }
+      const imported = await this.$go(
+        "album/ai/import_resource",
+        {
+          resource_id: resourceId,
+          role,
+        },
+        "post",
+        { show_err: false, loading: false }
+      );
+      if (imported && imported.code === 0 && imported.data) {
+        return this.normalizeUploadResult(imported);
+      }
+      return null;
+    },
     // 上传单文件并返回线上访问地址
-    uploadSingleFile(filePath, fileType = 1, originalName = "") {
+    uploadSingleFile(filePath, fileType = 1, originalName = "", fileSize = 0, role = "") {
       const that = this;
       return new Promise((resolve, reject) => {
-        const uploadName = that.buildUploadFileName(filePath, fileType, originalName);
-        that.prepareUploadFilePath(filePath, uploadName).then((uploadPath) => {
-          uni.uploadFile({
-            url: that.$config.domain + that.uploadEndpoint,
-            filePath: uploadPath,
-            name: "file",
-            header: {
-              "content-type": "multipart/form-data", // 默认值
-              "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
-            },
-            formData: {
-              file_type: fileType,
-              ...buildUploadNameFormData(uploadName),
-            },
-            success: (uploadRes) => {
+        that.prepareUploadSource(filePath, fileType, fileSize).then(async (sourceFile) => {
+          const imageRole = role || (that.uploadTarget === "detail" ? "detail" : "cover");
+          const duplicate = await that.importDuplicateResource(sourceFile, imageRole).catch(() => null);
+          if (duplicate) {
+            resolve(duplicate);
+            return;
+          }
+          const uploadName = that.buildUploadFileName(sourceFile.path, fileType, originalName);
+          that.prepareUploadFilePath(sourceFile.path, uploadName).then((uploadPath) => {
+            uploader.upload(uploadPath, {
+              endpoint: that.uploadEndpoint,
+              formData: {
+                file_type: fileType,
+                file_size: Number(sourceFile.size || 0),
+                size: Number(sourceFile.size || 0),
+                file_hash: sourceFile.hash || "",
+                content_hash: sourceFile.hash || "",
+                ...buildUploadNameFormData(uploadName),
+              },
+              showErrorToast: false,
+            }).then((uploadRes) => {
               try {
-                resolve(that.normalizeUploadResult(uploadRes.data));
+                resolve(that.normalizeUploadResult(uploadRes));
               } catch (e) {
                 reject(e);
               }
-            },
-            fail: (e) => {
-              reject(e);
-            },
+            }).catch(reject);
           });
-        });
+        }).catch(reject);
       });
     },
   },
@@ -913,7 +1192,7 @@ export default {
   overflow-y: auto;
   .container-scoll {
     width: 100%;
-    padding-bottom: 160rpx;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 260rpx);
   }
 
   .form-box {
@@ -969,6 +1248,34 @@ export default {
       font-size: 22rpx;
       color: #999999;
       margin-top: 8rpx;
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24rpx;
+      margin-bottom: 12rpx;
+
+      .label {
+        margin-bottom: 0;
+        flex: 1;
+      }
+    }
+
+    .hide-detail-switch {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 14rpx;
+      flex: 0 0 auto;
+    }
+
+    .hide-detail-label {
+      font-size: 26rpx;
+      color: #333333;
+      line-height: 1.4;
+      white-space: nowrap;
     }
 
     .select-box {
@@ -1168,15 +1475,23 @@ export default {
 
   .submit-wrap {
     position: fixed;
-    bottom: 30rpx;
+    bottom: 0;
     left: 0;
     width: 100%;
+    min-height: calc(env(safe-area-inset-bottom) + 150rpx);
+    padding: 18rpx 32rpx calc(env(safe-area-inset-bottom) + 18rpx);
     display: flex;
+    align-items: center;
     justify-content: center;
+    background: #ffffff;
+    box-sizing: border-box;
+    z-index: 80;
+    border-top: 1rpx solid #f0f0f0;
   }
 
   .submit-btn {
-    width: 686rpx;
+    width: 100%;
+    max-width: 686rpx;
     height: 96rpx;
     background: #ffd800;
     border-radius: 48rpx;

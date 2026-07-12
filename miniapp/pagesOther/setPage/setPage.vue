@@ -10,7 +10,7 @@
 							<img class="backIcon" src="@/static/icon/back.png" />
 						</view>
 						<view class="info-box">
-							<view class="title">相册设置</view>
+							<view class="title">分类设置</view>
 						</view>
 					</view>
 				</view>
@@ -19,9 +19,7 @@
 
 		<!-- 设置内容区域 -->
 		<view class="content" :style="{ paddingTop: totalHeight + 'px' }">
-			<!-- 设置项列表 -->
 			<view class="setting-list">
-				<!-- 联系商家按钮 -->
 				<view class="setting-item-box">
 					<view class="setting-item">
 						<view class="setting-label" style="display: flex; align-items: center;">
@@ -29,19 +27,16 @@
 							联系商家按钮
 						</view>
 						<view class="switch-container">
-							<switch class="setting-switch" :checked="folderInfo.show_connect == 1"
-								@change="toggleContactMerchant($event, 'show_connect')" />
+							<switch class="setting-switch" :checked="folderInfo.show_connect == 1" @change="toggleContactMerchant($event, 'show_connect')" />
 						</view>
 					</view>
 				</view>
 
-
 				<view class="setting-item-box">
-					<!-- 修改相册名称 -->
 					<view class="setting-item clickable" @click="editAlbumName">
 						<view class="setting-label" style="display: flex; align-items: center;">
 							<image src="@/static/icon/slices/24＊24@2x(12).png" mode=""></image>
-							修改相册名称
+							修改分类名称
 						</view>
 						<view class="arrow-container">
 							{{ folderInfo.folder_name }}
@@ -49,11 +44,10 @@
 						</view>
 					</view>
 
-					<!-- 置顶该相册/文件夹 -->
 					<view class="setting-item">
 						<view class="setting-label" style="display: flex; align-items: center;">
 							<image src="@/static/icon/slices/Frame@2x(13).png" mode=""></image>
-							置顶该相册/文件夹
+							置顶该分类
 						</view>
 						<view class="switch-container">
 							<switch class="setting-switch" :checked="folderInfo.set_top == 1" @change="togglePinned" />
@@ -62,23 +56,20 @@
 				</view>
 
 				<view class="setting-item-box">
-					<!-- 不允许他人分享该相册 -->
 					<view class="setting-item" v-if="folderInfo.uid == userInfo.id">
 						<view class="setting-label" style="display: flex; align-items: center;">
 							<image src="@/static/icon/slices/Frame@2x(12).png" mode=""></image>
-							不允许他人分享该相册
+							不允许他人分享该分类
 						</view>
 						<view class="switch-container">
-							<switch class="setting-switch" :checked="folderInfo.other_share == 1"
-								@change="toggleDisableSharing" />
+							<switch class="setting-switch" :checked="folderInfo.other_share == 1" @change="toggleDisableSharing" />
 						</view>
 					</view>
-
 
 					<view class="setting-item clickable" @click="editAlbumShow" v-if="folderInfo.folder_type == 2">
 						<view class="setting-label" style="display: flex; align-items: center;">
 							<image src="@/static/icon/slices/Frame@2x(11).png" mode=""></image>
-							相册布局
+							分类布局
 						</view>
 						<view class="arrow-container">
 							{{ folderInfo.pic_layout == 1 ? '小图' : '中图' }}
@@ -86,79 +77,37 @@
 						</view>
 					</view>
 
-					<u-action-sheet :actions="actionList" cancelText='取消' :closeOnClickOverlay="true" :title="title"
-						:show="addShow" @select="selectTab" @close='addShow = false'>
+					<u-action-sheet :actions="actionList" cancelText='取消' :closeOnClickOverlay="true" :title="title" :show="addShow" @select="selectTab" @close='addShow = false'>
 					</u-action-sheet>
-					<u-action-sheet :actions="privateList" cancelText='取消' :closeOnClickOverlay="true" :title="title"
-						:show="privateShow" @select="selectType" @close='privateShow = false'>
+					<u-action-sheet :actions="privateList" cancelText='取消' :closeOnClickOverlay="true" :title="title" :show="privateShow" @select="selectType" @close='privateShow = false'>
 					</u-action-sheet>
 
 					<view class="setting-item" v-if="folderInfo.folder_type == 2">
 						<view class="setting-label" style="display: flex; align-items: center;">
 							<image src="@/static/icon/slices/Frame@2x(11).png" mode=""></image>
-							相册显示日期
+							分类显示日期
 						</view>
 						<view class="switch-container">
-							<switch class="setting-switch" :checked="folderInfo.show_upload_date == 1"
-								@change="toggleTime" />
+							<switch class="setting-switch" :checked="folderInfo.show_upload_date == 1" @change="toggleTime" />
 						</view>
 					</view>
-					<!-- 根据备注搜索照片 -->
+
 					<view class="setting-item clickable" v-if="folderInfo.folder_type == 2">
 						<view class="setting-label" style="display: flex; align-items: center;">
 							<image src="@/static/icon/slices/Frame@2x(11).png" mode=""></image>
-							根据备注搜索照片
+							根据备注搜索产品
 						</view>
 						<view class="switch-container">
-							<switch class="setting-switch" :checked="folderInfo.show_search == 1"
-								@change="searchByRemark" />
+							<switch class="setting-switch" :checked="folderInfo.show_search == 1" @change="searchByRemark" />
 						</view>
 					</view>
-
 				</view>
 
 				<view class="setting-item-box">
-					<view class="setting-item" v-if="folderInfo.uid == userInfo.id">
-						<view class="setting-label" style="display: flex; align-items: center;">
-							<image src="@/static/icon/slices/Frame@2x(10).png" mode=""></image>
-							编辑者能否新建相册
-						</view>
-						<view class="switch-container">
-							<switch class="setting-switch" :checked="folderInfo.editer_create == 1"
-								@change="toggleEditerCreate" />
-						</view>
-					</view>
-					<!-- 编辑者能否删除相册 -->
-					<view class="setting-item" v-if="folderInfo.uid == userInfo.id">
-						<view class="setting-label" style="display: flex; align-items: center;">
-							<image src="@/static/icon/slices/Frame@2x(10).png" mode=""></image>
-							编辑者能否删除相册
-						</view>
-						<view class="switch-container">
-							<switch class="setting-switch" :checked="folderInfo.editer_delete == 1"
-								@change="toggleEditerDel" />
-						</view>
-					</view>
-
-					<view class="setting-item" v-if="folderInfo.uid == userInfo.id">
-						<view class="setting-label" style="display: flex; align-items: center;">
-							<image src="@/static/icon/slices/Frame@2x(10).png" mode=""></image>
-							编辑者能否删除照片
-						</view>
-						<view class="switch-container">
-							<switch class="setting-switch" :checked="folderInfo.editer_delete_pic == 1"
-								@change="toggleEditerDelPic" />
-						</view>
-					</view>
-
-				</view>
-
-				<view class="setting-item-box">
-
 					<view class="setting-item clickable" @click="editAlbumPrivate" v-if="folderInfo.uid == userInfo.id">
 						<view class="setting-label" style="display: flex; align-items: center;">
 							<image src="@/static/icon/slices/Frame@2x(9).png" mode=""></image>
-							相册隐私设置
+							分类隐私设置
 						</view>
 						<view class="arrow-container">
 							<text v-if="folderInfo.private_type == 1">公开</text>
@@ -168,11 +117,10 @@
 						</view>
 					</view>
 
-					<view class="setting-item clickable" @click="passwordShow = true"
-						v-if="folderInfo.uid == userInfo.id && folderInfo.private_type == 3">
+					<view class="setting-item clickable" @click="passwordShow = true" v-if="folderInfo.uid == userInfo.id && folderInfo.private_type == 3">
 						<view class="setting-label" style="display: flex; align-items: center;">
 							<image src="@/static/icon/slices/Frame@2x(9).png" mode=""></image>
-							修改相册密码
+							修改分类密码
 						</view>
 						<view class="arrow-container">
 							{{ folderInfo.show_pwd }}
@@ -191,41 +139,11 @@
 					</view>
 				</view>
 
-				<view class="tip-text" v-if="folderInfo.uid == userInfo.id">
-					从微信群搜集照片
-				</view>
-				<view class="setting-item-box">
-					<view class="setting-item clickable" v-if="folderInfo.uid == userInfo.id"
-						@click="showSecuritySettings">
-						<view class="setting-label">
-							<view class="top-label">
-								设置照片上传者必填信息
-							</view>
-							<view class="bottom-des">
-								比如姓名，部门
-							</view>
-						</view>
-						<view class="arrow-container">
-							<image src="../../static/icon/slices/icon_返回(black)@2x.png" mode=""></image>
-						</view>
-					</view>
-				</view>
 				<view class="setting-item-box">
 					<view class="setting-item clickable" @click="openDel">
 						<view class="setting-label" style="display: flex; align-items: center;">
 							<image src="@/static/icon/slices/trash@2x(2).png" mode=""></image>
-							删除该相册
-						</view>
-						<view class="arrow-container">
-							<image src="../../static/icon/slices/icon_返回(black)@2x.png" mode=""></image>
-						</view>
-					</view>
-					</view>
-					<view class="setting-item-box">
-					<view class="setting-item clickable" @click="openReport">
-						<view class="setting-label" style="display: flex; align-items: center;">
-							<image src="@/static/icon/slices/Frame@2x(8).png" mode=""></image>
-							举报该相册
+							删除该分类
 						</view>
 						<view class="arrow-container">
 							<image src="../../static/icon/slices/icon_返回(black)@2x.png" mode=""></image>
@@ -234,6 +152,7 @@
 				</view>
 			</view>
 		</view>
+
 		<u-popup :show="inputShow" mode="center" :safe-area-inset-bottom="false" :round="10">
 			<view class="popBox">
 				<view class="pop-title">
@@ -248,10 +167,11 @@
 				</view>
 			</view>
 		</u-popup>
+
 		<u-popup :show="passwordShow" mode="center" :safe-area-inset-bottom="false" :round="10">
 			<view class="popBox">
 				<view class="pop-title">
-					为这个相册设置密码(四位数字)
+					为这个分类设置密码(四位数字)
 				</view>
 				<view class="input-content input-wrapper">
 					<input type="text" v-model="folder_password" maxlength="4" placeholder-class="jf-input-placeholder" :placeholder="placeholderFor('setPagePassword', '请输入密码')" @tap="focusField('setPagePassword')" @focus="focusField('setPagePassword')" @blur="blurField('setPagePassword')" />
@@ -262,30 +182,17 @@
 				</view>
 			</view>
 		</u-popup>
-		<u-popup :show="reportShow" mode="center" :round="10">
-			<view class="popBox">
-				<view class="pop-title">
-					输入举报原因
-				</view>
-				<view class="input-content input-wrapper">
-					<input type="text" v-model="report" placeholder-class="jf-input-placeholder" :placeholder="placeholderFor('setPageReport', '请输入原因')" @tap="focusField('setPageReport')" @focus="focusField('setPageReport')" @blur="blurField('setPageReport')" />
-				</view>
-				<view class="btn-box">
-					<view class="cancel" @click="reportShow = false">取消</view>
-					<view class="submit" @click="createReport">提交</view>
-				</view>
-			</view>
-		</u-popup>
+
 		<u-popup :show="delShow" mode="center" :safe-area-inset-bottom="false" :round="10">
 			<view class="popBox">
 				<view class="pop-title">提示</view>
 				<view class="input-content action-item" style="justify-content: center;" @click="delPic(1)">
-					仅删除相册(保留照片)
+					仅删除分类
 				</view>
 				<view class="input-content action-item danger" style="justify-content: center;" @click="delPic(2)">
-					删除(删除照片)
+					删除分类及内容
 				</view>
-				<view class="input-content " style="justify-content: center;" @click="delShow = false">
+				<view class="input-content" style="justify-content: center;" @click="delShow = false">
 					取消
 				</view>
 			</view>
@@ -294,6 +201,8 @@
 </template>
 
 <script>
+import { notifyFolderRefresh, notifyRefresh } from '@/common/helper/refresh.js';
+
 export default {
 	data() {
 		return {
@@ -304,8 +213,6 @@ export default {
 			contactMerchant: false,
 			pinned: false,
 			disableSharing: false,
-			reportShow: false,
-			report: '',
 			folderInfo: {},
 			inputShow: false,
 			delShow: false,
@@ -338,16 +245,35 @@ export default {
 		resertShare() {
 			uni.showModal({
 				title: '请再次确认',
-				content: '重置后，将无法使用之前的邀请链接或二维码加入编辑相册。已加入的用户不受影响',
+				content: '重置后，将无法使用之前的邀请链接或二维码加入编辑分类。已加入的用户不受影响',
 				showCancel: true,
-				success: function (res) {
+				success: (res) => {
 					if (res.confirm) {
-						console.log('用户点击确定');
+						this.resetShareLink()
 					} else if (res.cancel) {
-						console.log('用户点击取消');
 					}
 				}
 			})
+		},
+		resetShareLink() {
+			const params = this.buildApiParams({
+				fid: this.folderInfo.id
+			});
+			this.$go('album/reset/share', params, 'post', {
+				show_err: true
+			})
+				.then(res => {
+					if (res.code !== 0) return
+					if (res.data && res.data.share_version !== undefined) {
+						this.folderInfo.share_version = res.data.share_version
+					}
+					uni.showToast({
+						title: res.msg || '重置成功',
+						icon: 'none'
+					});
+					this.markFolderChanged()
+				})
+				.catch(err => { });
 		},
 
 		buildApiParams(params) {
@@ -371,17 +297,12 @@ export default {
 		openDel() {
 			if (this.folderInfo.uid != this.userInfo.id && this.folderInfo.editer_delete == 0) {
 				uni.showToast({
-					title: '您没有权限删除该相册',
+					title: '您没有权限删除该分类',
 					icon: 'none'
 				})
 			} else {
 				this.delShow = true
 			}
-		},
-
-		openReport() {
-			this.report = ''
-			this.reportShow = true
 		},
 
 		selectType(e) {
@@ -424,23 +345,15 @@ export default {
 
 		selectTab(e) {
 			this.folderInfo.pic_layout = e.name === '小图' ? 1 : 2
-			console.log(this.folderInfo)
-			this.addShow = false
+			this.folderInfo.layout_type = this.folderInfo.pic_layout === 1 ? 1 : 2
 			this.submitForm()
+			this.addShow = false
 		},
 
-		// 显示更多选项
-		showMoreOptions() {
-			uni.showToast({
-				title: '显示更多选项',
-				icon: 'none'
-			});
-		},
-
-		// 隐藏相册
+		// 隐藏分类
 		hideAlbum() {
 			uni.showToast({
-				title: '隐藏相册',
+				title: '隐藏分类',
 				icon: 'none'
 			});
 		},
@@ -451,25 +364,6 @@ export default {
 				title: '切换可见性',
 				icon: 'none'
 			});
-		},
-
-		createReport() {
-			const params = this.buildApiParams({
-				fid: this.folderInfo.id,
-				report: this.report
-			});
-
-			this.$go('album/report/folder', params, 'post', {
-				show_err: true
-			})
-				.then(res => {
-					uni.showToast({
-						title: res.msg || '举报成功',
-						icon: 'none'
-					});
-					this.reportShow = false
-				})
-				.catch(err => { });
 		},
 
 		// 切换联系商家按钮
@@ -484,7 +378,19 @@ export default {
 			this.inputShow = false
 		},
 
+		normalizeUploadField(value) {
+			if (Array.isArray(value)) {
+				return value.length ? JSON.stringify(value) : ''
+			}
+			if (typeof value === 'string') {
+				const trimmed = value.trim()
+				return trimmed === '[]' ? '' : trimmed
+			}
+			return ''
+		},
+
 		submitForm() {
+			const uploadField = this.normalizeUploadField(this.folderInfo.upload_field)
 			const data = {
 				show_connect: this.folderInfo.show_connect,
 				folder_name: this.folderInfo.folder_name,
@@ -492,26 +398,18 @@ export default {
 				other_share: this.folderInfo.other_share,
 				show_upload_date: this.folderInfo.show_upload_date,
 				show_search: this.folderInfo.show_search,
-				upload_field: this.folderInfo.upload_field,
+				upload_field: uploadField,
 				editer_create: this.folderInfo.editer_create,
 				editer_delete: this.folderInfo.editer_delete,
 				editer_delete_pic: this.folderInfo.editer_delete_pic,
 				private_type: this.folderInfo.private_type,
+				layout_type: this.folderInfo.layout_type,
 				pic_layout: this.folderInfo.pic_layout,
 				sort_type: '',
 				fid: this.folderInfo.id
 
 			}
-			if (this.folderInfo.upload_field.length == 0) {
-				data.upload_field = ''
-			} else {
-				data.upload_field = JSON.stringify(this.folderInfo.upload_field)
-			}
-			if (this.folderInfo.upload_field.length > 0) {
-				this.folderInfo.upload_field = JSON.stringify(this.folderInfo.upload_field)
-			} else {
-				this.folderInfo.upload_field = ''
-			}
+			this.folderInfo.upload_field = uploadField
 
 			const params = this.buildApiParams({
 				...data,
@@ -527,18 +425,26 @@ export default {
 						title: res.msg || '设置成功',
 						icon: 'none'
 					});
+					this.markFolderChanged()
 				})
 				.catch(err => { });
 		},
+		markFolderChanged() {
+			uni.setStorageSync('folderInfo', this.folderInfo)
+			notifyFolderRefresh(this.folderInfo.folder_type)
+			if (Number(this.folderInfo.folder_type) === 1) {
+				notifyRefresh(['category', 'home'])
+			}
+		},
 
-		// 查看示例相册
+		// 查看示例分类
 		viewExampleAlbum() {
 			uni.navigateTo({
 				url: '/pagesOther/imgBook/imgBook'
 			});
 		},
 
-		// 修改相册名称
+		// 修改分类名称
 		editAlbumName() {
 			this.inputShow = true
 			this.folder_name_input = this.folderInfo.folder_name
@@ -550,7 +456,7 @@ export default {
 			this.submitForm()
 		},
 
-		// 根据备注搜索照片
+		// 根据备注搜索产品
 		searchByRemark(e) {
 			let userInfo = uni.getStorageSync('userInfo')
 			if (userInfo.grade_level == 0) {
@@ -623,10 +529,10 @@ export default {
 			this.submitForm()
 		},
 
-		// 显示显示设置
+		// 显示设置
 		showDisplaySettings() {
 			uni.showToast({
-				title: '相册显示设置',
+				title: '分类显示设置',
 				icon: 'none'
 			});
 		},
@@ -634,7 +540,7 @@ export default {
 		// 显示编辑设置
 		showEditSettings() {
 			uni.showToast({
-				title: '相册编辑设置',
+				title: '分类编辑设置',
 				icon: 'none'
 			});
 		},
@@ -646,33 +552,17 @@ export default {
 			})
 		},
 
-		// 从微信群搜索照片
-		searchFromWechatGroup() {
-			uni.showToast({
-				title: '从微信群搜索照片',
-				icon: 'none'
-			});
-		},
-
-		// 设置必填信息
-		setRequiredInfo() {
-			uni.showToast({
-				title: '设置照片上传者必填的信息',
-				icon: 'none'
-			});
-		},
-
-		// 删除相册
+		// 删除分类
 		deleteAlbum() {
 			uni.showModal({
-				title: '删除相册',
-				content: '确定要删除该相册吗？删除后将无法恢复。',
+				title: '删除分类',
+				content: '确定要删除该分类吗？删除后将无法恢复。',
 				confirmText: '删除',
 				confirmColor: '#EB3536',
 				success: (res) => {
 					if (res.confirm) {
 						uni.showToast({
-							title: '相册删除成功',
+							title: '分类删除成功',
 							icon: 'success'
 						});
 						// 延迟返回上一页
@@ -683,14 +573,6 @@ export default {
 				}
 			});
 		},
-
-		// 举报相册
-		reportAlbum() {
-			uni.showToast({
-				title: '举报该相册',
-				icon: 'none'
-			});
-		}
 	}
 };
 </script>

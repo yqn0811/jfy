@@ -3,7 +3,6 @@
 import { ref, computed, onMounted } from "vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogScrollContent,
@@ -11,21 +10,15 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import SafeIcon from "@/components/common/SafeIcon.vue";
 import BrandMark from "@/components/common/BrandMark.vue";
 import LoginDialog from "@/components/common/LoginDialog.vue";
+import UserProfileMenu from "@/components/common/UserProfileMenu.vue";
 import FavoritesList from "@/components/favorites/FavoritesList.vue";
 import BrowsingHistoryContent from "@/components/browsing_history/BrowsingHistoryContent.vue";
 import { cn } from "@/lib/utils";
 import { authStore, pcApi } from "@/lib/api";
+import { navigateToInternal } from "@/navigation";
 
 interface Props {
   isAuthenticated?: boolean;
@@ -38,7 +31,7 @@ const props = withDefaults(defineProps<Props>(), {
   isAuthenticated: false,
   userName: "访客用户",
   userAvatar: "",
-  currentPath: "./share-home.html",
+  currentPath: "./share-home",
 });
 
 const searchQuery = ref("");
@@ -47,22 +40,20 @@ const quickPanel = ref<"favorites" | "history" | "">("");
 const userInfo = ref<any>({});
 const isHydrated = ref(false);
 const loggedIn = computed(() => isHydrated.value && (props.isAuthenticated || authStore.isLoggedIn()));
-const displayName = computed(() => userInfo.value?.company_name || userInfo.value?.nickname || props.userName);
-const displayAvatar = computed(() => userInfo.value?.avatar || userInfo.value?.company_logo || props.userAvatar);
 
 const navItems = [
-  { name: "我的收藏", href: "./favorites.html", icon: "Heart", panel: "favorites" as const },
-  { name: "浏览足迹", href: "./browsing-history.html", icon: "History", panel: "history" as const },
+  { name: "我的收藏", href: "./favorites", icon: "Heart", panel: "favorites" as const },
+  { name: "浏览足迹", href: "./browsing-history", icon: "History", panel: "history" as const },
 ];
 
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
-    window.location.href = `./share-home.html?keyword=${encodeURIComponent(searchQuery.value.trim())}`;
+    navigateToInternal(`./share-home?keyword=${encodeURIComponent(searchQuery.value.trim())}`);
   }
 };
 
 const handleNavigate = (href: string) => {
-  window.location.href = href;
+  navigateToInternal(href);
 };
 
 const handleNavClick = (item: typeof navItems[number]) => {
@@ -71,16 +62,10 @@ const handleNavClick = (item: typeof navItems[number]) => {
 
 const handleMerchantLogin = () => {
   if (loggedIn.value) {
-    handleNavigate('./management-workbench.html');
+    handleNavigate('./management-workbench');
     return;
   }
   showLoginDialog.value = true;
-};
-
-const handleLogout = () => {
-  authStore.clearToken();
-  userInfo.value = {};
-  window.location.reload();
 };
 
 const handleLoginSuccess = async () => {
@@ -92,7 +77,11 @@ const handleLoginSuccess = async () => {
   } catch {
     // ignore
   }
-  handleNavigate('./management-workbench.html');
+  handleNavigate('./management-workbench');
+};
+
+const handleProfileUpdated = (profile: any) => {
+  userInfo.value = profile || {};
 };
 
 const isActive = (href: string) => {
@@ -122,7 +111,7 @@ onMounted(() => {
       <!-- Logo Section -->
       <div 
         class="flex items-center gap-2 cursor-pointer shrink-0" 
-        @click="handleNavigate('./share-home.html')"
+        @click="handleNavigate('./share-home')"
       >
         <BrandMark :size="32" />
         <span class="text-xl font-bold tracking-tight text-foreground">家纺云相册</span>
@@ -159,6 +148,16 @@ onMounted(() => {
             <SafeIcon :name="item.icon" :size="20" />
             <span class="text-sm font-medium">{{ item.name }}</span>
           </Button>
+          <Button
+            v-if="loggedIn"
+            variant="outline"
+            size="sm"
+            class="ml-2 h-9 gap-2"
+            @click="handleNavigate('./management-workbench')"
+          >
+            <SafeIcon name="LayoutDashboard" :size="16" />
+            返回工作台
+          </Button>
         </nav>
 
         <slot />
@@ -167,33 +166,13 @@ onMounted(() => {
 
         <!-- Profile Section -->
         <div v-if="loggedIn">
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="ghost" class="relative h-10 w-10 rounded-full p-0">
-                <Avatar class="h-10 w-10 border border-border">
-                  <AvatarImage :src="displayAvatar" :alt="displayName" />
-                  <AvatarFallback class="bg-primary/10 text-primary">{{ displayName.substring(0, 1) }}</AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent class="w-56" align="end">
-              <DropdownMenuLabel class="font-normal">
-                <div class="flex flex-col space-y-1">
-                  <p class="text-sm font-medium leading-none">{{ displayName }}</p>
-                  <p class="text-xs leading-none text-muted-foreground">欢迎使用家纺云相册</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem @click="handleNavigate('./management-workbench.html')" class="cursor-pointer">
-                <SafeIcon name="LayoutDashboard" class="mr-2 h-4 w-4" />
-                <span>管理工作台</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem class="cursor-pointer text-destructive focus:text-destructive" @click="handleLogout">
-                <SafeIcon name="LogOut" class="mr-2 h-4 w-4" />
-                <span>退出登录</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <UserProfileMenu
+            :user-info="userInfo"
+            :fallback-name="props.userName"
+            :fallback-avatar="props.userAvatar"
+            logout-redirect="./share-home"
+            @profile-updated="handleProfileUpdated"
+          />
         </div>
         <div v-else>
           <Button 
@@ -221,7 +200,7 @@ onMounted(() => {
             <DialogDescription>查看你收藏的主页、分类和产品</DialogDescription>
           </DialogHeader>
           <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            <FavoritesList v-if="quickPanel === 'favorites'" embedded />
+            <FavoritesList v-if="quickPanel === 'favorites'" embedded @navigate="quickPanel = ''" />
           </div>
         </div>
       </DialogScrollContent>
@@ -235,7 +214,7 @@ onMounted(() => {
             <DialogDescription>查看你浏览过的主页、分类和产品</DialogDescription>
           </DialogHeader>
           <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            <BrowsingHistoryContent v-if="quickPanel === 'history'" embedded />
+            <BrowsingHistoryContent v-if="quickPanel === 'history'" embedded @navigate="quickPanel = ''" />
           </div>
         </div>
       </DialogScrollContent>

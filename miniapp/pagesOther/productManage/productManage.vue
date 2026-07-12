@@ -125,6 +125,7 @@
 <script>
 import ImageGrid from "@/components/ImageGrid"; // ← 根据你项目实际路径调整
 import SettingPopup from "./components/settingPopup.vue";
+import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
 
 export default {
   components: { ImageGrid, SettingPopup },
@@ -186,8 +187,13 @@ export default {
       uni.setStorageSync("productListNeedsRefreshManageConsumed", marker);
     },
     handleImageClick(data) {
+      const productId = getObjectId(data, ["id", "product_id", "folder_id"]);
+      if (!productId) {
+        showInvalidRecordToast();
+        return;
+      }
       uni.navigateTo({
-        url: "/pagesOther/productDetailsSelf/productDetailsSelf?id=" + data.id+'&fromPage=manage',
+        url: "/pagesOther/productDetailsSelf/productDetailsSelf?id=" + productId+'&fromPage=manage',
       });
     },
     // 打开设置弹窗（替换原 onSettings 行为）
@@ -210,7 +216,6 @@ export default {
     // 弹窗设置改变回调（例如切换单列展示）
     onSettingChange(payload) {
       // payload = { single: boolean } 或其它字段，按需处理
-      console.log("设置已改变", payload);
       this.columns = payload.single ? 1 : 2;
     },
     toggleFilter() {
@@ -223,7 +228,8 @@ export default {
       this.filterVisible = false;
     },
     selectCategoryFilter(item) {
-      this.selectedCategoryId = item && item.id ? String(item.id) : "";
+      const categoryId = getObjectId(item, ["id", "category_id", "folder_id"]);
+      this.selectedCategoryId = categoryId ? String(categoryId) : "";
       this.selectedCategoryName =
         item && item.folder_name ? item.folder_name : "全部";
       this.albumId = this.selectedCategoryId || null;
@@ -379,7 +385,12 @@ export default {
     },
 
     createProduct() {
-      uni.navigateTo({ url: "/pagesOther/addProduct/addProduct?fromPage=productManage" });
+      const query = ["fromPage=productManage"];
+      if (this.selectedCategoryId) {
+        query.push(`category_id=${encodeURIComponent(this.selectedCategoryId)}`);
+        query.push(`category_name=${encodeURIComponent(this.selectedCategoryName || "")}`);
+      }
+      uni.navigateTo({ url: `/pagesOther/addProduct/addProduct?${query.join("&")}` });
     },
   },
 };

@@ -18,12 +18,14 @@ import { toast } from 'vue-sonner'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { cn } from '@/lib/utils'
 import { pcApi } from '@/lib/api'
-import { mapCategory, mapProduct, mapProductImagesFromDetail, pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
+import { mapCategory, mapProduct, mapProductImagesFromDetail, normalizeProductImageUrls, pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { ProductData, ProductImageType } from '@/data/ProductData'
 import type { CategoryData } from '@/data/CategoryData'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { buildProductImageUrls, type ProductImageData } from '@/data/ProductImageData'
 import ImageUploadZone from './ImageUploadZone.vue'
 import ImageSortable from './ImageSortable.vue'
+import { navigateTo } from '@/navigation'
+import QuickImageUploadTile from './QuickImageUploadTile.vue'
 
 interface FormState {
   id: string
@@ -102,7 +104,82 @@ const visibilityOptions = [
   { value: 'shared' as const, label: '分享可见' },
 ]
 
+const normalizeImageIdentityUrl = (url: unknown) => String(url || '').trim().split('?')[0].replace(/\/$/, '')
+
+const resourceIdentity = (value: any) => {
+  const resourceId = String(value?.resourceId || value?.resource_id || '').trim()
+  if (resourceId) return `resource:${resourceId}`
+  const fileHash = String(value?.fileHash || value?.file_hash || value?.content_hash || value?.source_hash || value?.metadata?.file_hash || '').trim()
+  if (fileHash) return `hash:${fileHash}`
+  const imageUrls = value?.imageUrls || value?.image_urls || {}
+  const url = normalizeImageIdentityUrl(
+    pickImage(
+      imageUrls.origin,
+      imageUrls.download,
+      imageUrls.preview,
+      imageUrls.thumb,
+      value?.original_url,
+      value?.file_url,
+      value?.fileUrl,
+      value?.picture_url_original,
+      value?.url,
+      value?.thumbnailUrl,
+      value?.thumbnail_url,
+      value
+    )
+  )
+  return url ? `url:${url}` : ''
+}
+
+const imageDedupeKey = (image: ProductImageData) =>
+  resourceIdentity(image) || (image.fileHash ? `hash:${image.fileHash}` : `id:${image.id}`)
+
+const isResourceLibraryImage = (image?: ProductImageData | null) =>
+  image?.source === 'ai_resource' || Boolean(image?.resourceId)
+
 const isCategorySelected = (categoryId: string) => formState.value.categoryIds.includes(categoryId)
+
+const imageListForType = (type: ProductImageType) =>
+  type === 'colorChart' ? formState.value.colorChartImages : formState.value.detailChartImages
+
+const setImageListForType = (type: ProductImageType, images: ProductImageData[]) => {
+  if (type === 'colorChart') {
+    formState.value.colorChartImages = images
+  } else {
+    formState.value.detailChartImages = images
+  }
+}
+
+const isPersistedImage = (image: ProductImageData) =>
+  !String(image.id || '').startsWith('upload_') &&
+  !String(image.id || '').startsWith('quick_upload_') &&
+  image.uploadStatus !== 'uploading' &&
+  image.uploadStatus !== 'error'
+
+const imageIdsForSave = (images: ProductImageData[]) =>
+  images.filter(isPersistedImage).map(item => item.id)
+
+const originalSavedImageIds = new Set<string>()
+const pendingUploadedImageIds = new Set<string>()
+
+const markSavedSnapshot = () => {
+  originalSavedImageIds.clear()
+  ;[...formState.value.colorChartImages, ...formState.value.detailChartImages]
+    .filter(isPersistedImage)
+    .forEach(image => originalSavedImageIds.add(String(image.id)))
+}
+
+const isNewUploadImage = (image: ProductImageData) => {
+  const id = String(image.id || '')
+  return Boolean(id) && image.source === 'upload' && pendingUploadedImageIds.has(id) && !originalSavedImageIds.has(id)
+}
+
+const fileToSha256 = async (file: File) => {
+  if (!crypto?.subtle) return ''
+  const buffer = await file.arrayBuffer()
+  const hash = await crypto.subtle.digest('SHA-256', buffer)
+  return Array.from(new Uint8Array(hash)).map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
 
 const toggleCategory = (categoryId: string) => {
   if (isCategorySelected(categoryId)) {
@@ -117,13 +194,22 @@ const setVisibility = (value: FormState['visibility']) => {
 }
 
 const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: string): ProductImageData => {
-  const url = pickImage(item.original_url, item.file_url, item.fileUrl, item.picture_url_original, item.url, item)
-  const thumbnailUrl = pickImage(item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
+  const normalizedUrls = normalizeProductImageUrls(item)
+  const url = pickImage(item.preview_url, item.previewUrl, item.thumbnail_url, item.thumbnailUrl, item.picture_url, item.imgurl, item.url, item.file_url, item.fileUrl, normalizedUrls.preview, normalizedUrls.edit, normalizedUrls.thumb, normalizedUrls.origin, item.original_url, item.picture_url_original, item, normalizedUrls.download)
+  const thumbnailUrl = pickImage(item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, normalizedUrls.thumb, normalizedUrls.preview, url)
+  const imageUrls = buildProductImageUrls({
+    ...normalizedUrls,
+    thumb: thumbnailUrl || normalizedUrls.thumb,
+    preview: url || normalizedUrls.preview,
+    edit: url || normalizedUrls.edit,
+  }, { url, thumbnailUrl })
+  const resourceId = String(item.resource_id || item.resourceId || '')
   return {
-    id: String(item.pid || item.pic_id || item.resource_id || item.id || `resource_${Date.now()}`),
+    id: String(item.pid || item.pic_id || item.id || item.local_pic_id || item.picture_id || item.resource_id || `resource_${Date.now()}`),
     productId: productIdValue,
     type,
     name: item.name || item.pic_name || item.file_name || `${type === 'colorChart' ? '花色图' : '详情图'}`,
+    imageUrls: buildProductImageUrls(imageUrls, { url, thumbnailUrl }),
     url,
     thumbnailUrl,
     sizeLabel: item.sizeLabel || item.size_label || (item.size ? `${(Number(item.size) / 1024 / 1024).toFixed(1)} MB` : ''),
@@ -131,16 +217,20 @@ const mapResourceToImage = (item: any, type: ProductImageType, productIdValue: s
     sortOrder: type === 'colorChart' ? formState.value.colorChartImages.length : formState.value.detailChartImages.length,
     isOriginalLarge: Number(item.sizeBytes || item.size || 0) > 3 * 1024 * 1024,
     createdAt: item.create_time || item.created_at || new Date().toLocaleString('zh-CN'),
+    uploadStatus: 'reused',
+    resourceId: resourceId || undefined,
+    fileHash: item.file_hash || item.content_hash || item.source_hash || item?.metadata?.file_hash || '',
   }
 }
 
 const normalizeResourceList = (raw: any) => {
   return unwrapList(raw).map((item: any) => {
-    const url = pickImage(item.file_url, item.fileUrl, item.preview_url, item.previewUrl, item.thumbnail_url, item.thumbnailUrl, item.picture_url_original, item.url, item)
+    const url = pickImage(item.preview_url, item.previewUrl, item.thumbnail_url, item.thumbnailUrl, item.file_url, item.fileUrl, item.picture_url_original, item.url, item)
     const thumbnailUrl = pickImage(item.thumbnail_url, item.thumbnailUrl, item.preview_url, item.previewUrl, item.thumb, item.picture_url, item.imgurl, url)
     return {
       ...item,
       id: String(item.id || item.resource_id || item.pic_id || ''),
+      resource_id: item.resource_id || item.id,
       name: item.name || item.pic_name || item.file_name || '未命名图片',
       url,
       thumbnailUrl,
@@ -178,6 +268,11 @@ const markResourceBroken = (id: string) => {
 }
 
 const toggleResource = (id: string) => {
+  const resource = resourceList.value.find(item => item.id === id)
+  if (resource && existingImageIdentityKeys.value.has(resourceIdentity(resource))) {
+    toast.info('这张资源库图片已选过')
+    return
+  }
   const next = new Set(selectedResourceIds.value)
   if (next.has(id)) {
     next.delete(id)
@@ -195,17 +290,30 @@ const handleImportResources = async () => {
 
   isResourceLoading.value = true
   try {
-    const fid = await ensureProductDraft()
     const type = resourceTargetType.value
     const role = type === 'detailChart' ? 'detail' : 'cover'
-    const selected = resourceList.value.filter(item => selectedResourceIds.value.has(item.id))
+    const existingKeys = new Set(imageListForType(type).map(imageDedupeKey).filter(Boolean))
+    const selected = resourceList.value.filter(item => {
+      if (!selectedResourceIds.value.has(item.id)) return false
+      const key = resourceIdentity(item)
+      if (key && existingKeys.has(key)) return false
+      if (key) existingKeys.add(key)
+      return true
+    })
+    if (selected.length === 0) {
+      toast.info('选中的资源库图片已在当前列表中')
+      return
+    }
     const imported: ProductImageData[] = []
 
     for (const item of selected) {
-      const data = await pcApi.importAiResource(item.id, role, fid)
+      const data = await pcApi.importAiResource(item.id, role)
       const rows = unwrapList(data)
       const importedItem = rows[0] || (data && typeof data === 'object' ? data : null) || item
-      imported.push(mapResourceToImage(importedItem, type, fid))
+      imported.push({
+        ...mapResourceToImage(importedItem, type, productId.value || formState.value.id || ''),
+        source: 'ai_resource',
+      })
     }
 
     handleAddImages(imported, type)
@@ -265,6 +373,7 @@ const loadProductData = async (id: string) => {
     }
 
     Object.assign(initialFormState, formState.value)
+    markSavedSnapshot()
   } catch (error) {
     console.error('Failed to load product:', error)
     toast.error('加载产品失败，请重试')
@@ -278,11 +387,18 @@ const handleCancel = () => {
     const confirmed = window.confirm('您有未保存的更改，确定要放弃吗？')
     if (!confirmed) return
   }
+  const discardIds = [...pendingUploadedImageIds].filter(id => !originalSavedImageIds.has(id))
+  pendingUploadedImageIds.clear()
+  discardIds.forEach((id) => {
+    pcApi.discardUploadedPicture(id).catch((error) => {
+      console.warn('Failed to discard uploaded image:', error)
+    })
+  })
   if (props.embedded) {
     emit('cancel')
     return
   }
-  window.location.href = './product-management.html'
+  navigateTo('./product-management')
 }
 
 const buildSavePayload = () => ({
@@ -292,9 +408,9 @@ const buildSavePayload = () => ({
   category_ids: formState.value.categoryIds,
   private_type: formState.value.visibility === 'private' ? 2 : formState.value.visibility === 'shared' ? 4 : 1,
   hide_detail_pictures: formState.value.hideDetailImage ? 1 : 0,
-  pic_ids: formState.value.colorChartImages.map(item => item.id),
-  detail_pic_ids: formState.value.detailChartImages.map(item => item.id),
-  new_thumb: formState.value.colorChartImages[0]?.url || '',
+  pic_ids: imageIdsForSave(formState.value.colorChartImages),
+  detail_pic_ids: imageIdsForSave(formState.value.detailChartImages),
+  new_thumb: formState.value.colorChartImages.find(isPersistedImage)?.url || '',
 })
 
 const handleSave = async () => {
@@ -322,10 +438,19 @@ const handleSave = async () => {
     }
 
     toast.success('设置已保存')
+    Object.assign(initialFormState, {
+      ...formState.value,
+      colorChartImages: formState.value.colorChartImages.map(image => ({ ...image, source: 'saved' as const, pendingDiscard: false })),
+      detailChartImages: formState.value.detailChartImages.map(image => ({ ...image, source: 'saved' as const, pendingDiscard: false })),
+    })
+    formState.value.colorChartImages = initialFormState.colorChartImages
+    formState.value.detailChartImages = initialFormState.detailChartImages
+    pendingUploadedImageIds.clear()
+    markSavedSnapshot()
     if (props.embedded) {
       emit('saved', formState.value.id || productId.value || '')
     } else {
-      window.location.href = './product-management.html'
+      navigateTo('./product-management')
     }
   } catch (error) {
     console.error('Failed to save product:', error)
@@ -336,76 +461,135 @@ const handleSave = async () => {
 }
 
 const handleAddImages = (images: ProductImageData[], type: ProductImageType) => {
-  if (type === 'colorChart') {
-    formState.value.colorChartImages.push(...images)
-  } else {
-    formState.value.detailChartImages.push(...images)
+  const existingKeys = new Set(
+    imageListForType(type)
+      .map(imageDedupeKey)
+      .filter(Boolean)
+  )
+  const nextImages = images.filter((image) => {
+    const key = imageDedupeKey(image)
+    if (existingKeys.has(key)) return false
+    existingKeys.add(key)
+    return true
+  })
+  setImageListForType(type, [...imageListForType(type), ...nextImages])
+}
+
+const handleUpdateImage = (clientId: string, image: ProductImageData, type: ProductImageType) => {
+  const list = imageListForType(type)
+  const index = list.findIndex(item => item.clientId === clientId || item.id === clientId)
+  if (index < 0) return
+  const next = [...list]
+  const duplicateIndex =
+    image.fileHash && image.uploadStatus !== 'error'
+      ? next.findIndex((item, itemIndex) => itemIndex !== index && item.fileHash === image.fileHash && isPersistedImage(item))
+      : -1
+  if (duplicateIndex >= 0) {
+    next.splice(index, 1)
+    setImageListForType(type, next.map((item, sortOrder) => ({ ...item, sortOrder })))
+    toast.info('重复图片已使用已有资源')
+    return
   }
+  next[index] = { ...image, sortOrder: index }
+  setImageListForType(type, next)
 }
 
 const handleRemoveImage = (id: string, type: ProductImageType) => {
-  if (type === 'colorChart') {
-    formState.value.colorChartImages = formState.value.colorChartImages.filter(
-      (img) => img.id !== id
-    )
-  } else {
-    formState.value.detailChartImages = formState.value.detailChartImages.filter(
-      (img) => img.id !== id
-    )
+  const removed = imageListForType(type).find((img) => img.id === id || img.clientId === id)
+  setImageListForType(type, imageListForType(type).filter((img) => img.id !== id && img.clientId !== id))
+  if (removed && isNewUploadImage(removed)) {
+    pendingUploadedImageIds.delete(String(removed.id))
+    pcApi.discardUploadedPicture(String(removed.id)).catch((error) => {
+      console.warn('Failed to discard uploaded image:', error)
+    })
+  } else if (removed?.albumPicId && !isResourceLibraryImage(removed)) {
+    pcApi.discardUploadedPicture({ album_pic_id: removed.albumPicId }).catch((error) => {
+      console.warn('Failed to discard album image relation:', error)
+    })
   }
   toast.success('已删除')
 }
 
 const handleReorderImages = (images: ProductImageData[], type: ProductImageType) => {
-  if (type === 'colorChart') {
-    formState.value.colorChartImages = images
-  } else {
-    formState.value.detailChartImages = images
-  }
+  setImageListForType(type, images)
 }
 
-const ensureProductDraft = async () => {
-  if (productId.value || formState.value.id) {
-    return productId.value || formState.value.id
+const handleUploadImage = async (file: File, type: ProductImageType, placeholder: ProductImageData): Promise<ProductImageData> => {
+  const fileHash = await fileToSha256(file).catch(() => '')
+  if (fileHash) {
+    const localDuplicate = imageListForType(type).find(image =>
+      image.fileHash === fileHash && isPersistedImage(image)
+    )
+    if (localDuplicate) {
+      return {
+        ...localDuplicate,
+        clientId: placeholder.clientId,
+        sortOrder: placeholder.sortOrder,
+        uploadStatus: 'reused',
+        uploadProgress: 100,
+      }
+    }
+
+    const duplicate = await pcApi.findAiResourceDuplicate({
+      file_hash: fileHash,
+      content_hash: fileHash,
+      file_size: file.size || 0,
+      name: file.name,
+    }).catch(() => null)
+    const duplicateResourceId = String(duplicate?.resource_id || duplicate?.id || duplicate?.resource?.id || '')
+    if (duplicateResourceId) {
+      const role = type === 'detailChart' ? 'detail' : 'cover'
+      const imported = await pcApi.importAiResource(duplicateResourceId, role)
+      const rows = unwrapList(imported)
+      const importedItem = rows[0] || (imported && typeof imported === 'object' ? imported : null) || duplicate
+      return {
+        ...mapResourceToImage(importedItem, type, productId.value || formState.value.id || ''),
+        clientId: placeholder.clientId,
+        fileHash,
+        uploadStatus: 'reused',
+        uploadProgress: 100,
+      }
+    }
   }
-  const created = await pcApi.createProductOrCategory({
-    fid: formState.value.categoryIds[0] || 0,
-    folder_type: 2,
-    folder_name: formState.value.name || '未命名产品',
-    folder_desc: formState.value.intro || '',
-    category_ids: formState.value.categoryIds,
-    pic_ids: [],
-    detail_pic_ids: [],
-    hide_detail_pictures: formState.value.hideDetailImage ? 1 : 0,
-    allow_draft: 1,
+
+  const item = await pcApi.uploadCommonImage(file, {
+    file_type: 1,
+    file_hash: fileHash,
+    content_hash: fileHash,
   })
-  const newId = String(created?.id || created?.fid || created?.folder_id || '')
-  if (!newId) throw new Error('产品创建失败，请稍后重试')
-  productId.value = newId
-  formState.value.id = newId
-  return newId
-}
-
-const handleUploadImage = async (file: File, type: ProductImageType): Promise<ProductImageData> => {
-  const fid = await ensureProductDraft()
-  const data = await pcApi.uploadProductImage(fid, file, type)
-  const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
-  const item = rows[0] || {}
-  const url = item.url || URL.createObjectURL(file)
+  const imageUrls = normalizeProductImageUrls(item)
+  const fallbackUrl = URL.createObjectURL(file)
+  const url = pickImage(imageUrls.origin, imageUrls.edit, imageUrls.preview, imageUrls.thumb, item.url, fallbackUrl, imageUrls.download)
+  const thumbnailUrl = pickImage(imageUrls.thumb, imageUrls.preview, url)
+  const id = String(item.pid || item.id || `img_${Date.now()}`)
+  if (/^\d+$/.test(id)) {
+    pendingUploadedImageIds.add(id)
+  }
   return {
-    id: String(item.pid || item.id || `img_${Date.now()}`),
-    productId: fid,
+    id,
+    productId: productId.value || formState.value.id || '',
     type,
     name: file.name,
+    imageUrls: buildProductImageUrls(imageUrls, { url, thumbnailUrl }),
     url,
-    thumbnailUrl: url,
+    thumbnailUrl,
     sizeLabel: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
     sizeBytes: file.size,
     sortOrder: type === 'colorChart' ? formState.value.colorChartImages.length : formState.value.detailChartImages.length,
     isOriginalLarge: file.size > 3 * 1024 * 1024,
     createdAt: new Date().toLocaleString('zh-CN'),
+    clientId: placeholder.clientId,
+    fileHash,
+    uploadStatus: 'done',
+    uploadProgress: 100,
+    source: 'upload',
+    pendingDiscard: true,
   }
 }
+
+const existingImageIdentityKeys = computed(() =>
+  new Set(imageListForType(resourceTargetType.value).map(imageDedupeKey).filter(Boolean))
+)
 </script>
 
 <template>
@@ -548,17 +732,39 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               compact
               class="min-h-[118px]"
               @add-images="handleAddImages"
-              @remove-image="handleRemoveImage"
+              @update-image="handleUpdateImage"
             />
 
-            <ImageSortable
-              v-if="formState.colorChartImages.length > 0"
-              :images="formState.colorChartImages"
-              type="colorChart"
-              class="mt-2"
-              @remove="handleRemoveImage"
-              @reorder="handleReorderImages"
-            />
+            <div class="mt-2">
+              <ImageSortable
+                v-if="formState.colorChartImages.length > 0"
+                :images="formState.colorChartImages"
+                type="colorChart"
+                @remove="handleRemoveImage"
+                @reorder="handleReorderImages"
+              >
+                <template #after>
+                  <QuickImageUploadTile
+                    type="colorChart"
+                    :upload-handler="handleUploadImage"
+                    @add-images="handleAddImages"
+                    @update-image="handleUpdateImage"
+                  />
+                </template>
+              </ImageSortable>
+
+              <div v-else>
+                <p class="mb-2 text-sm font-medium text-muted-foreground">
+                  已上传 0 张花色图（可拖拽排序）
+                </p>
+                <QuickImageUploadTile
+                  type="colorChart"
+                  :upload-handler="handleUploadImage"
+                  @add-images="handleAddImages"
+                  @update-image="handleUpdateImage"
+                />
+              </div>
+            </div>
           </div>
 
           <div class="space-y-3">
@@ -591,17 +797,39 @@ const handleUploadImage = async (file: File, type: ProductImageType): Promise<Pr
               compact
               class="min-h-[118px]"
               @add-images="handleAddImages"
-              @remove-image="handleRemoveImage"
+              @update-image="handleUpdateImage"
             />
 
-            <ImageSortable
-              v-if="formState.detailChartImages.length > 0"
-              :images="formState.detailChartImages"
-              type="detailChart"
-              class="mt-2"
-              @remove="handleRemoveImage"
-              @reorder="handleReorderImages"
-            />
+            <div class="mt-2">
+              <ImageSortable
+                v-if="formState.detailChartImages.length > 0"
+                :images="formState.detailChartImages"
+                type="detailChart"
+                @remove="handleRemoveImage"
+                @reorder="handleReorderImages"
+              >
+                <template #after>
+                  <QuickImageUploadTile
+                    type="detailChart"
+                    :upload-handler="handleUploadImage"
+                    @add-images="handleAddImages"
+                    @update-image="handleUpdateImage"
+                  />
+                </template>
+              </ImageSortable>
+
+              <div v-else>
+                <p class="mb-2 text-sm font-medium text-muted-foreground">
+                  已上传 0 张详情图（可拖拽排序）
+                </p>
+                <QuickImageUploadTile
+                  type="detailChart"
+                  :upload-handler="handleUploadImage"
+                  @add-images="handleAddImages"
+                  @update-image="handleUpdateImage"
+                />
+              </div>
+            </div>
           </div>
         </section>
       </div>

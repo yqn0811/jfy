@@ -14,21 +14,27 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import type { ProductImageData } from '@/data/ProductImageData'
+import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
+import { downloadProductImages, shouldDownloadImagesAsZip } from '@/lib/download'
 
 interface Props {
   open: boolean
   productId: string
   images?: ProductImageData[]
+  canDownload?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  canDownload: true,
+})
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
 }>()
 
 const selectedImages = ref<Set<string>>(new Set())
+const isDownloading = ref(false)
+const downloadProgress = ref('')
 
 const productImages = computed(() => {
   return props.images || []
@@ -50,6 +56,18 @@ const isImageSelected = (image: ProductImageData) => {
 
 const selectedImageList = computed(() => {
   return productImages.value.filter(isImageSelected)
+})
+
+const selectedCount = computed(() => selectedImageList.value.length)
+
+const useZipDownload = computed(() => shouldDownloadImagesAsZip(selectedCount.value))
+
+const downloadButtonText = computed(() => {
+  const count = selectedCount.value
+  if (isDownloading.value) {
+    return downloadProgress.value || (useZipDownload.value ? '打包中...' : '下载中...')
+  }
+  return useZipDownload.value ? `下载 ZIP (${count})` : `下载图片 (${count})`
 })
 
 const selectAll = computed({
@@ -92,29 +110,37 @@ watch(productImages, (images) => {
   selectedImages.value = new Set([...selectedImages.value].filter(id => validImageKeys.has(id)))
 })
 
-const handleDownload = () => {
+const handleDownload = async () => {
+  if (!props.canDownload) {
+    toast.error('该用户未开放下载')
+    return
+  }
   if (selectedImageList.value.length === 0) {
     toast.error('请选择至少一张图片')
     return
   }
 
   const selectedList = selectedImageList.value
-  toast.success(`已开始下载 ${selectedList.length} 张图片`)
-
-  selectedList
-    .forEach((image, index) => {
-      window.setTimeout(() => {
-        const link = document.createElement('a')
-        link.href = image.url
-        link.download = image.name || `product-${props.productId}-${index + 1}.jpg`
-        link.target = '_blank'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-      }, index * 150)
-    })
-
-  emit('update:open', false)
+  isDownloading.value = true
+  downloadProgress.value = useZipDownload.value ? '正在打包图片...' : '正在下载图片...'
+  try {
+    const mode = await downloadProductImages(
+      selectedList,
+      `product-${props.productId || 'images'}.zip`,
+      (completed, total) => {
+        downloadProgress.value = useZipDownload.value
+          ? `正在打包 ${completed}/${total}`
+          : `正在下载 ${completed}/${total}`
+      }
+    )
+    toast.success(mode === 'zip' ? `已打包 ${selectedList.length} 张图片` : `已下载 ${selectedList.length} 张图片`)
+    emit('update:open', false)
+  } catch (error: any) {
+    toast.error(error?.message || '下载失败，请稍后重试')
+  } finally {
+    isDownloading.value = false
+    downloadProgress.value = ''
+  }
 }
 </script>
 
@@ -124,14 +150,23 @@ const handleDownload = () => {
       <DialogHeader class="flex-shrink-0">
         <DialogTitle>下载图片</DialogTitle>
         <DialogDescription>
-          选择要下载的图片
+          选择要下载的图片，超过 5 张会打包为 ZIP 文件
         </DialogDescription>
       </DialogHeader>
 
       <!-- Scrollable content -->
       <div class="flex-1 overflow-y-auto min-h-0 space-y-4 py-4">
+        <div v-if="!canDownload" class="mx-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          该用户未开放下载，当前产品图片不可下载
+        </div>
+
+        <div v-else-if="productImages.length === 0" class="mx-6 rounded-lg border border-dashed border-border py-10 text-center text-muted-foreground">
+          <SafeIcon name="ImageOff" :size="28" class="mx-auto mb-2 opacity-60" />
+          暂无可下载图片
+        </div>
+
         <!-- Select All -->
-        <div class="px-6">
+        <div v-if="canDownload && productImages.length > 0" class="px-6">
           <div
             role="checkbox"
             tabindex="0"
@@ -152,7 +187,7 @@ const handleDownload = () => {
         </div>
 
         <!-- Color Chart Images -->
-        <div v-if="colorChartImages.length > 0" class="px-6 space-y-2">
+        <div v-if="canDownload && colorChartImages.length > 0" class="px-6 space-y-2">
           <h4 class="text-sm font-semibold text-muted-foreground">花色图 ({{ colorChartImages.length }} 张)</h4>
           <div class="grid grid-cols-5 gap-3">
             <div
@@ -167,7 +202,7 @@ const handleDownload = () => {
               @keydown.space.prevent="toggleImage(image)"
             >
               <img
-                :src="image.thumbnailUrl || image.url"
+                :src="productImageUrl(image, 'thumb')"
                 :alt="image.name || '图片'"
                 loading="lazy"
                 class="h-full w-full object-cover"
@@ -183,7 +218,7 @@ const handleDownload = () => {
         </div>
 
         <!-- Detail Chart Images -->
-        <div v-if="detailChartImages.length > 0" class="px-6 space-y-2 border-t pt-4">
+        <div v-if="canDownload && detailChartImages.length > 0" class="px-6 space-y-2 border-t pt-4">
           <h4 class="text-sm font-semibold text-muted-foreground">详情图 ({{ detailChartImages.length }} 张)</h4>
           <div class="grid grid-cols-5 gap-3">
             <div
@@ -198,7 +233,7 @@ const handleDownload = () => {
               @keydown.space.prevent="toggleImage(image)"
             >
               <img
-                :src="image.thumbnailUrl || image.url"
+                :src="productImageUrl(image, 'thumb')"
                 :alt="image.name || '图片'"
                 loading="lazy"
                 class="h-full w-full object-cover"
@@ -220,12 +255,12 @@ const handleDownload = () => {
           取消
         </Button>
         <Button
-          :disabled="selectedImageList.length === 0"
+          :disabled="!canDownload || productImages.length === 0 || selectedImageList.length === 0 || isDownloading"
           @click="handleDownload"
           class="flex items-center gap-2"
         >
-          <SafeIcon name="Download" :size="16" />
-          下载 ({{ selectedImageList.length }})
+          <SafeIcon :name="isDownloading ? 'Loader2' : 'Download'" :size="16" :class="isDownloading ? 'animate-spin' : ''" />
+          {{ downloadButtonText }}
         </Button>
       </DialogFooter>
     </DialogContent>

@@ -21,7 +21,9 @@ import {
 import SafeIcon from '@/components/common/SafeIcon.vue';
 import FavoritesList from '@/components/favorites/FavoritesList.vue';
 import BrowsingHistoryContent from '@/components/browsing_history/BrowsingHistoryContent.vue';
+import HomeSettingsDialog from '@/components/home_settings/HomeSettingsDialog.vue';
 import { cn } from '@/lib/utils';
+import { navigateTo } from '@/navigation';
 
 interface Props {
   currentPath?: string;
@@ -33,7 +35,7 @@ interface MenuItem {
   title: string;
   icon: string;
   url: string;
-  panel?: 'favorites' | 'history';
+  panel?: 'favorites' | 'history' | 'homeSettings';
 }
 
 interface MenuGroup {
@@ -45,48 +47,56 @@ const menuGroups: MenuGroup[] = [
   {
     label: '核心业务',
     items: [
-      { title: '工作台概览', icon: 'BarChart4', url: './management-workbench.html' },
-      { title: '产品管理', icon: 'Package', url: './product-management.html' },
-      { title: '分类管理', icon: 'FolderTree', url: './category-management.html' },
+      { title: '工作台概览', icon: 'BarChart4', url: './management-workbench' },
+      { title: '产品管理', icon: 'Package', url: './product-management' },
+      { title: '分类管理', icon: 'FolderTree', url: './category-management' },
+      { title: '客户选款', icon: 'ClipboardList', url: './customer-selections' },
     ],
   },
   {
     label: '个人中心',
     items: [
-      { title: '我的收藏', icon: 'Heart', url: './favorites.html', panel: 'favorites' },
-      { title: '浏览足迹', icon: 'History', url: './browsing-history.html', panel: 'history' },
+      { title: '编辑主页', icon: 'Store', url: './home-settings', panel: 'homeSettings' },
+      { title: '我的收藏', icon: 'Heart', url: './favorites', panel: 'favorites' },
+      { title: '我的选款', icon: 'ListChecks', url: './my-selections' },
+      { title: '浏览足迹', icon: 'History', url: './browsing-history', panel: 'history' },
     ],
   },
   {
     label: '系统设置',
     items: [
-      { title: '水印设置', icon: 'Stamp', url: './watermark-settings.html' },
-      { title: '容量套餐', icon: 'Database', url: './billing-usage.html' },
-      { title: '回收站', icon: 'Trash2', url: './recycling-bin.html' },
+      { title: '水印设置', icon: 'Stamp', url: './watermark-settings' },
+      { title: '容量套餐', icon: 'Database', url: './billing-usage' },
+      { title: '回收站', icon: 'Trash2', url: './recycling-bin' },
     ],
   },
 ];
 
 const quickPanel = ref<'favorites' | 'history' | ''>('');
+const homeSettingsOpen = ref(false);
 
 const isActive = (url: string) => {
   if (!props.currentPath) return false;
-  const normalizedNav = url.replace(/^\.\//, '').replace(/\.html$/, '');
-  const normalizedPath = props.currentPath.replace(/^\//, '').replace(/\.html$/, '');
+  const normalizedNav = url.replace(/^\.\//, '');
+  const normalizedPath = props.currentPath.replace(/^\//, '');
   return normalizedPath === normalizedNav || (normalizedNav !== '' && normalizedPath.startsWith(normalizedNav));
 };
 
 const handleNavigate = (item: MenuItem) => {
+  if (item.panel === 'homeSettings') {
+    homeSettingsOpen.value = true;
+    return;
+  }
   if (item.panel) {
     quickPanel.value = item.panel;
     return;
   }
-  window.location.href = item.url;
+  navigateTo(item.url);
 };
 </script>
 
 <template>
-  <Sidebar collapsible="none" variant="sidebar" class="h-full w-72 border-r border-border bg-card">
+  <Sidebar variant="sidebar" class="h-full w-72 border-r border-border bg-card">
     <SidebarContent class="h-full overflow-y-auto px-4 py-6">
       <SidebarGroup v-for="group in menuGroups" :key="group.label">
         <SidebarGroupLabel class="px-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-2">
@@ -126,7 +136,7 @@ const handleNavigate = (item: MenuItem) => {
           <DialogDescription>查看你收藏的主页、分类和产品</DialogDescription>
         </DialogHeader>
         <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <FavoritesList v-if="quickPanel === 'favorites'" embedded />
+          <FavoritesList v-if="quickPanel === 'favorites'" embedded @navigate="quickPanel = ''" />
         </div>
       </div>
     </DialogScrollContent>
@@ -140,9 +150,11 @@ const handleNavigate = (item: MenuItem) => {
           <DialogDescription>查看你浏览过的主页、分类和产品</DialogDescription>
         </DialogHeader>
         <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <BrowsingHistoryContent v-if="quickPanel === 'history'" embedded />
+          <BrowsingHistoryContent v-if="quickPanel === 'history'" embedded @navigate="quickPanel = ''" />
         </div>
       </div>
     </DialogScrollContent>
   </Dialog>
+
+  <HomeSettingsDialog v-model:open="homeSettingsOpen" />
 </template>

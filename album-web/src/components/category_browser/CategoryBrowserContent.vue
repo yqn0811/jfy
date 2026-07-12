@@ -46,13 +46,13 @@ const buildTargetParams = (params: Record<string, string> = {}) => {
 
 const breadcrumbItems = computed(() => {
   const items: Array<{ label: string; href?: string }> = [
-    { label: '主页', href: `./share-home.html${buildTargetParams() ? `?${buildTargetParams()}` : ''}` }
+    { label: '主页', href: `./share-home${buildTargetParams() ? `?${buildTargetParams()}` : ''}` }
   ]
   
   if (parentCategory.value) {
     items.push({
       label: parentCategory.value.name,
-      href: `./category.html?${buildTargetParams({ categoryId: parentCategory.value.id })}`
+      href: `./category?${buildTargetParams({ categoryId: parentCategory.value.id })}`
     })
   }
   

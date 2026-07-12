@@ -133,8 +133,8 @@ class AlbumApiController extends ApiBaseController
             ['fid', 0], // Changed from cate_id to fid to match frontend
             ['product_ids', []],
         ]);
-        $this->album_service->addProductsToCategory($param['fid'], $param['product_ids'], request()->userID());
-        $this->result([], 0, '操作成功');
+        $result = $this->album_service->addProductsToCategory($param['fid'], $param['product_ids'], request()->userID());
+        $this->result($result, 0, '操作成功');
     }
 
     public function addProductToCategories()
@@ -325,6 +325,8 @@ class AlbumApiController extends ApiBaseController
         $pid = $this->request->post('pid', 0);
         $file_type = $this->request->post('file_type', 1);
         $upload_field = $this->request->post('upload_field', '');
+        $file_hash = strtolower(trim((string)$this->request->post('file_hash', '')));
+        $content_hash = strtolower(trim((string)$this->request->post('content_hash', $file_hash)));
         if(!$pid){
             throwError('请选择相册');
         }
@@ -354,6 +356,8 @@ class AlbumApiController extends ApiBaseController
             'pid' => $pid,
             'upload_field' => $upload_field,
             'original_names' => $this->getUploadOriginalNames($this->request->post()),
+            'file_hash' => $file_hash,
+            'content_hash' => $content_hash,
         ], $uid);
         $this->result($result['data'], 0, $result['msg']);
     }
@@ -583,8 +587,7 @@ class AlbumApiController extends ApiBaseController
         $param = $this->request->postMore([
             ['fid', 0],
         ]);
-        $this->album_service->userResetShareLink($param, request()->userID());
-        $this->result([], 0, '操作成功');
+        $this->result($this->album_service->userResetShareLink($param, request()->userID()), 0, '操作成功');
     }
 
     /**修改密码
@@ -671,6 +674,17 @@ class AlbumApiController extends ApiBaseController
             ['role', 'cover'],
         ]);
         $this->result((new AiResourceBridgeService($this->app))->importResource(request()->userID(), $param['resource_id'], $param['role']), 0, '导入成功');
+    }
+
+    public function findDuplicateAiResource()
+    {
+        $param = $this->request->getMore([
+            ['file_hash', ''],
+            ['content_hash', ''],
+            ['source_hash', ''],
+            ['file_size', 0],
+        ]);
+        $this->result((new AiResourceBridgeService($this->app))->findDuplicateResource(request()->userID(), $param));
     }
 
 

@@ -30,13 +30,8 @@
             </view>
           </view>
           <view class="user-storage">
-            <text class="storage-text">免费版</text>
-            <text class="storage-mb"
-              >{{ formatStorage(userInfo.space_used) }} /
-              <text class="storage-gb">{{
-                formatStorage(userInfo.all_space)
-              }}</text></text
-            >
+            <text class="storage-text">{{ memberName }}</text>
+            <text class="storage-mb">{{ memberExpireText }}</text>
           </view>
         </view>
 
@@ -206,6 +201,12 @@
       <view class="section">
         <view class="section-title">常用功能</view>
         <view class="functions-grid">
+          <view class="function-item" @click="toProfile">
+            <view class="function-icon outline">
+              <image class="icon-img" src="/static/icon/user.png" mode="aspectFit"></image>
+            </view>
+            <text class="function-label">个人资料</text>
+          </view>
           <view class="function-item" @click="toPage('seeRecoed')">
             <view class="function-icon outline">
               <image class="icon-img"
@@ -274,16 +275,6 @@
       <view class="section other-section">
         <view class="section-title">其他功能</view>
         <view class="functions-grid">
-          <view class="function-item" @click="toWeb(baseInfo.news_link)">
-            <view class="function-icon outline">
-              <image
-                class="icon-img"
-                src="/static/icon/slices/Frame@2x.png"
-                mode="aspectFit"
-              ></image>
-            </view>
-            <text class="function-label">关注公众号</text>
-          </view>
           <button
             class="function-item function-button"
             open-type="share"
@@ -315,32 +306,14 @@
             </view>
             <text class="function-label">建议反馈</text>
           </view>
-          <view class="function-item" @click="openAgreement('rules')">
+          <view class="function-item" @click="openAgreementGroup">
             <view class="function-icon outline">
               <image class="icon-img"
                 src="/static/icon/slices/24＊24@2x(10).png"
                 mode="aspectFit"
               ></image>
             </view>
-            <text class="function-label">用户规则</text>
-          </view>
-          <view class="function-item" @click="openAgreement('user')">
-            <view class="function-icon outline">
-              <image class="icon-img"
-                src="/static/icon/slices/Frame@2x.png"
-                mode="aspectFit"
-              ></image>
-            </view>
-            <text class="function-label">用户协议</text>
-          </view>
-          <view class="function-item" @click="openAgreement('privacy')">
-            <view class="function-icon outline">
-              <image class="icon-img"
-                src="/static/icon/slices/Frame@2x.png"
-                mode="aspectFit"
-              ></image>
-            </view>
-            <text class="function-label">隐私政策</text>
+            <text class="function-label">协议规则</text>
           </view>
         </view>
       </view>
@@ -443,6 +416,90 @@ export default {
     displayAvatar() {
       return this.userInfo.display_avatar || "/static/image/headurl.jpg";
     },
+    memberName() {
+      if (this.hasActiveMembership()) {
+        return "标准会员";
+      }
+      const gradeName = this.safeText(this.userInfo.grade_name);
+      return this.isFreeMemberName(gradeName) ? "免费版" : (gradeName || "免费版");
+    },
+    memberStatusType() {
+      if (!this.hasActiveMembership()) return "free";
+      return this.isMemberExpired() ? "expired" : "active";
+    },
+    memberStatusText() {
+      if (this.memberStatusType === "active") return "会员中";
+      if (this.memberStatusType === "expired") return "已过期";
+      return "免费版";
+    },
+    memberExpireText() {
+      const endTime =
+        this.userInfo.end_time ||
+        this.userInfo.vip_end_time ||
+        this.userInfo.expire_time ||
+        this.userInfo.membership_expire_at;
+      if (!endTime || Number(endTime) === 0) {
+        return this.memberStatusType === "free" ? "未开通会员" : "永久有效";
+      }
+      return `${this.formatDateValue(endTime)} 到期`;
+    },
+    storageUsedBytes() {
+      return this.pickPositiveNumber([
+        this.userInfo.resource_storage_used_bytes,
+        this.userInfo.use_space,
+        this.userInfo.normal_space_bytes,
+      ]);
+    },
+    storageLimitBytes() {
+      return this.pickPositiveNumber([
+        this.userInfo.resource_storage_capacity_bytes,
+        this.parseStorageToBytes(this.userInfo.all_space),
+      ]);
+    },
+    storagePercent() {
+      return this.getPercent(this.storageUsedBytes, this.storageLimitBytes);
+    },
+    storageUsageText() {
+      return `${this.formatBytes(this.storageUsedBytes)} / ${this.formatBytes(this.storageLimitBytes)}`;
+    },
+    trafficUsedGb() {
+      return this.pickPositiveNumber([
+        this.userInfo.used_traffic_gb,
+        this.userInfo.traffic_used_gb,
+      ]);
+    },
+    trafficUsedBytes() {
+      return this.pickPositiveNumber([
+        this.userInfo.used_traffic_bytes,
+        this.userInfo.traffic_used_bytes,
+        this.trafficUsedGb * 1024 * 1024 * 1024,
+      ]);
+    },
+    trafficLimitGb() {
+      return this.pickPositiveNumber([
+        this.userInfo.monthly_traffic_limit_gb,
+        this.userInfo.traffic_limit_gb,
+        this.userInfo.traffic_gb,
+      ]);
+    },
+    trafficLimitBytes() {
+      return this.pickPositiveNumber([
+        this.userInfo.monthly_traffic_limit_bytes,
+        this.userInfo.traffic_limit_bytes,
+        this.trafficLimitGb * 1024 * 1024 * 1024,
+      ]);
+    },
+    trafficPercent() {
+      return this.getPercent(this.trafficUsedBytes, this.trafficLimitBytes);
+    },
+    trafficUsageText() {
+      return `${this.formatBytes(this.trafficUsedBytes)} / ${this.formatBytes(this.trafficLimitBytes)}`;
+    },
+    isTrafficExceeded() {
+      return Boolean(this.userInfo.monthly_traffic_exceeded) || (
+        this.trafficLimitBytes > 0 && this.trafficUsedBytes > this.trafficLimitBytes
+      );
+    },
     homeShareTitle() {
       return (
         this.safeText(this.userInfo.home_share_title) ||
@@ -477,6 +534,108 @@ export default {
       const text = String(value).trim();
       if (!text || text === "null" || text === "undefined") return "";
       return text;
+    },
+    pickNumber(values, fallback = 0) {
+      for (let i = 0; i < values.length; i += 1) {
+        const value = Number(values[i]);
+        if (Number.isFinite(value)) return value;
+      }
+      return fallback;
+    },
+    pickPositiveNumber(values, fallback = 0) {
+      for (let i = 0; i < values.length; i += 1) {
+        const value = Number(values[i]);
+        if (Number.isFinite(value) && value > 0) return value;
+      }
+      return fallback;
+    },
+    isFreeMembershipLevel(value) {
+      const level = this.safeText(value).toLowerCase();
+      return !level || level === "free" || level === "user";
+    },
+    isFreeMemberName(value) {
+      const text = this.safeText(value);
+      return !text || text === "普通用户" || text === "免费版" || text === "未开通会员";
+    },
+    hasActiveMembership() {
+      const gradeLevel = Number(this.userInfo.grade_level || this.userInfo.vip_grade || 0);
+      if (gradeLevel > 0) return true;
+      if (!this.isFreeMembershipLevel(this.userInfo.membership_level)) return true;
+      if (Number(this.userInfo.membership_plan_id || 0) > 0) return true;
+      const freeBytes = 50 * 1024 * 1024;
+      return Number(this.userInfo.resource_storage_capacity_bytes || 0) > freeBytes;
+    },
+    parseDateTime(value) {
+      if (value === null || value === undefined || value === "") return 0;
+      if (typeof value === "number" || /^\d+$/.test(String(value))) {
+        const number = Number(value);
+        if (number === 0) return 0;
+        return number < 10000000000 ? number * 1000 : number;
+      }
+      const time = new Date(String(value).replace(/-/g, "/")).getTime();
+      return Number.isFinite(time) ? time : 0;
+    },
+    isMemberExpired() {
+      const endTime =
+        this.userInfo.end_time ||
+        this.userInfo.vip_end_time ||
+        this.userInfo.expire_time ||
+        this.userInfo.membership_expire_at;
+      if (!this.hasActiveMembership() || !endTime || Number(endTime) === 0) return false;
+      const time = this.parseDateTime(endTime);
+      return time > 0 && time < Date.now();
+    },
+    formatDateValue(value) {
+      if (typeof value === "string" && /^\d{4}-\d{1,2}-\d{1,2}$/.test(value)) return value;
+      const time = this.parseDateTime(value);
+      if (!time) return String(value);
+      const date = new Date(time);
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${date.getFullYear()}-${month}-${day}`;
+    },
+    parseStorageToBytes(value) {
+      if (typeof value === "number") return value * 1024 * 1024;
+      const text = this.safeText(value).toUpperCase();
+      if (!text) return 0;
+      const match = text.match(/^([\d.]+)\s*([KMGTP]?B?|[KMGTP])$/);
+      if (!match) return 0;
+      const number = Number(match[1]);
+      if (!Number.isFinite(number)) return 0;
+      const unit = match[2].replace("B", "") || "M";
+      const unitMap = {
+        K: 1024,
+        M: 1024 * 1024,
+        G: 1024 * 1024 * 1024,
+        T: 1024 * 1024 * 1024 * 1024,
+        P: 1024 * 1024 * 1024 * 1024 * 1024,
+      };
+      return number * (unitMap[unit] || unitMap.M);
+    },
+    formatBytes(bytes) {
+      const value = Number(bytes);
+      if (!Number.isFinite(value) || value <= 0) return "0MB";
+      const gb = 1024 * 1024 * 1024;
+      const mb = 1024 * 1024;
+      if (value >= gb) return `${this.trimNumber(value / gb)}GB`;
+      return `${this.trimNumber(value / mb)}MB`;
+    },
+    formatGb(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number) || number <= 0) return "0GB";
+      return `${this.trimNumber(number)}GB`;
+    },
+    trimNumber(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "0";
+      if (number >= 100) return String(Math.round(number));
+      return number.toFixed(1).replace(/\.0$/, "");
+    },
+    getPercent(used, total) {
+      const usedNumber = Number(used);
+      const totalNumber = Number(total);
+      if (!Number.isFinite(usedNumber) || !Number.isFinite(totalNumber) || totalNumber <= 0) return 0;
+      return Math.min(100, Math.max(0, Math.round((usedNumber / totalNumber) * 100)));
     },
     getMerchantName() {
       return (
@@ -644,6 +803,19 @@ export default {
         url: `/pagesOther/agreement/agreement?type=${type}`,
       });
     },
+    openAgreementGroup() {
+      const itemList = ["用户规则", "用户协议", "隐私政策"];
+      const typeList = ["rules", "user", "privacy"];
+      uni.showActionSheet({
+        itemList,
+        success: (res) => {
+          const type = typeList[res.tapIndex];
+          if (type) {
+            this.openAgreement(type);
+          }
+        },
+      });
+    },
     handleService() {
       if (this.baseInfo && this.baseInfo.kf_link) {
         this.toWeb(this.baseInfo.kf_link);
@@ -733,6 +905,11 @@ export default {
       }
       uni.navigateTo({
         url: `/pagesOther/${page}/${page}`,
+      });
+    },
+    toProfile() {
+      uni.navigateTo({
+        url: "/pagesOther/profile/profile",
       });
     },
     handleAvatarError() {
@@ -848,6 +1025,7 @@ export default {
 
 .avatar-container {
   margin-right: 24rpx;
+  flex-shrink: 0;
 }
 
 .avatar-bg {
@@ -871,6 +1049,7 @@ export default {
 .user-info {
   flex: 1;
   min-width: 0;
+  padding-right: 12rpx;
 }
 
 .user-name-row {
@@ -934,6 +1113,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 
   .icon-img {
     width: 40rpx;

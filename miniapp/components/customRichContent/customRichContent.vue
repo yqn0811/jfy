@@ -41,7 +41,6 @@ export default {
       const content = this.content;
       
       // 调试：打印原始内容
-      console.log('原始内容:', content);
       
       // 使用正则表达式匹配视频和图片标签
       const videoRegex = /<video[^>]*src="([^"]*)"[^>]*><\/video>/g;
@@ -124,7 +123,6 @@ export default {
       }
       
       // 调试：打印解析结果
-      console.log('解析结果:', result);
       
       return result;
     }

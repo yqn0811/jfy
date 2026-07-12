@@ -5,17 +5,22 @@ namespace app\api\controller;
 use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserCollectPics;
 use app\common\service\bridge\JiafangyunEntitlementSyncService;
+use app\common\service\bridge\JiafangyunBridgeClient;
 use app\common\service\user\UserService;
 use app\common\service\WxService;
 use think\facade\Cache;
 use think\facade\Config;
-use app\index\model\WdXcxPic;
+use think\facade\Log;
+use app\common\model\WdXcxPic;
 use think\facade\Db;
 use think\App;
+use think\Response;
 use app\common\model\user\WdXcxUserVisitRecord;
 
 class UserApiController extends ApiBaseController
 {
+    const ORIGINAL_ZIP_MIN_PICTURE_COUNT = 5;
+
     private $userService;
 
     public function __construct(App $app)
@@ -51,6 +56,15 @@ class UserApiController extends ApiBaseController
         } catch (\Throwable $e) {
             return 0;
         }
+    }
+
+    private function hideHomeMiniProgramInternalFields($data)
+    {
+        if (!is_array($data)) {
+            return $data;
+        }
+        unset($data['mini_path'], $data['qrcode_path'], $data['scene']);
+        return $data;
     }
 
     /**微信用户获取openid
@@ -194,9 +208,495 @@ class UserApiController extends ApiBaseController
             ['home_share_title', null],
             ['home_share_desc', null],
             ['home_share_image', null],
+            ['company_name', null],
+            ['company_logo', null],
+            ['company_desc', null],
+            ['contact_mobile', null],
+            ['contact_wechat', null],
+            ['address_province', null],
+            ['address_city', null],
+            ['address_district', null],
+            ['address_detail', null],
+            ['is_show_home', null],
+            ['industry_info', null],
+            ['latitude', null],
+            ['longitude', null],
         ]);
         $this->userService->updatePcSettings($param, request()->userID());
         $this->result([], 0, '更新成功');
+    }
+
+    /**记录图片/视频保存产生的外网流量
+     * @return void
+     * @throws \cores\exception\BaseException
+     */
+    public function recordDownloadTraffic()
+    {
+        $param = $this->request->postMore([
+            ['pic_id', 0],
+            ['id', 0],
+            ['file_size', 0],
+            ['file_url', ''],
+        ]);
+        $this->result($this->userService->recordDownloadTraffic($param, request()->userID()), 0, '记录成功');
+    }
+
+    public function discardUploadedPicture()
+    {
+        $param = $this->request->postMore([
+            ['pic_id', 0],
+            ['id', 0],
+            ['album_pic_id', 0],
+        ]);
+        $picId = (int)($param['pic_id'] ?: $param['id']);
+        $albumPicId = (int)$param['album_pic_id'];
+        if ($albumPicId > 0) {
+            $this->userService->discardUploadedAlbumPicture($albumPicId, request()->userID());
+            $this->result([], 0, '删除成功');
+            return;
+        }
+        if ($picId <= 0) {
+            throwError('请选择要删除的图片');
+        }
+        $this->userService->discardUploadedPicture($picId, request()->userID());
+        $this->result([], 0, '删除成功');
+    }
+
+    /**申请原图下载地址，统一校验会员、可见性并记录下载流量
+     * @return void
+     * @throws \cores\exception\BaseException
+     */
+    public function getOriginalDownloadUrl()
+    {
+        $param = array_merge($this->request->get(), $this->request->post());
+        if (!empty($param['stream'])) {
+            return $this->streamOriginalDownload($param, (int)request()->userID());
+        }
+        $this->result($this->userService->getOriginalDownloadUrl($param, request()->userID()), 0, '获取成功');
+    }
+
+    private function streamOriginalDownload($param, $userId)
+    {
+        $param['record_traffic'] = 0;
+        $param['skip_remote_size'] = 1;
+        $download = $this->userService->getOriginalDownloadUrl($param, $userId);
+        $url = trim((string)($download['download_url'] ?? ($download['downloadUrl'] ?? ($download['url'] ?? ''))));
+        if ($url === '') {
+            throwError('原图暂不可下载');
+        }
+        $filename = $this->sanitizeDownloadFilename((string)($download['file_name'] ?? ($download['fileName'] ?? 'image.jpg')));
+        $this->streamRemoteOriginalDownload(
+            $url,
+            (int)($download['pic_id'] ?? ($param['pic_id'] ?? 0)),
+            $filename,
+            (int)($download['file_size'] ?? 0),
+            $userId
+        );
+    }
+
+    private function streamRemoteOriginalDownload($url, $picId, $filename, $knownFileSize, $userId)
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        $contentType = $this->detectDownloadMimeFromFilename($filename);
+        $contentLength = 0;
+        $sourceStatus = 0;
+        $headersSent = false;
+        $streamError = '';
+        $bytesSent = 0;
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_TIMEOUT => 120,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_NOSIGNAL => true,
+            CURLOPT_USERAGENT => 'JiafangyunOriginalDownload/1.0',
+            CURLOPT_HEADERFUNCTION => function ($ch, $headerLine) use (&$sourceStatus, &$contentType, &$contentLength) {
+                $line = trim($headerLine);
+                if ($line === '') {
+                    return strlen($headerLine);
+                }
+                if (stripos($line, 'HTTP/') === 0) {
+                    $parts = preg_split('/\s+/', $line);
+                    $sourceStatus = isset($parts[1]) ? (int)$parts[1] : 0;
+                    return strlen($headerLine);
+                }
+                $separator = strpos($line, ':');
+                if ($separator === false) {
+                    return strlen($headerLine);
+                }
+                $name = strtolower(trim(substr($line, 0, $separator)));
+                $value = trim(substr($line, $separator + 1));
+                if ($name === 'content-type') {
+                    $contentType = $this->normalizeDownloadMime($value, $contentType);
+                } elseif ($name === 'content-length') {
+                    $length = (int)$value;
+                    if ($length > 0) {
+                        $contentLength = $length;
+                    }
+                }
+                return strlen($headerLine);
+            },
+            CURLOPT_WRITEFUNCTION => function ($ch, $chunk) use (
+                $url,
+                $picId,
+                $filename,
+                $knownFileSize,
+                $userId,
+                &$contentType,
+                &$contentLength,
+                &$sourceStatus,
+                &$headersSent,
+                &$streamError,
+                &$bytesSent
+            ) {
+                $length = strlen($chunk);
+                if (!$headersSent) {
+                    if ($sourceStatus > 0 && ($sourceStatus < 200 || $sourceStatus >= 300)) {
+                        $streamError = '原图读取失败';
+                        return 0;
+                    }
+                    $recordSize = $contentLength > 0 ? $contentLength : $knownFileSize;
+                    try {
+                        $this->userService->recordDownloadTraffic([
+                            'pic_id' => $picId,
+                            'file_url' => $url,
+                            'file_size' => $recordSize,
+                        ], $userId);
+                    } catch (\Throwable $e) {
+                        $streamError = $e->getMessage() ?: '流量扣减失败，请稍后重试';
+                        return 0;
+                    }
+                    $this->sendOriginalDownloadHeaders($filename, $contentType, $contentLength);
+                    $headersSent = true;
+                }
+                $bytesSent += $length;
+                echo $chunk;
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+                return $length;
+            },
+        ]);
+        $result = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if (!$headersSent) {
+            if ($streamError !== '') {
+                throwError($streamError);
+            }
+            if ($result === false || $status < 200 || $status >= 300 || $bytesSent <= 0) {
+                throwError($error ?: '原图读取失败');
+            }
+        }
+        exit;
+    }
+
+    private function sendOriginalDownloadHeaders($filename, $contentType, $contentLength)
+    {
+        $origin = $this->request->header('origin') ?: '*';
+        if (preg_match('/[\r\n]/', $origin)) {
+            $origin = '*';
+        }
+        $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
+        if ($fallbackName === '') {
+            $fallbackName = 'image.jpg';
+        }
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        header('X-Accel-Buffering: no');
+        header('Content-Type: ' . $contentType);
+        if ($contentLength > 0) {
+            header('Content-Length: ' . $contentLength);
+        }
+        header('Content-Disposition: inline; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
+        header('Cache-Control: private, max-age=300');
+    }
+
+    private function normalizeDownloadMime($mime, $fallback = 'application/octet-stream')
+    {
+        $mime = strtolower(trim(explode(';', (string)$mime)[0]));
+        if (preg_match('/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/', $mime)) {
+            return $mime;
+        }
+        return $fallback;
+    }
+
+    private function detectDownloadMimeFromFilename($filename)
+    {
+        $ext = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
+        $map = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+        ];
+        return $map[$ext] ?? 'application/octet-stream';
+    }
+
+    private function sanitizeDownloadFilename($filename)
+    {
+        $filename = trim($filename);
+        $filename = preg_replace('/[\\\\\/:*?"<>|\r\n]+/', '_', $filename);
+        return $filename ?: 'image.jpg';
+    }
+
+    public function downloadOriginalZip()
+    {
+        $param = array_merge($this->request->get(), $this->request->post());
+        $picIds = $this->normalizeDownloadPicIds($param['pic_ids'] ?? ($param['picIds'] ?? []));
+        if (empty($picIds) && !empty($param['pic_id'])) {
+            $picIds = $this->normalizeDownloadPicIds([$param['pic_id']]);
+        }
+        if (count($picIds) === 1) {
+            $param['pic_id'] = $picIds[0];
+            return $this->streamOriginalDownload($param, (int)request()->userID());
+        }
+        if (count($picIds) > 1 && count($picIds) <= self::ORIGINAL_ZIP_MIN_PICTURE_COUNT) {
+            throwError('5张以内请逐张下载');
+        }
+        if (!class_exists('\ZipArchive')) {
+            throwError('服务器暂不支持打包下载');
+        }
+
+        $items = $this->userService->getOriginalZipDownloadItems($param, (int)request()->userID());
+        $workDir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'jfy_zip_' . uniqid('', true);
+        if (!mkdir($workDir, 0700, true) && !is_dir($workDir)) {
+            throwError('打包目录创建失败');
+        }
+        $zipPath = $workDir . DIRECTORY_SEPARATOR . 'images.zip';
+
+        try {
+            $files = $this->fetchOriginalZipFiles($items, $workDir);
+            if (empty($files)) {
+                throwError('原图读取失败');
+            }
+
+            $zip = new \ZipArchive();
+            if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+                throwError('ZIP创建失败');
+            }
+            $usedNames = [];
+            foreach ($files as $file) {
+                $entryName = $this->uniqueZipEntryName($file['file_name'], $usedNames);
+                $zip->addFile($file['path'], $entryName);
+                if (method_exists($zip, 'setCompressionName') && $this->shouldStoreZipEntry($entryName)) {
+                    $zip->setCompressionName($entryName, \ZipArchive::CM_STORE);
+                }
+            }
+            $zip->close();
+
+            foreach ($files as $file) {
+                $this->userService->recordDownloadTraffic([
+                    'pic_id' => (int)$file['pic_id'],
+                    'file_url' => (string)$file['url'],
+                    'file_size' => (int)$file['file_size'],
+                ], (int)request()->userID());
+            }
+
+            $filename = $this->sanitizeDownloadFilename((string)($param['filename'] ?? 'product-images.zip'));
+            if (strtolower(pathinfo($filename, PATHINFO_EXTENSION)) !== 'zip') {
+                $filename .= '.zip';
+            }
+            $this->streamZipFile($zipPath, $filename, $workDir);
+        } catch (\Throwable $e) {
+            $this->cleanupDownloadTempDir($workDir);
+            throw $e;
+        }
+    }
+
+    private function normalizeDownloadPicIds($picIds)
+    {
+        if (is_string($picIds)) {
+            $decoded = json_decode($picIds, true);
+            if (is_array($decoded)) {
+                $picIds = $decoded;
+            } else {
+                $picIds = explode(',', $picIds);
+            }
+        }
+        if (!is_array($picIds)) {
+            return [];
+        }
+        return array_values(array_unique(array_filter(array_map('intval', $picIds))));
+    }
+
+    private function fetchOriginalZipFiles(array $items, $workDir)
+    {
+        $queue = array_values($items);
+        $maxConcurrency = 4;
+        $multi = curl_multi_init();
+        $active = [];
+        $files = [];
+        $failures = [];
+        $index = 0;
+
+        $addHandle = function () use (&$queue, &$active, &$index, $multi, $workDir) {
+            if (empty($queue)) {
+                return false;
+            }
+            $item = array_shift($queue);
+            $index += 1;
+            $path = $workDir . DIRECTORY_SEPARATOR . 'source_' . $index . '.bin';
+            $fp = fopen($path, 'wb');
+            if (!$fp) {
+                throwError('临时文件创建失败');
+            }
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => (string)$item['url'],
+                CURLOPT_FILE => $fp,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT => 120,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_NOSIGNAL => true,
+                CURLOPT_USERAGENT => 'JiafangyunZipDownload/1.0',
+            ]);
+            $key = (int)$ch;
+            $active[$key] = [
+                'handle' => $ch,
+                'fp' => $fp,
+                'path' => $path,
+                'item' => $item,
+            ];
+            curl_multi_add_handle($multi, $ch);
+            return true;
+        };
+
+        while (count($active) < $maxConcurrency && $addHandle()) {
+        }
+
+        do {
+            do {
+                $status = curl_multi_exec($multi, $running);
+            } while ($status === CURLM_CALL_MULTI_PERFORM);
+
+            while ($info = curl_multi_info_read($multi)) {
+                $ch = $info['handle'];
+                $key = (int)$ch;
+                $meta = $active[$key] ?? null;
+                if (!$meta) {
+                    continue;
+                }
+                $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $error = curl_error($ch);
+                curl_multi_remove_handle($multi, $ch);
+                curl_close($ch);
+                fclose($meta['fp']);
+                unset($active[$key]);
+
+                $size = is_file($meta['path']) ? (int)filesize($meta['path']) : 0;
+                if ($info['result'] === CURLE_OK && $httpCode >= 200 && $httpCode < 300 && $size > 0) {
+                    $files[] = [
+                        'pic_id' => (int)$meta['item']['pic_id'],
+                        'url' => (string)$meta['item']['url'],
+                        'file_name' => (string)$meta['item']['file_name'],
+                        'file_size' => $size,
+                        'path' => $meta['path'],
+                    ];
+                } else {
+                    @unlink($meta['path']);
+                    $failures[] = (string)$meta['item']['file_name'] . ($error ? '：' . $error : '');
+                }
+
+                while (count($active) < $maxConcurrency && $addHandle()) {
+                }
+            }
+
+            if (!empty($active)) {
+                $selected = curl_multi_select($multi, 1.0);
+                if ($selected === -1) {
+                    usleep(100000);
+                }
+            }
+        } while (!empty($active));
+
+        curl_multi_close($multi);
+        if (!empty($failures)) {
+            throwError('部分图片下载失败：' . $failures[0]);
+        }
+        return $files;
+    }
+
+    private function uniqueZipEntryName($filename, array &$usedNames)
+    {
+        $filename = $this->sanitizeDownloadFilename((string)$filename);
+        $ext = pathinfo($filename, PATHINFO_EXTENSION);
+        if ($ext === '') {
+            $filename .= '.jpg';
+            $ext = 'jpg';
+        }
+        $base = pathinfo($filename, PATHINFO_FILENAME);
+        $key = strtolower($base . '.' . $ext);
+        $count = (int)($usedNames[$key] ?? 0);
+        $usedNames[$key] = $count + 1;
+        if ($count > 0) {
+            return $base . '-' . ($count + 1) . '.' . $ext;
+        }
+        return $base . '.' . $ext;
+    }
+
+    private function shouldStoreZipEntry($filename)
+    {
+        $ext = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
+        return in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+    }
+
+    private function streamZipFile($zipPath, $filename, $workDir)
+    {
+        if (!is_file($zipPath)) {
+            throwError('ZIP文件生成失败');
+        }
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        $origin = $this->request->header('origin') ?: '*';
+        if (preg_match('/[\r\n]/', $origin)) {
+            $origin = '*';
+        }
+        $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
+        if ($fallbackName === '') {
+            $fallbackName = 'product-images.zip';
+        }
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        header('Content-Type: application/zip');
+        header('Content-Length: ' . filesize($zipPath));
+        header('Content-Disposition: attachment; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
+        header('Cache-Control: private, max-age=0, no-cache');
+        readfile($zipPath);
+        $this->cleanupDownloadTempDir($workDir);
+        exit;
+    }
+
+    private function cleanupDownloadTempDir($dir)
+    {
+        if (!$dir || !is_dir($dir)) {
+            return;
+        }
+        foreach (glob(rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+        @rmdir($dir);
     }
 
     /**获取指定用户的卡券列表
@@ -403,6 +903,16 @@ class UserApiController extends ApiBaseController
             'upload_pwd' => $user->upload_pwd,
             'upload_pwd_expire_time' => (int)$user->upload_pwd_expire_time,
             'id' => $user->id,
+            'company_name' => $user->company_name,
+            'company_logo' => $user->company_logo,
+            'company_desc' => $user->company_desc,
+            'contact_mobile' => $user->contact_mobile,
+            'contact_wechat' => $user->contact_wechat,
+            'address_province' => $user->address_province,
+            'address_city' => $user->address_city,
+            'address_district' => $user->address_district,
+            'address_detail' => $user->address_detail,
+            'is_show_home' => (int)$user->is_show_home,
             'visit_no_need_nickname' => (int)$user->visit_no_need_nickname,
             'visit_no_need_mobile' => (int)$user->visit_no_need_mobile,
             'visit_allow_save_pic' => (int)$user->visit_allow_save_pic,
@@ -416,6 +926,23 @@ class UserApiController extends ApiBaseController
             'invite_code' => (new WdXcxUser())->ensureInviteCodeForUser($user),
             'latitude' => $user->latitude,
             'longitude' => $user->longitude,
+            'resource_storage_capacity_bytes' => (int)($syncedVipGradeInfo['resource_storage_capacity_bytes'] ?? 0),
+            'resource_storage_used_bytes' => (int)($syncedVipGradeInfo['resource_storage_used_bytes'] ?? 0),
+            'resource_storage_remaining_bytes' => (int)($syncedVipGradeInfo['resource_storage_remaining_bytes'] ?? 0),
+            'used_traffic_bytes' => (int)($syncedVipGradeInfo['used_traffic_bytes'] ?? 0),
+            'used_traffic_gb' => (float)($syncedVipGradeInfo['used_traffic_gb'] ?? 0),
+            'traffic_used_gb' => (float)($syncedVipGradeInfo['traffic_used_gb'] ?? ($syncedVipGradeInfo['used_traffic_gb'] ?? 0)),
+            'traffic_limit_bytes' => (int)($syncedVipGradeInfo['traffic_limit_bytes'] ?? ($syncedVipGradeInfo['monthly_traffic_limit_bytes'] ?? 0)),
+            'traffic_limit_gb' => (float)($syncedVipGradeInfo['traffic_limit_gb'] ?? ($syncedVipGradeInfo['monthly_traffic_limit_gb'] ?? 0)),
+            'traffic_gb' => (float)($syncedVipGradeInfo['monthly_traffic_limit_gb'] ?? ($syncedVipGradeInfo['traffic_limit_gb'] ?? 0)),
+            'monthly_traffic_limit_bytes' => (int)($syncedVipGradeInfo['monthly_traffic_limit_bytes'] ?? ($syncedVipGradeInfo['traffic_limit_bytes'] ?? 0)),
+            'monthly_traffic_limit_gb' => (float)($syncedVipGradeInfo['monthly_traffic_limit_gb'] ?? ($syncedVipGradeInfo['traffic_limit_gb'] ?? 0)),
+            'traffic_remaining_bytes' => (int)($syncedVipGradeInfo['traffic_remaining_bytes'] ?? ($syncedVipGradeInfo['monthly_traffic_remaining_bytes'] ?? 0)),
+            'traffic_remaining_gb' => (float)($syncedVipGradeInfo['traffic_remaining_gb'] ?? ($syncedVipGradeInfo['monthly_traffic_remaining_gb'] ?? 0)),
+            'monthly_traffic_remaining_bytes' => (int)($syncedVipGradeInfo['monthly_traffic_remaining_bytes'] ?? ($syncedVipGradeInfo['traffic_remaining_bytes'] ?? 0)),
+            'monthly_traffic_remaining_gb' => (float)($syncedVipGradeInfo['monthly_traffic_remaining_gb'] ?? ($syncedVipGradeInfo['traffic_remaining_gb'] ?? 0)),
+            'monthly_traffic_exceeded' => (bool)($syncedVipGradeInfo['monthly_traffic_exceeded'] ?? false),
+            'concurrency_limit' => (int)($syncedVipGradeInfo['concurrency_limit'] ?? 0),
         ];
         if($vipGradeInfo['space_size'] > 1024 * 1024){
             $result['all_space'] = bcdiv($vipGradeInfo['space_size'], 1024 * 1024) . 'T';
@@ -424,12 +951,34 @@ class UserApiController extends ApiBaseController
         }else{
             $result['all_space'] = $vipGradeInfo['space_size'] . 'M';
         }
-        $UserPicSize = WdXcxPic::where('uid', $uid)->sum('size');
+        $normalPicSize = (int)WdXcxPic::where('uid', $uid)->sum('size');
+        $trashPicSize = (int)WdXcxPic::onlyTrashed()->where('uid', $uid)->sum('size');
+        $UserPicSize = $normalPicSize + $trashPicSize;
+        $result['normal_space_bytes'] = $normalPicSize;
+        $result['trash_space_bytes'] = $trashPicSize;
         $result['use_space'] = $UserPicSize;
         if($UserPicSize > 0 && $vipGradeInfo['space_size'] > 0){
             $result['space_used'] = bcmul(bcdiv($UserPicSize, $vipGradeInfo['space_size'] * 1024 * 1024, 4), 100, 2);
         }else{
             $result['space_used'] = 0;
+        }
+        $result['legacy_use_space'] = $UserPicSize;
+        $result['legacy_all_space'] = $result['all_space'];
+        $result['legacy_space_used'] = $result['space_used'];
+
+        $resourceCapacityBytes = (int)($result['resource_storage_capacity_bytes'] ?? 0);
+        if ($resourceCapacityBytes > 0) {
+            $resourceUsedBytes = max(0, (int)($result['resource_storage_used_bytes'] ?? 0));
+            $resourceRemainingBytes = (int)($result['resource_storage_remaining_bytes'] ?? 0);
+            if ($resourceRemainingBytes <= 0) {
+                $resourceRemainingBytes = max($resourceCapacityBytes - $resourceUsedBytes, 0);
+            }
+            $result['use_space'] = $resourceUsedBytes;
+            $result['all_space'] = $this->formatBytesAsStorageText($resourceCapacityBytes);
+            $result['space_used'] = $this->formatPercent($resourceUsedBytes, $resourceCapacityBytes);
+            $result['normal_space_bytes'] = $resourceUsedBytes;
+            $result['trash_space_bytes'] = 0;
+            $result['resource_storage_remaining_bytes'] = $resourceRemainingBytes;
         }
         $result['total_pics'] = WdXcxPic::where('uid', $uid)->count();
         $result['total_collects'] = WdXcxUserCollectPics::where('uid', $uid)->count();
@@ -463,6 +1012,39 @@ class UserApiController extends ApiBaseController
         }
 
         $this->result($result);
+    }
+
+    private function formatBytesAsStorageText($bytes)
+    {
+        $bytes = (int)$bytes;
+        if ($bytes <= 0) {
+            return '0M';
+        }
+        $gb = 1024 * 1024 * 1024;
+        $mb = 1024 * 1024;
+        if ($bytes >= $gb) {
+            return $this->trimStorageNumber($bytes / $gb) . 'G';
+        }
+        return $this->trimStorageNumber($bytes / $mb) . 'M';
+    }
+
+    private function trimStorageNumber($value)
+    {
+        $number = (float)$value;
+        if ($number >= 100) {
+            return (string)round($number);
+        }
+        return rtrim(rtrim(number_format($number, 1, '.', ''), '0'), '.');
+    }
+
+    private function formatPercent($used, $total)
+    {
+        $used = (float)$used;
+        $total = (float)$total;
+        if ($used <= 0 || $total <= 0) {
+            return '0.00';
+        }
+        return number_format(min(100, max(0, ($used / $total) * 100)), 2, '.', '');
     }
 
     public function markUserVisitorsRead()
@@ -527,6 +1109,16 @@ class UserApiController extends ApiBaseController
         }
         $this->userService->userDestroyDeleteProducts($param, request()->userID());
         $this->result([], 0, '操作成功');
+    }
+
+    /**清空用户回收站
+     * @return void
+     * @throws \cores\exception\BaseException
+     */
+    public function clearUserRecycleBin()
+    {
+        $count = $this->userService->clearUserRecycleBin(request()->userID());
+        $this->result(['count' => $count], 0, '操作成功');
     }
 
     /**获取用户所有收藏照片列表
@@ -739,6 +1331,8 @@ class UserApiController extends ApiBaseController
             ['invite_code', ''],
             ['fid', 0],
             ['include_current', 0],
+            ['share_v', null],
+            ['sv', null],
         ]);
         $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $visitorUid = 0;
@@ -746,7 +1340,8 @@ class UserApiController extends ApiBaseController
             $visitorUid = request()->userID();
         } catch (\Exception $e) {
         }
-        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid, $params['fid'], (int)$params['include_current']));
+        $shareVersion = $params['share_v'] !== null && $params['share_v'] !== '' ? $params['share_v'] : $params['sv'];
+        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid, $params['fid'], (int)$params['include_current'], $shareVersion));
     }
 
     public function getHomeProducts()
@@ -825,6 +1420,7 @@ class UserApiController extends ApiBaseController
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['uid', 0],
             ['code', ''],
             ['share_code', ''],
             ['invite_code', ''],
@@ -833,20 +1429,53 @@ class UserApiController extends ApiBaseController
             ['id', 0],
         ]);
         $targetUserId = $this->resolveHomeTargetUserId($params);
-        $this->result($this->userService->getHomeMiniProgramCode($targetUserId, $params['path'], $params['type'], $params['id']));
+        $data = $this->userService->getHomeMiniProgramCode($targetUserId, $params['path'], $params['type'], $params['id']);
+        $this->result($this->hideHomeMiniProgramInternalFields($data));
+    }
+
+    public function getHomeMiniProgramCodeImage()
+    {
+        $params = $this->request->getMore([
+            ['target_user_id', 0],
+            ['uid', 0],
+            ['code', ''],
+            ['share_code', ''],
+            ['invite_code', ''],
+            ['path', ''],
+            ['type', 'home'],
+            ['id', 0],
+        ]);
+        $targetUserId = $this->resolveHomeTargetUserId($params);
+        $code = $this->userService->getHomeMiniProgramCode($targetUserId, $params['path'], $params['type'], $params['id']);
+        $path = $code['qrcode_path'] ?? '';
+        if (!$path || !is_file($path) || !is_readable($path)) {
+            throwError('小程序码生成失败');
+        }
+        $content = file_get_contents($path);
+        if ($content === false) {
+            throwError('小程序码生成失败');
+        }
+        return Response::create($content, 'html', 200)->header([
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'public, max-age=300',
+        ]);
     }
 
     public function getHomeShareLink()
     {
         $params = $this->request->getMore([
             ['target_user_id', 0],
+            ['uid', 0],
             ['code', ''],
             ['share_code', ''],
             ['invite_code', ''],
             ['path', ''],
+            ['type', 'home'],
+            ['id', 0],
         ]);
         $targetUserId = $this->resolveHomeTargetUserId($params);
-        $this->result($this->userService->getHomeShareLink($targetUserId, $params['path']));
+        $data = $this->userService->getHomeShareLink($targetUserId, $params['path'], $params['type'], $params['id']);
+        $this->result($this->hideHomeMiniProgramInternalFields($data));
     }
 
     public function getHomeSharePoster()
@@ -943,12 +1572,12 @@ class UserApiController extends ApiBaseController
             ['redirect', ''],
         ]);
 
-        $redirect = trim((string)$params['redirect']);
+        $redirect = html_entity_decode(trim((string)$params['redirect']), ENT_QUOTES, 'UTF-8');
         if (!$redirect) {
             $redirect = ROOT_HOST . '/';
         }
         if (!$this->isAllowedPcLoginRedirect($redirect)) {
-            $redirect = 'https://pic.jfyuntu.com/pic/';
+            $redirect = getJiafangyunPcBaseUrl();
         }
 
         $callback = trim((string)env('JIAFANGYUN_PC_LOGIN_CALLBACK', ''));
@@ -965,6 +1594,13 @@ class UserApiController extends ApiBaseController
             'scope' => 'snsapi_login',
             'state' => $state,
         ]) . '#wechat_redirect';
+        $wechatAuthUrl = 'https://open.weixin.qq.com/connect/oauth2/authorize?' . http_build_query([
+            'appid' => $appid,
+            'redirect_uri' => $callback,
+            'response_type' => 'code',
+            'scope' => 'snsapi_userinfo',
+            'state' => $state,
+        ]) . '#wechat_redirect';
 
         $this->result([
             'appid' => $appid,
@@ -972,6 +1608,8 @@ class UserApiController extends ApiBaseController
             'redirect_uri' => $callback,
             'state' => $state,
             'auth_url' => $authUrl,
+            'wechat_auth_url' => $wechatAuthUrl,
+            'wechatAuthUrl' => $wechatAuthUrl,
         ]);
     }
 
@@ -1031,6 +1669,7 @@ class UserApiController extends ApiBaseController
             
             // 重定向回前端
             $redirectUrl = $state ? base64_decode($state) : '/';
+            $redirectUrl = html_entity_decode((string)$redirectUrl, ENT_QUOTES, 'UTF-8');
             if (empty($redirectUrl)) $redirectUrl = '/';
             
             $separator = (parse_url($redirectUrl, PHP_URL_QUERY) == NULL) ? '?' : '&';
@@ -1045,6 +1684,7 @@ class UserApiController extends ApiBaseController
 
     private function redirectWithError($state, $msg) {
         $redirectUrl = $state ? base64_decode($state) : '/';
+        $redirectUrl = html_entity_decode((string)$redirectUrl, ENT_QUOTES, 'UTF-8');
         if (empty($redirectUrl)) $redirectUrl = '/';
         $separator = (parse_url($redirectUrl, PHP_URL_QUERY) == NULL) ? '?' : '&';
         return redirect($redirectUrl . $separator . 'error=' . urlencode($msg));
@@ -1153,14 +1793,46 @@ class UserApiController extends ApiBaseController
         }
 
         $this->ensureFeedbackTable();
-        Db::name('wd_xcx_album_feedback')->insert([
+        $createTime = time();
+        $feedbackId = Db::name('wd_xcx_album_feedback')->insertGetId([
             'uid' => request()->userID(),
             'type' => $param['type'],
             'content' => $param['content'],
             'images' => $images,
             'contact' => $param['contact'],
-            'create_time' => time(),
+            'create_time' => $createTime,
         ]);
+        $this->syncFeedbackToAiAdmin($feedbackId, $param, $images, $createTime);
         $this->result([], 0, '提交成功');
+    }
+
+    private function syncFeedbackToAiAdmin($feedbackId, $param, $images, $createTime)
+    {
+        try {
+            $bridgeClient = new JiafangyunBridgeClient($this->app);
+            $user = $bridgeClient->getUser(request()->userID());
+            $imageList = [];
+            if (is_array($param['images'])) {
+                $imageList = $param['images'];
+            } elseif (is_string($images) && $images !== '') {
+                $decoded = json_decode($images, true);
+                if (is_array($decoded)) {
+                    $imageList = $decoded;
+                }
+            }
+            $payload = array_merge($bridgeClient->userPayload($user), [
+                'source_feedback_id' => (int)$feedbackId,
+                'feedback_type' => (int)$param['type'],
+                'type' => (int)$param['type'],
+                'content' => (string)$param['content'],
+                'images' => $imageList,
+                'contact' => (string)$param['contact'],
+                'created_at' => (int)$createTime,
+                'source' => 'miniapp',
+            ]);
+            $bridgeClient->post('/jiafangyun/bridge/feedbacks', $payload);
+        } catch (\Throwable $e) {
+            Log::error('[JiafangyunFeedbackBridge] sync failed: feedback_id=' . (int)$feedbackId . ' error=' . $e->getMessage());
+        }
     }
 }

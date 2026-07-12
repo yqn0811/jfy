@@ -66,6 +66,35 @@ class SelectionService extends BaseService
         return $factoryUid;
     }
 
+    private function ensureUserHomeShareCode($uid)
+    {
+        $uid = (int)$uid;
+        if ($uid <= 0) {
+            return '';
+        }
+        static $cache = [];
+        if (array_key_exists($uid, $cache)) {
+            return $cache[$uid];
+        }
+        $user = WdXcxUser::where('id', $uid)->find();
+        $cache[$uid] = $user ? (new WdXcxUser())->ensureHomeShareCodeForUser($user) : '';
+        return $cache[$uid];
+    }
+
+    public function resolveFactoryUidByShareCode($shareCode)
+    {
+        $shareCode = trim((string)$shareCode);
+        if ($shareCode === '') {
+            return 0;
+        }
+        (new WdXcxUser())->ensureHomePreferenceColumns();
+        $user = WdXcxUser::where('home_share_code', $shareCode)->find();
+        if (!$user) {
+            throwError('分享链接无效');
+        }
+        return (int)$user->id;
+    }
+
     private function normalizePicIds($pic_ids)
     {
         if (is_array($pic_ids) && count($pic_ids) === 1 && is_string(reset($pic_ids))) {
@@ -108,9 +137,12 @@ class SelectionService extends BaseService
         $default = [
             'id' => (int)$userId,
             'nickname' => '匿名用户',
+            'display_name' => '匿名用户',
             'avatar' => getLocalImage('/image/users/user_default.png'),
+            'avatar_url' => getLocalImage('/image/users/user_default.png'),
             'mobile' => '',
             'company_name' => '',
+            'company_logo' => '',
             'contact_mobile' => '',
             'contact_wechat' => '',
         ];
@@ -125,12 +157,17 @@ class SelectionService extends BaseService
         }
 
         $info = $user->getUserInfoShow($userId);
+        $nickname = $info['nickname'] ?? '匿名用户';
+        $avatar = $info['avatar'] ?? $default['avatar'];
         return [
             'id' => (int)$userId,
-            'nickname' => $info['nickname'] ?? '匿名用户',
-            'avatar' => $info['avatar'] ?? $default['avatar'],
+            'nickname' => $nickname,
+            'display_name' => $nickname,
+            'avatar' => $avatar,
+            'avatar_url' => $avatar,
             'mobile' => $info['mobile'] ?? '',
             'company_name' => $info['company_name'] ?? '',
+            'company_logo' => $info['company_logo'] ?? '',
             'contact_mobile' => $info['contact_mobile'] ?? '',
             'contact_wechat' => $info['contact_wechat'] ?? '',
         ];
@@ -186,15 +223,70 @@ class SelectionService extends BaseService
             return null;
         }
 
+        $getValue = function ($source, $keys, $default = '') {
+            foreach ((array)$keys as $key) {
+                if (is_array($source) && array_key_exists($key, $source)) {
+                    return $source[$key];
+                }
+                if (is_object($source) && isset($source->{$key})) {
+                    return $source->{$key};
+                }
+            }
+            return $default;
+        };
+
+        $picId = (int)$getValue($pic, ['id', 'pic_id'], 0);
+        if (!$picId) {
+            return null;
+        }
+
+        $rawImageUrls = $getValue($pic, ['image_urls', 'imageUrls', 'urls'], []);
+        $imageUrls = is_array($rawImageUrls) ? $rawImageUrls : [];
+        if (empty($imageUrls) && is_object($pic) && \function_exists('buildPictureImageUrls')) {
+            $imageUrls = \buildPictureImageUrls($pic);
+        }
+        $truePic = (string)($imageUrls['preview'] ?? '');
+        if ($truePic === '' && is_object($pic) && isset($pic->TruePic)) {
+            $truePic = (string)$pic->TruePic;
+        }
+        $src = $truePic ?: (string)$getValue($pic, [
+            'src',
+            'picture_url',
+            'preview_url',
+            'thumbnail_url',
+            'thumb_url',
+            'file_url',
+            'imgurl',
+            'url',
+        ], '');
+        $origin = (string)$getValue($pic, ['picture_url_original', 'original_url', 'file_url', 'url'], '');
+        if ($origin === '' && !empty($imageUrls['origin'])) {
+            $origin = (string)$imageUrls['origin'];
+        }
+        if ($origin === '' && $truePic !== '') {
+            $origin = \function_exists('removePicStyle') ? \removePicStyle($truePic) : $truePic;
+        }
+        $name = (string)$getValue($pic, ['name', 'pic_name'], '');
+        $fileType = (int)$getValue($pic, ['file_type'], 1);
+        $selectionItemId = $selectionItem ? (int)$getValue($selectionItem, ['id'], 0) : 0;
+        $productId = $selectionItem ? (int)$getValue($selectionItem, ['product_id'], 0) : (int)$getValue($pic, ['product_id'], 0);
+
         return [
-            'id' => (int)$pic->id,
-            'selection_item_id' => $selectionItem ? (int)$selectionItem->id : 0,
-            'src' => $pic->TruePic,
-            'imgurl' => $pic->TruePic,
-            'name' => $pic->pic_name ?: '',
-            'pic_name' => $pic->pic_name ?: '',
-            'file_type' => (int)$pic->file_type,
-            'product_id' => $selectionItem ? (int)$selectionItem->product_id : 0,
+            'id' => $picId,
+            'selection_item_id' => $selectionItemId,
+            'src' => $src,
+            'imgurl' => $src,
+            'picture_url' => $src,
+            'preview_url' => $src,
+            'thumbnail_url' => (string)($imageUrls['thumb'] ?? $src),
+            'picture_url_original' => $origin ?: $src,
+            'file_url' => $origin ?: $src,
+            'image_urls' => $imageUrls,
+            'imageUrls' => $imageUrls,
+            'name' => $name,
+            'pic_name' => $name,
+            'file_type' => $fileType,
+            'product_id' => $productId,
             'is_main' => false,
         ];
     }
@@ -304,7 +396,7 @@ class SelectionService extends BaseService
         return $selection;
     }
 
-    public function getSelectionDetail($selection_id)
+    public function getSelectionDetail($selection_id, $viewerUid = 0, $factoryUidOrShareCode = '')
     {
         $selection = WdXcxAlbumSelection::find($selection_id);
         if (!$selection) {
@@ -368,6 +460,20 @@ class SelectionService extends BaseService
 
         $customerUid = $selection->customer_uid ?: $selection->uid;
         $factoryUid = $selection->factory_uid ?: ($product ? $product->uid : 0);
+        if (!$factoryUid) {
+            $factoryUid = $this->getSelectionFactoryUid($selection);
+        }
+        $expectedFactoryUid = is_numeric($factoryUidOrShareCode)
+            ? (int)$factoryUidOrShareCode
+            : $this->resolveFactoryUidByShareCode($factoryUidOrShareCode);
+        if ($expectedFactoryUid > 0 && $factoryUid > 0 && $expectedFactoryUid !== (int)$factoryUid) {
+            throwError('分享链接无效');
+        }
+        $viewerUid = (int)$viewerUid;
+        if ($viewerUid > 0 && $expectedFactoryUid <= 0 && $viewerUid !== (int)$customerUid && $viewerUid !== (int)$factoryUid) {
+            throwError('无权查看该选款单');
+        }
+        $shareCode = $this->ensureUserHomeShareCode($factoryUid);
         $groupedPictures = $this->buildGroupedPictures($product, $list);
         $shareImage = '';
         if (!empty($groupedPictures['main_pictures'])) {
@@ -388,6 +494,8 @@ class SelectionService extends BaseService
             'list' => $list,
             'cover_img' => $coverImg,
             'share_img' => $shareImage,
+            'share_code' => $shareCode,
+            'code' => $shareCode,
             'grouped_pictures' => $groupedPictures,
             'total_selected' => count($list),
         ];
@@ -397,7 +505,13 @@ class SelectionService extends BaseService
     {
         $this->ensureSelectionColumns();
         $limit = $param['limit'] ?? 10;
-        $lists = WdXcxAlbumSelection::where('customer_uid', $uid)
+        $uid = (int)$uid;
+        $lists = WdXcxAlbumSelection::where(function ($query) use ($uid) {
+                $query->where('customer_uid', $uid)
+                    ->whereOr(function ($legacyQuery) use ($uid) {
+                        $legacyQuery->where('customer_uid', 0)->where('uid', $uid);
+                    });
+            })
             ->order('id', 'desc')
             ->paginate($limit)
             ->each(function ($item) {
@@ -411,6 +525,8 @@ class SelectionService extends BaseService
                 $item->customer = $detail['customer'] ?? [];
                 $item->factory = $detail['factory'] ?? [];
                 $item->product = $detail['product_summary'] ?? null;
+                $item->share_code = $detail['share_code'] ?? '';
+                $item->code = $detail['code'] ?? ($detail['share_code'] ?? '');
                 $item->selected_preview = array_slice($pics, 0, 3);
             });
         return $lists;
@@ -420,8 +536,17 @@ class SelectionService extends BaseService
     {
         $this->ensureSelectionColumns();
         $limit = $param['limit'] ?? 10;
-        $lists = WdXcxAlbumSelection::where('factory_uid', $uid)
-            ->order('id', 'desc')
+        $uid = (int)$uid;
+        $lists = WdXcxAlbumSelection::alias('s')
+            ->leftJoin('wd_xcx_album_folder f', 'f.id = s.product_id')
+            ->where(function ($query) use ($uid) {
+                $query->where('s.factory_uid', $uid)
+                    ->whereOr(function ($legacyQuery) use ($uid) {
+                        $legacyQuery->where('s.factory_uid', 0)->where('f.uid', $uid);
+                    });
+            })
+            ->field('s.*')
+            ->order('s.id', 'desc')
             ->paginate($limit)
             ->each(function ($item) {
                 $detail = $this->getSelectionDetail($item->id);
@@ -434,6 +559,8 @@ class SelectionService extends BaseService
                 $item->customer = $detail['customer'] ?? [];
                 $item->factory = $detail['factory'] ?? [];
                 $item->product = $detail['product_summary'] ?? null;
+                $item->share_code = $detail['share_code'] ?? '';
+                $item->code = $detail['code'] ?? ($detail['share_code'] ?? '');
                 $item->selected_preview = array_slice($pics, 0, 3);
             });
         return $lists;
