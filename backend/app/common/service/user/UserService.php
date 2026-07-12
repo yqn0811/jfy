@@ -519,25 +519,35 @@ class UserService extends BaseService
             }
             $folderId = (int)$row->folder_id;
             $picId = (int)$row->pic_id;
-            $fileType = (int)$row->picture->file_type;
-            if (!$folderId || !$picId || !in_array($fileType, [1, 2], true)) {
+            if (!$folderId || !$picId || (int)$row->picture->file_type !== 1) {
                 continue;
             }
             if (!isset($map[$folderId])) {
-                $map[$folderId] = [1 => [], 2 => []];
+                $map[$folderId] = ['cover' => [], 'detail' => []];
             }
-            $map[$folderId][$fileType][$picId] = true;
+            $role = $this->normalizeProductUploadRole($row->upload_field ?? '');
+            $map[$folderId][$role][$picId] = true;
         }
         return $map;
     }
 
-    private function countProductPictures($fieldPicIds, $uploadedPictureMap, $productId, $fileType)
+    private function normalizeProductUploadRole($value)
     {
+        $value = strtolower(trim((string)$value));
+        if (in_array($value, ['detail', 'detail_chart', 'detailchart', 'detail_pic', 'detail_pic_ids', '2'], true)) {
+            return 'detail';
+        }
+        return 'cover';
+    }
+
+    private function countProductPictures($fieldPicIds, $uploadedPictureMap, $productId, $role)
+    {
+        $role = $this->normalizeProductUploadRole($role);
         $ids = [];
         foreach ($this->normalizeProductPicIds($fieldPicIds) as $picId) {
             $ids[$picId] = true;
         }
-        foreach (($uploadedPictureMap[(int)$productId][(int)$fileType] ?? []) as $picId => $exists) {
+        foreach (($uploadedPictureMap[(int)$productId][$role] ?? []) as $picId => $exists) {
             if ($exists) {
                 $ids[(int)$picId] = true;
             }
@@ -632,10 +642,10 @@ class UserService extends BaseService
 
         $products->each(function($item) use ($visitorUid, $collected_ids, $is_owner, $uploadedPictureMap){
                 $this->hydrateProductThumb($item);
-                $item->color_chart_count = $this->countProductPictures($item->pic_ids ?? '', $uploadedPictureMap, $item->id, 1);
+                $item->color_chart_count = $this->countProductPictures($item->pic_ids ?? '', $uploadedPictureMap, $item->id, 'cover');
                 $item->detail_chart_count = ((int)($item->hide_detail_pictures ?? 0) === 1 && !$is_owner)
                     ? 0
-                    : $this->countProductPictures($item->detail_pic_ids ?? '', $uploadedPictureMap, $item->id, 2);
+                    : $this->countProductPictures($item->detail_pic_ids ?? '', $uploadedPictureMap, $item->id, 'detail');
                 $item->son_count = $item->SonCount;
                 if($item->uid != $visitorUid){
                     $item->folder_name = $item->folder_name;

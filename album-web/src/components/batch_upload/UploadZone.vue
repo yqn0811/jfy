@@ -28,9 +28,12 @@ const emit = defineEmits<{
 }>()
 
 type UploadItem = {
+  id: string
+  file: File
   previewUrl: string
   finalUrl: string
   status: 'queued' | 'uploading' | 'done' | 'error'
+  errorMessage: string
 }
 
 const isDragging = ref(false)
@@ -38,6 +41,17 @@ const fileInput = ref<HTMLInputElement>()
 const uploadItems = ref<UploadItem[]>([])
 
 const uploadedFiles = computed(() => uploadItems.value.map(item => item.finalUrl || item.previewUrl))
+const hasItems = computed(() => uploadItems.value.length > 0)
+const doneCount = computed(() => uploadItems.value.filter(item => item.status === 'done').length)
+const failedCount = computed(() => uploadItems.value.filter(item => item.status === 'error').length)
+const uploadingCount = computed(() => uploadItems.value.filter(item => item.status === 'uploading').length)
+const statusText = computed(() => {
+  if (!hasItems.value) return props.waitingLabel || '等待选择图片'
+  const parts = [`已上传 ${doneCount.value} 张`]
+  if (uploadingCount.value > 0) parts.push(`${uploadingCount.value} 张上传中`)
+  if (failedCount.value > 0) parts.push(`${failedCount.value} 张失败`)
+  return `${parts.join('，')}，最多 ${safeMaxConcurrent.value} 张并发上传`
+})
 
 const safeMaxConcurrent = computed(() => {
   const value = Number(props.maxConcurrent || 1)
@@ -68,6 +82,11 @@ const handleFileSelect = (e: Event) => {
   if (target.files) handleFiles(target.files)
 }
 
+const errorMessageFrom = (error: any) => {
+  const message = String(error?.message || '').trim()
+  return message || '上传失败，请重试'
+}
+
 const handleFiles = async (files: FileList) => {
   const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
 
@@ -77,11 +96,14 @@ const handleFiles = async (files: FileList) => {
   }
 
   const items: UploadItem[] = imageFiles.map(file => ({
+    id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    file,
     previewUrl: URL.createObjectURL(file),
     finalUrl: '',
     status: 'queued' as const,
+    errorMessage: '',
   }))
-  uploadItems.value = items
+  uploadItems.value = [...uploadItems.value, ...items]
   emit('uploading', true)
 
   try {
@@ -90,26 +112,27 @@ const handleFiles = async (files: FileList) => {
     const worker = async () => {
       while (nextIndex < imageFiles.length) {
         const index = nextIndex++
-        const file = imageFiles[index]
         const item = items[index]
         let finalUrl = item.previewUrl
         item.status = 'uploading'
-        uploadItems.value = [...items]
+        item.errorMessage = ''
+        uploadItems.value = [...uploadItems.value]
 
         try {
           if (props.uploadHandler) {
-            finalUrl = await props.uploadHandler(file, props.type)
+            finalUrl = await props.uploadHandler(item.file, props.type)
           } else {
             await new Promise(resolve => setTimeout(resolve, 300))
           }
 
           item.finalUrl = finalUrl || item.previewUrl
           item.status = 'done'
-        } catch {
+        } catch (error: any) {
           failedCount += 1
+          item.errorMessage = errorMessageFrom(error)
           item.status = 'error'
         }
-        uploadItems.value = [...items]
+        uploadItems.value = [...uploadItems.value]
       }
     }
 
@@ -120,20 +143,59 @@ const handleFiles = async (files: FileList) => {
       )
     )
 
+    const successUrls = items
+      .filter(item => item.status === 'done')
+      .map(item => item.finalUrl || item.previewUrl)
+    if (successUrls.length > 0) {
+      emit('upload-complete', successUrls)
+    }
+
     if (failedCount > 0) {
-      toast.error(`${failedCount} 张图片上传失败，请重试`)
+      const firstError = items.find(item => item.status === 'error')?.errorMessage || '请重试'
+      toast.error(`${failedCount} 张图片上传失败：${firstError}`)
       return
     }
 
-    const finalUrls = items.map(item => item.finalUrl || item.previewUrl)
-    emit('upload-complete', finalUrls)
-    toast.success(`已上传 ${imageFiles.length} 张图片`)
+    toast.success(`已上传 ${successUrls.length} 张图片`)
   } catch (error: any) {
-    uploadItems.value = items.map(item => item.status === 'done' ? item : { ...item, status: 'error' })
-    toast.error(error?.message || '上传失败，请重试')
+    const message = errorMessageFrom(error)
+    items.forEach(item => {
+      if (item.status !== 'done') {
+        item.status = 'error'
+        item.errorMessage = message
+      }
+    })
+    uploadItems.value = [...uploadItems.value]
+    toast.error(message)
   } finally {
     emit('uploading', false)
     if (fileInput.value) fileInput.value.value = ''
+  }
+}
+
+const retryItem = async (index: number) => {
+  const item = uploadItems.value[index]
+  if (!item || props.disabled || item.status === 'uploading') return
+
+  emit('uploading', true)
+  item.status = 'uploading'
+  item.errorMessage = ''
+  uploadItems.value = [...uploadItems.value]
+  try {
+    const finalUrl = props.uploadHandler
+      ? await props.uploadHandler(item.file, props.type)
+      : item.previewUrl
+    item.finalUrl = finalUrl || item.previewUrl
+    item.status = 'done'
+    emit('upload-complete', [item.finalUrl || item.previewUrl])
+    toast.success('图片已重新上传')
+  } catch (error: any) {
+    item.status = 'error'
+    item.errorMessage = errorMessageFrom(error)
+    toast.error(item.errorMessage)
+  } finally {
+    uploadItems.value = [...uploadItems.value]
+    emit('uploading', false)
   }
 }
 
@@ -178,12 +240,11 @@ const getItemIconClass = (index: number) => {
         <p class="mt-3 text-sm font-medium text-muted-foreground">{{ description }}</p>
       </div>
       <span class="ml-auto shrink-0 rounded-md bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">
-        {{ uploadedFiles.length }} 张
+        {{ doneCount }} 张
       </span>
     </div>
 
     <div
-      v-if="progress < 100"
       class="batch-drop-zone"
       :class="[
         isDragging && 'border-primary bg-primary/5',
@@ -208,7 +269,9 @@ const getItemIconClass = (index: number) => {
           <SafeIcon name="CloudUpload" :size="34" class="text-muted-foreground" />
         </div>
         <div class="text-center">
-          <p class="text-xl font-semibold text-foreground">点击或拖拽图片到这里</p>
+          <p class="text-xl font-semibold text-foreground">
+            {{ disabled ? '图片上传中' : '点击或拖拽图片到这里' }}
+          </p>
           <p class="mt-3 text-base font-medium text-muted-foreground">支持 JPG、PNG、GIF，一次最多 200 张</p>
         </div>
       </div>
@@ -216,7 +279,7 @@ const getItemIconClass = (index: number) => {
 
     <div class="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <p class="text-base font-medium text-muted-foreground">
-        {{ uploadedFiles.length > 0 ? `已选择 ${uploadedFiles.length} 张图片，最多 ${safeMaxConcurrent} 张并发上传` : (waitingLabel || '等待选择图片') }}
+        {{ statusText }}
       </p>
       <div class="flex flex-wrap gap-3">
         <Button
@@ -232,32 +295,44 @@ const getItemIconClass = (index: number) => {
         <Button
           size="lg"
           class="h-11 min-w-[148px] gap-2"
-          :disabled="disabled || uploadedFiles.length === 0"
+          :disabled="disabled"
           @click="triggerFileInput"
         >
           <SafeIcon name="Upload" :size="18" />
-          {{ actionLabel || '上传图片' }}
+          {{ hasItems ? `继续${actionLabel || '上传图片'}` : (actionLabel || '上传图片') }}
         </Button>
       </div>
     </div>
 
-    <div v-if="uploadedFiles.length > 0" class="mt-5 max-h-52 space-y-2 overflow-y-auto pr-1">
+    <div v-if="uploadItems.length > 0" class="mt-5 max-h-52 space-y-2 overflow-y-auto pr-1">
       <div
-        v-for="(file, index) in uploadedFiles"
-        :key="`${file}_${index}`"
+        v-for="(item, index) in uploadItems"
+        :key="item.id"
         class="flex items-center gap-3 p-2 bg-muted/50 rounded border border-border"
+        :class="item.status === 'error' && 'border-destructive/30 bg-destructive/5'"
       >
         <img
-          :src="file"
+          :src="item.finalUrl || item.previewUrl"
           :alt="`Uploaded ${index + 1}`"
           class="w-10 h-10 object-cover rounded"
         />
         <div class="flex-1 min-w-0">
           <p class="text-sm font-medium truncate">图片 {{ index + 1 }}</p>
-          <p class="text-xs text-muted-foreground">
+          <p class="text-xs" :class="item.status === 'error' ? 'text-destructive' : 'text-muted-foreground'">
             {{ getItemStatus(index) }}
+            <span v-if="item.errorMessage">：{{ item.errorMessage }}</span>
           </p>
         </div>
+        <Button
+          v-if="item.status === 'error'"
+          variant="outline"
+          size="sm"
+          class="h-8 shrink-0"
+          :disabled="disabled"
+          @click="retryItem(index)"
+        >
+          重试
+        </Button>
         <SafeIcon
           :name="getItemIcon(index)"
           :size="18"
@@ -306,7 +381,7 @@ const getItemIconClass = (index: number) => {
 
 .batch-drop-zone {
   display: flex;
-  min-height: 360px;
+  min-height: 320px;
   align-items: center;
   justify-content: center;
   border: 2px dashed hsl(var(--border));

@@ -176,6 +176,7 @@ class WebUploadService extends BaseService
     public function uploadFileAlbum($params, $uid)
     {
         $need_check = WdXcxBase::where('uniacid', 1)->value('pic_check');
+        $role = 'cover';
         Db::startTrans();
         try{
             $data = (new UploadService($this->uniacid))->uploadImages([
@@ -191,6 +192,8 @@ class WebUploadService extends BaseService
                 $folder_info = WdXcxAlbumFolder::where('id', $params['pid'])->find();
                 $pic_album = [];
                 $last_url = '';
+                $uploadField = $this->normalizeProductUploadField($params['upload_field'] ?? '');
+                $role = $uploadField === 'detail_chart' ? 'detail' : 'cover';
                 foreach ($data as $item){
                     $imageDetection = $this->weChatImageValidation($item['url']);
                     if($imageDetection["data"] != 0){ // 图片涉黄了
@@ -205,7 +208,7 @@ class WebUploadService extends BaseService
                         'create_time' => time(),
                         'update_time' => time(),
                         'upload_date' => date('Y-m-d'),
-                        'upload_field' => '',
+                        'upload_field' => $uploadField,
                     ];
                     $last_url = $item['url'];
                 }
@@ -221,7 +224,7 @@ class WebUploadService extends BaseService
                     $folder_info->check_status = 0;
                     $folder_info->save();
                 }else{
-                    if($params['file_type'] == 1){
+                    if($role === 'cover'){
                         $this->updateParentThumbs($folder_info->id, $last_url);
                     }
                 }
@@ -234,13 +237,22 @@ class WebUploadService extends BaseService
         if (!empty($createdRelations)) {
             $bridge = new AiResourceBridgeService($this->app);
             foreach ($createdRelations as $relation) {
-                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, 'album');
+                $bridge->safeSyncAlbumRelation($folder_info->uid, $relation, $role);
             }
         }
         return [
             'msg' => $need_check == 1 ? '上传成功，请等待审核' : '上传成功',
             'data' => $data,
         ];
+    }
+
+    private function normalizeProductUploadField($value)
+    {
+        $value = strtolower(trim((string)$value));
+        if (in_array($value, ['detail', 'detail_chart', 'detailchart', 'detail_pic', 'detail_pic_ids', '2'], true)) {
+            return 'detail_chart';
+        }
+        return 'color_chart';
     }
 
     /**更新父级文件夹的缩略图

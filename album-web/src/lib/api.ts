@@ -475,7 +475,9 @@ export const pcApi = {
     form.append('name', file.name)
     form.append('file_size', String(file.size || 0))
     form.append('size', String(file.size || 0))
-    form.append('file_type', type === 'detailChart' ? '2' : '1')
+    form.append('file_type', '1')
+    form.append('upload_field', type === 'detailChart' ? 'detail_chart' : 'color_chart')
+    form.append('image_role', type === 'detailChart' ? 'detail' : 'cover')
     return apiUpload<any>('web/folder/pic/upload', form, token)
   },
 

@@ -522,7 +522,8 @@ const parseFormUpload = (formData: FormData) => {
   const file = (formData.get('files') || formData.get('file')) as File | null
   const fid = String(formData.get('fid') || formData.get('pid') || '')
   const fileType = String(formData.get('file_type') || '1')
-  const type = fileType === '2' ? 'detailChart' : 'colorChart'
+  const uploadField = String(formData.get('upload_field') || formData.get('image_role') || '').toLowerCase()
+  const type = uploadField.includes('detail') || fileType === '2' ? 'detailChart' : 'colorChart'
   return { file, fid, type: type as 'colorChart' | 'detailChart' }
 }
 

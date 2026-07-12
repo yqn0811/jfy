@@ -9,9 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import UploadZone from '@/components/batch_upload/UploadZone.vue'
-import UploadProgress from '@/components/batch_upload/UploadProgress.vue'
 
-const isClient = ref(true)
+const isClient = ref(false)
+const initialLoading = ref(true)
 const productId = ref('')
 const uploadCode = ref('')
 const uploadToken = ref('')
@@ -37,10 +37,6 @@ const passwordValue = ref('')
 const passwordLoading = ref(false)
 const accessClosed = ref(false)
 const accessError = ref('')
-const uploadProgress = ref<{ colorChart: number; detailChart: number }>({
-  colorChart: 0,
-  detailChart: 0
-})
 const uploadedFiles = ref<{ colorChart: string[]; detailChart: string[] }>({
   colorChart: [],
   detailChart: []
@@ -50,13 +46,8 @@ const uploadingState = ref<{ colorChart: boolean; detailChart: boolean }>({
   detailChart: false,
 })
 
-const totalProgress = computed(() => {
-  const total = uploadProgress.value.colorChart + uploadProgress.value.detailChart
-  return Math.round(total / 2)
-})
-
-const isUploadComplete = computed(() => {
-  return uploadProgress.value.colorChart === 100 && uploadProgress.value.detailChart === 100
+const hasUploadedAny = computed(() => {
+  return uploadedFiles.value.colorChart.length > 0 || uploadedFiles.value.detailChart.length > 0
 })
 
 const maxUploadCountText = computed(() => {
@@ -80,6 +71,9 @@ const pickText = (...values: any[]) => {
 }
 
 const initUpload = async () => {
+  initialLoading.value = true
+  accessClosed.value = false
+  accessError.value = ''
   try {
     const info = await pcApi.getWebUploadInfo(uploadCode.value)
     const ownerInfo = info?.owner_info || {}
@@ -129,21 +123,24 @@ const initUpload = async () => {
   } catch (error: any) {
     accessClosed.value = true
     accessError.value = error?.message || '链接无效或已失效'
+  } finally {
+    initialLoading.value = false
+    isClient.value = true
   }
 }
 
 onMounted(() => {
-  isClient.value = false
   requestAnimationFrame(() => {
     const params = new URLSearchParams(window.location.search)
     uploadCode.value = params.get('uploadd_code') || params.get('code') || ''
     if (!uploadCode.value) {
       accessClosed.value = true
       accessError.value = '缺少上传码，请检查链接是否完整'
+      initialLoading.value = false
+      isClient.value = true
     } else {
       initUpload()
     }
-    isClient.value = true
   })
 })
 
@@ -178,11 +175,8 @@ const submitPassword = () => {
 }
 
 const handleUploadComplete = (type: 'colorChart' | 'detailChart', files: string[]) => {
-  uploadedFiles.value[type] = files
-  uploadProgress.value[type] = 100
-  toast.success(`${type === 'colorChart' ? '花色图' : '详情图'}上传成功`)
-
-  if (isUploadComplete.value) toast.success('所有图片上传完成')
+  const merged = new Set([...uploadedFiles.value[type], ...files].filter(Boolean))
+  uploadedFiles.value[type] = Array.from(merged)
 }
 
 const uploadFile = async (file: File, type: 'colorChart' | 'detailChart') => {
@@ -217,6 +211,12 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
 
 <template>
   <div class="batch-upload-page">
+    <div v-if="initialLoading || !isClient" class="batch-upload-loading">
+      <SafeIcon name="Loader2" :size="28" class="animate-spin text-primary" />
+      <span>正在打开上传页面...</span>
+    </div>
+
+    <template v-else>
     <!-- 标题区 -->
     <div class="batch-upload-hero">
       <div>
@@ -264,7 +264,6 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
             action-label="上传花色图"
             waiting-label="等待选择花色图"
             type="colorChart"
-            :progress="uploadProgress.colorChart"
             :disabled="uploadingState.colorChart"
             :max-concurrent="concurrencyLimit"
             :upload-handler="uploadFile"
@@ -279,7 +278,6 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
             action-label="上传详情图"
             waiting-label="等待选择详情图"
             type="detailChart"
-            :progress="uploadProgress.detailChart"
             :disabled="uploadingState.detailChart"
             :max-concurrent="concurrencyLimit"
             :upload-handler="uploadFile"
@@ -288,15 +286,8 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
           />
         </div>
 
-        <!-- 总体进度 -->
-        <UploadProgress
-          v-if="uploadProgress.colorChart > 0 || uploadProgress.detailChart > 0"
-          :progress="totalProgress"
-          :is-complete="isUploadComplete"
-        />
-
         <!-- 操作按钮 -->
-        <div v-if="isUploadComplete" class="flex gap-3 justify-center pt-4">
+        <div v-if="hasUploadedAny" class="flex gap-3 justify-center pt-4">
           <Button
             variant="default"
             size="lg"
@@ -379,7 +370,7 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
     </Dialog>
 
     <!-- 错误状态 -->
-    <div v-if="!accessClosed && !product" class="mx-auto max-w-md text-center space-y-4 py-12">
+    <div v-if="!accessClosed && !passwordDialogOpen && !product" class="mx-auto max-w-md text-center space-y-4 py-12">
       <div class="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto">
         <SafeIcon name="AlertCircle" :size="32" class="text-destructive" />
       </div>
@@ -394,6 +385,7 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
         返回主页
       </Button>
     </div>
+    </template>
   </div>
 </template>
 
@@ -402,6 +394,16 @@ const setUploading = (type: 'colorChart' | 'detailChart', value: boolean) => {
   min-height: 100vh;
   background: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(220 27% 98%) 100%);
   padding: 2rem clamp(1rem, 4vw, 5rem);
+}
+
+.batch-upload-loading {
+  display: flex;
+  min-height: 60vh;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
 }
 
 .batch-upload-hero {

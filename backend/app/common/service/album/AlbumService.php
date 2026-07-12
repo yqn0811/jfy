@@ -990,19 +990,33 @@ class AlbumService extends BaseService
         return $result;
     }
 
-    private function getProductUploadedPictures($productId, $fileType)
+    private function normalizeProductUploadRole($value)
     {
+        $value = strtolower(trim((string)$value));
+        if (in_array($value, ['detail', 'detail_chart', 'detailchart', 'detail_pic', 'detail_pic_ids', '2'], true)) {
+            return 'detail';
+        }
+        return 'cover';
+    }
+
+    private function getProductUploadedPictures($productId, $role)
+    {
+        $role = $this->normalizeProductUploadRole($role);
         $rows = WdXcxUserAlbumPic::where('folder_id', $productId)
             ->with(['picture'])
             ->order('sort asc, set_top_time desc, id desc')
             ->select();
         $result = [];
         foreach ($rows as $row) {
-            if (!$row->picture || (int)$row->picture->file_type !== (int)$fileType) {
+            if (!$row->picture || (int)$row->picture->file_type !== 1) {
+                continue;
+            }
+            if ($this->normalizeProductUploadRole($row->upload_field ?? '') !== $role) {
                 continue;
             }
             $item = $this->mapProductPictureItem($row->picture, count($result));
             $item['album_pic_id'] = (int)$row->id;
+            $item['role'] = $role;
             $result[] = $item;
         }
         return $result;
@@ -3035,7 +3049,7 @@ class AlbumService extends BaseService
 
         $product->pic_list = $this->mergeProductPictures(
             $this->getProductFieldPictures($product->pic_ids),
-            $this->getProductUploadedPictures($product->id, 1)
+            $this->getProductUploadedPictures($product->id, 'cover')
         );
         $product->pic_ids_arr = $product->pic_list;
 
@@ -3046,7 +3060,7 @@ class AlbumService extends BaseService
         } else {
             $product->detail_pic_list = $this->mergeProductPictures(
                 $this->getProductFieldPictures($product->detail_pic_ids),
-                $this->getProductUploadedPictures($product->id, 2)
+                $this->getProductUploadedPictures($product->id, 'detail')
             );
         }
         $product->detail_pic_ids_arr = $product->detail_pic_list;

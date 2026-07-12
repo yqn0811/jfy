@@ -97,13 +97,28 @@ class WebUploadApiController extends ApiBaseController
         if(!in_array($file_type, [1, 2])){
             throwError('文件类型不正确');
         }
+        $upload_field = $this->resolveUploadField($this->request->post());
+        $storage_file_type = 1;
         $result = $this->upload_service->uploadFileAlbum([
             'files' => $files,
-            'file_type' => $file_type,
+            'file_type' => $storage_file_type,
+            'upload_field' => $upload_field,
             'pid' => $pid,
             'original_names' => $this->getUploadOriginalNames($this->request->post()),
         ], $uid);
         $this->result($result);
+    }
+
+    private function resolveUploadField($param)
+    {
+        $raw = strtolower(trim((string)($param['upload_field'] ?? ($param['image_role'] ?? ''))));
+        if (in_array($raw, ['detail', 'detail_chart', 'detailchart', 'detail_pic', 'detail_pic_ids', '2'], true)) {
+            return 'detail_chart';
+        }
+        if ((int)($param['file_type'] ?? 1) === 2) {
+            return 'detail_chart';
+        }
+        return 'color_chart';
     }
 
     private function getUploadOriginalNames($param)
