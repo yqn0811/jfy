@@ -169,7 +169,7 @@ class AiResourceBridgeService extends BaseService
         if (!$pic || !$this->isBridgeEnabledForUser($uid)) {
             return null;
         }
-        if ($this->isImportedResourcePicture($pic)) {
+        if ($this->shouldSkipPicture($pic)) {
             return null;
         }
         $user = $this->getBridgeUser($uid);
@@ -207,7 +207,16 @@ class AiResourceBridgeService extends BaseService
             $payload['file_hash'] = (string)$options['file_hash'];
             $payload['content_hash'] = (string)($options['content_hash'] ?? $options['file_hash']);
         }
+        if (!empty($options['category_name'])) {
+            $payload['category_name'] = (string)$options['category_name'];
+            $payload['metadata']['category_name'] = (string)$options['category_name'];
+        }
         return $this->requestAiResource('POST', '/jiafangyun/bridge/resources/sync', $payload);
+    }
+
+    public function shouldSkipPicture($pic)
+    {
+        return $this->isImportedResourcePicture($pic);
     }
 
     public function syncProductPictures($uid, $product)
@@ -230,6 +239,7 @@ class AiResourceBridgeService extends BaseService
             'external_product_id' => (string)$relation->folder_id,
             'role' => $role,
             'sort_order' => (int)$relation->sort,
+            'category_name' => $this->folderName((int)$relation->folder_id),
         ], $options));
     }
 
@@ -489,8 +499,21 @@ class AiResourceBridgeService extends BaseService
                 'external_product_id' => (string)$product->id,
                 'role' => $role,
                 'sort_order' => $sort,
+                'category_name' => trim((string)($product->folder_name ?? '')),
             ]);
         }
+    }
+
+    private function folderName($folderId)
+    {
+        if ($folderId <= 0) {
+            return '';
+        }
+        $folder = WdXcxAlbumFolder::where('id', $folderId)->find();
+        if (!$folder) {
+            return '';
+        }
+        return trim((string)($folder->folder_name ?? ''));
     }
 
     private function normalizeIds($raw)
