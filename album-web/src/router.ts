@@ -21,6 +21,7 @@ import SelectionListContent from '@/components/selection/SelectionListContent.vu
 import ShareHomeContent from '@/components/share_home/ShareHomeContent.vue'
 import WatermarkSettingsContent from '@/components/watermark_settings/WatermarkSettingsContent.vue'
 import CenteredLayout from '@/layouts/CenteredLayout.vue'
+import BatchUploadLayout from '@/layouts/BatchUploadLayout.vue'
 import ManagementLayout from '@/layouts/ManagementLayout.vue'
 import StandardLayout from '@/layouts/StandardLayout.vue'
 import PlaceholderView from '@/views/PlaceholderView.vue'
@@ -119,7 +120,7 @@ const routes: AppRoute[] = [
   {
     path: '/batch-upload',
     title: '协同编辑 - 家纺云',
-    layout: markRaw(CenteredLayout),
+    layout: markRaw(BatchUploadLayout),
     component: markRaw(BatchUploadVisitorContent),
   },
   {
