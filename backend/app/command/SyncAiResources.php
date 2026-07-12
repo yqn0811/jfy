@@ -20,7 +20,7 @@ class SyncAiResources extends Command
             ->addOption('uid', null, Option::VALUE_OPTIONAL, '只同步指定用户ID', 0)
             ->addOption('since', null, Option::VALUE_OPTIONAL, '只同步该日期后的图片，格式 YYYY-MM-DD', date('Y-m-d', strtotime('-30 days')))
             ->addOption('limit', null, Option::VALUE_OPTIONAL, '最多处理图片数量', 500)
-            ->addOption('quiet', null, Option::VALUE_NONE, '只输出汇总和进度')
+            ->addOption('progress-only', null, Option::VALUE_NONE, '只输出汇总和进度')
             ->addOption('dry-run', null, Option::VALUE_NONE, '只统计不实际同步');
     }
 
@@ -30,7 +30,7 @@ class SyncAiResources extends Command
         $limit = max(1, min(5000, (int)$input->getOption('limit')));
         $since = trim((string)$input->getOption('since'));
         $sinceTime = $this->parseSinceTime($since);
-        $quiet = (bool)$input->getOption('quiet');
+        $progressOnly = (bool)$input->getOption('progress-only');
         $dryRun = (bool)$input->getOption('dry-run');
 
         $query = WdXcxPic::where('uid', '>', 0)
@@ -51,7 +51,7 @@ class SyncAiResources extends Command
 
         foreach ($pictures as $picture) {
             $total++;
-            if (!$quiet) {
+            if (!$progressOnly) {
                 $output->writeln(sprintf('pic_id=%s uid=%s name=%s', $picture->id, $picture->uid, $picture->pic_name));
             } elseif ($total % 50 === 0) {
                 $output->writeln(sprintf('processed=%d synced=%d failed=%d album_relations=%d', $total, $synced, $failed, $albumSynced));
