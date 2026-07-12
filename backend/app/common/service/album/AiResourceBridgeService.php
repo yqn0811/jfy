@@ -2,6 +2,7 @@
 
 namespace app\common\service\album;
 
+use app\common\model\album\WdXcxAlbumFolder;
 use app\common\model\user\WdXcxUser;
 use app\common\service\BaseService;
 use app\common\model\WdXcxPic;
