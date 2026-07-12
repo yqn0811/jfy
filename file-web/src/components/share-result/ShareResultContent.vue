@@ -11,7 +11,6 @@ import { FileTransferApi, getRememberedSharePassword, type FileTransferShareVO }
 import { getApiErrorMessage } from '@/lib/apiClient'
 import { navigateTo } from '@/navigation'
 
-const allShares = ref(FileShareService.getAll())
 const currentShare = ref<FileShareVO | null>(null)
 const shareId = ref('')
 const shareCode = ref('')
@@ -22,6 +21,27 @@ const isLoadingShare = ref(true)
 const isVerifyingPassword = ref(false)
 const qrcodeImage = ref('')
 const isQrcodeLoading = ref(false)
+
+const createReceiverGateShare = (code: string): FileTransferShareVO => ({
+  id: code,
+  shareCode: code,
+  title: '分享的文件',
+  shareUrl: `/share-result?shareCode=${encodeURIComponent(code)}`,
+  password: '',
+  expiresAt: '',
+  maxDownloads: 0,
+  allowPreview: false,
+  notifyOnDownload: false,
+  status: 'active',
+  fileCount: 0,
+  totalSizeMb: 0,
+  downloadCount: 0,
+  recentLogs: [],
+  hasPassword: true,
+  passwordVerified: false,
+  files: [],
+  createdAt: '',
+})
 
 onMounted(async () => {
   const params = new URLSearchParams(window.location.search)
@@ -37,9 +57,13 @@ onMounted(async () => {
       accessPassword.value = rememberedPassword
 
       try {
-        const share = isReceiverMode.value
-          ? await FileTransferApi.getPublicShare(paramShareCode, rememberedPassword)
-          : await FileTransferApi.getOwnerShare(paramShareCode)
+        const share = isReceiverMode.value && !rememberedPassword
+          ? createReceiverGateShare(paramShareCode)
+          : isReceiverMode.value
+            ? await FileTransferApi.getPublicShare(paramShareCode, rememberedPassword)
+            : rememberedPassword
+              ? await FileTransferApi.getPublicShare(paramShareCode, rememberedPassword)
+              : await FileTransferApi.getOwnerShare(paramShareCode)
         currentShare.value = {
           ...share,
           password: localShare?.password || share.password,
@@ -52,6 +76,12 @@ onMounted(async () => {
           currentShare.value = localShare
           shareId.value = localShare.id
           receiverVerified.value = true
+          return
+        }
+        if (isReceiverMode.value) {
+          currentShare.value = createReceiverGateShare(paramShareCode)
+          shareId.value = paramShareCode
+          receiverVerified.value = false
           return
         }
         throw error
@@ -68,12 +98,6 @@ onMounted(async () => {
         accessPassword.value = getRememberedSharePassword(code) || localShare.password || ''
         return
       }
-    }
-
-    const fallback = allShares.value[0]
-    if (fallback) {
-      currentShare.value = FileShareService.getShareVOById(fallback.id) || null
-      shareId.value = fallback.id
     }
   } catch (error) {
     toast.error(getApiErrorMessage(error, '分享信息加载失败'))
@@ -102,8 +126,10 @@ const expiresText = computed(() => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 })
 
-const receiverNeedsPassword = computed(() => {
-  return Boolean(isReceiverMode.value && currentShare.value && !receiverVerified.value)
+const receiverNeedsPassword = computed(() => Boolean(isReceiverMode.value && currentShare.value && !receiverVerified.value))
+
+const canShowReceiverFiles = computed(() => {
+  return Boolean(isReceiverMode.value && currentShare.value && receiverVerified.value && !isExpired.value)
 })
 
 const shareLink = computed(() => {
@@ -172,6 +198,10 @@ const handleDownloadAll = () => {
   files.forEach((file) => handleDownloadFile(file.id))
 }
 
+const handleContinueSending = () => {
+  navigateTo('/quick-send')
+}
+
 const copyText = async (text: string, successText: string) => {
   if (!text) {
     toast.error('内容为空，无法复制')
@@ -232,7 +262,7 @@ const loadQrcode = async () => {
           <section v-else class="receiver-file-panel">
             <div class="receiver-summary">
               <div class="receiver-avatar">
-                <SafeIcon name="UserRound" :size="34" />
+                <SafeIcon name="Users" :size="34" />
               </div>
               <div>
                 <h1>分享的文件</h1>
@@ -247,12 +277,8 @@ const loadQrcode = async () => {
                 <SafeIcon name="Download" :size="17" />
                 下载
               </Button>
-              <Button variant="outline" disabled>
-                <SafeIcon name="Archive" :size="17" />
-                转存
-              </Button>
             </div>
-            <div class="receiver-files">
+            <div v-if="canShowReceiverFiles" class="receiver-files">
               <div v-for="file in fileList" :key="file.id" class="receiver-file-row">
                 <SafeIcon name="FileText" :size="22" />
                 <div>
@@ -268,13 +294,17 @@ const loadQrcode = async () => {
                 <span>暂无可下载文件</span>
               </div>
             </div>
+            <div v-else class="empty-file-box">
+              <SafeIcon name="Clock3" :size="34" />
+              <span>分享已过期，文件不可下载</span>
+            </div>
           </section>
         </main>
 
         <aside class="receiver-side">
           <div class="receiver-ad-card">
             <strong>织序传输</strong>
-            <span>安全、可追踪的文件交付</span>
+            <span>输入访问密码后下载分享文件</span>
           </div>
           <div class="receiver-ad-card muted">
             <strong>24 小时有效</strong>
@@ -290,21 +320,13 @@ const loadQrcode = async () => {
               <SafeIcon name="Send" :size="17" />
               我发送的
             </button>
-            <button class="owner-nav" disabled>
-              <SafeIcon name="Inbox" :size="17" />
-              发给我的
-            </button>
-            <button class="owner-nav" disabled>
-              <SafeIcon name="FolderCheck" :size="17" />
-              我收集的
-            </button>
           </aside>
 
           <main class="owner-main">
             <header class="owner-header">
               <div class="owner-title">
                 <div class="owner-avatar">
-                  <SafeIcon name="UserRound" :size="34" />
+                  <SafeIcon name="Users" :size="34" />
                 </div>
                 <div>
                   <h1>发文件</h1>
@@ -333,8 +355,8 @@ const loadQrcode = async () => {
                   全部文件
                 </div>
                 <div class="owner-view-icons">
-                  <SafeIcon name="List" :size="18" />
-                  <SafeIcon name="Grid2X2" :size="18" />
+                  <SafeIcon name="Files" :size="18" />
+                  <SafeIcon name="LayoutDashboard" :size="18" />
                 </div>
               </div>
               <div class="owner-file-grid">
@@ -394,7 +416,7 @@ const loadQrcode = async () => {
             </div>
             <div class="manage-section">
               <span>统计</span>
-              <p>浏览人次：{{ currentShare.downloadCount }}</p>
+              <p>下载次数：{{ currentShare.downloadCount }}</p>
               <p>生成时间：{{ formatDate(remoteShare?.createdAt || '') }}</p>
             </div>
           </aside>

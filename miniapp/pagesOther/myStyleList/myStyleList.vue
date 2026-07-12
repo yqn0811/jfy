@@ -185,7 +185,7 @@ export default {
       const domain =
         this.$config && this.$config.domain
           ? this.$config.domain
-          : "https://api-test.jfyuntu.com";
+          : "https://api.jfyuntu.com";
       const path = text.startsWith("/") ? text : `/${text}`;
       return `${domain}${path}`;
     },

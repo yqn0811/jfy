@@ -89,6 +89,7 @@ const pickupSearched = ref(false)
 const legalDialog = ref<LegalDialogType | null>(null)
 const generatedShare = ref<FileTransferShareVO | null>(null)
 const isShareResultOpen = ref(false)
+const isShareQrcodeOpen = ref(false)
 const shareQrcode = ref('')
 const isShareQrcodeLoading = ref(false)
 
@@ -484,7 +485,6 @@ const openShareResultDialog = async (share: ShareRecord | FileTransferShareVO) =
   generatedShare.value = normalizeShareVO({ ...share, shareCode }, localPassword)
   isShareResultOpen.value = true
   shareQrcode.value = ''
-  void loadShareQrcode()
 
   if (!shareCode) return
 
@@ -494,9 +494,8 @@ const openShareResultDialog = async (share: ShareRecord | FileTransferShareVO) =
       ...remoteShare,
       password: localPassword || remoteShare.password,
     }
-    if (!shareQrcode.value) void loadShareQrcode()
   } catch {
-    // 本地记录已经足够展示链接、密码和二维码；远端详情失败时不打断 A 端复制分享。
+    // 本地记录已经足够展示链接和密码；远端详情失败时不打断 A 端复制分享。
   }
 }
 
@@ -568,6 +567,12 @@ const loadShareQrcode = async () => {
   }
 }
 
+const handleOpenShareQrcode = () => {
+  if (!generatedShare.value) return
+  isShareQrcodeOpen.value = true
+  void loadShareQrcode()
+}
+
 const handleRefreshShareQrcode = async () => {
   shareQrcode.value = ''
   await loadShareQrcode()
@@ -589,6 +594,7 @@ const handleDownloadShareQrcode = () => {
 const handleCreateAnotherShare = () => {
   isShareResultOpen.value = false
   isPickupCodeOpen.value = false
+  isShareQrcodeOpen.value = false
   generatedShare.value = null
   shareQrcode.value = ''
   uploadedFiles.value = []
@@ -650,7 +656,6 @@ const handleGenerateLink = async () => {
     isShareResultOpen.value = true
     isUploadProgressOpen.value = false
     shareQrcode.value = ''
-    void loadShareQrcode()
     toast.success('分享链接已生成')
   } catch (error) {
     toast.error(getApiErrorMessage(error, '生成分享链接失败，请重试'))
@@ -661,8 +666,7 @@ const handleGenerateLink = async () => {
 
 const openShareResultFromQuery = async () => {
   const params = new URLSearchParams(window.location.search)
-  const isLegacyShareResultPage = window.location.pathname.replace(/\.html$/, '').replace(/\/+$/, '') === '/share-result'
-  const shouldOpenDialog = params.get('shareResult') === '1' || isLegacyShareResultPage
+  const shouldOpenDialog = params.get('shareResult') === '1'
   if (!shouldOpenDialog) return
 
   const queryShareId = params.get('shareId') || ''
@@ -682,7 +686,6 @@ const openShareResultFromQuery = async () => {
       generatedShare.value = remoteShare
       isShareResultOpen.value = true
       shareQrcode.value = ''
-      void loadShareQrcode()
     } else {
       toast.error('没有找到对应的分享记录')
     }
@@ -854,13 +857,6 @@ onMounted(() => {
                     <span>
                       <strong>整个文件夹</strong>
                       <small>保留文件夹中的文件结构</small>
-                    </span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem class="source-menu-item" @click="toast.info('空间选择稍后接入')">
-                    <SafeIcon name="Cloud" :size="18" />
-                    <span>
-                      <strong>从空间选择</strong>
-                      <small>选择已归档文件</small>
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem class="source-menu-item" @click="openTextDialog">
@@ -1278,7 +1274,7 @@ onMounted(() => {
         <div v-if="generatedShare" class="share-result-body">
           <section class="share-success-panel">
             <div class="success-hero-icon">
-              <SafeIcon name="ThumbsUp" :size="58" />
+              <SafeIcon name="CheckCircle2" :size="58" />
             </div>
             <h2>{{ shareResultSummary }}，已全部发送成功</h2>
             <p>
@@ -1286,8 +1282,8 @@ onMounted(() => {
             </p>
             <div class="share-success-actions">
               <Button variant="outline" @click="handleCopyShareLink">
-                <SafeIcon name="MessageCircle" :size="18" />
-                社交分享
+                <SafeIcon name="SendHorizontal" :size="18" />
+                分享链接
               </Button>
               <Button variant="secondary" @click="handleOpenPickupCode">
                 <SafeIcon name="KeyRound" :size="18" />
@@ -1301,7 +1297,7 @@ onMounted(() => {
                 <SafeIcon name="Copy" :size="15" />
                 复制
               </Button>
-              <Button variant="ghost" size="sm" @click="loadShareQrcode">
+              <Button variant="ghost" size="sm" @click="handleOpenShareQrcode">
                 <SafeIcon name="QrCode" :size="15" />
                 二维码
               </Button>
@@ -1346,36 +1342,6 @@ onMounted(() => {
               </div>
             </div>
           </aside>
-
-          <aside class="share-qrcode-panel">
-            <div class="share-qrcode-box">
-              <SafeIcon
-                v-if="isShareQrcodeLoading"
-                name="Loader2"
-                :size="34"
-                class="animate-spin text-muted-foreground"
-              />
-              <img
-                v-else-if="shareQrcode"
-                :src="shareQrcode"
-                alt="分享二维码"
-              />
-              <button v-else type="button" @click="loadShareQrcode">
-                <SafeIcon name="QrCode" :size="42" />
-                <span>生成二维码</span>
-              </button>
-            </div>
-            <div class="share-qrcode-actions">
-              <Button variant="outline" size="sm" @click="handleRefreshShareQrcode">
-                <SafeIcon name="RotateCw" :size="15" />
-                刷新
-              </Button>
-              <Button variant="outline" size="sm" :disabled="!shareQrcode" @click="handleDownloadShareQrcode">
-                <SafeIcon name="Download" :size="15" />
-                下载
-              </Button>
-            </div>
-          </aside>
         </div>
 
         <DialogFooter class="gap-2 sm:justify-between">
@@ -1391,6 +1357,44 @@ onMounted(() => {
               发送新文件
             </Button>
           </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isShareQrcodeOpen">
+      <DialogContent class="share-qrcode-dialog max-w-sm">
+        <DialogHeader>
+          <DialogTitle>分享二维码</DialogTitle>
+          <DialogDescription>
+            扫码打开公共链接，仍需要访问密码。
+          </DialogDescription>
+        </DialogHeader>
+        <div class="share-qrcode-box">
+          <SafeIcon
+            v-if="isShareQrcodeLoading"
+            name="Loader2"
+            :size="34"
+            class="animate-spin text-muted-foreground"
+          />
+          <img
+            v-else-if="shareQrcode"
+            :src="shareQrcode"
+            alt="分享二维码"
+          />
+          <button v-else type="button" @click="loadShareQrcode">
+            <SafeIcon name="QrCode" :size="42" />
+            <span>生成二维码</span>
+          </button>
+        </div>
+        <DialogFooter class="gap-2">
+          <Button variant="outline" @click="handleRefreshShareQrcode">
+            <SafeIcon name="RotateCw" :size="15" />
+            刷新
+          </Button>
+          <Button :disabled="!shareQrcode" @click="handleDownloadShareQrcode">
+            <SafeIcon name="Download" :size="15" />
+            下载
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2188,6 +2192,8 @@ onMounted(() => {
 
 .share-result-dialog {
   gap: 20px;
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
 }
 
 .share-result-title {
@@ -2208,14 +2214,13 @@ onMounted(() => {
 
 .share-result-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 16px;
   align-items: stretch;
 }
 
 .share-success-panel,
-.share-manage-panel,
-.share-qrcode-panel {
+.share-manage-panel {
   border: 1px solid hsl(var(--border));
   border-radius: 8px;
   background: hsl(var(--card));
@@ -2227,15 +2232,16 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  padding: 42px 24px;
+  gap: 14px;
+  min-height: 360px;
+  padding: 28px 22px;
   text-align: center;
 }
 
 .success-hero-icon {
   display: grid;
-  width: 110px;
-  height: 110px;
+  width: 84px;
+  height: 84px;
   place-items: center;
   border-radius: 999px;
   background: hsl(var(--primary) / 0.1);
@@ -2244,7 +2250,7 @@ onMounted(() => {
 
 .share-success-panel h2 {
   color: hsl(var(--primary));
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: 0;
 }
@@ -2290,8 +2296,11 @@ onMounted(() => {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 16px;
-  padding: 18px;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--card));
 }
 
 .share-result-field {
@@ -2340,14 +2349,6 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.share-qrcode-panel {
-  grid-column: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px;
-}
-
 .share-qrcode-box {
   display: grid;
   aspect-ratio: 1;
@@ -2376,10 +2377,13 @@ onMounted(() => {
   font-size: 13px;
 }
 
-.share-qrcode-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+.share-qrcode-dialog {
+  gap: 18px;
+}
+
+.share-qrcode-dialog .share-qrcode-box {
+  width: min(100%, 280px);
+  margin: 0 auto;
 }
 
 .pickup-code-dialog {
@@ -2487,10 +2491,6 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .share-qrcode-panel {
-    grid-column: auto;
-    max-width: 260px;
-  }
 }
 
 @media (max-width: 520px) {
@@ -2535,8 +2535,5 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .share-qrcode-panel {
-    max-width: none;
-  }
 }
 </style>
