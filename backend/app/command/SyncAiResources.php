@@ -21,6 +21,7 @@ class SyncAiResources extends Command
             ->addOption('since', null, Option::VALUE_OPTIONAL, '只同步该日期后的图片，格式 YYYY-MM-DD', date('Y-m-d', strtotime('-30 days')))
             ->addOption('limit', null, Option::VALUE_OPTIONAL, '最多处理图片数量', 500)
             ->addOption('batch-size', null, Option::VALUE_OPTIONAL, '每批处理图片数量', 200)
+            ->addOption('relations-only', null, Option::VALUE_NONE, '只按相册分类关系补同步，不扫描图片表')
             ->addOption('progress-only', null, Option::VALUE_NONE, '只输出汇总和进度')
             ->addOption('dry-run', null, Option::VALUE_NONE, '只统计不实际同步');
     }
@@ -34,6 +35,7 @@ class SyncAiResources extends Command
         $sinceTime = $this->parseSinceTime($since);
         $progressOnly = (bool)$input->getOption('progress-only');
         $dryRun = (bool)$input->getOption('dry-run');
+        $relationsOnly = (bool)$input->getOption('relations-only');
 
         $bridge = new AiResourceBridgeService($this->app);
         $total = 0;
@@ -43,7 +45,7 @@ class SyncAiResources extends Command
         $albumSynced = 0;
         $lastId = PHP_INT_MAX;
 
-        while ($total < $limit) {
+        while (!$relationsOnly && $total < $limit) {
             $query = WdXcxPic::where('uid', '>', 0)
                 ->where('file_type', 1)
                 ->where('imgurl', '<>', '')
@@ -95,13 +97,28 @@ class SyncAiResources extends Command
             }
         }
 
+        $relationStats = $this->syncAlbumRelations(
+            $bridge,
+            $uid,
+            $sinceTime,
+            $limit,
+            $batchSize,
+            $progressOnly,
+            $dryRun,
+            $output
+        );
+
         $output->writeln(sprintf(
-            'done total=%d synced=%d skipped=%d failed=%d album_relations=%d dry_run=%s',
+            'done total=%d synced=%d skipped=%d failed=%d album_relations=%d relation_total=%d relation_synced=%d relation_skipped=%d relation_failed=%d dry_run=%s',
             $total,
             $synced,
             $skipped,
             $failed,
             $albumSynced,
+            $relationStats['total'],
+            $relationStats['synced'],
+            $relationStats['skipped'],
+            $relationStats['failed'],
             $dryRun ? 'yes' : 'no'
         ));
     }
@@ -128,5 +145,70 @@ class SyncAiResources extends Command
             return (int)$folder->uid;
         }
         return (int)$relation->user_id;
+    }
+
+    private function syncAlbumRelations(AiResourceBridgeService $bridge, $uid, $sinceTime, $limit, $batchSize, $progressOnly, $dryRun, Output $output)
+    {
+        $stats = [
+            'total' => 0,
+            'synced' => 0,
+            'skipped' => 0,
+            'failed' => 0,
+        ];
+        $lastId = PHP_INT_MAX;
+
+        while ($stats['total'] < $limit) {
+            $query = WdXcxUserAlbumPic::where('folder_id', '>', 0)
+                ->where('pic_id', '>', 0)
+                ->where('create_time', '>=', $sinceTime)
+                ->where('id', '<', $lastId)
+                ->with(['picture'])
+                ->order('id desc')
+                ->limit(min($batchSize, $limit - $stats['total']));
+            if ($uid > 0) {
+                $folderIds = WdXcxAlbumFolder::where('uid', $uid)->column('id');
+                $query->where(function ($query) use ($uid, $folderIds) {
+                    $query->where('user_id', $uid);
+                    if (!empty($folderIds)) {
+                        $query->whereOr('folder_id', 'in', $folderIds);
+                    }
+                });
+            }
+
+            $relations = $query->select();
+            if (count($relations) === 0) {
+                break;
+            }
+
+            foreach ($relations as $relation) {
+                $stats['total']++;
+                $lastId = min($lastId, (int)$relation->id);
+                if (!$progressOnly) {
+                    $output->writeln(sprintf('relation_id=%s folder_id=%s pic_id=%s user_id=%s', $relation->id, $relation->folder_id, $relation->pic_id, $relation->user_id));
+                } elseif ($stats['total'] % 50 === 0) {
+                    $output->writeln(sprintf('relations_processed=%d relations_synced=%d relations_skipped=%d relations_failed=%d', $stats['total'], $stats['synced'], $stats['skipped'], $stats['failed']));
+                }
+
+                if ($dryRun) {
+                    continue;
+                }
+                if (!$relation->picture || $bridge->shouldSkipPicture($relation->picture)) {
+                    $stats['skipped']++;
+                    continue;
+                }
+                $ownerUid = $this->resolveRelationOwnerUid($relation);
+                if ($ownerUid <= 0) {
+                    $stats['skipped']++;
+                    continue;
+                }
+                if ($bridge->safeSyncAlbumRelation($ownerUid, $relation, 'album') !== null) {
+                    $stats['synced']++;
+                } else {
+                    $stats['failed']++;
+                }
+            }
+        }
+
+        return $stats;
     }
 }
