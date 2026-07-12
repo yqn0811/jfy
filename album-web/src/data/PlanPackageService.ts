@@ -2,23 +2,25 @@ import { PlanPackageData } from './PlanPackageData'
 
 export const planPackageDataList: PlanPackageData[] = [
   {
-    id: 'plan_001',
-    name: '标准版 100GB',
-    capacityMb: 102400,
-    price: '¥199 / 年',
-    concurrentRights: 5,
-    trafficGb: 100,
+    id: 'resource_30g',
+    name: '标准资源包',
+    packageType: 'resource_storage',
+    capacityMb: 30 * 1024,
+    price: '¥299 / 年',
+    concurrentRights: 8,
+    trafficGb: 30,
     durationLabel: '1 年',
     isRecommended: true,
     createdAt: '2026-01-12 10:00:00'
   },
   {
-    id: 'plan_002',
-    name: '专业版 300GB',
-    capacityMb: 307200,
-    price: '¥499 / 年',
+    id: 'resource_100g',
+    name: '专业资源包',
+    packageType: 'resource_storage',
+    capacityMb: 100 * 1024,
+    price: '¥999 / 年',
     concurrentRights: 10,
-    trafficGb: 300,
+    trafficGb: 100,
     durationLabel: '1 年',
     isRecommended: false,
     createdAt: '2026-01-12 10:05:00'
