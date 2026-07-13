@@ -142,8 +142,8 @@ class CommonService extends BaseService
     public function memberUpgradeConfig()
     {
         return [
-            "show_upgrade" => 1,
-            "upgrade_url" => "https://pic.jfyuntu.com/assets/page/product-list.html",
+            "show_upgrade" => 0,
+            "upgrade_url" => "",
         ];
     }
 

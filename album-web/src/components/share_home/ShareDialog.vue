@@ -30,8 +30,17 @@ const mobileShareUrl = ref('')
 const webShareUrl = ref('')
 const miniCodeUrl = ref('')
 const isLoadingShare = ref(false)
-const shareTitle = ref(props.homeProfile.shareTitle || `${props.homeProfile.companyName}的产品主页`)
-const shareDescription = ref(props.homeProfile.shareDescription || props.homeProfile.intro)
+const getDefaultShareTitle = (profile: HomeProfileData) =>
+  profile.shareTitle || `${profile.companyName || '商家'}的产品主页`
+const getDefaultShareDescription = (profile: HomeProfileData) =>
+  profile.shareDescription || profile.intro || ''
+const shareTitle = ref(getDefaultShareTitle(props.homeProfile))
+const shareDescription = ref(getDefaultShareDescription(props.homeProfile))
+
+const syncShareCopy = () => {
+  shareTitle.value = getDefaultShareTitle(props.homeProfile)
+  shareDescription.value = getDefaultShareDescription(props.homeProfile)
+}
 
 const buildPcShareUrl = () => {
   const params = new URLSearchParams()
@@ -42,7 +51,11 @@ const buildPcShareUrl = () => {
   return url.toString()
 }
 
-const pickMobileShareLink = (data: any) => data?.share_link || data?.url_link || data?.link || data?.mobile_link || ''
+const pickMobileShareLink = (data: any) => {
+  const value = data?.mobile_link || data?.share_link || data?.url_link || data?.link || ''
+  if (!value || /^https?:\/\/pic\.jfyuntu\.com\/share-home/i.test(value)) return ''
+  return value
+}
 const pickWebShareLink = (data: any) => data?.pc_link || data?.web_link || data?.web_url || data?.pc_url || ''
 
 const loadShareData = async () => {
@@ -64,9 +77,27 @@ const loadShareData = async () => {
   }
 }
 
-onMounted(loadShareData)
+onMounted(() => {
+  syncShareCopy()
+  loadShareData()
+})
 watch(() => props.open, open => {
-  if (open) loadShareData()
+  if (open) {
+    syncShareCopy()
+    loadShareData()
+  }
+})
+watch(() => [
+  props.homeProfile.id,
+  props.homeProfile.ownerUserId,
+  props.homeProfile.shareCode,
+  props.homeProfile.shareTitle,
+  props.homeProfile.shareDescription,
+  props.homeProfile.intro,
+  props.homeProfile.companyName,
+], () => {
+  syncShareCopy()
+  if (props.open) loadShareData()
 })
 
 const handleCopyLink = (url: string, label: string) => {
@@ -81,6 +112,7 @@ const handleCopyLink = (url: string, label: string) => {
 const handleCopyWithTitle = () => {
   const rows = [
     shareTitle.value,
+    shareDescription.value,
     mobileShareUrl.value ? `手机版：${mobileShareUrl.value}` : '',
     webShareUrl.value ? `网页版：${webShareUrl.value}` : '',
   ].filter(Boolean)
