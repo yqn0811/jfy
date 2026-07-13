@@ -14,6 +14,7 @@ export interface SubmissionReceiptVO {
   submissionId: string
   taskId: string
   sourceSubmissionId?: string
+  receiptToken?: string
   receiptNumber: string
   submittedAt: string
   materialSummary: string
@@ -116,6 +117,7 @@ const normalizeReceipt = (raw: any): SubmissionReceiptVO => ({
   submissionId: toStringValue(pick(raw, ['submissionId', 'submission_id', 'id'])),
   taskId: toStringValue(pick(raw, ['taskId', 'task_id'])),
   sourceSubmissionId: toStringValue(pick(raw, ['sourceSubmissionId', 'source_submission_id'])),
+  receiptToken: toStringValue(pick(raw, ['receiptToken', 'receipt_token'])),
   receiptNumber: toStringValue(pick(raw, ['receiptNumber', 'receipt_number'], '')),
   submittedAt: toIsoLike(pick(raw, ['submittedAt', 'submitted_at'], new Date().toISOString())),
   materialSummary: toStringValue(pick(raw, ['materialSummary', 'material_summary'], '已提交材料')),
@@ -171,9 +173,9 @@ export class PublicSubmissionService {
     return normalizeReceipt(data)
   }
 
-  static async getReceipt(submissionId: string): Promise<SubmissionReceiptVO> {
+  static async getReceipt(submissionId: string, receiptToken = ''): Promise<SubmissionReceiptVO> {
     const data = await apiRequest<any>('file/collection/submissions/receipt', {
-      params: { id: submissionId },
+      params: { id: submissionId, receiptToken },
       auth: false,
     })
     return normalizeReceipt(data)

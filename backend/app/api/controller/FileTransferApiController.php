@@ -2,6 +2,7 @@
 
 namespace app\api\controller;
 
+use app\common\service\CorsOriginService;
 use app\common\service\file\FileTransferService;
 use think\App;
 
@@ -309,10 +310,7 @@ class FileTransferApiController extends ApiBaseController
             ob_end_clean();
         }
 
-        $origin = $this->request->header('origin') ?: '*';
-        if (preg_match('/[\r\n]/', $origin)) {
-            $origin = '*';
-        }
+        $origin = CorsOriginService::resolveAllowedOrigin((string)$this->request->header('origin', ''));
         $filename = (string)$filename;
         $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
         if ($fallbackName === '') {
@@ -324,8 +322,9 @@ class FileTransferApiController extends ApiBaseController
         }
 
         header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
         header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        header('Vary: Origin');
         header('Content-Type: ' . $mimeType);
         header('Content-Length: ' . filesize($filePath));
         header('Content-Disposition: attachment; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));

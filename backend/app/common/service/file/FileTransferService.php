@@ -19,9 +19,12 @@ class FileTransferService extends BaseService
     const TENCENT_COS_PROVIDER = 'ten_cos';
     const ANONYMOUS_SHARE_TTL_SECONDS = 86400;
 
+    private $riskGuard;
+
     public function __construct(App $app)
     {
         parent::__construct($app);
+        $this->riskGuard = new FileRiskGuardService();
     }
 
     public function uploadFiles(array $files, array $param, int $uid)
@@ -33,13 +36,19 @@ class FileTransferService extends BaseService
         $transferToken = $this->normalizeTransferToken($param, $uid, true);
         $ownerSubject = $uid > 0 ? ($param['sso_subject'] ?? null) : $transferToken;
 
-        $maxSizeMb = max(1, (int)env('file_transfer.max_upload_mb', 500));
+        $maxSizeMb = $this->riskGuard->maxUploadSizeMb($uid);
+        $totalBytes = 0;
+        foreach ($uploadFiles as $file) {
+            $totalBytes += method_exists($file, 'getSize') ? max(0, (int)$file->getSize()) : 0;
+        }
+        $this->riskGuard->assertUploadAllowed($uid, $transferToken, count($uploadFiles), $totalBytes);
         $saved = [];
         foreach ($uploadFiles as $index => $file) {
             $originalName = $this->getUploadOriginalName($file, $index, $param);
             if ($originalName === '') {
                 throwError('文件名不正确');
             }
+            $this->riskGuard->assertUploadNameSafe($originalName, ['flow' => 'quick_send', 'uid' => $uid]);
             $sizeBytes = method_exists($file, 'getSize') ? (int)$file->getSize() : 0;
             if ($sizeBytes < 0 || $sizeBytes > $maxSizeMb * 1024 * 1024) {
                 throwError('文件大小超过限制');
@@ -59,16 +68,26 @@ class FileTransferService extends BaseService
             }
 
             $objectKey = $relativeDir . '/' . $saveName;
+            $storedPath = $targetDir . DIRECTORY_SEPARATOR . $saveName;
+            try {
+                $this->riskGuard->assertStoredFileSafe($storedPath, $originalName, ['flow' => 'quick_send', 'uid' => $uid]);
+            } catch (\Throwable $e) {
+                if (is_file($storedPath)) {
+                    @unlink($storedPath);
+                }
+                throw $e;
+            }
+
             $fileModel = FtFile::create([
                 'owner_user_id' => $uid,
                 'sso_subject' => $ownerSubject,
                 'original_name' => $originalName,
                 'object_key' => $objectKey,
                 'storage_provider' => self::LOCAL_PROVIDER,
-                'mime_type' => $this->detectMimeType($targetDir . DIRECTORY_SEPARATOR . $saveName),
+                'mime_type' => $this->detectMimeType($storedPath),
                 'extension' => $extension,
                 'size_bytes' => $sizeBytes,
-                'sha256' => is_file($targetDir . DIRECTORY_SEPARATOR . $saveName) ? hash_file('sha256', $targetDir . DIRECTORY_SEPARATOR . $saveName) : null,
+                'sha256' => is_file($storedPath) ? hash_file('sha256', $storedPath) : null,
                 'status' => 'uploaded',
                 'preview_url' => '',
             ]);
@@ -92,15 +111,28 @@ class FileTransferService extends BaseService
         if ($originalName === '') {
             throwError('请填写文件名');
         }
+        $this->riskGuard->assertUploadNameSafe($originalName, ['flow' => 'register_file', 'uid' => $uid]);
 
         $sizeBytes = (int)($param['size_bytes'] ?? 0);
         if ($sizeBytes < 0) {
             throwError('文件大小不正确');
         }
+        if ($sizeBytes > $this->riskGuard->maxRegisteredUploadSizeMb() * 1024 * 1024) {
+            throwError('文件大小超过限制');
+        }
 
         $objectKey = trim((string)($param['object_key'] ?? ''));
         if ($objectKey === '') {
             $objectKey = 'pending/' . date('Ymd') . '/' . bin2hex(random_bytes(12));
+        }
+        $objectKey = $this->normalizeRegisteredObjectKey($objectKey);
+        $storageProvider = trim((string)($param['storage_provider'] ?? 'pending'));
+        if (!in_array($storageProvider, ['pending', self::ALI_OSS_PROVIDER, self::TENCENT_COS_PROVIDER, 'tencent_cos'], true)) {
+            throwError('文件存储类型不支持');
+        }
+        $status = trim((string)($param['status'] ?? 'uploaded'));
+        if (!in_array($status, ['pending', 'uploaded'], true)) {
+            throwError('文件状态不正确');
         }
 
         $file = FtFile::create([
@@ -108,12 +140,12 @@ class FileTransferService extends BaseService
             'sso_subject' => $param['sso_subject'] ?? null,
             'original_name' => $originalName,
             'object_key' => $objectKey,
-            'storage_provider' => trim((string)($param['storage_provider'] ?? 'pending')),
+            'storage_provider' => $storageProvider,
             'mime_type' => trim((string)($param['mime_type'] ?? '')),
             'extension' => strtolower(trim((string)($param['extension'] ?? pathinfo($originalName, PATHINFO_EXTENSION)))),
             'size_bytes' => $sizeBytes,
             'sha256' => $this->normalizeSha256($param['sha256'] ?? ''),
-            'status' => trim((string)($param['status'] ?? 'uploaded')),
+            'status' => $status,
             'preview_url' => $param['preview_url'] ?? null,
         ]);
 
@@ -143,15 +175,16 @@ class FileTransferService extends BaseService
         if (count($files) !== count(array_unique($fileIds))) {
             throwError('存在无权分享的文件');
         }
+        $totalSize = 0;
+        foreach ($files as $file) {
+            $totalSize += (int)$file->size_bytes;
+        }
+        $this->riskGuard->assertShareCreateAllowed($uid, $transferToken, count($files), $totalSize);
 
         $conn = Db::connect('pgsql_file');
         $conn->startTrans();
         try {
             $fileCount = count($files);
-            $totalSize = 0;
-            foreach ($files as $file) {
-                $totalSize += (int)$file->size_bytes;
-            }
 
             $shareData = [
                 'owner_user_id' => $uid,
@@ -205,6 +238,7 @@ class FileTransferService extends BaseService
         if ($pickupCode === '') {
             throwError('请输入取件码');
         }
+        $this->riskGuard->assertPublicAccessAllowed('pickup', $pickupCode);
 
         $share = FtFileShare::where('pickup_code', $pickupCode)
             ->whereNull('deleted_at')
@@ -250,6 +284,7 @@ class FileTransferService extends BaseService
 
     public function getShareQrcode(string $code, string $url)
     {
+        $this->riskGuard->assertPublicAccessAllowed('qrcode', $code);
         $share = FtFileShare::where('share_code', trim($code))
             ->whereNull('deleted_at')
             ->find();
@@ -281,6 +316,12 @@ class FileTransferService extends BaseService
 
     public function getShareByCode(string $code, bool $publicView = true, string $password = '', int $ownerUid = 0)
     {
+        if ($publicView) {
+            $this->riskGuard->assertPublicAccessAllowed('share_view', $code);
+            if ($password !== '') {
+                $this->riskGuard->assertPublicAccessAllowed('share_password', $code);
+            }
+        }
         $share = FtFileShare::where('share_code', trim($code))
             ->whereNull('deleted_at')
             ->find();
@@ -355,6 +396,7 @@ class FileTransferService extends BaseService
         if ($fileId <= 0 || ($code === '' && $pickupCode === '')) {
             throwError('下载参数不完整');
         }
+        $this->riskGuard->assertPublicAccessAllowed('share_download', $code !== '' ? $code : $pickupCode);
 
         $shareQuery = FtFileShare::whereNull('deleted_at');
         if ($code !== '') {
@@ -596,7 +638,8 @@ class FileTransferService extends BaseService
         $base = realpath($runtimeRoot . 'file_transfer');
         $path = $runtimeRoot . str_replace('/', DIRECTORY_SEPARATOR, $objectKey);
         $realPath = realpath($path);
-        if (!$base || !$realPath || strpos($realPath, $base) !== 0 || !is_file($realPath)) {
+        $baseDir = $base ? rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR : '';
+        if (!$base || !$realPath || strpos($realPath, $baseDir) !== 0 || !is_file($realPath)) {
             throwError('文件不存在或已失效');
         }
         return $realPath;
@@ -704,6 +747,15 @@ class FileTransferService extends BaseService
         $folderName = trim(str_replace('\\', '/', $folderName), '/');
         if ($folderName !== '' && strpos($objectKey, $folderName . '/') !== 0) {
             $objectKey = $folderName . '/' . $objectKey;
+        }
+        return $objectKey;
+    }
+
+    private function normalizeRegisteredObjectKey(string $objectKey)
+    {
+        $objectKey = ltrim(str_replace('\\', '/', trim($objectKey)), '/');
+        if ($objectKey === '' || mb_strlen($objectKey) > 512 || strpos($objectKey, '..') !== false || preg_match('/^[a-z]+:\/\//i', $objectKey)) {
+            throwError('文件路径不合法');
         }
         return $objectKey;
     }

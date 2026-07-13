@@ -4,6 +4,7 @@ import { ref, onUnmounted } from 'vue';
 import { cn } from '@/lib/utils';
 import SafeIcon from '@/components/common/SafeIcon.vue';
 import { toast } from 'vue-sonner';
+import { validateFileBatch } from '@/lib/fileSecurityPolicy';
 
 interface Props {
   accept?: string;
@@ -39,12 +40,16 @@ const handleDragLeave = (e: DragEvent) => {
 };
 
 const validateFiles = (files: FileList): boolean => {
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (props.maxSize && file.size > props.maxSize * 1024 * 1024) {
-      toast.error(`文件 "${file.name}" 超过最大限制 ${props.maxSize}MB`);
-      return false;
-    }
+  const allowedExtensions = props.accept && props.accept !== '*'
+    ? props.accept.split(',').map((item) => item.trim()).filter((item) => item.startsWith('.'))
+    : [];
+  const result = validateFileBatch(files, {
+    maxSizeMb: props.maxSize,
+    allowedExtensions,
+  });
+  if (!result.ok) {
+    toast.error(result.message || '文件不符合上传要求');
+    return false;
   }
   return true;
 };
@@ -141,4 +146,3 @@ const handleInputChange = (e: Event) => {
   }
 }
 </style>
-    

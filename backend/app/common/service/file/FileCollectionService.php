@@ -15,9 +15,12 @@ use think\facade\Db;
 
 class FileCollectionService extends BaseService
 {
+    private $riskGuard;
+
     public function __construct(App $app)
     {
         parent::__construct($app);
+        $this->riskGuard = new FileRiskGuardService();
     }
 
     public function createTask(array $param, int $uid)
@@ -327,59 +330,75 @@ class FileCollectionService extends BaseService
         if (count($items) === 0) {
             throwError('暂无可下载文件');
         }
+        $totalSize = 0;
+        foreach ($items as $item) {
+            if ($item->file) {
+                $totalSize += (int)$item->file->size_bytes;
+            }
+        }
+        $this->riskGuard->assertZipDownloadAllowed(count($items), $totalSize);
+        $zipLock = $this->riskGuard->acquireLock('zip:task:' . (int)$task->id, 180, '此任务正在打包，请稍后再试');
 
         $workDir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'jfy_collection_zip_' . uniqid('', true);
-        if (!mkdir($workDir, 0700, true) && !is_dir($workDir)) {
-            throwError('打包目录创建失败');
-        }
-
-        $zipPath = $workDir . DIRECTORY_SEPARATOR . 'submissions.zip';
-        $zip = new \ZipArchive();
-        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
-            $this->removeDirectory($workDir);
-            throwError('ZIP创建失败');
-        }
-
         try {
-            $usedNames = [];
-            foreach ($items as $item) {
-                if (!$item->file) {
-                    continue;
-                }
-                $path = $this->getLocalFilePath($item->file);
-                $entryName = $this->uniqueZipEntryName('submission-' . (int)$item->submission_id . '/' . (string)$item->file->original_name, $usedNames);
-                $zip->addFile($path, $entryName);
-                if (method_exists($zip, 'setCompressionName') && $this->shouldStoreZipEntry($entryName)) {
-                    $zip->setCompressionName($entryName, \ZipArchive::CM_STORE);
-                }
+            if (!mkdir($workDir, 0700, true) && !is_dir($workDir)) {
+                throwError('打包目录创建失败');
             }
-            $zip->close();
-        } catch (\Throwable $e) {
-            $zip->close();
-            $this->removeDirectory($workDir);
-            throw $e;
-        }
 
-        if (!is_file($zipPath) || filesize($zipPath) <= 0) {
-            $this->removeDirectory($workDir);
-            throwError('暂无可打包文件');
+            $zipPath = $workDir . DIRECTORY_SEPARATOR . 'submissions.zip';
+            $zip = new \ZipArchive();
+            if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+                $this->removeDirectory($workDir);
+                throwError('ZIP创建失败');
+            }
+
+            try {
+                $usedNames = [];
+                foreach ($items as $item) {
+                    if (!$item->file) {
+                        continue;
+                    }
+                    $path = $this->getLocalFilePath($item->file);
+                    $entryName = $this->uniqueZipEntryName('submission-' . (int)$item->submission_id . '/' . (string)$item->file->original_name, $usedNames);
+                    $zip->addFile($path, $entryName);
+                    if (method_exists($zip, 'setCompressionName') && $this->shouldStoreZipEntry($entryName)) {
+                        $zip->setCompressionName($entryName, \ZipArchive::CM_STORE);
+                    }
+                }
+                $zip->close();
+            } catch (\Throwable $e) {
+                $zip->close();
+                $this->removeDirectory($workDir);
+                throw $e;
+            }
+
+            if (!is_file($zipPath) || filesize($zipPath) <= 0) {
+                $this->removeDirectory($workDir);
+                throwError('暂无可打包文件');
+            }
+        } catch (\Throwable $e) {
+            $this->riskGuard->releaseLock($zipLock);
+            throw $e;
         }
 
         return [
             'path' => $zipPath,
             'download_name' => $this->sanitizeDownloadFilename((string)$task->name . '-提交文件.zip'),
             'work_dir' => $workDir,
+            'lock' => $zipLock,
         ];
     }
 
     public function getPublicTask(int $taskId, string $accessCode = '')
     {
+        $this->riskGuard->assertPublicAccessAllowed('task_public', (string)$taskId);
         $task = $this->findPublicTask($taskId);
         return $this->formatPublicTask($task, $this->isAccessCodeVerified($task, $accessCode));
     }
 
     public function verifyAccessCode(int $taskId, string $accessCode)
     {
+        $this->riskGuard->assertPublicAccessAllowed('task_access_code', (string)$taskId);
         $task = $this->findPublicTask($taskId);
         if (!$this->isAccessCodeVerified($task, $accessCode)) {
             throwError('访问密码不正确');
@@ -394,6 +413,9 @@ class FileCollectionService extends BaseService
         $this->assertTaskAccepting($task);
 
         $accessCode = (string)($param['access_code'] ?? $param['accessCode'] ?? '');
+        if (!empty($task->access_code_hash)) {
+            $this->riskGuard->assertPublicAccessAllowed('task_access_code', (string)$task->id);
+        }
         if (!$this->isAccessCodeVerified($task, $accessCode)) {
             throwError('访问密码不正确');
         }
@@ -419,6 +441,11 @@ class FileCollectionService extends BaseService
         if (empty($uploadFiles)) {
             throwError('请上传材料文件');
         }
+        $rawTotalBytes = 0;
+        foreach ($uploadFiles as $file) {
+            $rawTotalBytes += method_exists($file, 'getSize') ? max(0, (int)$file->getSize()) : 0;
+        }
+        $this->riskGuard->assertPublicSubmissionAllowed((int)$task->id, count($uploadFiles), $rawTotalBytes);
 
         $materialIds = $this->normalizeMaterialIdList($param['material_ids'] ?? ($param['materialIds'] ?? []));
         if (count($materialIds) < count($uploadFiles)) {
@@ -442,6 +469,7 @@ class FileCollectionService extends BaseService
             if ($originalName === '') {
                 throwError('文件名不正确');
             }
+            $this->riskGuard->assertUploadNameSafe($originalName, ['flow' => 'public_submission', 'task_id' => (int)$task->id]);
 
             $sizeBytes = method_exists($file, 'getSize') ? (int)$file->getSize() : 0;
             if ($sizeBytes < 0) {
@@ -519,11 +547,12 @@ class FileCollectionService extends BaseService
             throw $e;
         }
 
-        return $this->formatSubmissionReceipt($submission, $task, $sourceSubmission);
+        return $this->formatSubmissionReceipt($submission, $task, $sourceSubmission, true);
     }
 
-    public function getPublicSubmissionReceipt(int $submissionId)
+    public function getPublicSubmissionReceipt(int $submissionId, string $receiptToken = '')
     {
+        $this->riskGuard->assertPublicAccessAllowed('submission_receipt', (string)$submissionId);
         $submission = FtSubmission::where('id', $submissionId)
             ->whereNull('deleted_at')
             ->find();
@@ -536,6 +565,12 @@ class FileCollectionService extends BaseService
             ->find();
         if (!$task) {
             throwError('收集任务不存在');
+        }
+        if ($receiptToken === '' && $this->receiptTokenRequired()) {
+            throwError('提交凭证无效');
+        }
+        if ($receiptToken !== '' && !$this->verifyReceiptToken($submission, $receiptToken)) {
+            throwError('提交凭证无效');
         }
 
         return $this->formatSubmissionReceipt($submission, $task);
@@ -987,7 +1022,8 @@ class FileCollectionService extends BaseService
         $base = realpath($runtimeRoot . 'file_transfer');
         $path = $runtimeRoot . str_replace('/', DIRECTORY_SEPARATOR, $objectKey);
         $realPath = realpath($path);
-        if (!$base || !$realPath || strpos($realPath, $base) !== 0 || !is_file($realPath)) {
+        $baseDir = $base ? rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR : '';
+        if (!$base || !$realPath || strpos($realPath, $baseDir) !== 0 || !is_file($realPath)) {
             throwError('文件不存在或已失效');
         }
         return $realPath;
@@ -1253,6 +1289,19 @@ class FileCollectionService extends BaseService
         }
 
         $path = $targetDir . DIRECTORY_SEPARATOR . $saveName;
+        try {
+            $this->riskGuard->assertStoredFileSafe($path, (string)$prepared['original_name'], [
+                'flow' => 'public_submission',
+                'task_id' => (int)$task->id,
+                'owner_user_id' => (int)$task->owner_user_id,
+            ]);
+        } catch (\Throwable $e) {
+            if (is_file($path)) {
+                @unlink($path);
+            }
+            throw $e;
+        }
+
         $objectKey = $relativeDir . '/' . $saveName;
         $file = FtFile::create([
             'owner_user_id' => (int)$task->owner_user_id,
@@ -1285,9 +1334,9 @@ class FileCollectionService extends BaseService
         return '';
     }
 
-    private function formatSubmissionReceipt($submission, $task, $sourceSubmission = null)
+    private function formatSubmissionReceipt($submission, $task, $sourceSubmission = null, bool $includeToken = false)
     {
-        return [
+        $receipt = [
             'id' => (int)$submission->id,
             'submission_id' => (int)$submission->id,
             'submissionId' => (string)$submission->id,
@@ -1302,6 +1351,50 @@ class FileCollectionService extends BaseService
             'material_summary' => '已提交' . (int)$submission->file_count . '个文件',
             'materialSummary' => '已提交' . (int)$submission->file_count . '个文件',
         ];
+        if ($includeToken) {
+            $receipt['receipt_token'] = $this->makeReceiptToken($submission);
+            $receipt['receiptToken'] = $receipt['receipt_token'];
+        }
+        return $receipt;
+    }
+
+    private function makeReceiptToken($submission): string
+    {
+        $payload = implode('|', [
+            (string)$submission->id,
+            (string)$submission->task_id,
+            (string)$submission->submitted_at,
+            (string)$submission->file_count,
+            (string)$submission->total_size_bytes,
+        ]);
+        return substr(hash_hmac('sha256', $payload, $this->receiptSecret()), 0, 32);
+    }
+
+    private function verifyReceiptToken($submission, string $token): bool
+    {
+        return hash_equals($this->makeReceiptToken($submission), trim($token));
+    }
+
+    private function receiptSecret(): string
+    {
+        $secret = (string)env('file_transfer.receipt_token_secret', '');
+        if ($secret !== '') {
+            return $secret;
+        }
+        $secret = (string)env('AI_RESOURCE_BRIDGE_TOKEN', '');
+        if ($secret !== '') {
+            return $secret;
+        }
+        return (string)(getenv('JIAFANGYUN_BRIDGE_TOKEN') ?: 'jiafangyun-file-receipt');
+    }
+
+    private function receiptTokenRequired(): bool
+    {
+        $value = env('file_transfer.receipt_token_required', true);
+        if (is_bool($value)) {
+            return $value;
+        }
+        return !in_array(strtolower((string)$value), ['0', 'false', 'no', 'off'], true);
     }
 
     private function normalizeDateTime($value)

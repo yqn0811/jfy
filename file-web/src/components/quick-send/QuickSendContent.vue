@@ -41,6 +41,11 @@ import {
   type FileTransferShareVO,
 } from '@/data/FileTransferApi'
 import { authStore, getApiErrorMessage } from '@/lib/apiClient'
+import {
+  QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB,
+  QUICK_SEND_USER_MAX_FILE_SIZE_MB,
+  validateFileBatch,
+} from '@/lib/fileSecurityPolicy'
 import { navigateTo } from '@/navigation'
 
 interface UploadFile {
@@ -67,8 +72,6 @@ type SendMode = 'standard' | 'image'
 type UtilityPanel = 'pickup' | 'recent' | 'support' | 'security'
 type LegalDialogType = 'service' | 'privacy'
 type ShareRecord = ReturnType<typeof FileShareService.getAll>[number]
-
-const MAX_FILE_SIZE_MB = 500
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
@@ -155,6 +158,10 @@ const generateButtonLabel = computed(() => {
 
 const fileAccept = computed(() => {
   return sendMode.value === 'image' ? 'image/*' : '*'
+})
+
+const maxFileSizeMb = computed(() => {
+  return authStore.hasToken() ? QUICK_SEND_USER_MAX_FILE_SIZE_MB : QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB
 })
 
 const pickerLabel = computed(() => {
@@ -298,17 +305,14 @@ const openTextDialog = () => {
 }
 
 const validateFiles = (files: FileList): boolean => {
-  for (let index = 0; index < files.length; index++) {
-    const file = files[index]
-    if (sendMode.value === 'image' && !file.type.startsWith('image/')) {
-      toast.error(`图片发送只支持图片文件: "${file.name}"`)
-      return false
-    }
-
-    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-      toast.error(`文件 "${file.name}" 超过最大限制 ${MAX_FILE_SIZE_MB}MB`)
-      return false
-    }
+  const result = validateFileBatch(files, {
+    maxSizeMb: maxFileSizeMb.value,
+    existingCount: uploadedFiles.value.length,
+    imageOnly: sendMode.value === 'image',
+  })
+  if (!result.ok) {
+    toast.error(result.message || '文件不符合上传要求')
+    return false
   }
   return true
 }
@@ -946,7 +950,7 @@ onMounted(() => {
               </DropdownMenu>
               <p>{{ emptyHint }}</p>
               <div class="format-row">
-                <span>最大 500MB</span>
+                <span>最大 {{ maxFileSizeMb }}MB</span>
                 <span>密码访问</span>
                 <span>可追踪下载</span>
               </div>
@@ -1053,7 +1057,7 @@ onMounted(() => {
               <div>
                 <h2 class="text-item-title">分享设置</h2>
                 <p class="text-caption mt-1">
-                  {{ authStore.hasToken() ? '配置有效期、取件码和下载限制' : '未登录文件有效期为 24 小时，到期后自动清理' }}
+                  {{ authStore.hasToken() ? '配置有效期、取件码和下载限制' : `未登录单文件最大 ${QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB}MB，有效期为 24 小时` }}
                 </p>
               </div>
               <Button :disabled="!canGenerateLink" @click="handleGenerateLink">
@@ -2021,15 +2025,22 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  border: 1px solid transparent;
   border-radius: 6px;
   color: hsl(var(--muted-foreground));
   font-size: 13px;
   font-weight: 600;
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  transition: border-color 0.18s, background 0.18s, color 0.18s, box-shadow 0.18s;
 }
 
-.panel-tab.is-active {
-  background: white;
+.panel-tab:hover:not(.is-active) {
+  background: hsl(var(--card) / 0.55);
+  color: hsl(var(--foreground));
+}
+
+.panel-tabs .panel-tab.is-active {
+  border-color: hsl(var(--primary) / 0.22);
+  background: hsl(var(--card));
   color: hsl(var(--primary));
   box-shadow: var(--shadow-soft);
 }

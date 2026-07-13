@@ -4,6 +4,7 @@ namespace app\api\controller;
 
 use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserCollectPics;
+use app\common\service\CorsOriginService;
 use app\common\service\bridge\JiafangyunEntitlementSyncService;
 use app\common\service\bridge\JiafangyunBridgeClient;
 use app\common\service\user\UserService;
@@ -406,17 +407,15 @@ class UserApiController extends ApiBaseController
 
     private function sendOriginalDownloadHeaders($filename, $contentType, $contentLength)
     {
-        $origin = $this->request->header('origin') ?: '*';
-        if (preg_match('/[\r\n]/', $origin)) {
-            $origin = '*';
-        }
+        $origin = CorsOriginService::resolveAllowedOrigin((string)$this->request->header('origin', ''));
         $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
         if ($fallbackName === '') {
             $fallbackName = 'image.jpg';
         }
         header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
         header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        header('Vary: Origin');
         header('X-Accel-Buffering: no');
         header('Content-Type: ' . $contentType);
         if ($contentLength > 0) {
@@ -666,17 +665,15 @@ class UserApiController extends ApiBaseController
         while (ob_get_level() > 0) {
             ob_end_clean();
         }
-        $origin = $this->request->header('origin') ?: '*';
-        if (preg_match('/[\r\n]/', $origin)) {
-            $origin = '*';
-        }
+        $origin = CorsOriginService::resolveAllowedOrigin((string)$this->request->header('origin', ''));
         $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
         if ($fallbackName === '') {
             $fallbackName = 'product-images.zip';
         }
         header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
         header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        header('Vary: Origin');
         header('Content-Type: application/zip');
         header('Content-Length: ' . filesize($zipPath));
         header('Content-Disposition: attachment; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
