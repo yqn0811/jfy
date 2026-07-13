@@ -1195,6 +1195,9 @@ class UserService extends BaseService
         }
         $pcLink = $this->buildHomeWebShareUrl($homeShareCode, $pcParams, $pcPath);
 
+        $share_link = '';
+        $share_link_status = 'ok';
+        $share_link_message = '';
         try {
             $share_link = (new WxService())->generateUrlLink($pagePath, $query);
         } catch (\Throwable $e) {
@@ -1203,11 +1206,13 @@ class UserService extends BaseService
                 $share_link = (new WxService())->generateShortLink('/' . $mini_path, $title, false);
             } catch (\Throwable $fallbackException) {
                 Log::error('getHomeShareLink generateShortLink fallback failed: ' . $fallbackException->getMessage());
-                $share_link = $pcLink;
+                $share_link_status = 'failed';
+                $share_link_message = '小程序链接生成失败';
             }
         }
         if (!$share_link) {
-            $share_link = $pcLink;
+            $share_link_status = 'failed';
+            $share_link_message = '小程序链接生成失败';
         }
 
         $scene = $query ?: ('uid=' . $targetUserId);
@@ -1225,6 +1230,8 @@ class UserService extends BaseService
             'mini_path' => $mini_path,
             'scene' => $scene,
             'title' => $title,
+            'mobile_status' => $share_link_status,
+            'mobile_message' => $share_link_message,
         ];
     }
 
