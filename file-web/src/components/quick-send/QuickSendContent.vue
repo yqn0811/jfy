@@ -821,17 +821,51 @@ onMounted(() => {
 
         <main class="transfer-column">
           <div class="command-bar" aria-label="快捷操作">
-            <Button variant="outline" class="command-pill" @click="handlePanelSelect('pickup')">
+            <Button
+              type="button"
+              variant="outline"
+              class="command-pill"
+              :class="{ 'is-active': activePanel === 'pickup' }"
+              :aria-pressed="activePanel === 'pickup'"
+              @click="handlePanelSelect('pickup')"
+            >
               <SafeIcon name="KeyRound" :size="16" />
               钥匙串 / 取件码
             </Button>
-            <Button variant="ghost" size="icon" class="command-icon" title="图片发送" @click="handleModeSelect('image')">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="command-icon"
+              :class="{ 'is-active': sendMode === 'image' }"
+              :aria-pressed="sendMode === 'image'"
+              title="图片发送"
+              @click="handleModeSelect('image')"
+            >
               <SafeIcon name="Image" :size="19" />
             </Button>
-            <Button variant="ghost" size="icon" class="command-icon" title="最近发送" @click="handlePanelSelect('recent')">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="command-icon"
+              :class="{ 'is-active': activePanel === 'recent' }"
+              :aria-pressed="activePanel === 'recent'"
+              title="最近发送"
+              @click="handlePanelSelect('recent')"
+            >
               <SafeIcon name="CalendarCheck" :size="19" />
             </Button>
-            <Button variant="ghost" size="icon" class="command-icon" title="客服支持" @click="handleSupport">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="command-icon"
+              :class="{ 'is-active': activePanel === 'support' }"
+              :aria-pressed="activePanel === 'support'"
+              title="客服支持"
+              @click="handleSupport"
+            >
               <SafeIcon name="BadgeHelp" :size="19" />
             </Button>
           </div>
@@ -1677,13 +1711,18 @@ onMounted(() => {
 }
 
 .transfer-column {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .command-bar {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  width: fit-content;
+  max-width: 100%;
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -1703,6 +1742,26 @@ onMounted(() => {
   border: 1px solid hsl(var(--border));
   border-radius: 999px;
   color: hsl(var(--foreground));
+}
+
+.command-pill,
+.command-icon {
+  transition: border-color 0.18s, background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+
+.command-pill:hover,
+.command-icon:hover,
+.command-pill.is-active,
+.command-icon.is-active {
+  border-color: hsl(var(--primary) / 0.48);
+  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary));
+  box-shadow: 0 8px 18px hsl(var(--primary) / 0.12);
+}
+
+.command-pill.is-active,
+.command-icon.is-active {
+  transform: translateY(-1px);
 }
 
 .transfer-card {
