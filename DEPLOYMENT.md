@@ -110,6 +110,28 @@
 fallback，把不存在的前端路径回落到 `/index.html`；不要再发布或依赖旧的带后缀
 业务入口。
 
+部署前先运行统一 QA 入口：
+
+```bash
+cd /Users/mac/Documents/trae_projects/sub2api/ai_jf/tmp/jfy
+./scripts/qa-jfy.sh
+```
+
+默认只检查 PHP 语法和 Composer 元数据。需要覆盖前端构建时按项目打开开关：
+
+```bash
+JFY_QA_ALBUM_WEB=1 JFY_QA_FILE_WEB=1 ./scripts/qa-jfy.sh
+JFY_QA_MINIAPP=1 ./scripts/qa-jfy.sh
+```
+
+文件传输后端还必须配置匿名过期文件清理定时任务，避免本地私有存储持续增长：
+
+```bash
+*/10 * * * * cd /www/wwwroot/api-test.jfyuntu.com/current && php think file:cleanup-expired-anonymous --limit 200 >> runtime/log/file_cleanup.log 2>&1
+```
+
+生产环境使用对应已确认后端应用目录；首次配置前先执行 `--dry-run` 确认输出。
+
 ## 前端发布规范
 
 所有前端项目都使用固定目录覆盖发布：

@@ -385,8 +385,7 @@ class FileTransferService extends BaseService
         $file = $item->file;
         $path = $this->getLocalFilePath($file);
         if (!$preview) {
-            $share->download_count = (int)$share->download_count + 1;
-            $share->save();
+            $this->consumeShareDownloadQuota($share);
             $this->recordShareLog((int)$share->id, 'download', ['file_id' => $fileId]);
         }
 
@@ -510,6 +509,35 @@ class FileTransferService extends BaseService
         if ($checkDownloadLimit && (int)$share->max_downloads > 0 && (int)$share->download_count >= (int)$share->max_downloads) {
             throwError('分享下载次数已用完');
         }
+    }
+
+    private function consumeShareDownloadQuota($share)
+    {
+        $affected = Db::connect('pgsql_file')
+            ->name('file_shares')
+            ->where('id', (int)$share->id)
+            ->where('status', 'active')
+            ->whereNull('deleted_at')
+            ->whereRaw('(expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)')
+            ->whereRaw('(max_downloads <= 0 OR download_count < max_downloads)')
+            ->update([
+                'download_count' => Db::raw('download_count + 1'),
+                'updated_at' => $this->nowDbExpression(),
+            ]);
+
+        if ((int)$affected > 0) {
+            $share->download_count = (int)$share->download_count + 1;
+            return;
+        }
+
+        $fresh = FtFileShare::where('id', (int)$share->id)->find();
+        if (!$fresh || !empty($fresh->deleted_at) || (string)$fresh->status !== 'active') {
+            throwError('分享不存在或已失效');
+        }
+        if (!empty($fresh->expires_at) && $this->isShareExpired($fresh)) {
+            throwError('分享已过期');
+        }
+        throwError('分享下载次数已用完');
     }
 
     private function isShareExpired($share)
