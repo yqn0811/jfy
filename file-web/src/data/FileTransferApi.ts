@@ -3,7 +3,7 @@ import type { DeliveryRecordData } from './DeliveryRecordData'
 import type { FileShareData, ShareAccessLogData } from './FileShareData'
 import type { FileShareVO } from './FileShareService'
 import type { TaskData } from './TaskData'
-import { apiDownload, apiRequest, apiUpload, authStore, buildApiUrl } from '@/lib/apiClient'
+import { ApiError, apiDownload, apiRequest, apiUpload, authStore, buildApiUrl, rawUpload } from '@/lib/apiClient'
 
 export interface UploadedFileResult {
   id: string
@@ -14,6 +14,18 @@ export interface UploadedFileResult {
   transferToken?: string
   previewUrl?: string
   downloadUrl?: string
+}
+
+export interface DirectUploadPolicy {
+  provider: string
+  storageProvider: string
+  objectKey: string
+  uploadUrl: string
+  method: 'PUT'
+  headers: Record<string, string>
+  expiresIn: number
+  uploadExpiresAt: number
+  uploadSignature: string
 }
 
 export interface CreateSharePayload {
@@ -184,6 +196,18 @@ export const normalizeUploadedFile = (raw: any): UploadedFileResult => {
     downloadUrl: toStringValue(pick(raw, ['downloadUrl', 'download_url'])),
   }
 }
+
+const normalizeDirectUploadPolicy = (raw: any): DirectUploadPolicy => ({
+  provider: toStringValue(pick(raw, ['provider', 'storageProvider', 'storage_provider'])),
+  storageProvider: toStringValue(pick(raw, ['storageProvider', 'storage_provider', 'provider'])),
+  objectKey: toStringValue(pick(raw, ['objectKey', 'object_key'])),
+  uploadUrl: toStringValue(pick(raw, ['uploadUrl', 'upload_url'])),
+  method: 'PUT',
+  headers: (pick<Record<string, string>>(raw, ['headers'], {}) || {}) as Record<string, string>,
+  expiresIn: toNumber(pick(raw, ['expiresIn', 'expires_in'], 0)),
+  uploadExpiresAt: toNumber(pick(raw, ['uploadExpiresAt', 'upload_expires_at'], 0)),
+  uploadSignature: toStringValue(pick(raw, ['uploadSignature', 'upload_signature'])),
+})
 
 export const normalizeShareAccessLog = (raw: any): ShareAccessLogData => ({
   id: toStringValue(pick(raw, ['id'])),
@@ -445,6 +469,59 @@ export class FileTransferApi {
       { optionalAuth: true }
     )
     return (data.items || []).map(normalizeUploadedFile)
+  }
+
+  static async uploadFileDirect(file: File): Promise<UploadedFileResult> {
+    const transferToken = getAnonymousTransferToken()
+    const policy = normalizeDirectUploadPolicy(await apiRequest<any>('file/files/direct_upload_policy', {
+      method: 'POST',
+      body: {
+        originalName: file.name,
+        storageProvider: 'ten_cos',
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        transferToken,
+      },
+      auth: authStore.hasToken(),
+    }))
+    if (!policy.uploadUrl || !policy.objectKey || !policy.storageProvider || !policy.uploadSignature) {
+      throw new ApiError('直传凭证生成失败，请重试')
+    }
+
+    await rawUpload(policy.uploadUrl, file, {
+      method: policy.method,
+      headers: policy.headers,
+    })
+
+    const data = await apiRequest<any>('file/files/register', {
+      method: 'POST',
+      body: {
+        originalName: file.name,
+        objectKey: policy.objectKey,
+        storageProvider: policy.storageProvider,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        status: 'uploaded',
+        transferToken,
+        uploadSignature: policy.uploadSignature,
+        uploadExpiresAt: policy.uploadExpiresAt,
+      },
+      auth: authStore.hasToken(),
+    })
+    return normalizeUploadedFile(data)
+  }
+
+  static async uploadFileWithBestPath(file: File): Promise<UploadedFileResult> {
+    try {
+      return await this.uploadFileDirect(file)
+    } catch (error) {
+      if (error instanceof ApiError && ['直传暂未开启', '对象存储配置不完整', '文件存储类型不支持'].some((text) => error.message.includes(text))) {
+        const [uploaded] = await this.uploadFiles([file])
+        if (!uploaded) throw new ApiError('上传失败，请重试')
+        return uploaded
+      }
+      throw error
+    }
   }
 
   static async createShare(payload: CreateSharePayload): Promise<FileTransferShareVO> {

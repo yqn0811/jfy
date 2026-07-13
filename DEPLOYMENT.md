@@ -132,6 +132,85 @@ JFY_QA_MINIAPP=1 ./scripts/qa-jfy.sh
 
 生产环境使用对应已确认后端应用目录；首次配置前先执行 `--dry-run` 确认输出。
 
+文件传输开放上传安全基线：
+
+```bash
+# 上传环境健康检查，生产发布前必须为 ok；测试环境允许记录 failed 项后再逐项补齐。
+cd /www/wwwroot/api-test.jfyuntu.com/current
+php think file:upload-health
+php think file:upload-health --webhook 'https://example.invalid/webhook'
+
+# 风险事件摘要，可接企业微信/飞书等 webhook。
+php think file:risk-report --minutes 60 --threshold 10
+php think file:risk-report --minutes 60 --threshold 10 --webhook 'https://example.invalid/webhook'
+```
+
+测试和生产环境的大文件上传配置必须三层对齐：
+
+1. Nginx 站点配置：
+
+```nginx
+client_max_body_size 520m;
+client_body_timeout 600s;
+send_timeout 600s;
+proxy_read_timeout 600s;
+proxy_send_timeout 600s;
+```
+
+2. PHP-FPM 配置：
+
+```ini
+max_file_uploads = 50
+upload_max_filesize = 500M
+post_max_size = 520M
+max_input_time = 600
+max_execution_time = 600
+memory_limit = 512M
+```
+
+3. 后端 `.env` 的 `[FILE_TRANSFER]` 或等价环境变量：
+
+```ini
+MAX_UPLOAD_MB=500
+MAX_REGISTERED_UPLOAD_MB=500
+ANONYMOUS_MAX_UPLOAD_MB=200
+MAX_FILES_PER_REQUEST=50
+MIN_FREE_DISK_MB=2048
+MIN_TMP_FREE_DISK_MB=1024
+DISK_CHECK_FAIL_CLOSED=true
+TMP_CHECK_FAIL_CLOSED=true
+UPLOAD_REQUEST_TIMEOUT_SECONDS=600
+ENABLE_DIRECT_UPLOAD=false
+DIRECT_UPLOAD_PROVIDERS=ten_cos,ali_oss
+DIRECT_UPLOAD_POLICY_TTL_SECONDS=600
+DIRECT_UPLOAD_VERIFY_OBJECT=true
+DIRECT_UPLOAD_VERIFY_FAIL_CLOSED=true
+DIRECT_UPLOAD_SECRET=<32位以上随机密钥>
+ENABLE_ANTIVIRUS_SCAN=true
+ANTIVIRUS_SCAN_COMMAND=clamscan --no-summary --infected %s
+ANTIVIRUS_SCAN_FAIL_CLOSED=true
+ALERT_WEBHOOK_URL=
+```
+
+测试环境默认保持 `ENABLE_DIRECT_UPLOAD=false`，前端会自动回退到 PHP 上传；对象存储
+bucket CORS、签名密钥和跨域 PUT 验证完成后再打开。生产环境如需打开直传，必须先用
+小文件完成 `direct_upload_policy -> PUT -> register` 全链路验证。
+
+ClamAV 必须在开启大文件开放前安装并验证：
+
+```bash
+clamscan --version
+freshclam
+clamscan --no-summary --infected /tmp/known-clean-file
+printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/eicar.txt
+clamscan --no-summary --infected /tmp/eicar.txt
+rm -f /tmp/eicar.txt
+```
+
+如果 `file:upload-health` 显示 `antivirus_ready=false`，不得开启 200MB/500MB 对外上传。
+CentOS 7 的 EPEL ClamAV 数据库可能较旧；`freshclam` 若被 CDN 拒绝，至少安装
+`clamav-data` 作为临时测试拦截，并把病毒库升级作为上线前阻断项。
+
 ## 前端发布规范
 
 所有前端项目都使用固定目录覆盖发布：

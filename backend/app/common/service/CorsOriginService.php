@@ -10,7 +10,7 @@ class CorsOriginService
     {
         $origin = trim($origin);
         if ($origin === '' || preg_match('/[\r\n]/', $origin)) {
-            return '*';
+            return '';
         }
 
         $allowed = self::allowedOrigins();
@@ -18,12 +18,12 @@ class CorsOriginService
             return $origin;
         }
 
-        return '*';
+        return '';
     }
 
     public static function allowCredentials(string $origin): bool
     {
-        return $origin !== '*';
+        return $origin !== '';
     }
 
     private static function allowedOrigins(): array

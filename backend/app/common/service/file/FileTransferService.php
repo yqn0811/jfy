@@ -20,11 +20,13 @@ class FileTransferService extends BaseService
     const ANONYMOUS_SHARE_TTL_SECONDS = 86400;
 
     private $riskGuard;
+    private $uploadSecurity;
 
     public function __construct(App $app)
     {
         parent::__construct($app);
         $this->riskGuard = new FileRiskGuardService();
+        $this->uploadSecurity = new FileUploadSecurityService($this->riskGuard);
     }
 
     public function uploadFiles(array $files, array $param, int $uid)
@@ -41,6 +43,10 @@ class FileTransferService extends BaseService
         foreach ($uploadFiles as $file) {
             $totalBytes += method_exists($file, 'getSize') ? max(0, (int)$file->getSize()) : 0;
         }
+        $this->uploadSecurity->prepareUploadRequest('quick_send', $uid, count($uploadFiles), $totalBytes, [
+            'flow' => 'quick_send',
+            'uid' => $uid,
+        ]);
         $this->riskGuard->assertUploadAllowed($uid, $transferToken, count($uploadFiles), $totalBytes);
         $saved = [];
         foreach ($uploadFiles as $index => $file) {
@@ -107,6 +113,7 @@ class FileTransferService extends BaseService
 
     public function registerFile(array $param, int $uid)
     {
+        $ownerSubject = $uid > 0 ? ($param['sso_subject'] ?? null) : $this->normalizeTransferToken($param, $uid, false);
         $originalName = trim((string)($param['original_name'] ?? ''));
         if ($originalName === '') {
             throwError('请填写文件名');
@@ -130,6 +137,13 @@ class FileTransferService extends BaseService
         if (!in_array($storageProvider, ['pending', self::ALI_OSS_PROVIDER, self::TENCENT_COS_PROVIDER, 'tencent_cos'], true)) {
             throwError('文件存储类型不支持');
         }
+        if ($storageProvider === 'tencent_cos') {
+            $storageProvider = self::TENCENT_COS_PROVIDER;
+        }
+        if ($uid <= 0 && $storageProvider === 'pending') {
+            throwError('上传凭证无效，请重新上传');
+        }
+        $this->uploadSecurity->assertDirectRegisterAllowed($param, $uid);
         $status = trim((string)($param['status'] ?? 'uploaded'));
         if (!in_array($status, ['pending', 'uploaded'], true)) {
             throwError('文件状态不正确');
@@ -137,7 +151,7 @@ class FileTransferService extends BaseService
 
         $file = FtFile::create([
             'owner_user_id' => $uid,
-            'sso_subject' => $param['sso_subject'] ?? null,
+            'sso_subject' => $ownerSubject,
             'original_name' => $originalName,
             'object_key' => $objectKey,
             'storage_provider' => $storageProvider,
@@ -150,6 +164,16 @@ class FileTransferService extends BaseService
         ]);
 
         return $this->formatFile($file);
+    }
+
+    public function makeDirectUploadPolicy(array $param, int $uid)
+    {
+        return $this->uploadSecurity->makeDirectUploadPolicy($param, $uid);
+    }
+
+    public function uploadHealth()
+    {
+        return $this->uploadSecurity->runtimeHealth();
     }
 
     public function createShare(array $param, int $uid)

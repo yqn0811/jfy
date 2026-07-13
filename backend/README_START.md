@@ -80,12 +80,24 @@ MAX_UPLOAD_MB = 500
 ANONYMOUS_MAX_UPLOAD_MB = 200
 MAX_REGISTERED_UPLOAD_MB = 500
 MAX_FILES_PER_REQUEST = 50
+MIN_FREE_DISK_MB = 2048
+MIN_TMP_FREE_DISK_MB = 1024
+DISK_CHECK_FAIL_CLOSED = true
+TMP_CHECK_FAIL_CLOSED = true
+UPLOAD_REQUEST_TIMEOUT_SECONDS = 600
 BLOCKED_EXTENSIONS = php,phtml,phar,php3,php4,php5,asp,aspx,jsp,jspx,exe,dll,bat,cmd,com,msi,sh,bash,zsh,ps1,vbs,js,mjs,jar,war,ear,htaccess,htpasswd,html,htm,svg,swf,scr,lnk,reg,apk,ipa,dmg,pkg,deb,rpm
 RECEIPT_TOKEN_REQUIRED = true
 RECEIPT_TOKEN_SECRET = change-me-use-32-random-chars
+ENABLE_DIRECT_UPLOAD = false
+DIRECT_UPLOAD_PROVIDERS = ten_cos,ali_oss
+DIRECT_UPLOAD_POLICY_TTL_SECONDS = 600
+DIRECT_UPLOAD_VERIFY_OBJECT = true
+DIRECT_UPLOAD_VERIFY_FAIL_CLOSED = true
+DIRECT_UPLOAD_SECRET = change-me-use-32-random-chars
 ENABLE_ANTIVIRUS_SCAN = false
 ANTIVIRUS_SCAN_COMMAND = clamscan --no-summary --infected %s
 ANTIVIRUS_SCAN_FAIL_CLOSED = true
+ALERT_WEBHOOK_URL =
 ANONYMOUS_UPLOAD_MINUTE_LIMIT = 12
 ANONYMOUS_TOKEN_UPLOAD_HOUR_LIMIT = 80
 ANONYMOUS_DAILY_UPLOAD_MB = 2048
@@ -230,8 +242,10 @@ sudo nginx -s reload  # 重载配置
 
 - `RECEIPT_TOKEN_SECRET` 已替换为 32 位以上随机密钥，不能使用示例值。
 - `ALLOWED_ORIGINS` 仅保留当前环境真实域名，不要使用 `*`。
-- 建议安装 ClamAV 并设置 `ENABLE_ANTIVIRUS_SCAN = true`；`clamscan` 返回 1 时会阻断上传。
+- 已安装并验证 ClamAV，`ENABLE_ANTIVIRUS_SCAN = true` 后 `clamscan` 返回 1 会阻断上传。
+- 对象存储直传启用前必须配置 bucket CORS、短期凭证和 `DIRECT_UPLOAD_SECRET`，否则保持 `ENABLE_DIRECT_UPLOAD = false`。
 - Nginx/CDN 层同时配置请求频率、上传大小、连接超时和上传目录禁止脚本执行。
+- 定时执行 `php think file:upload-health --webhook <url>` 和 `php think file:risk-report --threshold 10 --webhook <url>`。
 - 运行 `php -l` 检查改动 PHP 文件，并对上传、分享、取件码、投稿、回执、ZIP 下载做冒烟测试。
 
 #### 方式三：使用Apache

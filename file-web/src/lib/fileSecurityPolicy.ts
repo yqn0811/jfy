@@ -1,6 +1,6 @@
 export const QUICK_SEND_USER_MAX_FILE_SIZE_MB = 500
 export const QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB = 200
-export const MAX_FILES_PER_BATCH = 50
+export const MAX_FILES_PER_BATCH = 20
 
 export const BLOCKED_FILE_EXTENSIONS = [
   'php',

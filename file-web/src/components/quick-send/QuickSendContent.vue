@@ -44,6 +44,7 @@ import { authStore, getApiErrorMessage } from '@/lib/apiClient'
 import {
   QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB,
   QUICK_SEND_USER_MAX_FILE_SIZE_MB,
+  MAX_FILES_PER_BATCH,
   validateFileBatch,
 } from '@/lib/fileSecurityPolicy'
 import { navigateTo } from '@/navigation'
@@ -404,7 +405,7 @@ async function uploadFile(fileId: string) {
   }, 300)
 
   try {
-    const [uploaded] = await FileTransferApi.uploadFiles([fileItem.file])
+    const uploaded = await FileTransferApi.uploadFileWithBestPath(fileItem.file)
     const latest = uploadedFiles.value.find((file) => file.id === fileId)
     if (!latest) return
     latest.backendFileId = uploaded?.id
@@ -951,6 +952,7 @@ onMounted(() => {
               <p>{{ emptyHint }}</p>
               <div class="format-row">
                 <span>最大 {{ maxFileSizeMb }}MB</span>
+                <span>单批 {{ MAX_FILES_PER_BATCH }} 个</span>
                 <span>密码访问</span>
                 <span>可追踪下载</span>
               </div>
@@ -1057,7 +1059,7 @@ onMounted(() => {
               <div>
                 <h2 class="text-item-title">分享设置</h2>
                 <p class="text-caption mt-1">
-                  {{ authStore.hasToken() ? '配置有效期、取件码和下载限制' : `未登录单文件最大 ${QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB}MB，有效期为 24 小时` }}
+                  {{ authStore.hasToken() ? `单批最多 ${MAX_FILES_PER_BATCH} 个文件，可配置有效期、取件码和下载限制` : `未登录单文件最大 ${QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB}MB，单批最多 ${MAX_FILES_PER_BATCH} 个，有效期为 24 小时` }}
                 </p>
               </div>
               <Button :disabled="!canGenerateLink" @click="handleGenerateLink">
@@ -1241,15 +1243,15 @@ onMounted(() => {
             <div class="security-list">
               <div>
                 <SafeIcon name="ShieldCheck" :size="18" />
-                <span>分享链接可设置有效期</span>
+                <span>高风险类型会在上传前后拦截</span>
               </div>
               <div>
                 <SafeIcon name="LockKeyhole" :size="18" />
-                <span>取件码默认自动生成</span>
+                <span>大文件优先走对象存储直传</span>
               </div>
               <div>
                 <SafeIcon name="BellRing" :size="18" />
-                <span>下载通知可随时关闭</span>
+                <span>访问频率和任务容量会自动限流</span>
               </div>
             </div>
           </div>

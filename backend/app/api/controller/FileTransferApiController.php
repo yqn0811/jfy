@@ -34,6 +34,10 @@ class FileTransferApiController extends ApiBaseController
             ['status', 'uploaded'],
             ['preview_url', ''],
             ['previewUrl', ''],
+            ['upload_signature', ''],
+            ['uploadSignature', ''],
+            ['upload_expires_at', 0],
+            ['uploadExpiresAt', 0],
             ['transfer_token', ''],
             ['transferToken', ''],
             ['sso_subject', ''],
@@ -41,7 +45,33 @@ class FileTransferApiController extends ApiBaseController
         ], false, false);
         $param = $this->normalizeFileParam($param, $this->request->post());
 
-        $this->result($this->file_service->registerFile($param, (int)request()->userID()), 0, '登记成功');
+        $this->result($this->file_service->registerFile($param, $this->getOptionalUserId()), 0, '登记成功');
+    }
+
+    public function directUploadPolicy()
+    {
+        $param = $this->request->postMore([
+            ['original_name', ''],
+            ['originalName', ''],
+            ['storage_provider', ''],
+            ['storageProvider', ''],
+            ['mime_type', ''],
+            ['mimeType', ''],
+            ['size_bytes', 0],
+            ['sizeBytes', 0],
+            ['transfer_token', ''],
+            ['transferToken', ''],
+            ['sso_subject', ''],
+            ['ssoSubject', ''],
+        ], false, false);
+        $param = $this->normalizeFileParam($param, $this->request->post());
+
+        $this->result($this->file_service->makeDirectUploadPolicy($param, $this->getOptionalUserId()), 0, '获取成功');
+    }
+
+    public function uploadHealth()
+    {
+        $this->result($this->file_service->uploadHealth(), 0, '获取成功');
     }
 
     public function uploadFiles()
@@ -225,6 +255,8 @@ class FileTransferApiController extends ApiBaseController
             'mimeType' => 'mime_type',
             'sizeBytes' => 'size_bytes',
             'previewUrl' => 'preview_url',
+            'uploadSignature' => 'upload_signature',
+            'uploadExpiresAt' => 'upload_expires_at',
             'transferToken' => 'transfer_token',
             'ssoSubject' => 'sso_subject',
         ];
@@ -321,9 +353,11 @@ class FileTransferApiController extends ApiBaseController
             $mimeType = 'application/octet-stream';
         }
 
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
-        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        if ($origin !== '') {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
+            header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        }
         header('Vary: Origin');
         header('Content-Type: ' . $mimeType);
         header('Content-Length: ' . filesize($filePath));

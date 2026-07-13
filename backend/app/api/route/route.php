@@ -171,6 +171,8 @@ Route::any('pay/callback', 'PayNotifyController/orderNotify'); //支付回调通
 // 文件传输相关。使用 PostgreSQL ai_jf 库 ft_ 前缀表，独立于相册 MySQL 表。
 Route::group('file', function (){
     Route::post('files/upload', 'FileTransferApiController/uploadFiles')->middleware('auth', false);
+    Route::post('files/direct_upload_policy', 'FileTransferApiController/directUploadPolicy')->middleware('auth', false);
+    Route::post('files/register', 'FileTransferApiController/registerFile')->middleware('auth', false);
     Route::get('shares/public', 'FileTransferApiController/getPublicShare')->middleware('auth', false);
     Route::get('shares/pickup', 'FileTransferApiController/getShareByPickupCode')->middleware('auth', false);
     Route::post('shares/verify_password', 'FileTransferApiController/verifySharePassword')->middleware('auth', false);
@@ -185,8 +187,8 @@ Route::group('file', function (){
     Route::get('collection/submissions/receipt', 'FileCollectionApiController/getPublicSubmissionReceipt')->middleware('auth', false);
 
     Route::group('', function (){
-        Route::post('files/register', 'FileTransferApiController/registerFile');
         Route::get('files/download', 'FileTransferApiController/downloadFile');
+        Route::get('files/upload_health', 'FileTransferApiController/uploadHealth');
 
         Route::post('collection/tasks', 'FileCollectionApiController/createTask');
         Route::get('collection/tasks', 'FileCollectionApiController/listTasks');

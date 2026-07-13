@@ -206,6 +206,32 @@ export async function apiUpload<T = any>(
   return unwrapEnvelope<T>(payload as ApiEnvelope<T>, response.status)
 }
 
+export async function rawUpload(
+  url: string,
+  body: BodyInit,
+  options: { method?: ApiMethod; headers?: Record<string, string> } = {}
+): Promise<Response> {
+  let uploadUrl: URL
+  try {
+    uploadUrl = new URL(url)
+  } catch {
+    throw new ApiError('直传上传地址无效，请重试')
+  }
+  if (!['http:', 'https:'].includes(uploadUrl.protocol)) {
+    throw new ApiError('直传上传地址无效，请重试')
+  }
+
+  const response = await fetch(url, {
+    method: options.method || 'PUT',
+    headers: options.headers || {},
+    body,
+  })
+  if (!response.ok) {
+    throw new ApiError('直传上传失败，请重试', response.status)
+  }
+  return response
+}
+
 export const getApiErrorMessage = (error: unknown, fallback = '请求失败，请重试') => {
   if (error instanceof ApiError) return error.message || fallback
   if (error instanceof Error) return error.message || fallback

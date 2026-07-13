@@ -16,11 +16,13 @@ use think\facade\Db;
 class FileCollectionService extends BaseService
 {
     private $riskGuard;
+    private $uploadSecurity;
 
     public function __construct(App $app)
     {
         parent::__construct($app);
         $this->riskGuard = new FileRiskGuardService();
+        $this->uploadSecurity = new FileUploadSecurityService($this->riskGuard);
     }
 
     public function createTask(array $param, int $uid)
@@ -282,6 +284,7 @@ class FileCollectionService extends BaseService
         $remark = mb_substr($remark, 0, 1000);
 
         $conn = Db::connect('pgsql_file');
+        $storedPaths = [];
         $conn->startTrans();
         try {
             foreach ($submissions as $submission) {
@@ -445,6 +448,11 @@ class FileCollectionService extends BaseService
         foreach ($uploadFiles as $file) {
             $rawTotalBytes += method_exists($file, 'getSize') ? max(0, (int)$file->getSize()) : 0;
         }
+        $this->uploadSecurity->prepareUploadRequest('public_submission', (int)$task->owner_user_id, count($uploadFiles), $rawTotalBytes, [
+            'flow' => 'public_submission',
+            'task_id' => (int)$task->id,
+            'owner_user_id' => (int)$task->owner_user_id,
+        ]);
         $this->riskGuard->assertPublicSubmissionAllowed((int)$task->id, count($uploadFiles), $rawTotalBytes);
 
         $materialIds = $this->normalizeMaterialIdList($param['material_ids'] ?? ($param['materialIds'] ?? []));
@@ -513,6 +521,7 @@ class FileCollectionService extends BaseService
             $totalSize = 0;
             foreach ($preparedFiles as $index => $prepared) {
                 $fileModel = $this->storeSubmissionFile($task, $prepared, $index);
+                $storedPaths[] = $this->getLocalStoredPath((string)$fileModel->object_key);
                 FtSubmissionFile::create([
                     'submission_id' => $submission->id,
                     'material_id' => $prepared['material_id'],
@@ -544,6 +553,7 @@ class FileCollectionService extends BaseService
             $conn->commit();
         } catch (\Throwable $e) {
             $conn->rollback();
+            $this->cleanupStoredPaths($storedPaths);
             throw $e;
         }
 
@@ -1319,6 +1329,29 @@ class FileCollectionService extends BaseService
         $file->preview_url = '/api/file/files/download?file_id=' . $file->id;
         $file->save();
         return $file;
+    }
+
+    private function getLocalStoredPath(string $objectKey): string
+    {
+        $objectKey = str_replace('\\', '/', $objectKey);
+        if (strpos($objectKey, '..') !== false || strpos($objectKey, 'file_transfer/') !== 0) {
+            return '';
+        }
+        return rtrim(app()->getRuntimePath(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $objectKey);
+    }
+
+    private function cleanupStoredPaths(array $paths): void
+    {
+        foreach (array_unique(array_filter($paths)) as $path) {
+            $realPath = realpath($path);
+            $base = realpath(rtrim(app()->getRuntimePath(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'file_transfer');
+            if (!$realPath || !$base || strpos($realPath, rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR) !== 0) {
+                continue;
+            }
+            if (is_file($realPath)) {
+                @unlink($realPath);
+            }
+        }
     }
 
     private function detectMimeType(string $path)

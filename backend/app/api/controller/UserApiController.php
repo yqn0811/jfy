@@ -412,9 +412,11 @@ class UserApiController extends ApiBaseController
         if ($fallbackName === '') {
             $fallbackName = 'image.jpg';
         }
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
-        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        if ($origin !== '') {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
+            header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        }
         header('Vary: Origin');
         header('X-Accel-Buffering: no');
         header('Content-Type: ' . $contentType);
@@ -670,9 +672,11 @@ class UserApiController extends ApiBaseController
         if ($fallbackName === '') {
             $fallbackName = 'product-images.zip';
         }
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
-        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        if ($origin !== '') {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
+            header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        }
         header('Vary: Origin');
         header('Content-Type: application/zip');
         header('Content-Length: ' . filesize($zipPath));

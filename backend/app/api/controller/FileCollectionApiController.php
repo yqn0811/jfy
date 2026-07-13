@@ -342,9 +342,11 @@ class FileCollectionApiController extends ApiBaseController
             $fallbackName = 'submissions.zip';
         }
 
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
-        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        if ($origin !== '') {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
+            header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        }
         header('Vary: Origin');
         header('Content-Type: application/zip');
         header('Content-Length: ' . filesize($zipPath));
