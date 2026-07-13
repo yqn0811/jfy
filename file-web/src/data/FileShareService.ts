@@ -25,6 +25,24 @@ export const shareSettingDataList: ShareSettingData[] = []
 
 export const shareAccessLogDataList: ShareAccessLogData[] = []
 
+const getShareCodeFromRecord = (share: Pick<FileShareData, 'shareCode' | 'shareUrl'>) => {
+  if (share.shareCode) return share.shareCode
+  try {
+    const params = new URL(share.shareUrl || '/', window.location.origin).searchParams
+    return params.get('shareCode') || params.get('code') || ''
+  } catch {
+    return ''
+  }
+}
+
+const isValidShareRecord = (share: FileShareData) => {
+  const shareCode = getShareCodeFromRecord(share)
+  if (!shareCode) return false
+  if (!share.shareUrl || /\/share-result\/?$/.test(share.shareUrl) || /\/share-result\.html\/?$/.test(share.shareUrl)) return false
+  if (share.fileCount <= 0) return false
+  return true
+}
+
 export class FileShareService {
   static getAll(): FileShareData[] {
     const shareMap = new Map<string, FileShareData>()
@@ -102,7 +120,12 @@ export class FileShareService {
       const shareUrl = String(item.shareUrl || '')
       const id = String(item.id || '')
       const taskId = String(item.taskId || '')
-      return !/^share-00\d$/.test(id) && !/^task-00\d$/.test(taskId) && !/zxtransfer\.example|example\.com/i.test(shareUrl)
+      return (
+        !/^share-00\d$/.test(id) &&
+        !/^task-00\d$/.test(taskId) &&
+        !/zxtransfer\.example|example\.com/i.test(shareUrl) &&
+        isValidShareRecord(item)
+      )
     })
     if (filtered.length !== items.length) {
       localStorage.setItem('fileShareDataList', JSON.stringify(filtered))

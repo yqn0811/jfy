@@ -21,6 +21,7 @@ export interface CreateSharePayload {
   fileIds: Array<string | number>
   transferToken?: string
   password: string
+  pickupCode?: string
   expiresAt: string
   maxDownloads: number
   allowPreview: boolean
@@ -40,6 +41,7 @@ export interface CreateCollectionTaskPayload {
 
 export interface FileTransferShareVO extends FileShareVO {
   shareCode: string
+  pickupCode?: string
   hasPassword: boolean
   passwordVerified: boolean
   files: UploadedFileResult[]
@@ -146,20 +148,35 @@ export const getAnonymousTransferToken = () => {
 }
 
 export const toAbsoluteShareUrl = (shareUrl: string, shareCode = '') => {
-  const fallbackPath = shareCode ? `/share-result?shareCode=${encodeURIComponent(shareCode)}` : '/share-result'
-  const raw = shareUrl || fallbackPath
-  if (/^https?:\/\//i.test(raw)) return raw
-  if (typeof window === 'undefined') return raw
-  return new URL(raw.replace(/\.html(?=\?|$)/, ''), window.location.origin).toString()
+  const code = shareCode.trim()
+  if (!code) return ''
+
+  const raw = (shareUrl || `/share-result?shareCode=${encodeURIComponent(code)}`).replace(/\.html(?=\?|$)/, '')
+  const sourceUrl = new URL(raw, typeof window === 'undefined' ? 'https://file.jfyuntu.com' : window.location.origin)
+  sourceUrl.pathname = sourceUrl.pathname.replace(/\.html$/, '')
+  if (!sourceUrl.searchParams.get('shareCode') && !sourceUrl.searchParams.get('code')) {
+    sourceUrl.searchParams.set('shareCode', code)
+  }
+
+  if (typeof window === 'undefined') {
+    return `${sourceUrl.pathname}${sourceUrl.search}${sourceUrl.hash}`
+  }
+
+  const url = new URL(`${sourceUrl.pathname}${sourceUrl.search}${sourceUrl.hash}`, window.location.origin)
+  if (!url.searchParams.get('shareCode') && !url.searchParams.get('code')) {
+    url.searchParams.set('shareCode', code)
+  }
+  return url.toString()
 }
 
 export const normalizeUploadedFile = (raw: any): UploadedFileResult => {
   const sizeBytes = toNumber(pick(raw, ['sizeBytes', 'size_bytes'], 0))
-  const sizeMb = toNumber(pick(raw, ['sizeMb', 'size_mb', 'fileSizeMb'], sizeBytes / 1024 / 1024))
+  const rawSizeMb = toNumber(pick(raw, ['sizeMb', 'size_mb', 'fileSizeMb'], sizeBytes / 1024 / 1024))
+  const sizeMb = rawSizeMb > 0 ? rawSizeMb : sizeBytes / 1024 / 1024
   return {
     id: toStringValue(pick(raw, ['id'])),
     fileName: toStringValue(pick(raw, ['fileName', 'file_name', 'originalName', 'original_name'])),
-    fileSizeMb: Number(sizeMb.toFixed(2)),
+    fileSizeMb: sizeMb,
     sizeBytes,
     status: toStringValue(pick(raw, ['status'], 'uploaded')),
     transferToken: toStringValue(pick(raw, ['transferToken', 'transfer_token', 'ssoSubject', 'sso_subject'])),
@@ -181,12 +198,16 @@ export const normalizeShareVO = (raw: any, password = ''): FileTransferShareVO =
   const shareCode = toStringValue(pick(raw, ['shareCode', 'share_code']))
   const id = toStringValue(pick(raw, ['id', 'shareId', 'share_id'], shareCode || `share-${Date.now()}`))
   const files = Array.isArray(raw?.files) ? raw.files.map(normalizeUploadedFile) : []
+  const totalSizeBytes = toNumber(pick(raw, ['totalSizeBytes', 'total_size_bytes'], 0))
+  const rawTotalSizeMb = toNumber(pick(raw, ['totalSizeMb', 'total_size_mb'], totalSizeBytes / 1024 / 1024))
+  const totalSizeMb = rawTotalSizeMb > 0 ? rawTotalSizeMb : totalSizeBytes / 1024 / 1024
   const recentLogs = Array.isArray(pick(raw, ['recentLogs', 'recent_logs'], []))
     ? pick<any[]>(raw, ['recentLogs', 'recent_logs'], []).map(normalizeShareAccessLog)
     : []
   return {
     id,
     shareCode,
+    pickupCode: toStringValue(pick(raw, ['pickupCode', 'pickup_code'])),
     title: toStringValue(pick(raw, ['title'], '快速分享')),
     shareUrl: toAbsoluteShareUrl(toStringValue(pick(raw, ['shareUrl', 'share_url'])), shareCode),
     password,
@@ -196,7 +217,7 @@ export const normalizeShareVO = (raw: any, password = ''): FileTransferShareVO =
     notifyOnDownload: toBoolean(pick(raw, ['notifyOnDownload', 'notify_on_download'], false), false),
     status: toStringValue(pick(raw, ['status'], 'active')) as FileShareData['status'],
     fileCount: toNumber(pick(raw, ['fileCount', 'file_count'], Array.isArray(raw?.files) ? raw.files.length : 0)),
-    totalSizeMb: toNumber(pick(raw, ['totalSizeMb', 'total_size_mb'], toNumber(pick(raw, ['totalSizeBytes', 'total_size_bytes'], 0)) / 1024 / 1024)),
+    totalSizeMb,
     downloadCount: toNumber(pick(raw, ['downloadCount', 'download_count'], 0)),
     recentLogs,
     hasPassword: toBoolean(pick(raw, ['hasPassword', 'has_password'], Boolean(password)), Boolean(password)),
@@ -434,6 +455,7 @@ export class FileTransferApi {
         fileIds: payload.fileIds,
         transferToken: payload.transferToken || getAnonymousTransferToken(),
         password: payload.password,
+        pickupCode: payload.pickupCode || payload.password,
         expiresAt: payload.expiresAt,
         maxDownloads: payload.maxDownloads,
         allowPreview: payload.allowPreview,
@@ -441,6 +463,9 @@ export class FileTransferApi {
       },
     })
     const shareCode = toStringValue(pick(data, ['shareCode', 'share_code']))
+    if (!shareCode) {
+      throw new Error('分享码生成失败，请重试')
+    }
     rememberSharePassword(shareCode, payload.password)
     return normalizeShareVO(data, payload.password)
   }
@@ -460,6 +485,19 @@ export class FileTransferApi {
       auth: false,
     })
     return normalizeShareVO(data, password || getRememberedSharePassword(shareCode))
+  }
+
+  static async getShareByPickupCode(pickupCode: string): Promise<FileTransferShareVO> {
+    const code = pickupCode.trim()
+    const data = await apiRequest<any>('file/shares/pickup', {
+      params: { code },
+      auth: false,
+    })
+    const share = normalizeShareVO(data, code)
+    if (share.shareCode) {
+      rememberSharePassword(share.shareCode, code)
+    }
+    return share
   }
 
   static async verifySharePassword(shareCode: string, password: string): Promise<FileTransferShareVO> {
@@ -493,8 +531,8 @@ export class FileTransferApi {
     return normalizeListResult(data, (item) => normalizeShareVO(item, getRememberedSharePassword(toStringValue(pick(item, ['shareCode', 'share_code'])))))
   }
 
-  static getSharedDownloadUrl(fileId: string | number, shareCode: string, password = '') {
-    return buildApiUrl('file/shares/download', { file_id: fileId, code: shareCode, password })
+  static getSharedDownloadUrl(fileId: string | number, shareCode: string, password = '', pickupCode = '') {
+    return buildApiUrl('file/shares/download', { file_id: fileId, code: shareCode, password, pickup_code: pickupCode })
   }
 
   static getOwnerDownloadUrl(fileId: string | number) {

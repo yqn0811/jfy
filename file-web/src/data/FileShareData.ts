@@ -42,7 +42,7 @@ export interface ShareAccessLogData {
   id: string
   shareId: string
   visitorName: string
-  action: 'view' | 'download' | 'copy_link' | 'copy_password'
+  action: 'view' | 'download' | 'copy_link' | 'copy_password' | 'pickup'
   occurredAt: string
   ipLabel: string
 }

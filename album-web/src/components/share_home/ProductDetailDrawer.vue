@@ -218,14 +218,17 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
               <div
                 v-for="(image, index) in colorImages.slice(0, 6)"
                 :key="image.id"
-                class="aspect-square bg-muted rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                class="aspect-square overflow-hidden rounded-lg border border-border bg-card cursor-pointer transition-opacity hover:opacity-80"
                 @click="handleViewImage(index, 'color')"
               >
-                <img
-                  :src="productImageUrl(image, 'thumb')"
-                  :alt="image.name"
-                  class="w-full h-full object-cover"
-                />
+                <div class="flex h-full w-full items-center justify-center bg-muted/40">
+                  <img
+                    :src="productImageUrl(image, 'preview')"
+                    :alt="image.name"
+                    loading="lazy"
+                    class="max-h-full max-w-full object-contain"
+                  />
+                </div>
               </div>
             </div>
             <div v-else class="text-center py-6 text-muted-foreground">
@@ -243,14 +246,17 @@ const handleViewImage = (imageIndex: number, type: 'color' | 'detail') => {
               <div
                 v-for="(image, index) in visibleDetailImages.slice(0, 6)"
                 :key="image.id"
-                class="aspect-square bg-muted rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                class="aspect-square overflow-hidden rounded-lg border border-border bg-card cursor-pointer transition-opacity hover:opacity-80"
                 @click="handleViewImage(index, 'detail')"
               >
-                <img
-                  :src="productImageUrl(image, 'thumb')"
-                  :alt="image.name"
-                  class="w-full h-full object-cover"
-                />
+                <div class="flex h-full w-full items-center justify-center bg-muted/40">
+                  <img
+                    :src="productImageUrl(image, 'preview')"
+                    :alt="image.name"
+                    loading="lazy"
+                    class="max-h-full max-w-full object-contain"
+                  />
+                </div>
               </div>
             </div>
             <div v-else class="text-center py-6 text-muted-foreground">

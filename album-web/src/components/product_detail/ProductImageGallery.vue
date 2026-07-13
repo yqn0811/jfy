@@ -20,16 +20,18 @@ const emit = defineEmits<{
     <div
       v-for="(image, index) in images"
       :key="image.id"
-      class="group relative aspect-square bg-muted rounded-lg overflow-hidden cursor-pointer border border-border hover:border-primary transition-all hover:shadow-card"
+      class="group relative aspect-square overflow-hidden rounded-lg border border-border bg-card cursor-pointer transition-all hover:border-primary hover:shadow-card"
       @click="emit('image-click', index)"
     >
       <!-- Image -->
-      <img
-        :src="productImageUrl(image, 'thumb')"
-        :alt="image.name"
-        loading="lazy"
-        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-      />
+      <div class="flex h-full w-full items-center justify-center bg-muted/40">
+        <img
+          :src="productImageUrl(image, 'preview')"
+          :alt="image.name"
+          loading="lazy"
+          class="max-h-full max-w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+        />
+      </div>
 
       <!-- Overlay on hover -->
       <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">

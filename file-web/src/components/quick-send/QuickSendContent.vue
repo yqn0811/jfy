@@ -84,8 +84,9 @@ const termsAccepted = ref(true)
 const sendMode = ref<SendMode>('standard')
 const activePanel = ref<UtilityPanel>('pickup')
 const pickupCode = ref('')
-const pickupResult = ref<ShareRecord | null>(null)
+const pickupResult = ref<FileTransferShareVO | null>(null)
 const pickupSearched = ref(false)
+const isPickupSearching = ref(false)
 const legalDialog = ref<LegalDialogType | null>(null)
 const generatedShare = ref<FileTransferShareVO | null>(null)
 const isShareResultOpen = ref(false)
@@ -200,6 +201,7 @@ const recentShares = computed<ShareRecord[]>(() => {
   const persistedShares = FileShareService.loadPersisted() ?? []
 
   persistedShares.forEach((share) => {
+    if (!isUsableShareRecord(share)) return
     const existing = shareMap.get(share.id)
     if (!existing || new Date(share.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
       shareMap.set(share.id, share)
@@ -211,7 +213,8 @@ const recentShares = computed<ShareRecord[]>(() => {
     .slice(0, 4)
 })
 
-const normalizedPickupCode = computed(() => pickupCode.value.trim())
+const normalizedPickupCode = computed(() => pickupCode.value.trim().toUpperCase())
+const normalizedSharePickupCode = computed(() => shareSettings.value.accessPassword.trim().toUpperCase())
 
 const isLegalDialogOpen = computed({
   get: () => legalDialog.value !== null,
@@ -225,8 +228,8 @@ const shareResultLink = computed(() => {
   return toAbsoluteShareUrl(generatedShare.value.shareUrl, generatedShare.value.shareCode)
 })
 
-const shareResultPassword = computed(() => generatedShare.value?.password || '')
-const shareResultPasswordDisplay = computed(() => shareResultPassword.value || '当前记录未返回访问密码')
+const shareResultPickupCode = computed(() => generatedShare.value?.pickupCode || generatedShare.value?.password || '')
+const shareResultPickupCodeDisplay = computed(() => shareResultPickupCode.value || '当前记录未返回取件码')
 const shareResultSummary = computed(() => {
   if (!generatedShare.value) return ''
   return `${generatedShare.value.fileCount} 个文件，${formatShareSize(generatedShare.value.totalSizeMb)}`
@@ -268,14 +271,14 @@ const legalDialogPoints = computed(() => {
   if (legalDialog.value === 'privacy') {
     return [
       '仅保存完成传输所需的文件名、链接状态和访问记录。',
-      '不会把取件码、访问密码展示给无权限的访客。',
+      '不会把取件码展示给无权限的访客。',
       '你可以在交付记录中管理过期、撤回和下载通知。',
     ]
   }
 
   return [
     '请勿上传违法、侵权、涉密或其他违规内容。',
-    '分享链接默认需要访问密码，生成后可以继续管理有效期。',
+    '分享链接默认需要取件码，生成后可以继续管理有效期。',
     '接收方访问、预览和下载行为会记录在交付记录中。',
   ]
 })
@@ -446,61 +449,77 @@ const handlePanelSelect = (panel: UtilityPanel) => {
   activePanel.value = panel
 }
 
-const handlePickupSearch = () => {
+const handlePickupSearch = async () => {
   pickupSearched.value = true
   pickupResult.value = null
 
   if (normalizedPickupCode.value.length < 4) {
-    toast.error('请输入取件码或分享口令')
+    toast.error('请输入取件码')
     return
   }
 
-  const keyword = normalizedPickupCode.value.toLowerCase()
-  const match = recentShares.value.find((share) => {
-    const urlToken = share.shareUrl.split('/').pop()?.toLowerCase()
-    return share.password === normalizedPickupCode.value || share.id.toLowerCase() === keyword || urlToken === keyword
-  })
-
-  if (!match) {
-    toast.error('没有找到对应文件')
-    return
+  isPickupSearching.value = true
+  try {
+    const share = await FileTransferApi.getShareByPickupCode(normalizedPickupCode.value)
+    pickupResult.value = share
+    toast.success('已找到分享文件')
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '取件码不存在或已失效'))
+  } finally {
+    isPickupSearching.value = false
   }
-
-  pickupResult.value = match
-  toast.success('已找到分享记录')
 }
 
 const getShareCodeFromRecord = (share: Pick<ShareRecord, 'shareCode' | 'shareUrl'>) => {
   if (share.shareCode) return share.shareCode
   try {
-    return new URL(share.shareUrl || '/', window.location.origin).searchParams.get('shareCode') || ''
+    const params = new URL(share.shareUrl || '/', window.location.origin).searchParams
+    return params.get('shareCode') || params.get('code') || ''
   } catch {
     return ''
   }
 }
 
+const isUsableShareRecord = (share: ShareRecord | FileTransferShareVO) => {
+  const shareCode = getShareCodeFromRecord(share)
+  return Boolean(shareCode && share.fileCount > 0 && toAbsoluteShareUrl(share.shareUrl, shareCode))
+}
+
 const openShareResultDialog = async (share: ShareRecord | FileTransferShareVO) => {
   const shareCode = getShareCodeFromRecord(share)
-  const localPassword = share.password || shareSettings.value.accessPassword
-  generatedShare.value = normalizeShareVO({ ...share, shareCode }, localPassword)
-  isShareResultOpen.value = true
-  shareQrcode.value = ''
+  if (!shareCode) {
+    toast.error('这条记录缺少分享码，请重新发送文件')
+    return
+  }
 
-  if (!shareCode) return
+  const localPassword = (share as FileTransferShareVO).pickupCode || share.password || ''
 
   try {
-    const remoteShare = await FileTransferApi.getOwnerShare(shareCode)
+    const remoteShare = localPassword
+      ? await FileTransferApi.getPublicShare(shareCode, localPassword)
+      : await FileTransferApi.getOwnerShare(shareCode)
     generatedShare.value = {
       ...remoteShare,
       password: localPassword || remoteShare.password,
     }
-  } catch {
-    // 本地记录已经足够展示链接和密码；远端详情失败时不打断 A 端复制分享。
+    isShareResultOpen.value = true
+    shareQrcode.value = ''
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '分享记录加载失败，请重新发送文件'))
   }
 }
 
 const handleOpenShare = (share: ShareRecord) => {
   void openShareResultDialog(share)
+}
+
+const handleOpenPickupResult = () => {
+  const code = pickupResult.value?.pickupCode || normalizedPickupCode.value
+  if (!code) {
+    toast.error('缺少取件码')
+    return
+  }
+  navigateTo(`/share-result?pickupCode=${encodeURIComponent(code)}`)
 }
 
 const handleSupport = () => {
@@ -544,8 +563,8 @@ const handleCopyShareLink = () => {
   copyText(shareResultLink.value, '分享链接已复制')
 }
 
-const handleCopySharePassword = () => {
-  copyText(shareResultPassword.value, '访问密码已复制')
+const handleCopySharePickupCode = () => {
+  copyText(shareResultPickupCode.value, '取件码已复制')
 }
 
 const handleOpenPickupCode = () => {
@@ -626,6 +645,11 @@ const handleGenerateLink = async () => {
     return
   }
 
+  if (!/^[A-Za-z0-9_-]{4,32}$/.test(normalizedSharePickupCode.value)) {
+    toast.error('取件码需为 4-32 位字母、数字、下划线或短横线')
+    return
+  }
+
   isGenerating.value = true
 
   try {
@@ -641,18 +665,27 @@ const handleGenerateLink = async () => {
       title: `快速分享 - ${new Date().toLocaleString('zh-CN')}`,
       fileIds,
       transferToken: getAnonymousTransferToken(),
-      password: shareSettings.value.accessPassword,
+      password: normalizedSharePickupCode.value,
+      pickupCode: normalizedSharePickupCode.value,
       expiresAt: makeShareExpiresAt(authStore.hasToken() ? shareSettings.value.expiresIn : '24h'),
       maxDownloads: shareSettings.value.maxDownloads,
       allowPreview: shareSettings.value.allowPreview,
       notifyOnDownload: shareSettings.value.notifyOnDownload,
     })
 
+    const shareCode = share.shareCode
+    const hydratedShare = await FileTransferApi.getPublicShare(shareCode, normalizedSharePickupCode.value)
+      .catch(() => share)
+    const resultShare = {
+      ...hydratedShare,
+      password: normalizedSharePickupCode.value,
+    }
+
     const allShares = FileShareService.loadPersisted() ?? []
-    allShares.push(normalizeShareData(share, shareSettings.value.accessPassword))
+    allShares.push(normalizeShareData(resultShare, normalizedSharePickupCode.value))
     FileShareService.savePersisted(allShares)
 
-    generatedShare.value = share
+    generatedShare.value = resultShare
     isShareResultOpen.value = true
     isUploadProgressOpen.value = false
     shareQrcode.value = ''
@@ -683,6 +716,9 @@ const openShareResultFromQuery = async () => {
       })
     } else if (queryShareCode) {
       const remoteShare = await FileTransferApi.getOwnerShare(queryShareCode)
+      if (!remoteShare.shareCode || remoteShare.fileCount <= 0) {
+        throw new Error('分享记录无效')
+      }
       generatedShare.value = remoteShare
       isShareResultOpen.value = true
       shareQrcode.value = ''
@@ -702,6 +738,12 @@ const openShareResultFromQuery = async () => {
 }
 
 function formatShareSize(sizeMb: number): string {
+  if (sizeMb > 0 && sizeMb < 1 / 1024) {
+    return `${Math.max(1, Math.round(sizeMb * 1024 * 1024))} B`
+  }
+  if (sizeMb > 0 && sizeMb < 1) {
+    return `${Math.max(1, Math.round(sizeMb * 1024))} KB`
+  }
   if (sizeMb >= 1024) {
     return `${(sizeMb / 1024).toFixed(2)} GB`
   }
@@ -977,7 +1019,7 @@ onMounted(() => {
               <div>
                 <h2 class="text-item-title">分享设置</h2>
                 <p class="text-caption mt-1">
-                  {{ authStore.hasToken() ? '配置有效期、访问密码和下载限制' : '未登录文件有效期为 24 小时，到期后自动清理' }}
+                  {{ authStore.hasToken() ? '配置有效期、取件码和下载限制' : '未登录文件有效期为 24 小时，到期后自动清理' }}
                 </p>
               </div>
               <Button :disabled="!canGenerateLink" @click="handleGenerateLink">
@@ -1010,7 +1052,7 @@ onMounted(() => {
               </div>
 
               <div class="space-y-2">
-                <Label class="text-label">访问密码</Label>
+                <Label class="text-label">取件码</Label>
                 <Input v-model="shareSettings.accessPassword" class="h-9 font-mono" />
               </div>
 
@@ -1058,14 +1100,17 @@ onMounted(() => {
           <div v-if="activePanel === 'pickup'" class="panel-section">
             <div class="panel-heading">
               <h2>取件码查询</h2>
-              <p>输入取件码、分享 ID 或链接末尾口令。</p>
+              <p>输入分享者提供的取件码，可直接打开有效期内的文件。</p>
             </div>
 
             <form class="pickup-form" @submit.prevent="handlePickupSearch">
               <Label for="pickup-code" class="text-label">取件码</Label>
               <div class="pickup-input-row">
                 <Input id="pickup-code" v-model="pickupCode" placeholder="例如 482916" />
-                <Button type="submit">查询</Button>
+                <Button type="submit" :disabled="isPickupSearching">
+                  <SafeIcon v-if="isPickupSearching" name="Loader2" :size="15" class="animate-spin" />
+                  查询
+                </Button>
               </div>
             </form>
 
@@ -1074,7 +1119,7 @@ onMounted(() => {
                 <strong>{{ pickupResult.title }}</strong>
                 <span>{{ pickupResult.fileCount }} 个文件 · {{ formatShareSize(pickupResult.totalSizeMb) }}</span>
               </div>
-              <Button size="sm" @click="handleOpenShare(pickupResult)">
+              <Button size="sm" @click="handleOpenPickupResult">
                 打开
               </Button>
             </div>
@@ -1087,11 +1132,11 @@ onMounted(() => {
             <div class="hint-list">
               <div>
                 <SafeIcon name="KeyRound" :size="16" />
-                <span>取件码可使用分享密码</span>
+                <span>取件码全局唯一，有效期内可用</span>
               </div>
               <div>
                 <SafeIcon name="Link2" :size="16" />
-                <span>也支持输入链接最后一段口令</span>
+                <span>即使没有分享链接，也能凭取件码打开</span>
               </div>
             </div>
           </div>
@@ -1152,7 +1197,7 @@ onMounted(() => {
           <div v-else class="panel-section">
             <div class="panel-heading">
               <h2>安全说明</h2>
-              <p>默认启用访问密码、有效期和下载次数限制。</p>
+              <p>默认启用取件码、有效期和下载次数限制。</p>
             </div>
 
             <div class="security-list">
@@ -1162,7 +1207,7 @@ onMounted(() => {
               </div>
               <div>
                 <SafeIcon name="LockKeyhole" :size="18" />
-                <span>访问密码默认自动生成</span>
+                <span>取件码默认自动生成</span>
               </div>
               <div>
                 <SafeIcon name="BellRing" :size="18" />
@@ -1267,7 +1312,7 @@ onMounted(() => {
             文件发送成功
           </DialogTitle>
           <DialogDescription>
-            {{ shareResultSummary }}，已生成公共链接和访问密码。
+            {{ shareResultSummary }}，已生成公共链接和取件码。
           </DialogDescription>
         </DialogHeader>
 
@@ -1317,10 +1362,10 @@ onMounted(() => {
             </div>
 
             <div class="share-result-field">
-              <Label class="text-label">访问密码</Label>
+              <Label class="text-label">取件码</Label>
               <div class="share-copy-row">
-                <Input :model-value="shareResultPasswordDisplay" readonly class="font-mono text-sm" />
-                <Button variant="outline" @click="handleCopySharePassword">
+                <Input :model-value="shareResultPickupCodeDisplay" readonly class="font-mono text-sm" />
+                <Button variant="outline" @click="handleCopySharePickupCode">
                   <SafeIcon name="Copy" :size="16" />
                   复制
                 </Button>
@@ -1366,7 +1411,7 @@ onMounted(() => {
         <DialogHeader>
           <DialogTitle>分享二维码</DialogTitle>
           <DialogDescription>
-            扫码打开公共链接，仍需要访问密码。
+            扫码打开公共链接，仍需要取件码。
           </DialogDescription>
         </DialogHeader>
         <div class="share-qrcode-box">
@@ -1404,19 +1449,19 @@ onMounted(() => {
         <DialogHeader>
           <DialogTitle>取件码</DialogTitle>
           <DialogDescription>
-            对方也可以用访问密码作为取件码打开文件。
+            对方即使没有分享链接，也可以用这个取件码打开文件。
           </DialogDescription>
         </DialogHeader>
         <div class="pickup-code-body">
-          <strong>{{ shareResultPasswordDisplay }}</strong>
+          <strong>{{ shareResultPickupCodeDisplay }}</strong>
           <p>有效期：{{ shareResultExpiresText }}</p>
-          <Button variant="outline" @click="handleCopySharePassword">
+          <Button variant="outline" @click="handleCopySharePickupCode">
             <SafeIcon name="Copy" :size="16" />
             复制取件码
           </Button>
         </div>
         <p class="pickup-code-note">
-          取件码与访问密码一致，用于接收方打开公开链接后的密码验证。
+          取件码是本次分享的唯一取件凭证，过期后不可再访问。
         </p>
       </DialogContent>
     </Dialog>

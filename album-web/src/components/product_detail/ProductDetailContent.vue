@@ -292,6 +292,7 @@ const handleLoginSuccess = () => {
       :images="previewImages"
       :current-index="previewIndex"
       :can-download="canDownload"
+      :can-view-original="canUseOriginalImage"
       :is-logged-in="isLoggedIn"
       @update:open="(v) => showImagePreview = v"
       @update:current-index="(v) => previewIndex = v"

@@ -61,6 +61,8 @@ const isControlledDownloadUrl = (url: string) => /\/api\/user\/download\/origina
 
 const isPersistedPicId = (picId: string) => /^\d+$/.test(picId)
 
+const isObjectUrl = (url: string) => /^blob:/i.test(url)
+
 export const ORIGINAL_ZIP_MIN_IMAGE_COUNT = 5
 
 export const shouldDownloadImagesAsZip = (count: number) => count > ORIGINAL_ZIP_MIN_IMAGE_COUNT
@@ -73,6 +75,34 @@ const resolveControlledDownloadPicId = (image: ProductImageData, url: string) =>
     return image.id
   }
 }
+
+const resolveOriginalViewPicId = (image: ProductImageData) => {
+  const downloadEntry = productImageUrl(image, 'download')
+  if (downloadEntry && isControlledDownloadUrl(downloadEntry)) {
+    return resolveControlledDownloadPicId(image, downloadEntry)
+  }
+  return isPersistedPicId(image.id) ? image.id : ''
+}
+
+export const revokeImageObjectUrl = (url: string) => {
+  if (url && isObjectUrl(url)) URL.revokeObjectURL(url)
+}
+
+export const preloadImageUrl = (url: string) =>
+  new Promise<void>((resolve, reject) => {
+    if (!url) {
+      reject(new Error('图片地址无效'))
+      return
+    }
+    if (typeof Image === 'undefined') {
+      resolve()
+      return
+    }
+    const image = new Image()
+    image.onload = () => resolve()
+    image.onerror = () => reject(new Error('原图加载失败'))
+    image.src = url
+  })
 
 const resolveControlledDownloadIds = (images: ProductImageData[]) => {
   const ids: string[] = []
@@ -93,6 +123,34 @@ export const resolveProductImageDownloadUrl = async (image: ProductImageData) =>
   if (!isControlledDownloadUrl(downloadEntry) && !isPersistedPicId(image.id)) return downloadEntry
   const data = await pcApi.getOriginalDownloadUrl(resolveControlledDownloadPicId(image, downloadEntry))
   return String(data?.download_url || data?.downloadUrl || data?.url || '')
+}
+
+export const resolveProductImageOriginalViewUrl = async (image: ProductImageData) => {
+  const controlledPicId = resolveOriginalViewPicId(image)
+  if (isPersistedPicId(controlledPicId)) {
+    const response = await pcApi.getOriginalDownloadBlob(controlledPicId, {
+      skip_remote_size: 1,
+    })
+    const blob = await response.blob()
+    if (!blob.size) {
+      throw new Error('原图暂不可查看')
+    }
+    return URL.createObjectURL(blob)
+  }
+
+  const originalEntry = productImageUrl(image, 'origin')
+  if (originalEntry && !isControlledDownloadUrl(originalEntry)) return originalEntry
+
+  const downloadEntry = productImageUrl(image, 'download')
+  if (downloadEntry && (isControlledDownloadUrl(downloadEntry) || isPersistedPicId(image.id))) {
+    const data = await pcApi.getOriginalDownloadUrl(resolveControlledDownloadPicId(image, downloadEntry), {
+      record_traffic: 0,
+      skip_remote_size: 1,
+    })
+    return String(data?.download_url || data?.downloadUrl || data?.url || '')
+  }
+
+  return originalEntry || productImageUrl(image, 'preview') || productImageUrl(image, 'thumb')
 }
 
 const fetchProductImageBlobForZip = async (image: ProductImageData) => {

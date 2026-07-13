@@ -158,7 +158,7 @@ class FileTransferService extends BaseService
                 'sso_subject' => $ownerSubject,
                 'title' => $title,
                 'share_code' => $this->makeShareCode(),
-                'password_hash' => $this->makePasswordHash($param['password'] ?? ''),
+                'pickup_code' => $this->makePickupCode($param['pickup_code'] ?? ($param['pickupCode'] ?? ($param['password'] ?? ''))),
                 'max_downloads' => max(0, (int)($param['max_downloads'] ?? 0)),
                 'allow_preview' => !empty($param['allow_preview']) ? 1 : 0,
                 'notify_on_download' => !empty($param['notify_on_download']) ? 1 : 0,
@@ -166,6 +166,7 @@ class FileTransferService extends BaseService
                 'file_count' => $fileCount,
                 'total_size_bytes' => $totalSize,
             ];
+            $shareData['password_hash'] = $this->makePasswordHash((string)$shareData['pickup_code']);
             if ($uid > 0) {
                 $shareData['expires_at'] = $this->normalizeDateTime($param['expires_at'] ?? null);
             }
@@ -196,6 +197,30 @@ class FileTransferService extends BaseService
     public function verifySharePassword(string $code, string $password)
     {
         return $this->getShareByCode($code, true, $password);
+    }
+
+    public function getShareByPickupCode(string $pickupCode)
+    {
+        $pickupCode = $this->normalizePickupCode($pickupCode);
+        if ($pickupCode === '') {
+            throwError('请输入取件码');
+        }
+
+        $share = FtFileShare::where('pickup_code', $pickupCode)
+            ->whereNull('deleted_at')
+            ->find();
+        if (!$share) {
+            throwError('取件码不存在或已失效');
+        }
+        $this->assertShareUsable($share, false);
+        $this->recordShareLog((int)$share->id, 'pickup');
+
+        $items = FtFileShareItem::with(['file'])
+            ->where('share_id', $share->id)
+            ->order('sort_order asc, id asc')
+            ->select();
+
+        return $this->formatShare($share, $items, true, true);
     }
 
     public function getOwnerShareByCode(string $code, int $uid, array $param = [])
@@ -268,9 +293,9 @@ class FileTransferService extends BaseService
         $this->assertShareUsable($share, false);
 
         $hasPassword = !empty($share->password_hash);
-        $passwordVerified = !$hasPassword || !$publicView || $this->verifyPassword($password, (string)$share->password_hash);
+        $passwordVerified = !$hasPassword || !$publicView || $this->verifyShareAccessCode($password, (string)$share->password_hash, $share);
         if ($publicView && $hasPassword && $password !== '' && !$passwordVerified) {
-            throwError('访问密码不正确');
+            throwError('取件码不正确');
         }
 
         if ($publicView) {
@@ -323,21 +348,30 @@ class FileTransferService extends BaseService
         ];
     }
 
-    public function getSharedDownloadFile(int $fileId, string $code, string $password = '', bool $preview = false)
+    public function getSharedDownloadFile(int $fileId, string $code, string $password = '', bool $preview = false, string $pickupCode = '')
     {
-        if ($fileId <= 0 || trim($code) === '') {
+        $code = trim($code);
+        $pickupCode = $this->normalizePickupCode($pickupCode);
+        if ($fileId <= 0 || ($code === '' && $pickupCode === '')) {
             throwError('下载参数不完整');
         }
 
-        $share = FtFileShare::where('share_code', trim($code))
+        $shareQuery = FtFileShare::whereNull('deleted_at');
+        if ($code !== '') {
+            $shareQuery->where('share_code', $code);
+        } else {
+            $shareQuery->where('pickup_code', $pickupCode);
+        }
+        $share = $shareQuery
             ->whereNull('deleted_at')
             ->find();
         if (!$share) {
             throwError('分享不存在或已失效');
         }
         $this->assertShareUsable($share, !$preview);
-        if (!empty($share->password_hash) && !$this->verifyPassword($password, (string)$share->password_hash)) {
-            throwError('访问密码不正确');
+        $pickupVerified = $pickupCode !== '' && hash_equals((string)$share->pickup_code, $pickupCode);
+        if (!$pickupVerified && !empty($share->password_hash) && !$this->verifyShareAccessCode($password, (string)$share->password_hash, $share)) {
+            throwError('取件码不正确');
         }
 
         $item = FtFileShareItem::with(['file'])
@@ -709,7 +743,7 @@ class FileTransferService extends BaseService
                 ->toArray();
         }
 
-        return array_merge($this->formatShareRow($share), [
+        return array_merge($this->formatShareRow($share, !$publicView || $passwordVerified), [
             'has_password' => !empty($share->password_hash),
             'hasPassword' => !empty($share->password_hash),
             'password_verified' => $passwordVerified,
@@ -745,9 +779,9 @@ class FileTransferService extends BaseService
         ];
     }
 
-    private function formatShareRow($share)
+    private function formatShareRow($share, bool $includePickupCode = false)
     {
-        return [
+        $data = [
             'id' => (int)$share->id,
             'task_id' => '',
             'taskId' => '',
@@ -780,6 +814,11 @@ class FileTransferService extends BaseService
             'updated_at' => (string)$share->updated_at,
             'updatedAt' => (string)$share->updated_at,
         ];
+        if ($includePickupCode) {
+            $data['pickup_code'] = (string)$share->pickup_code;
+            $data['pickupCode'] = (string)$share->pickup_code;
+        }
+        return $data;
     }
 
     private function normalizeUploadedFiles($files)
@@ -931,11 +970,56 @@ class FileTransferService extends BaseService
         return $password !== '' && password_verify($password, $hash);
     }
 
+    private function verifyShareAccessCode(string $code, string $hash, $share)
+    {
+        if ($hash === '') {
+            return true;
+        }
+        if ($code === '') {
+            return false;
+        }
+        if (!empty($share->pickup_code)) {
+            return $this->verifyPassword($this->normalizePickupCode($code), $hash);
+        }
+        return $this->verifyPassword($code, $hash);
+    }
+
     private function makeShareCode()
     {
         do {
             $code = strtolower(bin2hex(random_bytes(5)));
             $exists = FtFileShare::where('share_code', $code)->find();
+        } while ($exists);
+        return $code;
+    }
+
+    private function normalizePickupCode($code)
+    {
+        $code = strtoupper(trim((string)$code));
+        $code = preg_replace('/\s+/', '', $code);
+        if ($code === '') {
+            return '';
+        }
+        if (!preg_match('/^[A-Z0-9_-]{4,32}$/', $code)) {
+            throwError('取件码格式不正确');
+        }
+        return $code;
+    }
+
+    private function makePickupCode($preferred = '')
+    {
+        $preferred = $this->normalizePickupCode($preferred);
+        if ($preferred !== '') {
+            $exists = FtFileShare::where('pickup_code', $preferred)->find();
+            if ($exists) {
+                throwError('取件码已被使用，请换一个');
+            }
+            return $preferred;
+        }
+
+        do {
+            $code = (string)random_int(100000, 999999);
+            $exists = FtFileShare::where('pickup_code', $code)->find();
         } while ($exists);
         return $code;
     }

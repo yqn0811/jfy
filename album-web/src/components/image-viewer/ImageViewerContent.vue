@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, watch } from 'vue'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { Button } from '@/components/ui/button'
 
@@ -10,6 +10,7 @@ interface Props {
   totalImages: number
   canGoPrev: boolean
   canGoNext: boolean
+  isLoadingOriginal?: boolean
 }
 
 const props = defineProps<Props>()
@@ -23,16 +24,13 @@ const emit = defineEmits<{
 const imageRef = ref<HTMLImageElement | null>(null)
 const isImageLoading = ref(true)
 
-onMounted(() => {
-  if (imageRef.value) {
-    imageRef.value.addEventListener('load', () => {
-      isImageLoading.value = false
-    })
-    imageRef.value.addEventListener('error', () => {
-      emit('load-error')
-    })
-  }
-})
+const handleImageLoaded = () => {
+  isImageLoading.value = false
+}
+
+const handleImageError = () => {
+  emit('load-error')
+}
 
 watch(
   () => props.imageUrl,
@@ -49,13 +47,22 @@ watch(
       ref="imageRef"
       :src="imageUrl"
       :alt="`Image ${imageIndex} of ${totalImages}`"
-      class="max-w-full max-h-full object-contain select-none"
-      :class="isImageLoading && 'opacity-0'"
+      class="max-w-full max-h-full object-contain select-none transition-opacity duration-200"
+      :class="isImageLoading ? 'opacity-0' : isLoadingOriginal ? 'opacity-45' : 'opacity-100'"
+      draggable="false"
+      @load="handleImageLoaded"
+      @error="handleImageError"
+      @contextmenu.prevent
     />
 
     <!-- Loading Spinner -->
     <div v-if="isImageLoading" class="absolute inset-0 flex items-center justify-center">
       <SafeIcon name="Loader2" :size="48" class="text-white/40 animate-spin" />
+    </div>
+
+    <div v-if="isLoadingOriginal && !isImageLoading" class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/60 text-sm text-white backdrop-blur-sm">
+      <SafeIcon name="Loader2" :size="32" class="text-white/80 animate-spin" />
+      <span>正在加载原图...</span>
     </div>
 
     <!-- Previous Button -->

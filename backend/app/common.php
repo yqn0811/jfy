@@ -310,10 +310,10 @@ function doRemote($uniacid, $url, $type)
 function picPreviewStyles()
 {
     return [
-        'x-oss-process=image/resize,m_fixed,w_320/quality,Q_75',
         'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75',
-        'imageMogr2/thumbnail/320x/quality/75',
         'imageMogr2/thumbnail/480x/quality/75',
+        'x-oss-process=image/resize,m_fixed,w_320/quality,Q_75',
+        'imageMogr2/thumbnail/320x/quality/75',
     ];
 }
 
@@ -356,10 +356,10 @@ function appendPicThumbStyle($url, $remoteType = 0)
         return '';
     }
     if ((int)$remoteType === 4 || isTencentCosAssetUrl($url)) {
-        return $url . (strpos($url, '?') === false ? '?' : '&') . 'imageMogr2/thumbnail/320x/quality/75';
+        return $url . (strpos($url, '?') === false ? '?' : '&') . 'imageMogr2/thumbnail/480x/quality/75';
     }
     if ((int)$remoteType > 0) {
-        return $url . (strpos($url, '?') === false ? '?' : '&') . 'x-oss-process=image/resize,m_fixed,w_320/quality,Q_75';
+        return $url . (strpos($url, '?') === false ? '?' : '&') . 'x-oss-process=image/resize,m_fixed,w_480/quality,Q_75';
     }
     return appendPicStyle($url, $remoteType);
 }
@@ -605,7 +605,7 @@ function buildPictureImageUrls($pictureOrUrl, $previewUrl = '')
                 'thumb' => buildResourceImageProxyUrl($picId, 'thumb'),
                 'preview' => buildResourceImageProxyUrl($picId, 'preview'),
                 'edit' => buildResourceImageProxyUrl($picId, 'preview'),
-                'origin' => '',
+                'origin' => buildResourceImageProxyUrl($picId, 'original'),
                 'download' => buildPictureDownloadRequestUrl($picId),
             ];
         }

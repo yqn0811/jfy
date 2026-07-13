@@ -172,6 +172,7 @@ Route::any('pay/callback', 'PayNotifyController/orderNotify'); //支付回调通
 Route::group('file', function (){
     Route::post('files/upload', 'FileTransferApiController/uploadFiles')->middleware('auth', false);
     Route::get('shares/public', 'FileTransferApiController/getPublicShare')->middleware('auth', false);
+    Route::get('shares/pickup', 'FileTransferApiController/getShareByPickupCode')->middleware('auth', false);
     Route::post('shares/verify_password', 'FileTransferApiController/verifySharePassword')->middleware('auth', false);
     Route::post('shares/qrcode', 'FileTransferApiController/getShareQrcode')->middleware('auth', false);
     Route::get('shares/download', 'FileTransferApiController/downloadSharedFile')->middleware('auth', false);

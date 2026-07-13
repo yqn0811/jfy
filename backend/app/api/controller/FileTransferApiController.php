@@ -60,6 +60,8 @@ class FileTransferApiController extends ApiBaseController
             [['file_ids', 'a'], []],
             [['fileIds', 'a'], []],
             ['password', ''],
+            ['pickup_code', ''],
+            ['pickupCode', ''],
             ['expires_at', ''],
             ['expiresAt', ''],
             ['max_downloads', 0],
@@ -109,6 +111,21 @@ class FileTransferApiController extends ApiBaseController
         }
 
         $this->result($this->file_service->getShareByCode($param['code'], true, $param['password']));
+    }
+
+    public function getShareByPickupCode()
+    {
+        $param = $this->request->getMore([
+            ['code', ''],
+            ['pickup_code', ''],
+            ['pickupCode', ''],
+        ], false, false);
+        $pickupCode = $this->pickFirst($param, ['pickup_code', 'pickupCode', 'code']);
+        if ($pickupCode === '') {
+            throwError('请输入取件码');
+        }
+
+        $this->result($this->file_service->getShareByPickupCode($pickupCode));
     }
 
     public function verifySharePassword()
@@ -173,7 +190,7 @@ class FileTransferApiController extends ApiBaseController
 
         $download = $this->file_service->getOwnerDownloadFile($fileId, (int)request()->userID());
 
-        return download($download['path'], $download['download_name']);
+        $this->streamFile($download['path'], $download['download_name'], $download['mime_type'] ?? '');
     }
 
     public function downloadSharedFile()
@@ -185,14 +202,17 @@ class FileTransferApiController extends ApiBaseController
             ['share_code', ''],
             ['shareCode', ''],
             ['password', ''],
+            ['pickup_code', ''],
+            ['pickupCode', ''],
             ['preview', 0],
         ], false, false);
         $fileId = (int)($param['file_id'] ?: $param['fileId']);
         $code = $this->pickFirst($param, ['code', 'share_code', 'shareCode']);
+        $pickupCode = $this->pickFirst($param, ['pickup_code', 'pickupCode']);
 
-        $download = $this->file_service->getSharedDownloadFile($fileId, $code, $param['password'], !empty($param['preview']));
+        $download = $this->file_service->getSharedDownloadFile($fileId, $code, $param['password'], !empty($param['preview']), $pickupCode);
 
-        return download($download['path'], $download['download_name']);
+        $this->streamFile($download['path'], $download['download_name'], $download['mime_type'] ?? '');
     }
 
     private function normalizeFileParam(array $param, array $raw = [])
@@ -221,6 +241,7 @@ class FileTransferApiController extends ApiBaseController
     {
         $map = [
             'fileIds' => 'file_ids',
+            'pickupCode' => 'pickup_code',
             'expiresAt' => 'expires_at',
             'maxDownloads' => 'max_downloads',
             'allowPreview' => 'allow_preview',
@@ -235,6 +256,7 @@ class FileTransferApiController extends ApiBaseController
                 $param[$to] = $param[$from];
             }
         }
+        $param['pickup_code'] = $this->pickFirst($param, ['pickup_code', 'pickupCode', 'password']);
         return $param;
     }
 
@@ -276,5 +298,39 @@ class FileTransferApiController extends ApiBaseController
     private function isBlankValue($value)
     {
         return $value === null || $value === '';
+    }
+
+    private function streamFile($filePath, $filename, $mimeType = '')
+    {
+        if (!is_file($filePath)) {
+            throwError('文件不存在或已失效');
+        }
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        $origin = $this->request->header('origin') ?: '*';
+        if (preg_match('/[\r\n]/', $origin)) {
+            $origin = '*';
+        }
+        $filename = (string)$filename;
+        $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
+        if ($fallbackName === '') {
+            $fallbackName = 'download';
+        }
+        $mimeType = trim((string)$mimeType);
+        if ($mimeType === '' || preg_match('/[\r\n]/', $mimeType)) {
+            $mimeType = 'application/octet-stream';
+        }
+
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        header('Content-Type: ' . $mimeType);
+        header('Content-Length: ' . filesize($filePath));
+        header('Content-Disposition: attachment; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
+        header('Cache-Control: private, max-age=0, no-cache');
+        readfile($filePath);
+        exit;
     }
 }
