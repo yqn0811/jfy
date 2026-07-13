@@ -1336,6 +1336,8 @@ class FileCollectionService extends BaseService
 
     private function formatSubmissionReceipt($submission, $task, $sourceSubmission = null, bool $includeToken = false)
     {
+        $submittedAt = $this->normalizeReceiptTokenTimestamp($submission->submitted_at);
+        $receiptNumber = 'FT-' . date('Ymd', strtotime($submittedAt ?: 'now')) . '-' . str_pad((string)$submission->id, 6, '0', STR_PAD_LEFT);
         $receipt = [
             'id' => (int)$submission->id,
             'submission_id' => (int)$submission->id,
@@ -1344,10 +1346,10 @@ class FileCollectionService extends BaseService
             'taskId' => (string)$task->id,
             'source_submission_id' => $sourceSubmission ? (int)$sourceSubmission->id : 0,
             'sourceSubmissionId' => $sourceSubmission ? (string)$sourceSubmission->id : '',
-            'receipt_number' => 'FT-' . date('Ymd', strtotime((string)$submission->submitted_at ?: 'now')) . '-' . str_pad((string)$submission->id, 6, '0', STR_PAD_LEFT),
-            'receiptNumber' => 'FT-' . date('Ymd', strtotime((string)$submission->submitted_at ?: 'now')) . '-' . str_pad((string)$submission->id, 6, '0', STR_PAD_LEFT),
-            'submitted_at' => (string)$submission->submitted_at,
-            'submittedAt' => (string)$submission->submitted_at,
+            'receipt_number' => $receiptNumber,
+            'receiptNumber' => $receiptNumber,
+            'submitted_at' => $submittedAt,
+            'submittedAt' => $submittedAt,
             'material_summary' => '已提交' . (int)$submission->file_count . '个文件',
             'materialSummary' => '已提交' . (int)$submission->file_count . '个文件',
         ];
@@ -1363,7 +1365,7 @@ class FileCollectionService extends BaseService
         $payload = implode('|', [
             (string)$submission->id,
             (string)$submission->task_id,
-            (string)$submission->submitted_at,
+            $this->normalizeReceiptTokenTimestamp($submission->submitted_at),
             (string)$submission->file_count,
             (string)$submission->total_size_bytes,
         ]);
@@ -1373,6 +1375,21 @@ class FileCollectionService extends BaseService
     private function verifyReceiptToken($submission, string $token): bool
     {
         return hash_equals($this->makeReceiptToken($submission), trim($token));
+    }
+
+    private function normalizeReceiptTokenTimestamp($value): string
+    {
+        $value = trim((string)$value);
+        if ($value === '') {
+            return '';
+        }
+
+        $normalized = str_replace('T', ' ', $value);
+        if (preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/', $normalized, $matches)) {
+            return $matches[1];
+        }
+
+        return $value;
     }
 
     private function receiptSecret(): string
