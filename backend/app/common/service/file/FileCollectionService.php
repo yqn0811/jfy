@@ -601,8 +601,8 @@ class FileCollectionService extends BaseService
             if (!is_array($item)) {
                 continue;
             }
-            $key = trim((string)($item['field_key'] ?? $item['key'] ?? ''));
-            $label = trim((string)($item['field_label'] ?? $item['label'] ?? ''));
+            $key = trim((string)($item['field_key'] ?? $item['fieldKey'] ?? $item['key'] ?? ''));
+            $label = trim((string)($item['field_label'] ?? $item['fieldLabel'] ?? $item['label'] ?? ''));
             if ($key === '' || $label === '') {
                 continue;
             }
@@ -1289,7 +1289,7 @@ class FileCollectionService extends BaseService
         $saveName = bin2hex(random_bytes(16)) . ($extension ? '.' . $extension : '');
         $relativeDir = 'file_transfer/' . (int)$task->owner_user_id . '/submissions/' . (int)$task->id . '/' . date('Ymd');
         $targetDir = rtrim(app()->getRuntimePath(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
-        if (!is_dir($targetDir) && !mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
+        if (!is_dir($targetDir) && !@mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
             throwError('文件存储目录创建失败');
         }
 

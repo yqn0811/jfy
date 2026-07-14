@@ -8,6 +8,7 @@ use think\facade\Log;
 class FileRiskGuardService
 {
     const DEFAULT_BLOCKED_EXTENSIONS = 'php,phtml,phar,php3,php4,php5,asp,aspx,jsp,jspx,exe,dll,bat,cmd,com,msi,sh,bash,zsh,ps1,vbs,js,mjs,jar,war,ear,htaccess,htpasswd,html,htm,svg,swf,scr,lnk,reg,apk,ipa,dmg,pkg,deb,rpm';
+    const DEFAULT_HIGH_RISK_ATTACHMENT_EXTENSIONS = '';
 
     public function assertUploadAllowed(int $uid, string $transferToken, int $fileCount, int $totalBytes): void
     {
@@ -123,20 +124,27 @@ class FileRiskGuardService
         $lowerName = strtolower($name);
         $extension = strtolower((string)pathinfo($lowerName, PATHINFO_EXTENSION));
         $blockedExtensions = $this->blockedExtensions();
+        $highRiskAttachmentExtensions = $this->highRiskAttachmentExtensions();
 
-        if ($extension !== '' && in_array($extension, $blockedExtensions, true)) {
+        if ($this->hasBlockedEmbeddedExtension($lowerName, $blockedExtensions)) {
+            $this->recordRiskEvent('blocked_upload_embedded_extension', array_merge($context, [
+                'extension' => $extension,
+                'name_hash' => $this->hashKey($name),
+            ]));
+            throwError('暂不支持上传该类型文件');
+        }
+        if ($extension !== '' && in_array($extension, $blockedExtensions, true) && !in_array($extension, $highRiskAttachmentExtensions, true)) {
             $this->recordRiskEvent('blocked_upload_extension', array_merge($context, [
                 'extension' => $extension,
                 'name_hash' => $this->hashKey($name),
             ]));
             throwError('暂不支持上传该类型文件');
         }
-        if (preg_match('/\.(php[0-9]?|phtml|phar|asp|aspx|jsp|jspx)(\.|$)/i', $lowerName)) {
-            $this->recordRiskEvent('blocked_upload_double_extension', array_merge($context, [
+        if ($extension !== '' && in_array($extension, $highRiskAttachmentExtensions, true)) {
+            $this->recordRiskEvent('high_risk_attachment_allowed', array_merge($context, [
                 'extension' => $extension,
                 'name_hash' => $this->hashKey($name),
             ]));
-            throwError('暂不支持上传该类型文件');
         }
     }
 
@@ -175,6 +183,7 @@ class FileRiskGuardService
         $command = strpos($commandTemplate, '%s') !== false
             ? sprintf($commandTemplate, $escapedPath)
             : $commandTemplate . ' ' . $escapedPath;
+        $command = $this->withCommandTimeout($command);
 
         @exec($command . ' 2>&1', $output, $exitCode);
         if ($exitCode === 0) {
@@ -381,6 +390,29 @@ class FileRiskGuardService
         }, explode(',', (string)env('file_transfer.blocked_extensions', self::DEFAULT_BLOCKED_EXTENSIONS))))));
     }
 
+    private function highRiskAttachmentExtensions(): array
+    {
+        return array_values(array_unique(array_filter(array_map(function ($item) {
+            return strtolower(trim((string)$item, " \t\n\r\0\x0B."));
+        }, explode(',', (string)env('file_transfer.high_risk_attachment_extensions', self::DEFAULT_HIGH_RISK_ATTACHMENT_EXTENSIONS))))));
+    }
+
+    private function hasBlockedEmbeddedExtension(string $lowerName, array $blockedExtensions): bool
+    {
+        $parts = explode('.', $lowerName);
+        if (count($parts) < 3) {
+            return false;
+        }
+        array_pop($parts);
+        foreach ($parts as $part) {
+            $part = strtolower(trim((string)$part, " \t\n\r\0\x0B."));
+            if ($part !== '' && in_array($part, $blockedExtensions, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private function acquireFileLock(string $key, string $token, int $ttl, string $message): array
     {
         $dir = rtrim(app()->getRuntimePath(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'file_risk_locks';
@@ -429,6 +461,26 @@ class FileRiskGuardService
     private function isBusinessError(\Throwable $e): bool
     {
         return stripos($e->getMessage(), '请稍后') !== false || stripos($e->getMessage(), '处理中') !== false;
+    }
+
+    private function withCommandTimeout(string $command): string
+    {
+        $timeout = max(1, $this->envInt('file_transfer.antivirus_scan_timeout_seconds', 15));
+        if ($this->findExecutable('timeout') === '') {
+            return $command;
+        }
+        return 'timeout ' . (int)$timeout . 's ' . $command;
+    }
+
+    private function findExecutable(string $name): string
+    {
+        if (!function_exists('exec')) {
+            return '';
+        }
+        $output = [];
+        $code = 1;
+        @exec('command -v ' . escapeshellarg($name) . ' 2>/dev/null', $output, $code);
+        return $code === 0 && !empty($output[0]) ? (string)$output[0] : '';
     }
 
     private function envBool(string $key, bool $default): bool

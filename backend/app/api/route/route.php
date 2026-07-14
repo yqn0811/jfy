@@ -181,6 +181,7 @@ Route::group('file', function (){
     Route::post('shares', 'FileTransferApiController/createShare')->middleware('auth', false);
     Route::get('shares', 'FileTransferApiController/listShares')->middleware('auth', false);
     Route::get('shares/detail', 'FileTransferApiController/getShare')->middleware('auth', false);
+    Route::post('collection/tasks', 'FileCollectionApiController/createTask')->middleware('auth', false);
     Route::get('collection/tasks/public', 'FileCollectionApiController/getPublicTask')->middleware('auth', false);
     Route::post('collection/tasks/verify_access_code', 'FileCollectionApiController/verifyPublicTaskAccessCode')->middleware('auth', false);
     Route::post('collection/submissions', 'FileCollectionApiController/submitPublicTask')->middleware('auth', false);
@@ -190,7 +191,6 @@ Route::group('file', function (){
         Route::get('files/download', 'FileTransferApiController/downloadFile');
         Route::get('files/upload_health', 'FileTransferApiController/uploadHealth');
 
-        Route::post('collection/tasks', 'FileCollectionApiController/createTask');
         Route::get('collection/tasks', 'FileCollectionApiController/listTasks');
         Route::get('collection/tasks/detail', 'FileCollectionApiController/getTask');
         Route::post('collection/tasks/archive', 'FileCollectionApiController/archiveTask');

@@ -41,8 +41,8 @@ build_album_web() {
 
 build_file_web() {
   require_cmd pnpm
-  log "Building file-web"
-  (cd "$ROOT_DIR/file-web" && pnpm build)
+  log "Building file-web against test API"
+  (cd "$ROOT_DIR/file-web" && pnpm build:test)
 }
 
 build_miniapp_test() {

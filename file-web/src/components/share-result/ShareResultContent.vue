@@ -23,6 +23,8 @@ const isVerifyingPassword = ref(false)
 const qrcodeImage = ref('')
 const isQrcodeLoading = ref(false)
 
+const PICKUP_CODE_PATTERN = /^[A-Za-z0-9]{4}$/
+
 const createReceiverGateShare = (code: string): FileTransferShareVO => ({
   id: code,
   shareCode: code,
@@ -202,9 +204,9 @@ const formatDate = (dateString: string) => {
 
 const handleVerifyPassword = async () => {
   if (!shareCode.value) return
-  const password = accessPassword.value.trim().toUpperCase()
-  if (!password) {
-    toast.error('请输入取件码')
+  const password = accessPassword.value.trim()
+  if (!PICKUP_CODE_PATTERN.test(password)) {
+    toast.error('取件码需为 4 位大小写英文或数字')
     return
   }
 
@@ -302,9 +304,10 @@ const loadQrcode = async () => {
               <form class="password-form" @submit.prevent="handleVerifyPassword">
                 <Input
                   v-model="accessPassword"
-                  type="password"
-                  autocomplete="current-password"
-                  placeholder="请输入分享者提供的取件码"
+                  type="text"
+                  maxlength="4"
+                  autocomplete="one-time-code"
+                  placeholder="例如 aB3Z"
                 />
                 <Button type="submit" :disabled="isVerifyingPassword">
                   <SafeIcon v-if="isVerifyingPassword" name="Loader2" :size="16" class="animate-spin" />

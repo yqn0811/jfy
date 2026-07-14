@@ -28,7 +28,7 @@ const statusFilter = ref<string>('')
 
 const breadcrumbs = [
   { label: '工作台', href: '/workbench' },
-  { label: '交付记录', href: '/delivery-records' },
+  { label: '收发记录', href: '/delivery-records' },
   { label: '空间与归档' }
 ]
 

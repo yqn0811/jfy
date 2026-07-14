@@ -64,7 +64,7 @@ class FileTransferService extends BaseService
             $saveName = bin2hex(random_bytes(16)) . ($extension ? '.' . $extension : '');
             $relativeDir = 'file_transfer/' . $uid . '/' . date('Ymd');
             $targetDir = rtrim(app()->getRuntimePath(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
-            if (!is_dir($targetDir) && !mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
+            if (!is_dir($targetDir) && !@mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
                 throwError('文件存储目录创建失败');
             }
 
@@ -1099,13 +1099,12 @@ class FileTransferService extends BaseService
 
     private function normalizePickupCode($code)
     {
-        $code = strtoupper(trim((string)$code));
-        $code = preg_replace('/\s+/', '', $code);
+        $code = trim((string)$code);
         if ($code === '') {
             return '';
         }
-        if (!preg_match('/^[A-Z0-9_-]{4,32}$/', $code)) {
-            throwError('取件码格式不正确');
+        if (!preg_match('/^[A-Za-z0-9]{4}$/', $code)) {
+            throwError('取件码需为 4 位大小写英文或数字');
         }
         return $code;
     }
@@ -1122,9 +1121,20 @@ class FileTransferService extends BaseService
         }
 
         do {
-            $code = (string)random_int(100000, 999999);
+            $code = $this->makeRandomPickupCode();
             $exists = FtFileShare::where('pickup_code', $code)->find();
         } while ($exists);
+        return $code;
+    }
+
+    private function makeRandomPickupCode()
+    {
+        $alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        $code = '';
+        $maxIndex = strlen($alphabet) - 1;
+        for ($i = 0; $i < 4; $i++) {
+            $code .= $alphabet[random_int(0, $maxIndex)];
+        }
         return $code;
     }
 }

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vue-tsc --noEmit && vite build && node scripts/generate-html-compat.mjs",
+    "build:test": "PUBLIC_API_BASE=https://api-test.jfyuntu.com/api pnpm build",
+    "build:prod": "PUBLIC_API_BASE=https://api.jfyuntu.com/api pnpm build",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

@@ -8,6 +8,8 @@ use think\App;
 
 class FileTransferApiController extends ApiBaseController
 {
+    const ATTACHMENT_ONLY_EXTENSIONS = 'php,phtml,phar,php3,php4,php5,asp,aspx,jsp,jspx,exe,dll,bat,cmd,com,msi,sh,bash,zsh,ps1,vbs,js,mjs,jar,war,ear,htaccess,htpasswd,html,htm,svg,swf,scr,lnk,reg,apk,ipa,dmg,pkg,deb,rpm';
+
     private $file_service;
 
     public function __construct(App $app)
@@ -352,6 +354,9 @@ class FileTransferApiController extends ApiBaseController
         if ($mimeType === '' || preg_match('/[\r\n]/', $mimeType)) {
             $mimeType = 'application/octet-stream';
         }
+        if ($this->isAttachmentOnlyFile($filename)) {
+            $mimeType = 'application/octet-stream';
+        }
 
         if ($origin !== '') {
             header('Access-Control-Allow-Origin: ' . $origin);
@@ -359,11 +364,24 @@ class FileTransferApiController extends ApiBaseController
             header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
         }
         header('Vary: Origin');
+        header('X-Content-Type-Options: nosniff');
         header('Content-Type: ' . $mimeType);
         header('Content-Length: ' . filesize($filePath));
         header('Content-Disposition: attachment; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
         header('Cache-Control: private, max-age=0, no-cache');
         readfile($filePath);
         exit;
+    }
+
+    private function isAttachmentOnlyFile(string $filename): bool
+    {
+        $extension = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
+        if ($extension === '') {
+            return false;
+        }
+        $extensions = array_filter(array_map(function ($item) {
+            return strtolower(trim((string)$item, " \t\n\r\0\x0B."));
+        }, explode(',', self::ATTACHMENT_ONLY_EXTENSIONS)));
+        return in_array($extension, $extensions, true);
     }
 }

@@ -518,6 +518,15 @@ class FileUploadSecurityService
         return $code === 0 && !empty($output[0]) ? (string)$output[0] : '';
     }
 
+    private function withCommandTimeout(string $command): string
+    {
+        $timeout = max(1, $this->envInt('file_transfer.antivirus_scan_timeout_seconds', 15));
+        if ($this->findExecutable('timeout') === '') {
+            return $command;
+        }
+        return 'timeout ' . (int)$timeout . 's ' . $command;
+    }
+
     private function probeAntivirusScanner(string $commandTemplate): array
     {
         if ($commandTemplate === '' || !function_exists('exec')) {
@@ -535,6 +544,7 @@ class FileUploadSecurityService
             $command = strpos($commandTemplate, '%s') !== false
                 ? sprintf($commandTemplate, $escapedPath)
                 : $commandTemplate . ' ' . $escapedPath;
+            $command = $this->withCommandTimeout($command);
             $output = [];
             $exitCode = 0;
             @exec($command . ' 2>&1', $output, $exitCode);

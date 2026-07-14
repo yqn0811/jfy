@@ -134,7 +134,7 @@ const handleExport = () => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `交付记录-${new Date().toISOString().slice(0, 10)}.csv`
+  link.download = `收发记录-${new Date().toISOString().slice(0, 10)}.csv`
   link.click()
   URL.revokeObjectURL(url)
   toast.success('清单已导出')
@@ -211,7 +211,7 @@ const loadRemoteRecords = async () => {
     records.value = remoteRecords
   } catch (error) {
     if (authStore.hasToken() || records.value.length === 0) {
-      loadError.value = getApiErrorMessage(error, '交付记录加载失败')
+      loadError.value = getApiErrorMessage(error, '收发记录加载失败')
     }
   } finally {
     isLoadingRecords.value = false
@@ -223,9 +223,9 @@ const loadRemoteRecords = async () => {
   <div v-if="isClient" class="w-full flex flex-col gap-6">
     <!-- 页面标题 -->
     <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-      <h1 class="text-page-title">交付记录</h1>
+      <h1 class="text-page-title">收发记录</h1>
       <div class="flex flex-col gap-2 sm:items-end">
-        <p class="text-caption sm:text-right">查看和管理所有已发送和已收集的任务记录</p>
+        <p class="text-caption sm:text-right">查看和管理所有已发送和已收集的文件记录</p>
         <Button v-if="authStore.hasToken()" variant="outline" size="sm" :disabled="isLoadingRecords" @click="loadRemoteRecords">
           {{ isLoadingRecords ? '刷新中...' : '刷新记录' }}
         </Button>
@@ -278,7 +278,7 @@ const loadRemoteRecords = async () => {
     <div v-if="filteredRecords.length === 0" class="surface-base card-padding">
       <EmptyState
         icon="FileQuestion"
-        title="暂无交付记录"
+        title="暂无收发记录"
         description="还没有任何发送或收集的记录。返回工作台创建新任务。"
       >
         <template #actions>

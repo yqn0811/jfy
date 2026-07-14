@@ -32,8 +32,8 @@ const props = defineProps<{
 const navigationItems = [
   { name: '发文件', href: '/quick-send', icon: 'Send' },
   { name: '收文件', href: '/create-collection-task', icon: 'Download' },
-  { name: '交付记录', href: '/delivery-records', icon: 'History' },
-  { name: '空间', href: '/space-archive', icon: 'FolderOpen' },
+  { name: '收发记录', href: '/delivery-records', icon: 'History' },
+  { name: '文小盘', href: '/space-archive', icon: 'FolderOpen' },
 ];
 
 const isLoginDialogOpen = ref(false);
@@ -46,6 +46,7 @@ const isActive = (href: string) => {
   if (!props.currentPath) return false;
   const current = props.currentPath.replace(/\/$/, '');
   const target = href.replace(/\/$/, '');
+  if (target === '/delivery-records' && current === '/task-details') return true;
   return current === target || (target !== '/workbench' && current.startsWith(target));
 };
 
@@ -144,8 +145,8 @@ onBeforeUnmount(() => {
                 :key="item.href"
                 :class="cn(
                   'w-full flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-left transition-colors',
-                  isActive(item.href) ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )"
+                isActive(item.href) ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )"
                 @click="handleNavClick(item.href)"
               >
                 <SafeIcon :name="item.icon" :size="18" />
@@ -172,11 +173,12 @@ onBeforeUnmount(() => {
             v-for="item in navigationItems" 
             :key="item.href"
             :class="cn(
-              'h-[60px] flex items-center px-4 text-sm font-medium transition-colors cursor-pointer border-b-2 border-transparent hover:text-primary',
+              'h-[60px] flex items-center gap-2 px-4 text-sm font-medium transition-colors cursor-pointer border-b-2 border-transparent hover:text-primary',
               isActive(item.href) ? 'text-primary border-primary' : 'text-muted-foreground'
             )"
             @click="handleNavClick(item.href)"
           >
+            <SafeIcon :name="item.icon" :size="17" />
             {{ item.name }}
           </div>
         </nav>
@@ -200,7 +202,7 @@ onBeforeUnmount(() => {
       <DialogHeader>
         <DialogTitle>登录织序传输</DialogTitle>
         <DialogDescription>
-          登录后可管理更长有效期的文件、交付记录和空间归档。
+          登录后可管理更长有效期的文件、收发记录和空间归档。
         </DialogDescription>
       </DialogHeader>
 

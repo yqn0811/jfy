@@ -74,6 +74,9 @@ type UtilityPanel = 'pickup' | 'recent' | 'support' | 'security'
 type LegalDialogType = 'service' | 'privacy'
 type ShareRecord = ReturnType<typeof FileShareService.getAll>[number]
 
+const PICKUP_CODE_PATTERN = /^[A-Za-z0-9]{4}$/
+const PICKUP_CODE_CHARSET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
 const uploadedFiles = ref<UploadFile[]>([])
@@ -134,7 +137,7 @@ const panelTabs: Array<{ value: UtilityPanel; label: string; icon: string }> = [
 ]
 
 function generatePassword(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  return Array.from({ length: 4 }, () => PICKUP_CODE_CHARSET[Math.floor(Math.random() * PICKUP_CODE_CHARSET.length)]).join('')
 }
 
 const totalSizeMb = computed(() => {
@@ -221,8 +224,8 @@ const recentShares = computed<ShareRecord[]>(() => {
     .slice(0, 4)
 })
 
-const normalizedPickupCode = computed(() => pickupCode.value.trim().toUpperCase())
-const normalizedSharePickupCode = computed(() => shareSettings.value.accessPassword.trim().toUpperCase())
+const normalizedPickupCode = computed(() => pickupCode.value.trim())
+const normalizedSharePickupCode = computed(() => shareSettings.value.accessPassword.trim())
 
 const isLegalDialogOpen = computed({
   get: () => legalDialog.value !== null,
@@ -280,14 +283,14 @@ const legalDialogPoints = computed(() => {
     return [
       '仅保存完成传输所需的文件名、链接状态和访问记录。',
       '不会把取件码展示给无权限的访客。',
-      '你可以在交付记录中管理过期、撤回和下载通知。',
+      '你可以在收发记录中管理过期、撤回和下载通知。',
     ]
   }
 
   return [
     '请勿上传违法、侵权、涉密或其他违规内容。',
     '分享链接默认需要取件码，生成后可以继续管理有效期。',
-    '接收方访问、预览和下载行为会记录在交付记录中。',
+    '接收方访问、预览和下载行为会记录在收发记录中。',
   ]
 })
 
@@ -458,8 +461,8 @@ const handlePickupSearch = async () => {
   pickupSearched.value = true
   pickupResult.value = null
 
-  if (normalizedPickupCode.value.length < 4) {
-    toast.error('请输入取件码')
+  if (!PICKUP_CODE_PATTERN.test(normalizedPickupCode.value)) {
+    toast.error('取件码需为 4 位大小写英文或数字')
     return
   }
 
@@ -650,8 +653,8 @@ const handleGenerateLink = async () => {
     return
   }
 
-  if (!/^[A-Za-z0-9_-]{4,32}$/.test(normalizedSharePickupCode.value)) {
-    toast.error('取件码需为 4-32 位字母、数字、下划线或短横线')
+  if (!PICKUP_CODE_PATTERN.test(normalizedSharePickupCode.value)) {
+    toast.error('取件码需为 4 位大小写英文或数字')
     return
   }
 
@@ -1093,7 +1096,13 @@ onMounted(() => {
 
               <div class="space-y-2">
                 <Label class="text-label">取件码</Label>
-                <Input v-model="shareSettings.accessPassword" class="h-9 font-mono" />
+                <Input
+                  v-model="shareSettings.accessPassword"
+                  class="h-9 font-mono"
+                  maxlength="4"
+                  autocomplete="off"
+                  placeholder="例如 aB3Z"
+                />
               </div>
 
               <div class="space-y-2">
@@ -1146,7 +1155,13 @@ onMounted(() => {
             <form class="pickup-form" @submit.prevent="handlePickupSearch">
               <Label for="pickup-code" class="text-label">取件码</Label>
               <div class="pickup-input-row">
-                <Input id="pickup-code" v-model="pickupCode" placeholder="例如 482916" />
+                <Input
+                  id="pickup-code"
+                  v-model="pickupCode"
+                  maxlength="4"
+                  autocomplete="one-time-code"
+                  placeholder="例如 aB3Z"
+                />
                 <Button type="submit" :disabled="isPickupSearching">
                   <SafeIcon v-if="isPickupSearching" name="Loader2" :size="15" class="animate-spin" />
                   查询
@@ -1205,7 +1220,7 @@ onMounted(() => {
 
             <Button variant="outline" class="panel-link-button" @click="navigateTo('/delivery-records')">
               <SafeIcon name="History" :size="16" />
-              全部交付记录
+              全部收发记录
             </Button>
           </div>
 

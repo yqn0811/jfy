@@ -47,9 +47,10 @@ class FileCollectionApiController extends ApiBaseController
             ['sso_subject', ''],
             ['ssoSubject', ''],
         ], false, false);
-        $param = $this->normalizeTaskParam($param, $this->request->post());
+        $rawPayload = $this->getRequestPayload();
+        $param = $this->normalizeTaskParam($param, $rawPayload);
 
-        $this->result($this->collection_service->createTask($param, (int)request()->userID()), 0, '创建成功');
+        $this->result($this->collection_service->createTask($param, $this->getOptionalUserId()), 0, '创建成功');
     }
 
     public function listTasks()
@@ -281,7 +282,44 @@ class FileCollectionApiController extends ApiBaseController
                 $param[$to] = $param[$from];
             }
         }
+        foreach (['fields', 'materials'] as $key) {
+            if (array_key_exists($key, $raw) && !$this->isBlankValue($raw[$key])) {
+                $param[$key] = $raw[$key];
+            }
+        }
         return $param;
+    }
+
+    private function getRequestPayload()
+    {
+        $contentType = strtolower((string)$this->request->header('content-type', ''));
+        $rawContent = '';
+        try {
+            if (method_exists($this->request, 'getInput')) {
+                $rawContent = (string)$this->request->getInput();
+            } elseif (method_exists($this->request, 'getContent')) {
+                $rawContent = (string)$this->request->getContent();
+            }
+        } catch (\Throwable $e) {
+            $rawContent = '';
+        }
+        if ($rawContent === '') {
+            $rawContent = (string)file_get_contents('php://input');
+        }
+
+        $payload = $this->request->param();
+        if (!is_array($payload)) {
+            $payload = [];
+        }
+
+        if ($rawContent !== '' && (strpos($contentType, 'json') !== false || substr(ltrim($rawContent), 0, 1) === '{')) {
+            $decoded = json_decode($rawContent, true);
+            if (is_array($decoded)) {
+                $payload = array_merge($payload, $decoded);
+            }
+        }
+
+        return $payload;
     }
 
     private function isBlankValue($value)
@@ -318,6 +356,15 @@ class FileCollectionApiController extends ApiBaseController
             }
         }
         return [];
+    }
+
+    private function getOptionalUserId()
+    {
+        try {
+            return (int)request()->userID();
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     private function streamZipFile($zipPath, $filename, $workDir, array $lock = [])

@@ -19,7 +19,7 @@ const routes: AppRoute[] = [
   },
   {
     path: '/delivery-records',
-    title: '交付记录 - 织序传输',
+    title: '收发记录 - 织序传输',
     component: lazyView(() => import('@/views/DeliveryRecordsView.vue')),
   },
   { path: '/space-archive', title: '空间与归档 - 织序传输', component: lazyView(() => import('@/views/SpaceArchiveView.vue')) },

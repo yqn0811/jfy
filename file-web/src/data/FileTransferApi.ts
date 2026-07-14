@@ -3,7 +3,7 @@ import type { DeliveryRecordData } from './DeliveryRecordData'
 import type { FileShareData, ShareAccessLogData } from './FileShareData'
 import type { FileShareVO } from './FileShareService'
 import type { TaskData } from './TaskData'
-import { ApiError, apiDownload, apiRequest, apiUpload, authStore, buildApiUrl, rawUpload } from '@/lib/apiClient'
+import { ApiError, apiDownload, apiRequest, apiUpload, authStore, buildApiUrl, isRecoverableApiRouteError, rawUpload } from '@/lib/apiClient'
 
 export interface UploadedFileResult {
   id: string
@@ -46,6 +46,7 @@ export interface CreateCollectionTaskPayload {
   description: string
   dueAt: string
   submitTargetDescription: string
+  accessCode?: string
   fields: TaskFieldConfigData[]
   materials: TaskMaterialItemData[]
   ruleConfig: Omit<TaskRuleConfigData, 'id' | 'taskId' | 'draftId'>
@@ -118,7 +119,11 @@ const toBoolean = (value: unknown, fallback = false) => {
 const toIsoLike = (value: unknown) => {
   const raw = toStringValue(value)
   if (!raw) return ''
-  const date = new Date(raw.replace(' ', 'T'))
+  const normalized = raw
+    .replace(' ', 'T')
+    .replace(/([+-]\d{2})$/, '$1:00')
+    .replace(/([+-]\d{2})(\d{2})$/, '$1:$2')
+  const date = new Date(normalized)
   return Number.isNaN(date.getTime()) ? raw : date.toISOString()
 }
 
@@ -348,6 +353,7 @@ export const normalizeCollectionTaskDetail = (raw: any): CollectionTaskDetailVO 
       updatedAt: toIsoLike(pick(raw, ['updatedAt', 'updated_at'], new Date().toISOString())),
       archivedAt: pick(raw, ['archivedAt', 'archived_at'], null),
       ownerId: toStringValue(pick(raw, ['ownerId', 'owner_id', 'ownerUserId', 'owner_user_id'])),
+      accessCodeRequired: toBoolean(pick(raw, ['accessCodeRequired', 'access_code_required'], false), false),
     },
     fields,
     materials,
@@ -515,7 +521,10 @@ export class FileTransferApi {
     try {
       return await this.uploadFileDirect(file)
     } catch (error) {
-      if (error instanceof ApiError && ['直传暂未开启', '对象存储配置不完整', '文件存储类型不支持'].some((text) => error.message.includes(text))) {
+      if (
+        isRecoverableApiRouteError(error) ||
+        (error instanceof ApiError && ['直传暂未开启', '对象存储配置不完整', '文件存储类型不支持'].some((text) => error.message.includes(text)))
+      ) {
         const [uploaded] = await this.uploadFiles([file])
         if (!uploaded) throw new ApiError('上传失败，请重试')
         return uploaded
@@ -629,6 +638,7 @@ export class FileTransferApi {
         description: payload.description,
         dueAt: payload.dueAt,
         submitTargetDescription: payload.submitTargetDescription,
+        accessCode: payload.accessCode || '',
         fields: payload.fields.map((field, index) => ({
           fieldKey: field.fieldKey || `field_${index + 1}`,
           fieldLabel: field.fieldLabel,
