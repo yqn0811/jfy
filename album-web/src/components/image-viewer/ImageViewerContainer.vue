@@ -31,6 +31,8 @@ const isLoadingOriginal = ref(false)
 const showLoginDialog = ref(false)
 const imageLoadError = ref(false)
 const loadedOriginalUrls = ref<Record<string, string>>({})
+const imageScale = ref(1)
+const imageRotation = ref(0)
 
 const currentImage = computed(() => {
   const image = images.value[currentIndex.value]
@@ -46,6 +48,7 @@ const handlePrevious = () => {
   if (isLoadingOriginal.value) return
   if (currentIndex.value > 0) {
     currentIndex.value--
+    resetImageTransform()
     updateUrlParams()
   }
 }
@@ -54,8 +57,26 @@ const handleNext = () => {
   if (isLoadingOriginal.value) return
   if (currentIndex.value < images.value.length - 1) {
     currentIndex.value++
+    resetImageTransform()
     updateUrlParams()
   }
+}
+
+const zoomIn = () => {
+  imageScale.value = Math.min(3, Number((imageScale.value + 0.25).toFixed(2)))
+}
+
+const zoomOut = () => {
+  imageScale.value = Math.max(0.5, Number((imageScale.value - 0.25).toFixed(2)))
+}
+
+const rotateImage = () => {
+  imageRotation.value = (imageRotation.value + 90) % 360
+}
+
+const resetImageTransform = () => {
+  imageScale.value = 1
+  imageRotation.value = 0
 }
 
 const updateUrlParams = () => {
@@ -185,6 +206,18 @@ const handleKeyDown = (event: KeyboardEvent) => {
   } else if (event.key === 'Escape') {
     event.preventDefault()
     handleClose()
+  } else if (event.key === '+' || event.key === '=') {
+    event.preventDefault()
+    zoomIn()
+  } else if (event.key === '-' || event.key === '_') {
+    event.preventDefault()
+    zoomOut()
+  } else if (event.key.toLowerCase() === 'r') {
+    event.preventDefault()
+    rotateImage()
+  } else if (event.key === '0') {
+    event.preventDefault()
+    resetImageTransform()
   }
 }
 
@@ -288,9 +321,15 @@ onUnmounted(() => {
         :can-go-prev="currentIndex > 0"
         :can-go-next="currentIndex < images.length - 1"
         :is-loading-original="isLoadingOriginal"
+        :scale="imageScale"
+        :rotation="imageRotation"
         @previous="handlePrevious"
         @next="handleNext"
         @load-error="imageLoadError = true"
+        @zoom-in="zoomIn"
+        @zoom-out="zoomOut"
+        @rotate="rotateImage"
+        @reset-transform="resetImageTransform"
       />
 
       <!-- Error State -->

@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { Button } from '@/components/ui/button'
 
@@ -11,6 +11,8 @@ interface Props {
   canGoPrev: boolean
   canGoNext: boolean
   isLoadingOriginal?: boolean
+  scale?: number
+  rotation?: number
 }
 
 const props = defineProps<Props>()
@@ -19,10 +21,17 @@ const emit = defineEmits<{
   (e: 'previous'): void
   (e: 'next'): void
   (e: 'load-error'): void
+  (e: 'zoom-in'): void
+  (e: 'zoom-out'): void
+  (e: 'rotate'): void
+  (e: 'reset-transform'): void
 }>()
 
 const imageRef = ref<HTMLImageElement | null>(null)
 const isImageLoading = ref(true)
+const imageTransformStyle = computed(() => ({
+  transform: `scale(${props.scale ?? 1}) rotate(${props.rotation ?? 0}deg)`,
+}))
 
 const handleImageLoaded = () => {
   isImageLoading.value = false
@@ -47,8 +56,9 @@ watch(
       ref="imageRef"
       :src="imageUrl"
       :alt="`Image ${imageIndex} of ${totalImages}`"
-      class="max-w-full max-h-full object-contain select-none transition-opacity duration-200"
+      class="max-w-full max-h-full object-contain select-none transition-[opacity,transform] duration-200"
       :class="isImageLoading ? 'opacity-0' : isLoadingOriginal ? 'opacity-45' : 'opacity-100'"
+      :style="imageTransformStyle"
       draggable="false"
       @load="handleImageLoaded"
       @error="handleImageError"
@@ -90,6 +100,48 @@ watch(
     <!-- Image Type Badge -->
     <div class="absolute bottom-4 left-4 px-3 py-1.5 bg-black/50 backdrop-blur-sm rounded-full text-white text-xs font-medium">
       {{ imageIndex === 1 ? '花色图' : '详情图' }}
+    </div>
+
+    <div
+      v-if="!isImageLoading"
+      class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/55 p-1.5 text-white shadow-lg backdrop-blur-sm"
+    >
+      <Button
+        variant="ghost"
+        size="icon"
+        class="h-9 w-9 rounded-full text-white hover:bg-white/10"
+        :disabled="isLoadingOriginal || (scale ?? 1) <= 0.5"
+        @click="emit('zoom-out')"
+      >
+        <SafeIcon name="ZoomOut" :size="18" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        class="h-9 w-9 rounded-full text-white hover:bg-white/10"
+        :disabled="isLoadingOriginal || (scale ?? 1) >= 3"
+        @click="emit('zoom-in')"
+      >
+        <SafeIcon name="ZoomIn" :size="18" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        class="h-9 w-9 rounded-full text-white hover:bg-white/10"
+        :disabled="isLoadingOriginal"
+        @click="emit('rotate')"
+      >
+        <SafeIcon name="RotateCw" :size="18" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        class="h-9 w-9 rounded-full text-white hover:bg-white/10"
+        :disabled="isLoadingOriginal"
+        @click="emit('reset-transform')"
+      >
+        <SafeIcon name="RefreshCcw" :size="18" />
+      </Button>
     </div>
   </div>
 </template>

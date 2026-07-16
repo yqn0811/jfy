@@ -263,8 +263,16 @@ ssh root@103.117.120.231 'node -v && pnpm -v'
 CentOS 7，安装 Node 时必须选择兼容该系统 glibc 的发行方式。`pnpm` 建议通过
 Node 自带的 `corepack` 激活；如果服务器缺少 `node` 或 `pnpm`，发布脚本会停止。
 
-测试相册仍未切换到 Git 发布脚本；发布前必须先按本节规则补齐对应脚本，不能回退到
-本地 `dist/` 直推。
+测试相册 Git 发布：
+
+```bash
+cd /Users/mac/Documents/trae_projects/sub2api/ai_jf/tmp/jfy
+./scripts/deploy-album-web-test-git.sh
+```
+
+脚本会校验本地当前分支没有未提交内容，且当前提交已经推送到 GitHub；然后登录
+测试服务器拉取同一个分支，在服务器执行相册测试构建，最后把服务器上的
+`album-web/dist/` 覆盖到 `/www/wwwroot/pic-test.jfyuntu.com/current/`。
 
 应急手工覆盖只允许在用户明确说“临时用本地 dist 覆盖测试环境”后执行：
 

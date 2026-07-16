@@ -31,11 +31,16 @@ const emit = defineEmits<{
 const currentImage = computed(() => props.images[props.currentIndex] || null)
 const loadedOriginalImageUrls = ref<Record<string, string>>({})
 const loadingOriginalImageIds = ref<Record<string, boolean>>({})
+const imageScale = ref(1)
+const imageRotation = ref(0)
 const currentPreviewUrl = computed(() => {
   const image = currentImage.value
   if (!image) return ''
   return loadedOriginalImageUrls.value[image.id] || productImageUrl(image, 'preview')
 })
+const imageTransformStyle = computed(() => ({
+  transform: `scale(${imageScale.value}) rotate(${imageRotation.value}deg)`,
+}))
 const canViewOriginalImage = computed(() => props.canViewOriginal ?? props.canDownload)
 const isCurrentOriginalLoading = computed(() => {
   const image = currentImage.value
@@ -52,12 +57,35 @@ const imageTypeLabel = computed(() => currentImage.value?.type === 'detailChart'
 
 const goPrevious = () => {
   if (isCurrentOriginalLoading.value) return
-  if (canPrevious.value) emit('update:currentIndex', props.currentIndex - 1)
+  if (canPrevious.value) {
+    resetImageTransform()
+    emit('update:currentIndex', props.currentIndex - 1)
+  }
 }
 
 const goNext = () => {
   if (isCurrentOriginalLoading.value) return
-  if (canNext.value) emit('update:currentIndex', props.currentIndex + 1)
+  if (canNext.value) {
+    resetImageTransform()
+    emit('update:currentIndex', props.currentIndex + 1)
+  }
+}
+
+const zoomIn = () => {
+  imageScale.value = Math.min(3, Number((imageScale.value + 0.25).toFixed(2)))
+}
+
+const zoomOut = () => {
+  imageScale.value = Math.max(0.5, Number((imageScale.value - 0.25).toFixed(2)))
+}
+
+const rotateImage = () => {
+  imageRotation.value = (imageRotation.value + 90) % 360
+}
+
+const resetImageTransform = () => {
+  imageScale.value = 1
+  imageRotation.value = 0
 }
 
 const setOriginalImageLoading = (imageId: string, loading: boolean) => {
@@ -185,11 +213,53 @@ onUnmounted(() => {
             v-if="currentImage"
             :src="currentPreviewUrl"
             :alt="currentImage.name"
-            class="max-h-full max-w-full object-contain transition-opacity duration-200"
+            class="max-h-full max-w-full object-contain transition-[opacity,transform] duration-200"
             :class="isCurrentOriginalLoading ? 'opacity-45' : 'opacity-100'"
+            :style="imageTransformStyle"
             draggable="false"
             @contextmenu.prevent
           />
+          <div
+            v-if="currentImage"
+            class="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/55 p-1.5 text-white shadow-lg backdrop-blur-sm"
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full text-white hover:bg-white/10"
+              :disabled="isCurrentOriginalLoading || imageScale <= 0.5"
+              @click="zoomOut"
+            >
+              <SafeIcon name="ZoomOut" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full text-white hover:bg-white/10"
+              :disabled="isCurrentOriginalLoading || imageScale >= 3"
+              @click="zoomIn"
+            >
+              <SafeIcon name="ZoomIn" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full text-white hover:bg-white/10"
+              :disabled="isCurrentOriginalLoading"
+              @click="rotateImage"
+            >
+              <SafeIcon name="RotateCw" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full text-white hover:bg-white/10"
+              :disabled="isCurrentOriginalLoading"
+              @click="resetImageTransform"
+            >
+              <SafeIcon name="RefreshCcw" :size="18" />
+            </Button>
+          </div>
           <div v-else class="text-sm text-white/60">暂无图片</div>
           <div
             v-if="isCurrentOriginalLoading"
