@@ -24,6 +24,11 @@ const routes: AppRoute[] = [
   },
   { path: '/space-archive', title: '空间与归档 - 织序传输', component: lazyView(() => import('@/views/SpaceArchiveView.vue')) },
   { path: '/task-details', title: '收集任务详情 - 织序传输', component: lazyView(() => import('@/views/TaskDetailsView.vue')) },
+  {
+    path: '/wechat-login-callback',
+    title: '微信登录 - 织序传输',
+    component: lazyView(() => import('@/views/WechatLoginCallbackView.vue')),
+  },
   { path: '/share-result', title: '分享结果 - 织序传输', component: lazyView(() => import('@/views/ShareResultView.vue')) },
   {
     path: '/submission-upload',

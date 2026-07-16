@@ -12,8 +12,8 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import SafeIcon from '@/components/common/SafeIcon.vue';
-import { AuthApi } from '@/data/AuthApi';
-import { authStore, getApiErrorMessage } from '@/lib/apiClient';
+import WechatLoginDialog from '@/components/common/WechatLoginDialog.vue';
+import { authStore } from '@/lib/apiClient';
 import { navigateTo } from '@/navigation';
 import { cn } from '@/lib/utils';
 
@@ -28,7 +28,7 @@ const navigationItems = [
   { name: '文小盘', href: '/space-archive', icon: 'FolderOpen' },
 ];
 
-const isLoadingLogin = ref(false);
+const isLoginDialogOpen = ref(false);
 const isActive = (href: string) => {
   if (!props.currentPath) return false;
   const current = props.currentPath.replace(/\/$/, '');
@@ -41,24 +41,9 @@ const handleNavClick = (href: string) => {
   navigateTo(href);
 };
 
-const startWechatLogin = async () => {
-  if (authStore.hasToken() || isLoadingLogin.value) return;
-  isLoadingLogin.value = true;
-
-  try {
-    const data = await AuthApi.getLoginOauthConfig(window.location.href);
-    if (!data.authUrl) {
-      throw new Error('empty auth url');
-    }
-    window.location.href = data.authUrl;
-  } catch (error) {
-    toast.error(getApiErrorMessage(error, '登录服务暂不可用，请稍后再试'));
-    isLoadingLogin.value = false;
-  } finally {
-    if (typeof window === 'undefined') {
-      isLoadingLogin.value = false;
-    }
-  }
+const startWechatLogin = () => {
+  if (authStore.hasToken()) return;
+  isLoginDialogOpen.value = true;
 };
 
 const handleLogout = () => {
@@ -133,9 +118,9 @@ const handleLogout = () => {
       </div>
 
       <div class="flex shrink-0 items-center gap-2">
-        <Button v-if="!authStore.hasToken()" variant="outline" size="sm" :disabled="isLoadingLogin" @click="startWechatLogin">
-          <SafeIcon :name="isLoadingLogin ? 'Loader2' : 'LogIn'" :size="16" :class="isLoadingLogin ? 'mr-2 animate-spin' : 'mr-2'" />
-          {{ isLoadingLogin ? '跳转中' : '登录' }}
+        <Button v-if="!authStore.hasToken()" variant="outline" size="sm" @click="startWechatLogin">
+          <SafeIcon name="LogIn" :size="16" class="mr-2" />
+          登录
         </Button>
         <Button v-else variant="outline" size="sm" @click="handleLogout">
           <SafeIcon name="LogOut" :size="16" class="mr-2" />
@@ -143,5 +128,6 @@ const handleLogout = () => {
         </Button>
       </div>
     </div>
+    <WechatLoginDialog v-model:open="isLoginDialogOpen" />
   </header>
 </template>

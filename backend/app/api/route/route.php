@@ -36,6 +36,7 @@ Route::get('/user/home/share_poster', 'UserApiController/getHomeSharePoster')->m
 Route::post('/user/phone', 'UserApiController/getUserPhone'); //获取用户手机号码
 Route::get('/user/login/qrcode', 'UserApiController/getLoginQrcode'); // 获取登录二维码
 Route::get('/user/login/oauth_config', 'UserApiController/getLoginOauthConfig'); // PC网页登录配置
+Route::post('/user/login/exchange', 'UserApiController/exchangeWechatLoginCode'); // PC网页登录 code 换 token
 Route::get('/user/login/callback', 'UserApiController/wechatCallback'); // 微信登录回调
 Route::get('/user/login/status', 'UserApiController/checkLoginStatus'); // 检查登录状态
 Route::get('/user/testLogin', 'UserApiController/testLogin'); // 测试登录

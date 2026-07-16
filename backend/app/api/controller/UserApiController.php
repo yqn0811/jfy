@@ -1581,10 +1581,7 @@ class UserApiController extends ApiBaseController
             $redirect = $this->getFileWebBaseUrl();
         }
 
-        $callback = trim((string)Config::get('miniprogram.web_login_callback'));
-        if (!$callback) {
-            $callback = getApiRootUrl() . '/api/user/login/callback';
-        }
+        $callback = $this->getWechatWebLoginCallback();
 
         $appid = trim((string)Config::get('miniprogram.web_appid'));
         if (!$appid) {
@@ -1640,6 +1637,15 @@ class UserApiController extends ApiBaseController
         return rtrim($base, '/') . '/';
     }
 
+    private function getWechatWebLoginCallback()
+    {
+        $callback = trim((string)Config::get('miniprogram.web_login_callback'));
+        if ($callback === '') {
+            $callback = $this->getFileWebBaseUrl() . 'wechat-login-callback';
+        }
+        return $callback;
+    }
+
     private function createWechatLoginState($redirect)
     {
         try {
@@ -1654,33 +1660,41 @@ class UserApiController extends ApiBaseController
         return $state;
     }
 
-    private function resolveWechatLoginRedirect($state)
+    private function consumeWechatLoginState($state)
     {
-        $redirectUrl = '';
         $state = trim((string)$state);
         if ($state !== '') {
             try {
                 $cached = Cache::get('wechat_web_login_state_' . $state);
                 if (is_array($cached) && !empty($cached['redirect'])) {
-                    $redirectUrl = (string)$cached['redirect'];
                     Cache::delete('wechat_web_login_state_' . $state);
+                    return $cached;
                 }
             } catch (\Throwable $e) {
             }
 
-            if ($redirectUrl === '') {
-                $decoded = base64_decode($state, true);
-                if ($decoded !== false) {
-                    $redirectUrl = (string)$decoded;
-                }
+            $decoded = base64_decode($state, true);
+            if ($decoded !== false) {
+                return ['redirect' => (string)$decoded, 'legacy' => true];
             }
         }
 
+        return null;
+    }
+
+    private function normalizeWechatLoginRedirect($redirectUrl)
+    {
         $redirectUrl = html_entity_decode(trim((string)$redirectUrl), ENT_QUOTES, 'UTF-8');
         if ($redirectUrl === '' || !$this->isAllowedPcLoginRedirect($redirectUrl)) {
             return $this->getFileWebBaseUrl();
         }
         return $redirectUrl;
+    }
+
+    private function resolveWechatLoginRedirect($state)
+    {
+        $cached = $this->consumeWechatLoginState($state);
+        return $this->normalizeWechatLoginRedirect(is_array($cached) ? ($cached['redirect'] ?? '') : '');
     }
 
     private function appendLoginQuery($url, $params)
@@ -1760,6 +1774,61 @@ class UserApiController extends ApiBaseController
         ]);
     }
 
+    private function createWechatWebLoginToken($code)
+    {
+        $tokenInfo = $this->getWechatWebAccessToken($code);
+        $openid = (string)$tokenInfo['openid'];
+        $userInfo = $this->getWechatWebUserInfo((string)$tokenInfo['access_token'], $openid);
+
+        $unionid = (string)($userInfo['unionid'] ?? ($tokenInfo['unionid'] ?? ''));
+
+        // 查找或创建用户
+        $userModel = new \app\common\model\user\WdXcxUser();
+        $user = $userModel->getUserByWechatIdentity($openid, $unionid, true, '', [
+            'nickname' => $userInfo['nickname'] ?? '微信用户',
+            'avatar' => $userInfo['headimgurl'] ?? '',
+            'gender' => $userInfo['sex'] ?? 0,
+            'uniacid' => $this->uniacid,
+        ]);
+
+        // 生成Token
+        $tokenData = [
+            'user_id' => $user->id,
+            'openid' => $user->openid,
+            'user_uuid' => $user->user_uuid,
+        ];
+        return \app\common\service\JwtService::createToken($tokenData);
+    }
+
+    /**
+     * 前端回调页使用 code/state 换取登录 token
+     */
+    public function exchangeWechatLoginCode()
+    {
+        $code = trim((string)$this->request->param('code'));
+        $state = trim((string)$this->request->param('state'));
+
+        if (!$code || !$state) {
+            throwError('登录失败，请重试');
+        }
+
+        try {
+            $cached = $this->consumeWechatLoginState($state);
+            if (!is_array($cached) || empty($cached['redirect']) || !empty($cached['legacy'])) {
+                throw new \Exception('wechat login state invalid');
+            }
+
+            $token = $this->createWechatWebLoginToken($code);
+            $this->result([
+                'token' => $token,
+                'redirect' => $this->normalizeWechatLoginRedirect($cached['redirect']),
+            ], 0, '登录成功');
+        } catch (\Throwable $e) {
+            Log::warning('wechat web login exchange failed: ' . $e->getMessage());
+            throwError('登录失败，请重试');
+        }
+    }
+
     /**
      * 微信扫码登录回调
      */
@@ -1773,28 +1842,7 @@ class UserApiController extends ApiBaseController
         }
         
         try {
-            $tokenInfo = $this->getWechatWebAccessToken($code);
-            $openid = (string)$tokenInfo['openid'];
-            $userInfo = $this->getWechatWebUserInfo((string)$tokenInfo['access_token'], $openid);
-            
-            $unionid = (string)($userInfo['unionid'] ?? ($tokenInfo['unionid'] ?? ''));
-            
-            // 查找或创建用户
-            $userModel = new \app\common\model\user\WdXcxUser();
-            $user = $userModel->getUserByWechatIdentity($openid, $unionid, true, '', [
-                'nickname' => $userInfo['nickname'] ?? '微信用户',
-                'avatar' => $userInfo['headimgurl'] ?? '',
-                'gender' => $userInfo['sex'] ?? 0,
-                'uniacid' => $this->uniacid,
-            ]);
-            
-            // 生成Token
-            $tokenData = [
-                'user_id' => $user->id,
-                'openid' => $user->openid,
-                'user_uuid' => $user->user_uuid,
-            ];
-            $token = \app\common\service\JwtService::createToken($tokenData);
+            $token = $this->createWechatWebLoginToken($code);
             
             // 重定向回前端
             $redirectUrl = $this->resolveWechatLoginRedirect($state);
