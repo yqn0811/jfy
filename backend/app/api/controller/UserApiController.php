@@ -1663,7 +1663,7 @@ class UserApiController extends ApiBaseController
     {
         $callback = trim((string)env('JIAFANGYUN_PC_LOGIN_CALLBACK', getenv('JIAFANGYUN_PC_LOGIN_CALLBACK') ?: ''));
         if ($callback === '') {
-            $callback = 'https://api.jfyuntu.com/api/user/login/callback';
+            $callback = 'https://pic.jfyuntu.com/index.php/api/user/login/callback';
         }
         return $callback;
     }
