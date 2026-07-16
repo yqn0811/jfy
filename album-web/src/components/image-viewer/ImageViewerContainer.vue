@@ -1,13 +1,13 @@
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
 import ImageViewerHeader from './ImageViewerHeader.vue'
 import ImageViewerContent from './ImageViewerContent.vue'
 import ImageViewerFooter from './ImageViewerFooter.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
 import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
-import { downloadUrl } from '@/lib/download'
+import { downloadUrl, preloadImageUrl, revokeImageObjectUrl } from '@/lib/download'
 import { isVipMember } from '@/lib/account'
 
 interface ImageData {
@@ -30,6 +30,9 @@ const canUseOriginal = ref(false)
 const isLoadingOriginal = ref(false)
 const showLoginDialog = ref(false)
 const imageLoadError = ref(false)
+const loadedOriginalUrls = ref<Record<string, string>>({})
+const imageScale = ref(1)
+const imageRotation = ref(0)
 
 const currentImage = computed(() => {
   const image = images.value[currentIndex.value]
@@ -42,17 +45,38 @@ const currentImage = computed(() => {
 })
 
 const handlePrevious = () => {
+  if (isLoadingOriginal.value) return
   if (currentIndex.value > 0) {
     currentIndex.value--
+    resetImageTransform()
     updateUrlParams()
   }
 }
 
 const handleNext = () => {
+  if (isLoadingOriginal.value) return
   if (currentIndex.value < images.value.length - 1) {
     currentIndex.value++
+    resetImageTransform()
     updateUrlParams()
   }
+}
+
+const zoomIn = () => {
+  imageScale.value = Math.min(3, Number((imageScale.value + 0.25).toFixed(2)))
+}
+
+const zoomOut = () => {
+  imageScale.value = Math.max(0.5, Number((imageScale.value - 0.25).toFixed(2)))
+}
+
+const rotateImage = () => {
+  imageRotation.value = (imageRotation.value + 90) % 360
+}
+
+const resetImageTransform = () => {
+  imageScale.value = 1
+  imageRotation.value = 0
 }
 
 const updateUrlParams = () => {
@@ -73,6 +97,36 @@ const resolveCurrentDownloadUrl = async () => {
   return entry
 }
 
+const resolveCurrentOriginalViewUrl = async () => {
+  const image = currentImage.value
+  if (!image) return ''
+  const entry = image.downloadUrl || image.originalUrl || image.url
+  if (/\/api\/user\/download\/original(?:\?|$)/.test(entry) && image.id) {
+    const response = await pcApi.getOriginalDownloadBlob(image.id, {
+      skip_remote_size: 1,
+    })
+    const blob = await response.blob()
+    if (!blob.size) {
+      throw new Error('原图暂不可查看')
+    }
+    return URL.createObjectURL(blob)
+  }
+  if (/^\d+$/.test(image.id)) {
+    const response = await pcApi.getOriginalDownloadBlob(image.id, {
+      skip_remote_size: 1,
+    })
+    const blob = await response.blob()
+    if (!blob.size) {
+      throw new Error('原图暂不可查看')
+    }
+    return URL.createObjectURL(blob)
+  }
+  if (image.originalUrl && !/\/api\/user\/download\/original(?:\?|$)/.test(image.originalUrl)) {
+    return image.originalUrl
+  }
+  return image.originalUrl || image.url
+}
+
 const handleViewOriginal = async () => {
   if (!isAuthenticated.value) {
     showLoginDialog.value = true
@@ -83,14 +137,40 @@ const handleViewOriginal = async () => {
     return
   }
 
-  const url = await resolveCurrentDownloadUrl()
-  if (!url) return
-  if (url !== currentImage.value?.url) {
-    const next = [...images.value]
-    next[currentIndex.value] = { ...next[currentIndex.value], url }
-    images.value = next
+  const image = currentImage.value
+  if (!image) return
+  const targetIndex = currentIndex.value
+  const cachedUrl = loadedOriginalUrls.value[image.id]
+  if (cachedUrl) {
+    if (cachedUrl !== image.url && images.value[targetIndex]?.id === image.id) {
+      const next = [...images.value]
+      next[targetIndex] = { ...next[targetIndex], url: cachedUrl }
+      images.value = next
+    }
+    return
   }
-  isLoadingOriginal.value = false
+
+  let resolvedUrl = ''
+  try {
+    isLoadingOriginal.value = true
+    resolvedUrl = await resolveCurrentOriginalViewUrl()
+    if (!resolvedUrl) return
+    await preloadImageUrl(resolvedUrl)
+    loadedOriginalUrls.value = {
+      ...loadedOriginalUrls.value,
+      [image.id]: resolvedUrl,
+    }
+    if (resolvedUrl !== images.value[targetIndex]?.url && images.value[targetIndex]?.id === image.id) {
+      const next = [...images.value]
+      next[targetIndex] = { ...next[targetIndex], url: resolvedUrl }
+      images.value = next
+    }
+  } catch (error: any) {
+    revokeImageObjectUrl(resolvedUrl)
+    toast.error(error?.message || '原图暂不可查看')
+  } finally {
+    isLoadingOriginal.value = false
+  }
 }
 
 const handleDownload = async () => {
@@ -126,6 +206,18 @@ const handleKeyDown = (event: KeyboardEvent) => {
   } else if (event.key === 'Escape') {
     event.preventDefault()
     handleClose()
+  } else if (event.key === '+' || event.key === '=') {
+    event.preventDefault()
+    zoomIn()
+  } else if (event.key === '-' || event.key === '_') {
+    event.preventDefault()
+    zoomOut()
+  } else if (event.key.toLowerCase() === 'r') {
+    event.preventDefault()
+    rotateImage()
+  } else if (event.key === '0') {
+    event.preventDefault()
+    resetImageTransform()
   }
 }
 
@@ -179,9 +271,6 @@ onMounted(() => {
   }
 
   window.addEventListener('keydown', handleKeyDown)
-  return () => {
-    window.removeEventListener('keydown', handleKeyDown)
-  }
 })
 
 const loadCurrentUserPermission = async () => {
@@ -202,6 +291,12 @@ const handleLoginSuccess = () => {
   showLoginDialog.value = false
   loadCurrentUserPermission()
 }
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+  Object.values(loadedOriginalUrls.value).forEach(revokeImageObjectUrl)
+  loadedOriginalUrls.value = {}
+})
 </script>
 
 <template>
@@ -225,9 +320,16 @@ const handleLoginSuccess = () => {
         :total-images="currentImage.total"
         :can-go-prev="currentIndex > 0"
         :can-go-next="currentIndex < images.length - 1"
+        :is-loading-original="isLoadingOriginal"
+        :scale="imageScale"
+        :rotation="imageRotation"
         @previous="handlePrevious"
         @next="handleNext"
         @load-error="imageLoadError = true"
+        @zoom-in="zoomIn"
+        @zoom-out="zoomOut"
+        @rotate="rotateImage"
+        @reset-transform="resetImageTransform"
       />
 
       <!-- Error State -->

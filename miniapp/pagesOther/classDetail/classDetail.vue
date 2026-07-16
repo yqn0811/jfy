@@ -37,6 +37,14 @@
           />
           <text class="child-action-text">新建子分类</text>
         </view>
+        <view class="child-action-btn" @tap="openShare">
+          <image
+            class="child-action-icon"
+            src="/static/icon/分享@2x.png"
+            mode="scaleToFill"
+          />
+          <text class="child-action-text">分享分类</text>
+        </view>
         <view class="child-action-btn" @tap="openChildSort">
           <image
             class="child-action-icon"
@@ -58,27 +66,58 @@
         <view class="state-btn" @tap="retryLoad">重新加载</view>
       </view>
 
-      <view v-if="!pageError && loading" class="state-card">
-        <view class="state-loading"></view>
-        <text class="state-title">加载中</text>
-        <text class="state-desc">正在加载分类内容</text>
-      </view>
-
-      <!-- 子分类与产品网格 -->
+      <!-- 子分类与产品列表 -->
       <view class="content" v-if="!pageError && hasContent">
-        <ImageGrid
-          :list="mixedContent"
-          :columns="columns"
-          @click="handleGridItemClick"
-        >
-        </ImageGrid>
+        <view v-if="hasChildren" class="section-block">
+          <view class="section-header">
+            <view class="section-title-wrap">
+              <text class="section-emoji">📁</text>
+              <text class="section-title">子分类管理</text>
+              <text class="section-count">{{ children.length }}</text>
+            </view>
+          </view>
 
-        <!-- 当有图片但少于一行时也显示“没有更多了~” -->
-        <view
-          v-if="shouldShowLessThanMinHint"
-          class="empty-sub"
-        >
-          <text class="empty-text">没有更多了~</text>
+          <view class="manage-category-grid">
+            <view
+              class="manage-folder-cell"
+              v-for="(category, index) in children"
+              :key="getCategoryKey(category, index)"
+            >
+              <view
+                class="manage-folder-tile"
+                @tap="handleCategoryClick(category)"
+              >
+                <view class="manage-folder-icon">
+                  <view class="manage-folder-tab"></view>
+                  <view class="manage-folder-body"></view>
+                </view>
+                <text class="manage-folder-title">{{
+                  getDisplayCategoryName(category)
+                }}</text>
+                <text class="manage-folder-meta"
+                  >{{ getChildCount(category) }}个子分类</text
+                >
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view v-if="hasProducts" class="section-block product-section">
+          <view class="section-header">
+            <view class="section-title-wrap">
+              <text class="section-emoji">🧾</text>
+              <text class="section-title">产品列表</text>
+              <text class="section-count">{{ products.length }}</text>
+            </view>
+          </view>
+
+          <ImageGrid
+            :list="productContent"
+            :columns="2"
+            card-variant="class-detail"
+            @click="handleProductGridClick"
+          >
+          </ImageGrid>
         </view>
       </view>
       <!-- 无内容时的占位 -->
@@ -196,6 +235,12 @@ import {
 } from "@/common/helper/refresh.js";
 import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 import { imageUrlFor } from "@/common/helper/imageUrls.js";
+import {
+  getObjectId,
+  resolveClickedListItem,
+  showInvalidRecordToast,
+} from "@/common/helper/clickItem.js";
+import { getUserInfo } from "@/common/request/api.js";
 
 export default {
   components: { UserCard, ImageGrid, SharePopup, PersonalDetails },
@@ -207,6 +252,8 @@ export default {
         name: "",
         subtitle: "",
         serviceName: "",
+        logo: "",
+        shareImage: "",
       },
       categoryId: null,
       category: {
@@ -237,6 +284,10 @@ export default {
       shareOwnerId: "",
       lastCategoryRefreshAt: "",
       createdPreview: false,
+      directShareAccess: false,
+      defaultShareCover: "/static/icon/share-category-empty.png",
+      shareLoginPending: false,
+      hasStartedInitialLoad: false,
     };
   },
   computed: {
@@ -266,8 +317,21 @@ export default {
         })),
       ];
     },
+    productContent() {
+      return this.products.map((item) => ({
+        ...item,
+        item_type: "product",
+        nameField: item.folder_name || "未命名产品",
+        imageField: item.new_thumb || item.imageField,
+        countField: item.folder_count,
+        badgeSuffix: "张",
+      }));
+    },
     totalContentCount() {
       return this.children.length + this.products.length;
+    },
+    displayColumns() {
+      return 2;
     },
     shouldShowLessThanMinHint() {
       return this.totalContentCount > 0 && this.totalContentCount < this.minShowCount;
@@ -324,15 +388,25 @@ export default {
       return true;
     },
     shareCoverUrl() {
-      const product = this.products.find((item) => this.normalizeText(item.new_thumb));
-      const child = this.children.find((item) => {
-        const cover = this.normalizeText(item.imageField || item.new_thumb);
-        return cover && cover.indexOf("/static/") !== 0;
-      });
+      const product = this.products.find((item) =>
+        this.normalizeText(
+          item.share_image ||
+            item.new_thumb ||
+            item.imageField ||
+            item.picture_url ||
+            item.imgurl,
+        ),
+      );
       return (
-        this.normalizeText(product && product.new_thumb) ||
-        this.normalizeText(child && (child.imageField || child.new_thumb)) ||
-        ""
+        this.normalizeText(
+          product &&
+            (product.share_image ||
+              product.new_thumb ||
+              product.imageField ||
+              product.picture_url ||
+              product.imgurl),
+        ) ||
+        this.defaultShareCover
       );
     },
   },
@@ -347,8 +421,25 @@ export default {
     this.uid = this.resolveOwnerUid(options);
     this.routeShareVersion = this.normalizeShareParam(options.share_v || options.sv || "");
     this.createdPreview = !this.uid && String(options.created_preview || "") === "1";
+    this.directShareAccess = !!(
+      this.uid &&
+      (
+        this.normalizeShareParam(options.source) === "share" ||
+        this.routeShareVersion
+      )
+    );
+    this.debugShare("onLoad-options", {
+      options,
+      sceneOptions,
+      categoryId: this.categoryId,
+      uid: this.uid,
+      directShareAccess: this.directShareAccess,
+      hasToken: !!uni.getStorageSync("token"),
+      hasUserInfo: !!uni.getStorageSync("userInfo"),
+    });
     this.applyRouteCategoryOptions(options);
     if (!this.categoryId) {
+      this.debugShare("onLoad-missing-category", { options });
       this.setPageError("分类信息缺失，请返回后重试");
       return;
     }
@@ -357,16 +448,22 @@ export default {
     }
     this.shareOwnerId = this.uid;
     this.shareUrl = this.buildShareUrl();
-    if (this.uid && !ensureSharedPageLogin("pagesOther/classDetail/classDetail", options, this.uid)) {
+    if (this.directShareAccess && !ensureSharedPageLogin("pagesOther/classDetail/classDetail", options, this.uid, { strict: true })) {
+      this.shareLoginPending = true;
       return;
     }
+    this.shareLoginPending = false;
     this.initUserFromCache();
 
     // 通过 eventChannel 接收上一页面传递的数据
     const eventChannel = this.getOpenerEventChannel();
     if (eventChannel) {
       eventChannel.on("acceptDataFromOpenerPage", (data) => {
-        console.log("通过 eventChannel 接收到完整的分类数据:", data);
+        this.debugShare("eventChannel-category-data", {
+          hasData: !!(data && data.data),
+          id: data && data.data && data.data.id,
+          folderName: data && data.data && data.data.folder_name,
+        });
         if (data && data.data) {
           const classDetailData = data.data;
           this.isFavorited = classDetailData.is_collect ? true : false;
@@ -393,7 +490,14 @@ export default {
     }
 
     if (!this.createdPreview) {
-      this.loadOwnerInfo();
+      if (!this.directShareAccess) {
+        this.loadOwnerInfo();
+      }
+      this.debugShare("onLoad-start-load", {
+        createdPreview: this.createdPreview,
+        directShareAccess: this.directShareAccess,
+      });
+      this.hasStartedInitialLoad = true;
       this.loadInitialData();
     }
     const token = uni.getStorageSync("token");
@@ -406,6 +510,7 @@ export default {
   onShow() {
     if (this.createdPreview) return;
     this.syncShareMenu();
+    this.resumeShareLoadAfterLogin();
     this.consumeCategoryRefreshMarker();
   },
   onUnload() {
@@ -428,6 +533,24 @@ export default {
     };
   },
   methods: {
+    debugShare(stage, payload = {}) {
+      if (!this.uid && !this.directShareAccess) return;
+      try {
+        const logger = typeof console !== "undefined" ? console : null;
+        if (!logger || !logger.log) return;
+        logger.log("[classDetail-share-debug]", stage, {
+          categoryId: this.categoryId,
+          uid: this.uid,
+          directShareAccess: this.directShareAccess,
+          loading: this.loading,
+          pageError: this.pageError,
+          childrenCount: this.children.length,
+          productsCount: this.products.length,
+          hasContent: this.hasContent,
+          ...payload,
+        });
+      } catch (e) {}
+    },
     normalizeText(value) {
       if (value === null || value === undefined) return "";
       const text = String(value).trim();
@@ -512,6 +635,7 @@ export default {
       this.pageError = this.normalizeText(message) || "该分类暂不可访问";
       this.children = [];
       this.products = [];
+      this.debugShare("setPageError", { message: this.pageError });
     },
     clearPageError() {
       this.pageError = "";
@@ -519,17 +643,35 @@ export default {
     async loadInitialData() {
       this.loading = true;
       this.clearPageError();
+      this.debugShare("loadInitialData-start");
       try {
         if (this.uid) {
           const loaded = await this.loadPublicCategoryInfo();
+          this.debugShare("loadInitialData-public-loaded", { loaded });
           if (!loaded) return;
+          if (this.directShareAccess && this.hasContent) return;
         }
         await this.loadCategoryContent({ manageLoading: false });
       } finally {
         this.loading = false;
+        this.debugShare("loadInitialData-end");
       }
     },
     retryLoad() {
+      this.hasStartedInitialLoad = true;
+      this.loadInitialData();
+    },
+    resumeShareLoadAfterLogin() {
+      if (!this.directShareAccess || this.loading || this.hasContent) return;
+      if (this.$checkLoginStatus && !this.$checkLoginStatus()) return;
+      if (!this.shareLoginPending && this.hasStartedInitialLoad) return;
+      this.debugShare("resumeShareLoadAfterLogin", {
+        shareLoginPending: this.shareLoginPending,
+        hasStartedInitialLoad: this.hasStartedInitialLoad,
+      });
+      this.shareLoginPending = false;
+      this.hasStartedInitialLoad = true;
+      this.initUserFromCache();
       this.loadInitialData();
     },
     initUserFromCache() {
@@ -543,12 +685,21 @@ export default {
       this.applyUserInfo(info);
     },
     applyUserInfo(info = {}) {
+      const ownerId =
+        this.normalizeShareParam(info.id) ||
+        this.normalizeShareParam(info.uid) ||
+        this.normalizeShareParam(info.user_id);
+      if (!this.uid && ownerId && !this.shareOwnerId) {
+        this.shareOwnerId = ownerId;
+      }
       const avatar =
         info.company_logo ||
         info.avatar ||
         info.headimgurl ||
         info.head_url ||
         "";
+      const logo = info.company_logo || info.logo || "";
+      const shareImage = info.home_share_image || info.share_image || "";
       const name =
         info.company_name ||
         info.nickname ||
@@ -561,6 +712,8 @@ export default {
         name: name || this.user.name,
         subtitle: subtitle || this.user.subtitle,
         serviceName: this.normalizeText(info.home_service_name) || this.user.serviceName,
+        logo: logo || this.user.logo,
+        shareImage: shareImage || this.user.shareImage,
       };
       this.updateShareMeta();
     },
@@ -622,6 +775,42 @@ export default {
       const ownerId = cachedUser.id || cachedUser.uid || "";
       if (ownerId) {
         this.loadUserInfo(ownerId);
+        return;
+      }
+      this.loadCurrentUserInfo();
+    },
+    async loadCurrentUserInfo() {
+      try {
+        if (this.uid || !this.$go) return;
+        await getUserInfo();
+        const cachedUser = uni.getStorageSync("userInfo") || {};
+        const cachedOwnerId =
+          this.normalizeShareParam(cachedUser.id) ||
+          this.normalizeShareParam(cachedUser.uid) ||
+          this.normalizeShareParam(cachedUser.user_id);
+        if (cachedOwnerId) {
+          this.shareOwnerId = cachedOwnerId;
+          this.applyUserInfo(cachedUser);
+          this.shareUrl = this.buildShareUrl();
+          return;
+        }
+        const res = await this.$go("user/home/info", {}, "get", {
+          show_err: false,
+          loading: false,
+        });
+        if (res && res.code === 0 && res.data) {
+          this.applyUserInfo(res.data);
+          const ownerId =
+            this.normalizeShareParam(res.data.id) ||
+            this.normalizeShareParam(res.data.uid) ||
+            this.normalizeShareParam(res.data.user_id);
+          if (ownerId) {
+            this.shareOwnerId = ownerId;
+            this.shareUrl = this.buildShareUrl();
+          }
+        }
+      } catch (e) {
+        console.error(e);
       }
     },
     applyOwnerFromCategory(info = {}) {
@@ -657,9 +846,10 @@ export default {
         this.getShareOwnerId();
       const shareVersion = Number(this.category.share_version || 0);
       const shareVersionQuery = shareVersion ? `&share_v=${encodeURIComponent(shareVersion)}` : "";
-      return this.$buildPublicSharePath
+      const path = this.$buildPublicSharePath
         ? `${this.$buildPublicSharePath("category", this.categoryId, ownerId)}${shareVersionQuery}`
         : `/pagesOther/classDetail/classDetail?id=${this.categoryId}${ownerId ? `&uid=${ownerId}` : ""}${shareVersionQuery}`;
+      return `${path}${path.indexOf("?") === -1 ? "?" : "&"}source=share`;
     },
     getShareOwnerId() {
       return (
@@ -711,12 +901,33 @@ export default {
     async loadPublicCategoryInfo() {
       if (!this.uid || !this.categoryId || !this.$go) return false;
       try {
+        const params = {
+          target_user_id: this.uid,
+          fid: this.categoryId,
+          include_current: 1,
+          share_v: this.routeShareVersion,
+          direct_share: this.directShareAccess ? 1 : 0,
+        };
+        this.debugShare("loadPublicCategoryInfo-request", {
+          url: "user/home/categories",
+          method: "get",
+          params,
+        });
         const res = await this.$go(
           "user/home/categories",
-          { target_user_id: this.uid, fid: this.categoryId, include_current: 1, share_v: this.routeShareVersion },
+          params,
           "get",
           { show_err: false }
         );
+        this.debugShare("loadPublicCategoryInfo-response", {
+          code: res && res.code,
+          msg: res && (res.msg || res.message),
+          hasData: !!(res && res.data),
+          rawChildrenCount: this.getChildrenFromResponse(res && res.data).length,
+          rawProductsCount: this.getProductsFromResponse(res && res.data).length,
+          hasFolderInfo: !!(res && res.data && res.data.folder_info),
+          folderInfoId: res && res.data && res.data.folder_info && res.data.folder_info.id,
+        });
         if (!res || res.code !== 0) {
           this.setPageError(this.getResponseErrorMessage(res));
           return false;
@@ -736,9 +947,27 @@ export default {
           return false;
         }
         this.applyCategoryInfo(current);
+        const children = this.getChildrenFromResponse(data);
+        this.applyChildrenList(children);
+        const products = this.getProductsFromResponse(data);
+        this.products = products.map((item) => this.normalizeProductItem(item));
+        if (!this.hasContent && this.directShareAccess) {
+          await this.loadCategoryContent({ manageLoading: false });
+        }
+        if (children.length || products.length) {
+          this.clearPageError();
+        }
+        this.debugShare("loadPublicCategoryInfo-applied", {
+          childrenFromResponse: children.length,
+          productsFromResponse: products.length,
+          childrenCount: this.children.length,
+          productsCount: this.products.length,
+          hasContent: this.hasContent,
+          pageError: this.pageError,
+        });
         return true;
       } catch (e) {
-        console.error(e);
+        console.error("[classDetail-share-debug]", "loadPublicCategoryInfo-error", e);
         this.setPageError(this.getExceptionMessage(e));
         return false;
       }
@@ -828,6 +1057,14 @@ export default {
         this.clearPageError();
       }
       try {
+        if (this.uid) {
+          const productsLoaded = await this.loadProducts();
+          await this.loadChildren({ suppressPublicError: true });
+          if (productsLoaded) {
+            this.clearPageError();
+          }
+          return productsLoaded;
+        }
         const results = await Promise.all([this.loadChildren(), this.loadProducts()]);
         return results.every(Boolean);
       } finally {
@@ -836,7 +1073,7 @@ export default {
         }
       }
     },
-    async loadChildren() {
+    async loadChildren({ suppressPublicError = false } = {}) {
       try {
         if (!this.$go || !this.categoryId) {
           this.children = [];
@@ -852,16 +1089,24 @@ export default {
             target_user_id: this.uid,
             fid: this.categoryId,
             include_current: 1,
+            direct_share: this.directShareAccess ? 1 : 0,
           };
         }
         const url = this.uid ? "user/home/categories" : "album/lists/folder";
         const methods = this.uid ? "get" : "post";
+        this.debugShare("loadChildren-request", { url, method: methods, params });
         const res = await this.$go(url, params, methods, {
           show_err: !this.uid,
         });
+        this.debugShare("loadChildren-response", {
+          code: res && res.code,
+          msg: res && (res.msg || res.message),
+          rawChildrenCount: this.getChildrenFromResponse(res && res.data).length,
+          suppressPublicError,
+        });
         if (!res || res.code !== 0) {
           this.children = [];
-          if (this.uid) {
+          if (this.uid && !suppressPublicError) {
             this.setPageError(this.getResponseErrorMessage(res));
           }
           return false;
@@ -885,37 +1130,17 @@ export default {
           this.applyCategoryInfo(res.data.folder_info);
         }
 
-        const list = this.getChildrenFromResponse(res.data);
-        if (list.length) {
-          this.children = list.map((item) => {
-            const pid = Number(item.pid || this.categoryId || 0);
-            const level = Number(item.level || item.folder_level || 2);
-            const countField =
-              item.child_count ||
-              item.children_count ||
-              item.son_count ||
-              item.product_count ||
-              0;
-            return {
-              ...item,
-              pid,
-              level,
-              nameField: this.getDisplayCategoryName(item),
-              imageField:
-                imageUrlFor(item, "thumb") || item.new_thumb || item.icon || "/static/icon/folder-open@2x.png",
-              countField,
-            };
-          });
-        } else {
-          this.children = [];
-        }
+        this.applyChildrenList(this.getChildrenFromResponse(res.data));
+        this.debugShare("loadChildren-applied", { childrenCount: this.children.length });
         return true;
       } catch (e) {
-        console.error(e);
-        if (this.uid) {
+        console.error("[classDetail-share-debug]", "loadChildren-error", e);
+        if (this.uid && !suppressPublicError) {
           this.setPageError(this.getExceptionMessage(e));
         } else {
-          uni.showToast({ title: "加载分类失败", icon: "none" });
+          if (!this.uid) {
+            uni.showToast({ title: "加载分类失败", icon: "none" });
+          }
         }
         return false;
       }
@@ -935,13 +1160,22 @@ export default {
           params = {
             target_user_id: this.uid,
             cate_id: this.categoryId,
+            category_id: this.categoryId,
+            fid: this.categoryId,
+            direct_share: this.directShareAccess ? 1 : 0,
             timestamp: Date.now(),
           };
         }
         const url = this.uid ? "user/home/products" : "album/lists/folder";
         const methods = this.uid ? "get" : "post";
+        this.debugShare("loadProducts-request", { url, method: methods, params });
         const res = await this.$go(url, params, methods, {
           show_err: !this.uid,
+        });
+        this.debugShare("loadProducts-response", {
+          code: res && res.code,
+          msg: res && (res.msg || res.message),
+          rawProductsCount: this.getProductsFromResponse(res && res.data).length,
         });
         if (!res || res.code !== 0) {
           this.products = [];
@@ -952,9 +1186,10 @@ export default {
         }
         const list = this.getProductsFromResponse(res.data);
         this.products = list.map((item) => this.normalizeProductItem(item));
+        this.debugShare("loadProducts-applied", { productsCount: this.products.length });
         return true;
       } catch (e) {
-        console.error(e);
+        console.error("[classDetail-share-debug]", "loadProducts-error", e);
         if (this.uid) {
           this.setPageError(this.getExceptionMessage(e));
         } else {
@@ -977,6 +1212,31 @@ export default {
       if (Array.isArray(data.categories)) return data.categories;
       return [];
     },
+    applyChildrenList(list = []) {
+      if (!Array.isArray(list) || !list.length) {
+        this.children = [];
+        return;
+      }
+      this.children = list.map((item) => {
+        const pid = Number(item.pid || this.categoryId || 0);
+        const level = Number(item.level || item.folder_level || 2);
+        const countField =
+          item.child_count ||
+          item.children_count ||
+          item.son_count ||
+          item.product_count ||
+          0;
+        return {
+          ...item,
+          pid,
+          level,
+          nameField: this.getDisplayCategoryName(item),
+          imageField:
+            imageUrlFor(item, "thumb") || item.new_thumb || item.icon || "/static/icon/folder-open@2x.png",
+          countField,
+        };
+      });
+    },
     getProductsFromResponse(data) {
       if (!data) return [];
       if (Array.isArray(data)) return data;
@@ -988,6 +1248,10 @@ export default {
             : [];
       }
       if (Array.isArray(data.products)) return data.products;
+      if (data.products && Array.isArray(data.products.data)) return data.products.data;
+      if (data.products && Array.isArray(data.products.lists)) return data.products.lists;
+      if (data.data && Array.isArray(data.data.products)) return data.data.products;
+      if (data.data && Array.isArray(data.data.lists)) return data.data.lists;
       return [];
     },
     normalizeArray(value) {
@@ -1002,50 +1266,99 @@ export default {
         Number(item.son_count || item.pic_count || item.picture_count || 0) ||
         this.normalizeArray(item.detail_pic_ids_arr || item.detail_pic_ids).length +
           this.normalizeArray(item.pic_ids_arr || item.pic_ids).length;
+      const thumbUrl =
+        imageUrlFor(item, "thumb") ||
+        item.new_thumb ||
+        item.imageField ||
+        item.picture_url ||
+        item.imgurl ||
+        item.cover_url ||
+        item.coverUrl ||
+        "/static/image/pic.png";
+      const shareImage =
+        imageUrlFor(item, "origin") ||
+        imageUrlFor(item, "preview") ||
+        thumbUrl;
       return {
         ...item,
-        new_thumb: imageUrlFor(item, "thumb") || item.new_thumb || item.imageField || "/static/image/pic.png",
+        imageField: thumbUrl,
+        share_image: shareImage,
+        new_thumb: thumbUrl,
         folder_count: pictureCount,
       };
     },
     getDisplayCategoryName(item) {
       const name = item && this.extractCategoryName(item);
       const normalized = name ? String(name).trim() : "";
-      if (!normalized || /^-?\d+-?$/.test(normalized)) {
+      if (!normalized) {
         return "未命名子分类";
       }
       return normalized;
     },
+    getCategoryKey(category, index) {
+      return category && category.id ? category.id : `category-${index}`;
+    },
+    getChildCount(category) {
+      const count = category
+        ? category.child_count ||
+          category.children_count ||
+          category.count ||
+          category.son_count
+        : 0;
+      return Number(count) || 0;
+    },
     handleCategoryClick(data) {
       const uidQuery = this.uid ? `&uid=${this.uid}` : "";
+      const sourceQuery = this.uid && this.directShareAccess ? "&source=share" : "";
       uni.navigateTo({
-        url: `/pagesOther/classDetail/classDetail?id=${data.id}${uidQuery}`,
+        url: `/pagesOther/classDetail/classDetail?id=${data.id}${uidQuery}${sourceQuery}`,
         success: (res) => {
           res.eventChannel.emit("acceptDataFromOpenerPage", { data });
         },
       });
     },
     handleProductClick(data) {
-      if (!data || !data.id) return;
+      const productId = this.normalizeShareParam(
+        getObjectId(data, ["id", "product_id", "folder_id", "fid"]),
+      );
+      if (!data || !productId) {
+        showInvalidRecordToast("产品数据异常，请刷新后重试");
+        return;
+      }
       if (this.uid) {
+        const shareSourceQuery = this.categoryId
+          ? `&source=share&category_id=${encodeURIComponent(this.categoryId)}`
+          : "&source=share";
         uni.navigateTo({
           url: this.$buildPublicSharePath
-            ? this.$buildPublicSharePath("product", data.id, this.uid)
-            : `/pagesOther/productDetail/productDetail?id=${data.id}&uid=${this.uid}`,
+            ? `${this.$buildPublicSharePath("product", productId, this.uid)}${shareSourceQuery}`
+            : `/pagesOther/productDetail/productDetail?id=${productId}&uid=${this.uid}${shareSourceQuery}`,
         });
         return;
       }
       uni.navigateTo({
-        url: `/pagesOther/productDetailsSelf/productDetailsSelf?id=${data.id}`,
+        url: `/pagesOther/productDetailsSelf/productDetailsSelf?id=${productId}`,
       });
     },
-    handleGridItemClick(data) {
-      if (!data) return;
-      if (data.item_type === "product") {
-        this.handleProductClick(data);
+    handleGridItemClick(data, index, event) {
+      const current = resolveClickedListItem(data, index, event, this.mixedContent);
+      if (!current) {
+        showInvalidRecordToast();
         return;
       }
-      this.handleCategoryClick(data);
+      if (current.item_type === "product") {
+        this.handleProductClick(current);
+        return;
+      }
+      this.handleCategoryClick(current);
+    },
+    handleProductGridClick(data, index, event) {
+      const current = resolveClickedListItem(data, index, event, this.productContent);
+      if (!current) {
+        showInvalidRecordToast();
+        return;
+      }
+      this.handleProductClick(current);
     },
     createChildCategory() {
       if (!this.canManageChildCategory) {
@@ -1148,7 +1461,7 @@ export default {
         this.isFavorited = isFavorited;
       }
     },
-    openShare() {
+    async openShare() {
       if (!this.canShareCategory) {
         uni.showToast({ title: "该分类不允许分享", icon: "none" });
         return;
@@ -1164,6 +1477,13 @@ export default {
             }
           },
         });
+        return;
+      }
+      if (!this.getShareOwnerId()) {
+        await this.loadCurrentUserInfo();
+      }
+      if (!this.getShareOwnerId()) {
+        uni.showToast({ title: "分享信息缺失，请稍后重试", icon: "none" });
         return;
       }
       // 准备分享数据（可从后端获取小程序码或分享链接）
@@ -1267,7 +1587,6 @@ export default {
 .content {
   margin-top: 8rpx;
   padding-bottom: 180rpx;
-  /* leave space for bottom bar */
 }
 
 .empty {
@@ -1280,6 +1599,143 @@ export default {
   text-align: center;
   color: #999;
   margin-top: 10rpx;
+}
+
+.section-block {
+  margin-bottom: 34rpx;
+}
+
+.product-section {
+  margin-top: 10rpx;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58rpx;
+  margin-bottom: 16rpx;
+}
+
+.section-title-wrap {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.section-emoji {
+  width: 38rpx;
+  height: 38rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10rpx;
+  font-size: 30rpx;
+  line-height: 38rpx;
+}
+
+.section-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 44rpx;
+  color: #252b33;
+}
+
+.section-count {
+  min-width: 36rpx;
+  height: 32rpx;
+  margin-left: 12rpx;
+  padding: 0 10rpx;
+  border-radius: 32rpx;
+  background: #eef1f5;
+  color: #8a929d;
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 32rpx;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.manage-category-grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -12rpx;
+}
+
+.manage-folder-cell {
+  width: 50%;
+  padding: 0 12rpx 24rpx;
+  box-sizing: border-box;
+}
+
+.manage-folder-tile {
+  position: relative;
+  height: 164rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16rpx 14rpx 12rpx;
+  background: #ffffff;
+  border: 1rpx solid rgba(226, 229, 234, 0.9);
+  border-radius: 16rpx;
+  box-shadow: 0 8rpx 20rpx rgba(28, 35, 45, 0.035);
+  box-sizing: border-box;
+}
+
+.manage-folder-icon {
+  position: relative;
+  width: 76rpx;
+  height: 58rpx;
+  flex: 0 0 58rpx;
+}
+
+.manage-folder-tab {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 38rpx;
+  height: 17rpx;
+  border-radius: 10rpx 10rpx 4rpx 4rpx;
+  background: #ffd45a;
+}
+
+.manage-folder-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 45rpx;
+  border-radius: 12rpx;
+  background: linear-gradient(180deg, #ffc93d 0%, #f4a500 100%);
+  box-shadow: 0 7rpx 14rpx rgba(236, 156, 0, 0.14);
+}
+
+.manage-folder-title {
+  display: block;
+  width: 100%;
+  margin-top: 12rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 34rpx;
+  color: #252b33;
+}
+
+.manage-folder-meta {
+  display: block;
+  width: 100%;
+  margin-top: 4rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 23rpx;
+  line-height: 28rpx;
+  color: #8a929d;
 }
 
 .state-card {
@@ -1321,15 +1777,6 @@ export default {
   color: #333333;
   font-size: 26rpx;
   font-weight: 600;
-}
-
-.state-loading {
-  width: 52rpx;
-  height: 52rpx;
-  margin-bottom: 24rpx;
-  border-radius: 50%;
-  border: 6rpx solid #f0f0f0;
-  border-top-color: #ffd800;
 }
 
 .bottom-bar {

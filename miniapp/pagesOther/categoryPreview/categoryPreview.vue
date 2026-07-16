@@ -159,9 +159,10 @@ export default {
     },
     buildShareUrl() {
       const ownerId = this.getOwnerId();
-      return this.$buildPublicSharePath
+      const path = this.$buildPublicSharePath
         ? this.$buildPublicSharePath("category", this.categoryId, ownerId)
         : `/pagesOther/classDetail/classDetail?id=${this.categoryId}${ownerId ? `&uid=${ownerId}` : ""}`;
+      return `${path}${path.indexOf("?") === -1 ? "?" : "&"}source=share`;
     },
     updateShareMeta() {
       this.shareUrl = this.buildShareUrl();

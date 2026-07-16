@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,7 @@ import DownloadDialog from '@/components/product_detail/DownloadDialog.vue'
 import SelectionPickerDialog from '@/components/selection/SelectionPickerDialog.vue'
 import { authStore, getCurrentUserId, getUrlHomeTarget, pcApi } from '@/lib/api'
 import { isVipMember } from '@/lib/account'
-import { downloadProductImages, downloadUrl, resolveProductImageDownloadUrl } from '@/lib/download'
+import { downloadProductImages, downloadUrl, preloadImageUrl, resolveProductImageDownloadUrl, resolveProductImageOriginalViewUrl, revokeImageObjectUrl } from '@/lib/download'
 import { mapCategory, mapProduct, mapProductImagesFromDetail, normalizeHomePayload, unwrapList } from '@/lib/jfyuntu-mappers'
 import { currentRouteState } from '@/navigation'
 import type { HomeProfileData } from '@/data/HomeProfileData'
@@ -54,6 +54,10 @@ const showSelectionDialog = ref(false)
 const previewImages = ref<ProductImageData[]>([])
 const previewImageIndex = ref(0)
 const showImagePreviewDialog = ref(false)
+const loadedOriginalImageUrls = ref<Record<string, string>>({})
+const loadingOriginalImageIds = ref<Record<string, boolean>>({})
+const previewImageScale = ref(1)
+const previewImageRotation = ref(0)
 
 const isHomeFavorited = ref(false)
 let routeLoadSerial = 0
@@ -73,6 +77,41 @@ const isCurrentUserVip = computed(() => isVipMember(currentUser.value))
 const canUseOriginalImage = computed(() => isCurrentUserVip.value)
 const canDownloadProductImages = computed(() => (!!homeProfile.value?.allowSavePic || isOwnerViewingOwnHome.value) && canUseOriginalImage.value)
 const previewImage = computed(() => previewImages.value[previewImageIndex.value] || null)
+const previewImageDisplayUrl = computed(() => {
+  const image = previewImage.value
+  if (!image) return ''
+  return loadedOriginalImageUrls.value[image.id] || productImageUrl(image, 'preview')
+})
+const previewImageTransformStyle = computed(() => ({
+  transform: `scale(${previewImageScale.value}) rotate(${previewImageRotation.value}deg)`,
+}))
+const isPreviewOriginalLoading = computed(() => {
+  const image = previewImage.value
+  return !!image && !!loadingOriginalImageIds.value[image.id]
+})
+const isPreviewOriginalLoaded = computed(() => {
+  const image = previewImage.value
+  return !!image && !!loadedOriginalImageUrls.value[image.id]
+})
+const listImageUrl = (image: ProductImageData) => productImageUrl(image, 'preview')
+
+const setOriginalImageLoading = (imageId: string, loading: boolean) => {
+  loadingOriginalImageIds.value = {
+    ...loadingOriginalImageIds.value,
+    [imageId]: loading,
+  }
+  if (!loading) {
+    const next = { ...loadingOriginalImageIds.value }
+    delete next[imageId]
+    loadingOriginalImageIds.value = next
+  }
+}
+
+const clearOriginalImageCache = () => {
+  Object.values(loadedOriginalImageUrls.value).forEach(revokeImageObjectUrl)
+  loadedOriginalImageUrls.value = {}
+  loadingOriginalImageIds.value = {}
+}
 
 const getHomeTargetRef = () => ({
   targetUserId: targetUserId.value,
@@ -337,6 +376,7 @@ const resetProductDetailState = () => {
   showDownloadDialog.value = false
   showImagePreviewDialog.value = false
   showSelectionDialog.value = false
+  clearOriginalImageCache()
 }
 
 const loadHomeFromCurrentRoute = async () => {
@@ -369,6 +409,10 @@ onMounted(() => {
   requestAnimationFrame(() => {
     loadHomeFromCurrentRoute()
   })
+})
+
+onUnmounted(() => {
+  clearOriginalImageCache()
 })
 
 watch(
@@ -549,30 +593,72 @@ const handleViewImage = (index: number, type: 'colorChart' | 'detailChart') => {
   if (!images.length) return
   previewImages.value = images
   previewImageIndex.value = index
+  resetPreviewImageTransform()
   showImagePreviewDialog.value = true
 }
 
 const handlePreviewPrev = () => {
+  if (isPreviewOriginalLoading.value) return
   if (!previewImages.value.length) return
   previewImageIndex.value = (previewImageIndex.value - 1 + previewImages.value.length) % previewImages.value.length
+  resetPreviewImageTransform()
 }
 
 const handlePreviewNext = () => {
+  if (isPreviewOriginalLoading.value) return
   if (!previewImages.value.length) return
   previewImageIndex.value = (previewImageIndex.value + 1) % previewImages.value.length
+  resetPreviewImageTransform()
+}
+
+const zoomInPreviewImage = () => {
+  previewImageScale.value = Math.min(3, Number((previewImageScale.value + 0.25).toFixed(2)))
+}
+
+const zoomOutPreviewImage = () => {
+  previewImageScale.value = Math.max(0.5, Number((previewImageScale.value - 0.25).toFixed(2)))
+}
+
+const rotatePreviewImageLeft = () => {
+  previewImageRotation.value -= 90
+}
+
+const rotatePreviewImageRight = () => {
+  previewImageRotation.value += 90
+}
+
+const resetPreviewImageTransform = () => {
+  previewImageScale.value = 1
+  previewImageRotation.value = 0
 }
 
 const handleOpenOriginalImage = async () => {
-  if (!previewImage.value) return
+  const image = previewImage.value
+  if (!image) return
   if (!canUseOriginalImage.value) {
     toast.warning('开通会员后可查看原图')
     return
   }
+  if (loadedOriginalImageUrls.value[image.id] || loadingOriginalImageIds.value[image.id]) return
+
+  let resolvedUrl = ''
+  setOriginalImageLoading(image.id, true)
   try {
-    const url = await resolveProductImageDownloadUrl(previewImage.value)
-    if (url) window.open(url, '_blank')
+    resolvedUrl = await resolveProductImageOriginalViewUrl(image)
+    if (!resolvedUrl) {
+      toast.error('原图暂不可查看')
+      return
+    }
+    await preloadImageUrl(resolvedUrl)
+    loadedOriginalImageUrls.value = {
+      ...loadedOriginalImageUrls.value,
+      [image.id]: resolvedUrl,
+    }
   } catch (error: any) {
+    revokeImageObjectUrl(resolvedUrl)
     toast.error(error?.message || '原图暂不可查看')
+  } finally {
+    setOriginalImageLoading(image.id, false)
   }
 }
 
@@ -803,10 +889,12 @@ const handleLoginSuccess = () => {
                   v-for="(image, index) in selectedColorImages"
                   :key="image.id"
                   type="button"
-                  class="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted text-left transition hover:border-primary"
+                  class="group relative aspect-square overflow-hidden rounded-lg border border-border bg-card text-left transition hover:border-primary"
                   @click="handleViewImage(index, 'colorChart')"
                 >
-                  <img :src="productImageUrl(image, 'thumb')" :alt="image.name" class="h-full w-full object-cover transition group-hover:scale-[1.02]" />
+                  <div class="flex h-full w-full items-center justify-center bg-muted/40">
+                    <img :src="listImageUrl(image)" :alt="image.name" loading="lazy" class="max-h-full max-w-full object-contain transition group-hover:scale-[1.02]" />
+                  </div>
                   <span class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-8 text-sm font-medium text-white opacity-100">
                     <span class="block truncate">{{ image.name || '未命名图片' }}</span>
                   </span>
@@ -827,10 +915,12 @@ const handleLoginSuccess = () => {
                   v-for="(image, index) in visibleSelectedDetailImages"
                   :key="image.id"
                   type="button"
-                  class="group aspect-square overflow-hidden rounded-lg border border-border bg-muted text-left transition hover:border-primary"
+                  class="group aspect-square overflow-hidden rounded-lg border border-border bg-card text-left transition hover:border-primary"
                   @click="handleViewImage(index, 'detailChart')"
                 >
-                  <img :src="productImageUrl(image, 'thumb')" :alt="image.name" class="h-full w-full object-cover transition group-hover:scale-[1.02]" />
+                  <div class="flex h-full w-full items-center justify-center bg-muted/40">
+                    <img :src="listImageUrl(image)" :alt="image.name" loading="lazy" class="max-h-full max-w-full object-contain transition group-hover:scale-[1.02]" />
+                  </div>
                 </button>
               </div>
               <div v-else class="rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">
@@ -856,12 +946,12 @@ const handleLoginSuccess = () => {
             @click="handleProductClick(product.id)"
           >
             <!-- 产品封面 -->
-            <div class="relative w-full aspect-square bg-muted overflow-hidden">
+            <div class="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-muted/40">
               <FallbackImage
                 :src="product.coverUrl"
                 :candidates="product.coverUrlCandidates"
                 :alt="product.name"
-                class="w-full h-full object-cover"
+                class="max-h-full max-w-full object-contain"
               >
                 <div class="flex h-full w-full items-center justify-center bg-muted">
                   <SafeIcon name="Image" :size="36" class="text-muted-foreground/60" />
@@ -936,49 +1026,123 @@ const handleLoginSuccess = () => {
     />
 
     <Dialog :open="showImagePreviewDialog" @update:open="showImagePreviewDialog = $event">
-      <DialogContent class="flex max-h-[92vh] max-w-[92vw] flex-col overflow-hidden p-0 sm:max-w-[960px]">
-        <DialogHeader class="border-b border-border px-5 py-4">
+      <DialogContent class="flex h-[92vh] max-h-[92vh] max-w-[92vw] flex-col overflow-hidden p-0 sm:max-w-[960px]">
+        <DialogHeader class="relative z-30 shrink-0 border-b border-border bg-background px-5 py-4">
           <DialogTitle class="truncate text-base">
             {{ previewImage?.name || '图片预览' }}
           </DialogTitle>
         </DialogHeader>
 
-        <div class="relative flex min-h-0 flex-1 items-center justify-center bg-muted/40 p-4">
+        <div class="relative min-h-[360px] flex-1 overflow-hidden bg-muted/40 p-4">
+          <div class="absolute inset-4 flex items-center justify-center overflow-hidden">
+            <img
+              v-if="previewImage"
+              :src="previewImageDisplayUrl"
+              :alt="previewImage.name"
+              class="max-h-full max-w-full rounded-md object-contain transition-[opacity,transform] duration-200"
+              :class="isPreviewOriginalLoading ? 'opacity-45' : 'opacity-100'"
+              :style="previewImageTransformStyle"
+              draggable="false"
+              @contextmenu.prevent
+            />
+          </div>
           <Button
             v-if="previewImages.length > 1"
             variant="outline"
             size="sm"
-            class="absolute left-4 top-1/2 z-10 h-10 w-10 -translate-y-1/2 rounded-full p-0"
+            class="absolute left-4 top-1/2 z-20 h-10 w-10 -translate-y-1/2 rounded-full p-0"
+            :disabled="isPreviewOriginalLoading"
             @click="handlePreviewPrev"
           >
             <SafeIcon name="ChevronLeft" :size="18" />
           </Button>
-          <img
+          <div
             v-if="previewImage"
-            :src="productImageUrl(previewImage, 'preview')"
-            :alt="previewImage.name"
-            class="max-h-[70vh] max-w-full rounded-md object-contain"
-          />
+            class="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-background/90 p-1.5 text-foreground shadow-lg ring-1 ring-border backdrop-blur-sm"
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading || previewImageScale <= 0.5"
+              @click="zoomOutPreviewImage"
+            >
+              <SafeIcon name="ZoomOut" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading || previewImageScale >= 3"
+              @click="zoomInPreviewImage"
+            >
+              <SafeIcon name="ZoomIn" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading"
+              @click="rotatePreviewImageLeft"
+            >
+              <SafeIcon name="RotateCcw" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading"
+              @click="rotatePreviewImageRight"
+            >
+              <SafeIcon name="RotateCw" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading"
+              @click="resetPreviewImageTransform"
+            >
+              <SafeIcon name="RefreshCcw" :size="18" />
+            </Button>
+          </div>
+          <div
+            v-if="isPreviewOriginalLoading"
+            class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/70 text-sm text-foreground backdrop-blur-sm"
+          >
+            <SafeIcon name="Loader2" :size="28" class="animate-spin text-primary" />
+            <span>正在加载原图...</span>
+          </div>
           <Button
             v-if="previewImages.length > 1"
             variant="outline"
             size="sm"
-            class="absolute right-4 top-1/2 z-10 h-10 w-10 -translate-y-1/2 rounded-full p-0"
+            class="absolute right-4 top-1/2 z-20 h-10 w-10 -translate-y-1/2 rounded-full p-0"
+            :disabled="isPreviewOriginalLoading"
             @click="handlePreviewNext"
           >
             <SafeIcon name="ChevronRight" :size="18" />
           </Button>
         </div>
 
-        <DialogFooter class="border-t border-border px-5 py-4">
+        <DialogFooter class="relative z-30 shrink-0 border-t border-border bg-background px-5 py-4">
           <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span class="text-sm text-muted-foreground">
               {{ previewImages.length ? `${previewImageIndex + 1} / ${previewImages.length}` : '' }}
             </span>
             <div class="flex gap-2">
-              <Button variant="outline" class="gap-2" @click="handleOpenOriginalImage">
-                <SafeIcon name="ExternalLink" :size="16" />
-                查看原图
+              <Button
+                variant="outline"
+                class="gap-2"
+                :disabled="isPreviewOriginalLoading || isPreviewOriginalLoaded"
+                @click="handleOpenOriginalImage"
+              >
+                <SafeIcon
+                  :name="isPreviewOriginalLoading ? 'Loader2' : isPreviewOriginalLoaded ? 'Check' : 'ExternalLink'"
+                  :size="16"
+                  :class="isPreviewOriginalLoading ? 'animate-spin' : ''"
+                />
+                {{ isPreviewOriginalLoading ? '加载中...' : isPreviewOriginalLoaded ? '已加载原图' : '查看原图' }}
               </Button>
               <Button
                 variant="default"

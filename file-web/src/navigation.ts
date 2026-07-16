@@ -1,4 +1,5 @@
 import { computed, reactive } from 'vue'
+import { toast } from 'vue-sonner'
 import { authStore } from '@/lib/apiClient'
 import { cleanupLegacyDemoData } from '@/data/legacyDemoCleanup'
 
@@ -27,10 +28,17 @@ const getLocationState = (): AppRouteState => ({
 const consumeLoginTokenFromLocation = () => {
   const search = new URLSearchParams(window.location.search)
   const token = search.get('token')
-  if (!token) return
-  authStore.setToken(token)
+  const loginResult = search.get('login')
+  if (!token && loginResult !== 'failed') return
+  if (token) {
+    authStore.setToken(token)
+    toast.success('登录成功')
+  } else {
+    toast.error('登录失败，请重试')
+  }
   search.delete('token')
   search.delete('login')
+  search.delete('error')
   const query = search.toString()
   window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
 }

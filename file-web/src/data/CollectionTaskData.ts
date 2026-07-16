@@ -14,6 +14,7 @@ export interface CollectionTaskData {
   updatedAt: string
   archivedAt?: string | null
   ownerId: string
+  accessCodeRequired?: boolean
 }
 
 export interface CollectionTaskDraftData {

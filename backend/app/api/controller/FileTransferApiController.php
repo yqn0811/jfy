@@ -2,11 +2,14 @@
 
 namespace app\api\controller;
 
+use app\common\service\CorsOriginService;
 use app\common\service\file\FileTransferService;
 use think\App;
 
 class FileTransferApiController extends ApiBaseController
 {
+    const ATTACHMENT_ONLY_EXTENSIONS = 'php,phtml,phar,php3,php4,php5,asp,aspx,jsp,jspx,exe,dll,bat,cmd,com,msi,sh,bash,zsh,ps1,vbs,js,mjs,jar,war,ear,htaccess,htpasswd,html,htm,svg,swf,scr,lnk,reg,apk,ipa,dmg,pkg,deb,rpm';
+
     private $file_service;
 
     public function __construct(App $app)
@@ -33,6 +36,10 @@ class FileTransferApiController extends ApiBaseController
             ['status', 'uploaded'],
             ['preview_url', ''],
             ['previewUrl', ''],
+            ['upload_signature', ''],
+            ['uploadSignature', ''],
+            ['upload_expires_at', 0],
+            ['uploadExpiresAt', 0],
             ['transfer_token', ''],
             ['transferToken', ''],
             ['sso_subject', ''],
@@ -40,7 +47,33 @@ class FileTransferApiController extends ApiBaseController
         ], false, false);
         $param = $this->normalizeFileParam($param, $this->request->post());
 
-        $this->result($this->file_service->registerFile($param, (int)request()->userID()), 0, '登记成功');
+        $this->result($this->file_service->registerFile($param, $this->getOptionalUserId()), 0, '登记成功');
+    }
+
+    public function directUploadPolicy()
+    {
+        $param = $this->request->postMore([
+            ['original_name', ''],
+            ['originalName', ''],
+            ['storage_provider', ''],
+            ['storageProvider', ''],
+            ['mime_type', ''],
+            ['mimeType', ''],
+            ['size_bytes', 0],
+            ['sizeBytes', 0],
+            ['transfer_token', ''],
+            ['transferToken', ''],
+            ['sso_subject', ''],
+            ['ssoSubject', ''],
+        ], false, false);
+        $param = $this->normalizeFileParam($param, $this->request->post());
+
+        $this->result($this->file_service->makeDirectUploadPolicy($param, $this->getOptionalUserId()), 0, '获取成功');
+    }
+
+    public function uploadHealth()
+    {
+        $this->result($this->file_service->uploadHealth(), 0, '获取成功');
     }
 
     public function uploadFiles()
@@ -60,6 +93,8 @@ class FileTransferApiController extends ApiBaseController
             [['file_ids', 'a'], []],
             [['fileIds', 'a'], []],
             ['password', ''],
+            ['pickup_code', ''],
+            ['pickupCode', ''],
             ['expires_at', ''],
             ['expiresAt', ''],
             ['max_downloads', 0],
@@ -109,6 +144,21 @@ class FileTransferApiController extends ApiBaseController
         }
 
         $this->result($this->file_service->getShareByCode($param['code'], true, $param['password']));
+    }
+
+    public function getShareByPickupCode()
+    {
+        $param = $this->request->getMore([
+            ['code', ''],
+            ['pickup_code', ''],
+            ['pickupCode', ''],
+        ], false, false);
+        $pickupCode = $this->pickFirst($param, ['pickup_code', 'pickupCode', 'code']);
+        if ($pickupCode === '') {
+            throwError('请输入取件码');
+        }
+
+        $this->result($this->file_service->getShareByPickupCode($pickupCode));
     }
 
     public function verifySharePassword()
@@ -173,7 +223,7 @@ class FileTransferApiController extends ApiBaseController
 
         $download = $this->file_service->getOwnerDownloadFile($fileId, (int)request()->userID());
 
-        return download($download['path'], $download['download_name']);
+        $this->streamFile($download['path'], $download['download_name'], $download['mime_type'] ?? '');
     }
 
     public function downloadSharedFile()
@@ -185,14 +235,17 @@ class FileTransferApiController extends ApiBaseController
             ['share_code', ''],
             ['shareCode', ''],
             ['password', ''],
+            ['pickup_code', ''],
+            ['pickupCode', ''],
             ['preview', 0],
         ], false, false);
         $fileId = (int)($param['file_id'] ?: $param['fileId']);
         $code = $this->pickFirst($param, ['code', 'share_code', 'shareCode']);
+        $pickupCode = $this->pickFirst($param, ['pickup_code', 'pickupCode']);
 
-        $download = $this->file_service->getSharedDownloadFile($fileId, $code, $param['password'], !empty($param['preview']));
+        $download = $this->file_service->getSharedDownloadFile($fileId, $code, $param['password'], !empty($param['preview']), $pickupCode);
 
-        return download($download['path'], $download['download_name']);
+        $this->streamFile($download['path'], $download['download_name'], $download['mime_type'] ?? '');
     }
 
     private function normalizeFileParam(array $param, array $raw = [])
@@ -204,6 +257,8 @@ class FileTransferApiController extends ApiBaseController
             'mimeType' => 'mime_type',
             'sizeBytes' => 'size_bytes',
             'previewUrl' => 'preview_url',
+            'uploadSignature' => 'upload_signature',
+            'uploadExpiresAt' => 'upload_expires_at',
             'transferToken' => 'transfer_token',
             'ssoSubject' => 'sso_subject',
         ];
@@ -221,6 +276,7 @@ class FileTransferApiController extends ApiBaseController
     {
         $map = [
             'fileIds' => 'file_ids',
+            'pickupCode' => 'pickup_code',
             'expiresAt' => 'expires_at',
             'maxDownloads' => 'max_downloads',
             'allowPreview' => 'allow_preview',
@@ -235,6 +291,7 @@ class FileTransferApiController extends ApiBaseController
                 $param[$to] = $param[$from];
             }
         }
+        $param['pickup_code'] = $this->pickFirst($param, ['pickup_code', 'pickupCode', 'password']);
         return $param;
     }
 
@@ -276,5 +333,55 @@ class FileTransferApiController extends ApiBaseController
     private function isBlankValue($value)
     {
         return $value === null || $value === '';
+    }
+
+    private function streamFile($filePath, $filename, $mimeType = '')
+    {
+        if (!is_file($filePath)) {
+            throwError('文件不存在或已失效');
+        }
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        $origin = CorsOriginService::resolveAllowedOrigin((string)$this->request->header('origin', ''));
+        $filename = (string)$filename;
+        $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
+        if ($fallbackName === '') {
+            $fallbackName = 'download';
+        }
+        $mimeType = trim((string)$mimeType);
+        if ($mimeType === '' || preg_match('/[\r\n]/', $mimeType)) {
+            $mimeType = 'application/octet-stream';
+        }
+        if ($this->isAttachmentOnlyFile($filename)) {
+            $mimeType = 'application/octet-stream';
+        }
+
+        if ($origin !== '') {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
+            header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        }
+        header('Vary: Origin');
+        header('X-Content-Type-Options: nosniff');
+        header('Content-Type: ' . $mimeType);
+        header('Content-Length: ' . filesize($filePath));
+        header('Content-Disposition: attachment; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
+        header('Cache-Control: private, max-age=0, no-cache');
+        readfile($filePath);
+        exit;
+    }
+
+    private function isAttachmentOnlyFile(string $filename): bool
+    {
+        $extension = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
+        if ($extension === '') {
+            return false;
+        }
+        $extensions = array_filter(array_map(function ($item) {
+            return strtolower(trim((string)$item, " \t\n\r\0\x0B."));
+        }, explode(',', self::ATTACHMENT_ONLY_EXTENSIONS)));
+        return in_array($extension, $extensions, true);
     }
 }

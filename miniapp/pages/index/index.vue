@@ -322,11 +322,11 @@ export default {
       this.homeId = optionUid;
       this.previewMode = true;
     }
-    this.shareUrl = this.buildHomeSharePath();
-    if (this.previewMode && !ensureSharedPageLogin("pages/index/index", options, this.uid)) {
+    if (this.redirectSceneTarget(options)) {
       return;
     }
-    if (this.redirectSceneTarget(options)) {
+    this.shareUrl = this.buildHomeSharePath();
+    if (this.previewMode && !ensureSharedPageLogin("pages/index/index", options, this.uid)) {
       return;
     }
     this.getUserInfo();
@@ -434,10 +434,16 @@ export default {
             ? this.$buildPublicSharePath(type, id, uid)
             : `/pages/index/index?uid=${encodeURIComponent(uid)}`;
       const shareVersion = this.normalizeShareParam(options.share_v || options.sv || "");
-      const targetPath =
-        type === "category" && shareVersion
-          ? `${path}${path.indexOf("?") === -1 ? "?" : "&"}share_v=${encodeURIComponent(shareVersion)}`
-          : path;
+      const query = [];
+      if (type === "category" && shareVersion) {
+        query.push(`share_v=${encodeURIComponent(shareVersion)}`);
+      }
+      if (type === "category" || type === "product" || type === "selection") {
+        query.push("source=share");
+      }
+      const targetPath = query.length
+        ? `${path}${path.indexOf("?") === -1 ? "?" : "&"}${query.join("&")}`
+        : path;
       uni.redirectTo({ url: targetPath });
       return true;
     },

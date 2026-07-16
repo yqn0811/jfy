@@ -97,7 +97,11 @@ const toBoolean = (value: unknown, fallback = false) => {
 const toIsoLike = (value: unknown) => {
   const raw = toStringValue(value)
   if (!raw) return ''
-  const date = new Date(raw.replace(' ', 'T'))
+  const normalized = raw
+    .replace(' ', 'T')
+    .replace(/([+-]\d{2})$/, '$1:00')
+    .replace(/([+-]\d{2})(\d{2})$/, '$1:$2')
+  const date = new Date(normalized)
   return Number.isNaN(date.getTime()) ? raw : date.toISOString()
 }
 

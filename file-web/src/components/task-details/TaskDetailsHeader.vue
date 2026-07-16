@@ -16,10 +16,12 @@ import SafeIcon from '@/components/common/SafeIcon.vue'
 interface Props {
   task: CollectionTaskData
   isArchiving?: boolean
+  ownerActionsEnabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isArchiving: false,
+  ownerActionsEnabled: true,
 })
 
 const emit = defineEmits<{
@@ -89,7 +91,7 @@ const handleArchiveClick = () => {
                 <SafeIcon name="Copy" :size="16" />
                 <span>复制收集链接</span>
               </DropdownMenuItem>
-              <DropdownMenuItem @click="emit('show-qrcode')" class="gap-2">
+              <DropdownMenuItem v-if="props.ownerActionsEnabled" @click="emit('show-qrcode')" class="gap-2">
                 <SafeIcon name="QrCode" :size="16" />
                 <span>查看二维码</span>
               </DropdownMenuItem>
@@ -97,9 +99,9 @@ const handleArchiveClick = () => {
                 <SafeIcon name="Eye" :size="16" />
                 <span>预览提交页</span>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator v-if="props.ownerActionsEnabled" />
               <DropdownMenuItem 
-                v-if="task.status !== 'archived'"
+                v-if="props.ownerActionsEnabled && task.status !== 'archived'"
                 @click="handleArchiveClick" 
                 :disabled="isArchiving"
                 class="gap-2 text-destructive focus:text-destructive"

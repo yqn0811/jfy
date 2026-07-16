@@ -278,7 +278,7 @@ class UserService extends BaseService
         return $codes[$uid];
     }
 
-    public function getHomeCategories($targetUserId, $visitorUid = 0, $fid = 0, $includeCurrent = 0, $shareVersion = null)
+    public function getHomeCategories($targetUserId, $visitorUid = 0, $fid = 0, $includeCurrent = 0, $shareVersion = null, $directShare = false)
     {
         $user = WdXcxUser::find($targetUserId);
         if (!$user || !$user->is_show_home) {
@@ -305,14 +305,21 @@ class UserService extends BaseService
         $categories = WdXcxAlbumFolder::where('uid', $targetUserId)
             ->where('folder_type', 1)
             ->where('pid', (int)$fid)
-            ->when(!$is_owner, function($query) use ($shared_ids) {
-                $query->where(function($q) use ($shared_ids){
+            ->when(!$is_owner, function($query) use ($shared_ids, $fid) {
+                $query->where(function($q) use ($shared_ids, $fid){
                     $q->where('private_type', 1)
                       ->whereOr(function($q2) use ($shared_ids){
                           if (!empty($shared_ids)) {
                               $q2->where('private_type', 4)->whereIn('id', $shared_ids);
                           } else {
                               $q2->whereRaw('0');
+                          }
+                      })
+                      ->whereOr(function($q3) use ($fid){
+                          if ((int)$fid > 0) {
+                              $q3->where('private_type', 4)->where('pid', (int)$fid);
+                          } else {
+                              $q3->whereRaw('0');
                           }
                       });
                 });
@@ -344,15 +351,17 @@ class UserService extends BaseService
             if ($shareVersion !== null && $shareVersion !== '' && (int)$shareVersion !== AlbumService::getFolderShareVersion($fid)) {
                 throwError('分享链接已失效，请让分享者重新发送');
             }
-            $folderInfo->product_count = $this->getVisibleCategoryProductCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids);
-            $folderInfo->child_count = $this->getVisibleCategoryChildCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids);
+            $folderInfo->product_count = $this->getVisibleCategoryProductCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids, (int)$folderInfo->id);
+            $folderInfo->child_count = $this->getVisibleCategoryChildCount($folderInfo->id, $targetUserId, $is_owner, $shared_ids, (int)$folderInfo->id);
             $folderInfo->son_count = $folderInfo->child_count;
             $folderInfo->level = $folderInfo->FolderLeval;
             $folderInfo->is_collect = in_array($folderInfo->id, $collected_ids) ? 1 : 0;
             $folderInfo->share_version = AlbumService::getFolderShareVersion($folderInfo->id);
+            $products = $this->getHomeProducts($targetUserId, $visitorUid, $folderInfo->id, $directShare);
             return [
                 'lists' => $categories,
                 'folder_info' => $folderInfo,
+                'products' => $products,
                 'user_info' => [
                     'id' => $user->id,
                     'uid' => $user->id,
@@ -370,18 +379,25 @@ class UserService extends BaseService
         return $categories;
     }
 
-    private function applyVisibleCategoryScope($query, $isOwner, $sharedIds)
+    private function applyVisibleCategoryScope($query, $isOwner, $sharedIds, $directSharedParentId = 0)
     {
         if ($isOwner) {
             return $query;
         }
-        return $query->where(function($q) use ($sharedIds){
+        return $query->where(function($q) use ($sharedIds, $directSharedParentId){
             $q->where('private_type', 1)
               ->whereOr(function($q2) use ($sharedIds){
                   if (!empty($sharedIds)) {
                       $q2->where('private_type', 4)->whereIn('id', $sharedIds);
                   } else {
                       $q2->whereRaw('0');
+                  }
+              })
+              ->whereOr(function($q3) use ($directSharedParentId){
+                  if ((int)$directSharedParentId > 0) {
+                      $q3->where('private_type', 4)->where('pid', (int)$directSharedParentId);
+                  } else {
+                      $q3->whereRaw('0');
                   }
               });
         });
@@ -395,6 +411,9 @@ class UserService extends BaseService
             $isOwner = ($visitorUid === $ownerUid && $visitorUid !== 0);
         }
         if ($isOwner) {
+            return;
+        }
+        if ($allowAnonymousPreview) {
             return;
         }
         if (!$visitorUid) {
@@ -427,15 +446,15 @@ class UserService extends BaseService
         throwError('此分类未公开或仅分享可见，请通过分享链接访问');
     }
 
-    private function getVisibleCategoryChildCount($categoryId, $targetUserId, $isOwner, $sharedIds)
+    private function getVisibleCategoryChildCount($categoryId, $targetUserId, $isOwner, $sharedIds, $directSharedParentId = 0)
     {
         $query = WdXcxAlbumFolder::where('uid', $targetUserId)
             ->where('folder_type', 1)
             ->where('pid', $categoryId);
-        return $this->applyVisibleCategoryScope($query, $isOwner, $sharedIds)->count();
+        return $this->applyVisibleCategoryScope($query, $isOwner, $sharedIds, $directSharedParentId)->count();
     }
 
-    private function getVisibleCategoryProductCount($categoryId, $targetUserId, $isOwner, $sharedIds)
+    private function getVisibleCategoryProductCount($categoryId, $targetUserId, $isOwner, $sharedIds, $directSharedCategoryId = 0)
     {
         $boundIds = WdXcxProductCategoryBind::where('category_id', (int)$categoryId)
             ->where('userid', (int)$targetUserId)
@@ -455,13 +474,24 @@ class UserService extends BaseService
         if ($isOwner) {
             return $query->count();
         }
-        return $query->where(function($q) use ($sharedIds){
+        $directShareProductIds = [];
+        if ((int)$directSharedCategoryId === (int)$categoryId) {
+            $directShareProductIds = $productIds;
+        }
+        return $query->where(function($q) use ($sharedIds, $directShareProductIds){
             $q->where('private_type', 1)
               ->whereOr(function($q2) use ($sharedIds){
                   if (!empty($sharedIds)) {
                       $q2->where('private_type', 4)->whereIn('id', $sharedIds);
                   } else {
                       $q2->whereRaw('0');
+                  }
+              })
+              ->whereOr(function($q3) use ($directShareProductIds){
+                  if (!empty($directShareProductIds)) {
+                      $q3->whereIn('id', $directShareProductIds);
+                  } else {
+                      $q3->whereRaw('0');
                   }
               });
         })->count();
@@ -576,7 +606,7 @@ class UserService extends BaseService
         }
     }
 
-    public function getHomeProducts($targetUserId, $visitorUid = 0, $cateId = 0)
+    public function getHomeProducts($targetUserId, $visitorUid = 0, $cateId = 0, $directShare = false)
     {
         AlbumService::ensureProductStatusColumns();
         $user = WdXcxUser::find($targetUserId);
@@ -605,7 +635,7 @@ class UserService extends BaseService
             ->where('folder_type', 2);
 
         if ($cateId) {
-            $this->assertVisibleCategory($cateId, $targetUserId, $is_owner, $shared_ids, true);
+            $this->assertVisibleCategory($cateId, $targetUserId, $is_owner, $shared_ids, $directShare);
             $bound_ids = \app\common\model\album\WdXcxProductCategoryBind::where('category_id', $cateId)->column('product_id');
             $direct_ids = \app\common\model\album\WdXcxAlbumFolder::where('pid', $cateId)
                 ->where('folder_type', 2)
@@ -616,16 +646,26 @@ class UserService extends BaseService
             }
             $query = $query->whereIn('id', $all_ids);
         }
+        $directShareProductIds = ($directShare && !$is_owner && $cateId && !empty($all_ids))
+            ? array_values(array_unique(array_map('intval', $all_ids)))
+            : [];
 
         $products = $query
-            ->when(!$is_owner, function($query) use ($shared_ids) {
-                $query->where(function($q) use ($shared_ids){
+            ->when(!$is_owner, function($query) use ($shared_ids, $directShareProductIds) {
+                $query->where(function($q) use ($shared_ids, $directShareProductIds){
                     $q->where('private_type', 1)
                       ->whereOr(function($q2) use ($shared_ids){
                           if (!empty($shared_ids)) {
                               $q2->where('private_type', 4)->whereIn('id', $shared_ids);
                           } else {
                               $q2->whereRaw('0');
+                          }
+                      })
+                      ->whereOr(function($q3) use ($directShareProductIds){
+                          if (!empty($directShareProductIds)) {
+                              $q3->whereIn('id', $directShareProductIds);
+                          } else {
+                              $q3->whereRaw('0');
                           }
                       });
                 });
@@ -657,7 +697,29 @@ class UserService extends BaseService
         return $products;
     }
 
-    public function getHomeProductsDetails($targetUserId, $productId, $visitorUid = 0)
+    private function isProductInCategory($productId, $categoryId, $targetUserId)
+    {
+        $productId = (int)$productId;
+        $categoryId = (int)$categoryId;
+        $targetUserId = (int)$targetUserId;
+        if ($productId <= 0 || $categoryId <= 0 || $targetUserId <= 0) {
+            return false;
+        }
+        $bound = WdXcxProductCategoryBind::where('category_id', $categoryId)
+            ->where('product_id', $productId)
+            ->where('userid', $targetUserId)
+            ->find();
+        if ($bound) {
+            return true;
+        }
+        return (bool)WdXcxAlbumFolder::where('id', $productId)
+            ->where('uid', $targetUserId)
+            ->where('folder_type', 2)
+            ->where('pid', $categoryId)
+            ->find();
+    }
+
+    public function getHomeProductsDetails($targetUserId, $productId, $visitorUid = 0, $directShare = false, $cateId = 0)
     {
         $user = WdXcxUser::find($targetUserId);
         if (!$user || !$user->is_show_home) {
@@ -683,14 +745,19 @@ class UserService extends BaseService
             }
         }
 
-        if (!$is_owner) {
+        $isDirectSharedProduct = !$is_owner
+            && $directShare
+            && $cateId
+            && $this->isProductInCategory($productId, $cateId, $targetUserId);
+
+        if (!$is_owner && !$isDirectSharedProduct) {
             if ($product->private_type == 2) {
                 throwError('此内容为私有，请勿访问');
             }
         }
 
         $albumService = new AlbumService($this->app);
-        $detail = $albumService->getProductDetail($productId, $visitorUid);
+        $detail = $albumService->getProductDetail($productId, $visitorUid, $isDirectSharedProduct);
         $detail->user_info = [
             'id' => (int)$user->id,
             'uid' => (int)$user->id,
@@ -1245,6 +1312,10 @@ class UserService extends BaseService
 
         $parts = parse_url($path);
         $pagePath = isset($parts['path']) && $parts['path'] !== '' ? ltrim($parts['path'], '/') : 'pages/index/index';
+        $pagePath = preg_replace('/\.html$/i', '', $pagePath);
+        if ($pagePath === '') {
+            $pagePath = 'pages/index/index';
+        }
         $params = [];
         if (!empty($parts['query'])) {
             parse_str($parts['query'], $params);
@@ -1274,6 +1345,7 @@ class UserService extends BaseService
         if ($type !== 'home' && $id) {
             $params['type'] = (string)$type;
             $params['id'] = (string)$id;
+            $params['source'] = 'share';
             if ($type === 'category') {
                 $params['share_v'] = (string)AlbumService::getFolderShareVersion($id);
             }

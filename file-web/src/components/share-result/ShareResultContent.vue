@@ -14,6 +14,7 @@ import { navigateTo } from '@/navigation'
 const currentShare = ref<FileShareVO | null>(null)
 const shareId = ref('')
 const shareCode = ref('')
+const pickupCode = ref('')
 const accessPassword = ref('')
 const isReceiverMode = ref(false)
 const receiverVerified = ref(false)
@@ -21,6 +22,8 @@ const isLoadingShare = ref(true)
 const isVerifyingPassword = ref(false)
 const qrcodeImage = ref('')
 const isQrcodeLoading = ref(false)
+
+const PICKUP_CODE_PATTERN = /^[A-Za-z0-9]{4}$/
 
 const createReceiverGateShare = (code: string): FileTransferShareVO => ({
   id: code,
@@ -47,8 +50,22 @@ onMounted(async () => {
   const params = new URLSearchParams(window.location.search)
   const paramShareId = params.get('shareId') || ''
   const paramShareCode = params.get('shareCode') || params.get('code') || ''
+  const paramPickupCode = params.get('pickupCode') || params.get('pickup_code') || params.get('pickup') || ''
 
   try {
+    if (paramPickupCode) {
+      isReceiverMode.value = true
+      pickupCode.value = paramPickupCode
+      accessPassword.value = paramPickupCode
+      const share = await FileTransferApi.getShareByPickupCode(paramPickupCode)
+      currentShare.value = share
+      shareId.value = share.id
+      shareCode.value = share.shareCode
+      pickupCode.value = share.pickupCode || paramPickupCode
+      receiverVerified.value = true
+      return
+    }
+
     if (paramShareCode) {
       isReceiverMode.value = !paramShareId
       shareCode.value = paramShareCode
@@ -126,6 +143,33 @@ const expiresText = computed(() => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 })
 
+const downloadLimitText = computed(() => {
+  const share = currentShare.value
+  if (!share?.maxDownloads) return '不限次数'
+  return `${share.downloadCount}/${share.maxDownloads} 次`
+})
+
+const receiverStatusText = computed(() => {
+  if (isExpired.value) return '分享已过期'
+  if (!receiverVerified.value) return '等待输入取件码'
+  return '取件码已验证'
+})
+
+const receiverExpiresText = computed(() => {
+  return receiverVerified.value ? expiresText.value : '验证后显示'
+})
+
+const receiverMetaItems = computed(() => {
+  const share = currentShare.value
+  if (!share) return []
+  return [
+    { label: '文件数量', value: `${share.fileCount} 个` },
+    { label: '总大小', value: formatFileSize(share.totalSizeMb) },
+    { label: '已下载', value: `${share.downloadCount} 次` },
+    { label: '下载限制', value: downloadLimitText.value },
+  ]
+})
+
 const receiverNeedsPassword = computed(() => Boolean(isReceiverMode.value && currentShare.value && !receiverVerified.value))
 
 const canShowReceiverFiles = computed(() => {
@@ -139,6 +183,8 @@ const shareLink = computed(() => {
 })
 
 const formatFileSize = (mb: number) => {
+  if (mb > 0 && mb < 1 / 1024) return `${Math.max(1, Math.round(mb * 1024 * 1024))} B`
+  if (mb > 0 && mb < 1) return `${Math.max(1, Math.round(mb * 1024))} KB`
   if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`
   return `${mb.toFixed(2)} MB`
 }
@@ -159,8 +205,8 @@ const formatDate = (dateString: string) => {
 const handleVerifyPassword = async () => {
   if (!shareCode.value) return
   const password = accessPassword.value.trim()
-  if (!password) {
-    toast.error('请输入访问密码')
+  if (!PICKUP_CODE_PATTERN.test(password)) {
+    toast.error('取件码需为 4 位大小写英文或数字')
     return
   }
 
@@ -169,10 +215,11 @@ const handleVerifyPassword = async () => {
     const share = await FileTransferApi.verifySharePassword(shareCode.value, password)
     currentShare.value = share
     accessPassword.value = password
+    pickupCode.value = share.pickupCode || password
     receiverVerified.value = true
-    toast.success('密码验证通过')
+    toast.success('取件码验证通过')
   } catch (error) {
-    toast.error(getApiErrorMessage(error, '访问密码不正确'))
+    toast.error(getApiErrorMessage(error, '取件码不正确'))
   } finally {
     isVerifyingPassword.value = false
   }
@@ -180,7 +227,15 @@ const handleVerifyPassword = async () => {
 
 const getFileDownloadUrl = (fileId: string) => {
   if (shareCode.value) {
-    return FileTransferApi.getSharedDownloadUrl(fileId, shareCode.value, accessPassword.value || getRememberedSharePassword(shareCode.value))
+    return FileTransferApi.getSharedDownloadUrl(
+      fileId,
+      shareCode.value,
+      accessPassword.value || getRememberedSharePassword(shareCode.value),
+      pickupCode.value
+    )
+  }
+  if (pickupCode.value) {
+    return FileTransferApi.getSharedDownloadUrl(fileId, '', '', pickupCode.value)
   }
   return FileTransferApi.getOwnerDownloadUrl(fileId)
 }
@@ -219,8 +274,8 @@ const handleCopyLink = () => {
   copyText(shareLink.value, '链接已复制')
 }
 
-const handleCopyPassword = () => {
-  copyText(currentShare.value?.password || accessPassword.value, '访问密码已复制')
+const handleCopyPickupCode = () => {
+  copyText(remoteShare.value?.pickupCode || pickupCode.value || accessPassword.value, '取件码已复制')
 }
 
 const loadQrcode = async () => {
@@ -241,76 +296,118 @@ const loadQrcode = async () => {
   <div class="share-page">
     <div v-if="currentShare" class="share-shell">
       <template v-if="isReceiverMode">
-        <main class="receiver-main">
-          <section v-if="receiverNeedsPassword" class="password-panel">
-            <SafeIcon name="LockKeyhole" :size="42" />
-            <h1>需要密码才能访问</h1>
-            <form class="password-form" @submit.prevent="handleVerifyPassword">
-              <Input
-                v-model="accessPassword"
-                type="password"
-                autocomplete="current-password"
-                placeholder="请输入分享者提供的访问密码"
-              />
-              <Button type="submit" :disabled="isVerifyingPassword">
-                <SafeIcon v-if="isVerifyingPassword" name="Loader2" :size="16" class="animate-spin" />
-                打开
-              </Button>
-            </form>
-          </section>
+        <section class="receiver-layout">
+          <main class="receiver-main">
+            <section v-if="receiverNeedsPassword" class="password-panel">
+              <SafeIcon name="LockKeyhole" :size="42" />
+              <h1>需要取件码才能访问</h1>
+              <form class="password-form" @submit.prevent="handleVerifyPassword">
+                <Input
+                  v-model="accessPassword"
+                  type="text"
+                  maxlength="4"
+                  autocomplete="one-time-code"
+                  placeholder="例如 aB3Z"
+                />
+                <Button type="submit" :disabled="isVerifyingPassword">
+                  <SafeIcon v-if="isVerifyingPassword" name="Loader2" :size="16" class="animate-spin" />
+                  打开
+                </Button>
+              </form>
+            </section>
 
-          <section v-else class="receiver-file-panel">
-            <div class="receiver-summary">
-              <div class="receiver-avatar">
-                <SafeIcon name="Users" :size="34" />
-              </div>
-              <div>
-                <h1>分享的文件</h1>
-                <p>共 {{ currentShare.fileCount }} 个文件，总大小：{{ formatFileSize(currentShare.totalSizeMb) }}</p>
-              </div>
-              <Badge :class="isExpired ? 'expired-badge' : 'active-badge'">
-                {{ isExpired ? '已过期' : `过期时间 ${expiresText}` }}
-              </Badge>
-            </div>
-            <div class="receiver-actions">
-              <Button :disabled="isExpired || fileList.length === 0" @click="handleDownloadAll">
-                <SafeIcon name="Download" :size="17" />
-                下载
-              </Button>
-            </div>
-            <div v-if="canShowReceiverFiles" class="receiver-files">
-              <div v-for="file in fileList" :key="file.id" class="receiver-file-row">
-                <SafeIcon name="FileText" :size="22" />
-                <div>
-                  <strong>{{ file.fileName }}</strong>
-                  <span>{{ formatFileSize(file.fileSizeMb) }}</span>
+            <section v-else class="receiver-file-panel">
+              <div class="receiver-summary">
+                <div class="receiver-title">
+                  <div class="receiver-avatar">
+                    <SafeIcon name="Users" :size="34" />
+                  </div>
+                  <div>
+                    <h1>分享的文件</h1>
+                    <p>共 {{ currentShare.fileCount }} 个文件，总大小：{{ formatFileSize(currentShare.totalSizeMb) }}</p>
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm" :disabled="isExpired" @click="handleDownloadFile(file.id)">
-                  下载
+                <Badge :class="isExpired ? 'expired-badge' : 'active-badge'">
+                  {{ isExpired ? '已过期' : `过期时间 ${expiresText}` }}
+                </Badge>
+              </div>
+              <div class="receiver-actions">
+                <span class="receiver-state">
+                  <SafeIcon :name="isExpired ? 'Clock3' : 'ShieldCheck'" :size="17" />
+                  {{ receiverStatusText }}
+                </span>
+                <Button :disabled="isExpired || fileList.length === 0" @click="handleDownloadAll">
+                  <SafeIcon name="Download" :size="17" />
+                  下载全部
                 </Button>
               </div>
-              <div v-if="fileList.length === 0" class="empty-file-box">
-                <SafeIcon name="FileQuestion" :size="34" />
-                <span>暂无可下载文件</span>
+              <div v-if="canShowReceiverFiles" class="receiver-files">
+                <div class="receiver-files-head">
+                  <strong>文件列表</strong>
+                  <span>{{ fileList.length }} 个文件</span>
+                </div>
+                <div v-for="file in fileList" :key="file.id" class="receiver-file-row">
+                  <SafeIcon name="FileText" :size="22" />
+                  <div class="receiver-file-info">
+                    <strong>{{ file.fileName }}</strong>
+                    <span>{{ formatFileSize(file.fileSizeMb) }}</span>
+                  </div>
+                  <Button variant="ghost" size="sm" :disabled="isExpired" @click="handleDownloadFile(file.id)">
+                    下载
+                  </Button>
+                </div>
+                <div v-if="fileList.length === 0" class="empty-file-box">
+                  <SafeIcon name="FileQuestion" :size="34" />
+                  <span>暂无可下载文件</span>
+                </div>
               </div>
-            </div>
-            <div v-else class="empty-file-box">
-              <SafeIcon name="Clock3" :size="34" />
-              <span>分享已过期，文件不可下载</span>
-            </div>
-          </section>
-        </main>
+              <div v-else class="empty-file-box">
+                <SafeIcon name="Clock3" :size="34" />
+                <span>分享已过期，文件不可下载</span>
+              </div>
+              <div class="receiver-meta-grid">
+                <div v-for="item in receiverMetaItems" :key="item.label" class="receiver-meta-item">
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                </div>
+              </div>
+            </section>
+          </main>
 
-        <aside class="receiver-side">
-          <div class="receiver-ad-card">
-            <strong>织序传输</strong>
-            <span>输入访问密码后下载分享文件</span>
-          </div>
-          <div class="receiver-ad-card muted">
-            <strong>24 小时有效</strong>
-            <span>未登录分享到期自动清理</span>
-          </div>
-        </aside>
+          <aside class="receiver-side">
+            <div class="receiver-info-card">
+              <h2>取件信息</h2>
+              <dl>
+                <div>
+                  <dt>访问状态</dt>
+                  <dd>{{ receiverStatusText }}</dd>
+                </div>
+                <div>
+                  <dt>有效期</dt>
+                  <dd>{{ receiverExpiresText }}</dd>
+                </div>
+                <div v-if="receiverVerified">
+                  <dt>文件数量</dt>
+                  <dd>{{ currentShare.fileCount }} 个</dd>
+                </div>
+              </dl>
+            </div>
+            <div class="receiver-info-card">
+              <h2>下载信息</h2>
+              <dl v-if="receiverVerified">
+                <div>
+                  <dt>已下载</dt>
+                  <dd>{{ currentShare.downloadCount }} 次</dd>
+                </div>
+                <div>
+                  <dt>次数限制</dt>
+                  <dd>{{ downloadLimitText }}</dd>
+                </div>
+              </dl>
+              <p v-else>验证通过后显示文件和下载信息。</p>
+            </div>
+          </aside>
+        </section>
       </template>
 
       <template v-else>
@@ -387,13 +484,13 @@ const loadQrcode = async () => {
             </header>
             <div class="manage-section">
               <div class="manage-row">
-                <span>访问密码</span>
+                <span>取件码</span>
                 <Switch :checked="Boolean(currentShare.password || accessPassword)" disabled />
               </div>
-              <Input :model-value="currentShare.password || accessPassword || '未设置访问密码'" readonly />
-              <Button variant="outline" @click="handleCopyPassword">
+              <Input :model-value="remoteShare?.pickupCode || currentShare.password || accessPassword || '未设置取件码'" readonly />
+              <Button variant="outline" @click="handleCopyPickupCode">
                 <SafeIcon name="Copy" :size="15" />
-                复制密码
+                复制取件码
               </Button>
             </div>
             <div class="manage-section">
@@ -453,18 +550,21 @@ const loadQrcode = async () => {
   min-width: 0;
 }
 
+.receiver-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: start;
+  gap: 24px;
+}
+
 .receiver-main {
-  width: calc(100% - 420px);
-  min-height: calc(100vh - var(--header-height) - 48px);
-  float: left;
+  min-height: 0;
 }
 
 .receiver-side {
-  float: right;
   display: flex;
-  width: 392px;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .password-panel,
@@ -472,7 +572,7 @@ const loadQrcode = async () => {
 .owner-content,
 .owner-header,
 .owner-manage,
-.receiver-ad-card {
+.receiver-info-card {
   border: 1px solid hsl(var(--border));
   border-radius: 8px;
   background: hsl(var(--card));
@@ -481,11 +581,11 @@ const loadQrcode = async () => {
 
 .password-panel {
   display: flex;
-  min-height: 620px;
+  min-height: 420px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 22px;
 }
 
 .password-panel svg {
@@ -502,11 +602,10 @@ const loadQrcode = async () => {
   display: flex;
   width: min(100%, 420px);
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .receiver-file-panel {
-  min-height: 620px;
   overflow: hidden;
 }
 
@@ -516,7 +615,14 @@ const loadQrcode = async () => {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 28px 32px;
+  padding: 24px;
+}
+
+.receiver-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
 }
 
 .receiver-avatar,
@@ -559,18 +665,48 @@ const loadQrcode = async () => {
 
 .receiver-actions {
   display: flex;
-  justify-content: center;
-  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   border-top: 1px solid hsl(var(--border));
-  padding: 24px;
+  padding: 16px 24px;
 }
 
 .receiver-actions > * {
-  min-width: 150px;
+  min-width: 136px;
+}
+
+.receiver-state {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .receiver-files {
   border-top: 1px solid hsl(var(--border));
+}
+
+.receiver-files-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: hsl(var(--muted) / 0.2);
+  padding: 12px 24px;
+}
+
+.receiver-files-head strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.receiver-files-head span {
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
 }
 
 .receiver-file-row {
@@ -579,7 +715,7 @@ const loadQrcode = async () => {
   gap: 14px;
   align-items: center;
   border-bottom: 1px solid hsl(var(--border));
-  padding: 18px 32px;
+  padding: 16px 24px;
 }
 
 .receiver-file-row strong,
@@ -597,35 +733,92 @@ const loadQrcode = async () => {
   font-size: 13px;
 }
 
-.receiver-file-row div {
+.receiver-file-info {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 4px;
 }
 
-.receiver-ad-card {
+.receiver-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.12);
+  padding: 18px 24px;
+}
+
+.receiver-meta-item {
   display: flex;
-  min-height: 180px;
+  min-width: 0;
   flex-direction: column;
-  justify-content: flex-end;
   gap: 8px;
-  background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(210 34% 18%) 55%, hsl(var(--primary)) 160%);
-  color: white;
-  padding: 24px;
+  border-left: 1px solid hsl(var(--border));
+  padding: 0 16px;
 }
 
-.receiver-ad-card.muted {
-  background: linear-gradient(135deg, hsl(215 25% 22%) 0%, hsl(180 35% 28%) 120%);
+.receiver-meta-item:first-child {
+  border-left: 0;
+  padding-left: 0;
 }
 
-.receiver-ad-card strong {
-  font-size: 22px;
+.receiver-meta-item span {
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+
+.receiver-meta-item strong {
+  overflow: hidden;
+  color: hsl(var(--foreground));
+  font-size: 16px;
   font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.receiver-ad-card span {
-  color: rgb(255 255 255 / 0.76);
+.receiver-info-card {
+  padding: 18px;
+}
+
+.receiver-info-card h2 {
+  margin-bottom: 14px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.receiver-info-card dl {
+  display: grid;
+  gap: 12px;
+}
+
+.receiver-info-card dl div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid hsl(var(--border));
+  padding-top: 12px;
+}
+
+.receiver-info-card dl div:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.receiver-info-card dt,
+.receiver-info-card p {
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+
+.receiver-info-card dd {
+  min-width: 0;
+  color: hsl(var(--foreground));
+  font-size: 14px;
+  font-weight: 800;
+  text-align: right;
 }
 
 .owner-layout {
@@ -832,14 +1025,22 @@ const loadQrcode = async () => {
     min-width: 0;
   }
 
-  .receiver-main,
-  .receiver-side {
-    float: none;
-    width: 100%;
+  .receiver-layout {
+    grid-template-columns: 1fr;
   }
 
   .receiver-side {
     margin-top: 24px;
+  }
+
+  .receiver-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 18px;
+  }
+
+  .receiver-meta-item:nth-child(odd) {
+    border-left: 0;
+    padding-left: 0;
   }
 
   .owner-layout {

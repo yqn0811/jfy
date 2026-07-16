@@ -230,10 +230,10 @@ export default {
     redirectAfterLogin() {
       const redirectUrl = consumeShareLoginRedirect();
       if (redirectUrl) {
-        uni.redirectTo({
+        uni.reLaunch({
           url: redirectUrl,
           fail: () => {
-            uni.reLaunch({ url: redirectUrl });
+            uni.redirectTo({ url: redirectUrl });
           },
         });
         return;

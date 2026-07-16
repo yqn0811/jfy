@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS ft_file_shares (
     sso_subject VARCHAR(128) DEFAULT NULL,
     title VARCHAR(255) NOT NULL,
     share_code VARCHAR(64) NOT NULL,
+    pickup_code VARCHAR(64) DEFAULT NULL,
     password_hash VARCHAR(255) DEFAULT NULL,
     expires_at TIMESTAMPTZ DEFAULT NULL,
     max_downloads INTEGER NOT NULL DEFAULT 0,
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS ft_file_shares (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ft_file_shares_share_code_uidx ON ft_file_shares (share_code);
+CREATE UNIQUE INDEX IF NOT EXISTS ft_file_shares_pickup_code_uidx ON ft_file_shares (pickup_code) WHERE pickup_code IS NOT NULL AND pickup_code <> '';
 CREATE INDEX IF NOT EXISTS ft_file_shares_owner_status_idx ON ft_file_shares (owner_user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS ft_file_shares_expires_idx ON ft_file_shares (expires_at);
 

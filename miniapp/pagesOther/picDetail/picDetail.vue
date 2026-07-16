@@ -90,6 +90,7 @@
               :src="item.picture_url"
               mode="aspectFit"
               class="preview-image"
+              :style="imageTransformStyle"
               lazy-load
             />
             <view v-if="displayWatermarkText" class="watermark-layer">
@@ -104,6 +105,30 @@
           </view>
         </swiper-item>
       </swiper>
+
+      <view
+        v-if="currentItem && currentItem.file_type != 2"
+        class="image-adjust-toolbar"
+        :class="{ hide: !showActions }"
+        @tap.stop
+      >
+        <view class="adjust-button" @tap.stop="handleZoomOut">
+          <text class="adjust-symbol">-</text>
+          <text class="adjust-label">缩小</text>
+        </view>
+        <view class="adjust-button" @tap.stop="handleZoomIn">
+          <text class="adjust-symbol">+</text>
+          <text class="adjust-label">放大</text>
+        </view>
+        <view class="adjust-button" @tap.stop="handleRotateImage">
+          <text class="adjust-symbol">↻</text>
+          <text class="adjust-label">旋转</text>
+        </view>
+        <view class="adjust-button" @tap.stop="resetImageTransform">
+          <text class="adjust-symbol">1:1</text>
+          <text class="adjust-label">复位</text>
+        </view>
+      </view>
     </view>
 
     <!-- 视频底部操作栏 -->
@@ -297,7 +322,7 @@ import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 import {
   buildOriginalDownloadRequest,
   imageUrlFor,
-  resolveImageDownloadUrl,
+  originalImageUrlForView,
 } from "@/common/helper/imageUrls.js";
 import {
   buildPictureListForNavigation,
@@ -338,6 +363,8 @@ export default {
       touchStartX: 0, // 触摸起始X坐标
       touchStartY: 0, // 触摸起始Y坐标
       isClick: false, // 是否为点击操作（非滑动）
+      imageScale: 1,
+      imageRotation: 0,
 
       // 工具栏配置
       toolList: [
@@ -346,6 +373,11 @@ export default {
           icon: "/static/icon/down-yuantu.png",
           text: "下载原图",
           action: "handleDownload",
+        },
+        {
+          icon: "/static/icon/eye@2x.png",
+          text: "查看原图",
+          action: "handleViewOriginal",
         },
         {
           icon: "/static/icon/remark-icon.png",
@@ -430,6 +462,11 @@ export default {
         {
           icon: "/static/icon/down-yuantu.png",
           text: "下载原图",
+          action: "handleDownload",
+        },
+        {
+          icon: "/static/icon/eye@2x.png",
+          text: "查看原图",
           action: "handleViewOriginal",
         },
         {
@@ -477,6 +514,11 @@ export default {
     displayWatermarkText() {
       if (!this.isVisitorMode() || !this.ownerHomeInfo) return "";
       return this.normalizeShareParam(this.ownerHomeInfo.home_watermark_text);
+    },
+    imageTransformStyle() {
+      return {
+        transform: `scale(${this.imageScale}) rotate(${this.imageRotation}deg)`,
+      };
     },
   },
 
@@ -763,6 +805,23 @@ export default {
       this.showActions = !this.showActions;
     },
 
+    handleZoomIn() {
+      this.imageScale = Math.min(3, Number((this.imageScale + 0.25).toFixed(2)));
+    },
+
+    handleZoomOut() {
+      this.imageScale = Math.max(0.5, Number((this.imageScale - 0.25).toFixed(2)));
+    },
+
+    handleRotateImage() {
+      this.imageRotation = (this.imageRotation + 90) % 360;
+    },
+
+    resetImageTransform() {
+      this.imageScale = 1;
+      this.imageRotation = 0;
+    },
+
     // 播放视频
     playVideo() {
       if (this.videoContext) {
@@ -868,6 +927,7 @@ export default {
       this.picId = this.currentItem.pic_id || this.currentItem.id || this.picId;
       this.currentImageUrl = this.currentItem.picture_url;
       this.remark = this.imageInfo.pic_beizhu || this.imageInfo.pic_name || "";
+      this.resetImageTransform();
 
       // 重置视频状态
       if (this.isPlaying) {
@@ -1159,7 +1219,7 @@ export default {
     },
 
     // 查看原图
-    async handleViewOriginal() {
+    handleViewOriginal() {
       // 只有图片才可以查看原图
       if (this.currentItem && this.currentItem.is_video) {
         return;
@@ -1173,18 +1233,18 @@ export default {
         return;
       }
       const currentItem = this.currentItem || this.imageInfo || {};
-      const originalUrl = await resolveImageDownloadUrl(this.$go, currentItem, {
-        target_user_id: this.uid,
-        product_id: currentItem.product_id || currentItem.folder_id,
-        file_size: currentItem.file_size || currentItem.size,
-      });
-      if (originalUrl) {
-        this.currentImageUrl = originalUrl;
-        if (this.currentItem) {
-          this.currentItem.picture_url = originalUrl;
-        }
-        this.imageInfo.picture_url = originalUrl;
+      const originalUrl = originalImageUrlForView(currentItem);
+      if (!originalUrl) {
+        uni.showToast({
+          title: "原图地址无效",
+          icon: "none",
+        });
+        return;
       }
+      uni.previewImage({
+        current: originalUrl,
+        urls: [originalUrl],
+      });
     },
     canUseOriginalImage() {
       const userInfo = uni.getStorageSync("userInfo") || {};
@@ -1520,7 +1580,59 @@ export default {
   .preview-image {
     width: 100%;
     height: 100%;
+    transform-origin: center center;
+    transition: transform 0.2s ease;
   }
+}
+
+.image-adjust-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(140rpx + env(safe-area-inset-bottom));
+  z-index: 98;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.56);
+  backdrop-filter: blur(12rpx);
+  transform: translateX(-50%);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+
+  &.hide {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(16rpx);
+  }
+}
+
+.adjust-button {
+  width: 96rpx;
+  height: 72rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.adjust-symbol {
+  min-width: 36rpx;
+  height: 32rpx;
+  line-height: 32rpx;
+  text-align: center;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.adjust-label {
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  line-height: 24rpx;
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .watermark-layer {

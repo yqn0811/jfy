@@ -4,6 +4,7 @@ namespace app\api\controller;
 
 use app\common\model\user\WdXcxUser;
 use app\common\model\user\WdXcxUserCollectPics;
+use app\common\service\CorsOriginService;
 use app\common\service\bridge\JiafangyunEntitlementSyncService;
 use app\common\service\bridge\JiafangyunBridgeClient;
 use app\common\service\user\UserService;
@@ -406,17 +407,17 @@ class UserApiController extends ApiBaseController
 
     private function sendOriginalDownloadHeaders($filename, $contentType, $contentLength)
     {
-        $origin = $this->request->header('origin') ?: '*';
-        if (preg_match('/[\r\n]/', $origin)) {
-            $origin = '*';
-        }
+        $origin = CorsOriginService::resolveAllowedOrigin((string)$this->request->header('origin', ''));
         $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
         if ($fallbackName === '') {
             $fallbackName = 'image.jpg';
         }
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: true');
-        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        if ($origin !== '') {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
+            header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        }
+        header('Vary: Origin');
         header('X-Accel-Buffering: no');
         header('Content-Type: ' . $contentType);
         if ($contentLength > 0) {
@@ -666,17 +667,17 @@ class UserApiController extends ApiBaseController
         while (ob_get_level() > 0) {
             ob_end_clean();
         }
-        $origin = $this->request->header('origin') ?: '*';
-        if (preg_match('/[\r\n]/', $origin)) {
-            $origin = '*';
-        }
+        $origin = CorsOriginService::resolveAllowedOrigin((string)$this->request->header('origin', ''));
         $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
         if ($fallbackName === '') {
             $fallbackName = 'product-images.zip';
         }
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: true');
-        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        if ($origin !== '') {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
+            header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        }
+        header('Vary: Origin');
         header('Content-Type: application/zip');
         header('Content-Length: ' . filesize($zipPath));
         header('Content-Disposition: attachment; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
@@ -1333,6 +1334,7 @@ class UserApiController extends ApiBaseController
             ['include_current', 0],
             ['share_v', null],
             ['sv', null],
+            ['direct_share', 0],
         ]);
         $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $visitorUid = 0;
@@ -1341,7 +1343,7 @@ class UserApiController extends ApiBaseController
         } catch (\Exception $e) {
         }
         $shareVersion = $params['share_v'] !== null && $params['share_v'] !== '' ? $params['share_v'] : $params['sv'];
-        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid, $params['fid'], (int)$params['include_current'], $shareVersion));
+        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid, $params['fid'], (int)$params['include_current'], $shareVersion, (int)$params['direct_share'] === 1));
     }
 
     public function getHomeProducts()
@@ -1353,8 +1355,14 @@ class UserApiController extends ApiBaseController
             ['share_code', ''],
             ['invite_code', ''],
             ['cate_id', 0],
+            ['category_id', 0],
+            ['fid', 0],
             ['product_id', 0],
+            ['direct_share', 0],
         ]);
+        if (empty($params['cate_id'])) {
+            $params['cate_id'] = $params['category_id'] ?: $params['fid'];
+        }
         $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $visitorUid = 0;
         try {
@@ -1362,9 +1370,9 @@ class UserApiController extends ApiBaseController
         } catch (\Exception $e) {
         }
         if (!empty($params['product_id'])) {
-            $this->result($this->userService->getHomeProductsDetails($targetUserId, $params['product_id'], $visitorUid));
+            $this->result($this->userService->getHomeProductsDetails($targetUserId, $params['product_id'], $visitorUid, (int)$params['direct_share'] === 1, $params['cate_id']));
         }
-        $this->result($this->userService->getHomeProducts($targetUserId, $visitorUid, $params['cate_id']));
+        $this->result($this->userService->getHomeProducts($targetUserId, $visitorUid, $params['cate_id'], (int)$params['direct_share'] === 1));
     }
 
     public function getHomeProductsDetails()
@@ -1376,7 +1384,14 @@ class UserApiController extends ApiBaseController
             ['share_code', ''],
             ['invite_code', ''],
             ['product_id', 0],
+            ['cate_id', 0],
+            ['category_id', 0],
+            ['fid', 0],
+            ['direct_share', 0],
         ]);
+        if (empty($params['cate_id'])) {
+            $params['cate_id'] = $params['category_id'] ?: $params['fid'];
+        }
         $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $productId = $params['product_id'];
         if (!$productId) {
@@ -1387,7 +1402,7 @@ class UserApiController extends ApiBaseController
             $visitorUid = request()->userID();
         } catch (\Exception $e) {
         }
-        $this->result($this->userService->getHomeProductsDetails($targetUserId, $productId, $visitorUid));
+        $this->result($this->userService->getHomeProductsDetails($targetUserId, $productId, $visitorUid, (int)$params['direct_share'] === 1, $params['cate_id']));
     }
 
     public function getHomePictureDetail()
@@ -1564,7 +1579,7 @@ class UserApiController extends ApiBaseController
     }
 
     /**
-     * 获取PC网页登录配置，复用旧相册微信开放平台扫码登录链路
+     * 获取PC网页登录配置（微信开放平台网站应用）
      */
     public function getLoginOauthConfig()
     {
@@ -1574,31 +1589,26 @@ class UserApiController extends ApiBaseController
 
         $redirect = html_entity_decode(trim((string)$params['redirect']), ENT_QUOTES, 'UTF-8');
         if (!$redirect) {
-            $redirect = ROOT_HOST . '/';
+            $redirect = $this->getFileWebBaseUrl();
         }
         if (!$this->isAllowedPcLoginRedirect($redirect)) {
-            $redirect = getJiafangyunPcBaseUrl();
+            $redirect = $this->getFileWebBaseUrl();
         }
 
-        $callback = trim((string)env('JIAFANGYUN_PC_LOGIN_CALLBACK', ''));
-        if (!$callback) {
-            $callback = 'https://www.jfyuntu.com/index.php/api/user/login/callback';
+        $callback = $this->getWechatWebLoginCallback();
+
+        $appid = trim((string)Config::get('miniprogram.web_appid'));
+        if (!$appid) {
+            Log::warning('wechat web login appid missing');
+            throwError('登录服务暂不可用');
         }
 
-        $state = base64_encode($redirect);
-        $appid = Config::get('miniprogram.account_appid');
+        $state = $this->createWechatLoginState($redirect);
         $authUrl = 'https://open.weixin.qq.com/connect/qrconnect?' . http_build_query([
             'appid' => $appid,
             'redirect_uri' => $callback,
             'response_type' => 'code',
             'scope' => 'snsapi_login',
-            'state' => $state,
-        ]) . '#wechat_redirect';
-        $wechatAuthUrl = 'https://open.weixin.qq.com/connect/oauth2/authorize?' . http_build_query([
-            'appid' => $appid,
-            'redirect_uri' => $callback,
-            'response_type' => 'code',
-            'scope' => 'snsapi_userinfo',
             'state' => $state,
         ]) . '#wechat_redirect';
 
@@ -1608,8 +1618,7 @@ class UserApiController extends ApiBaseController
             'redirect_uri' => $callback,
             'state' => $state,
             'auth_url' => $authUrl,
-            'wechat_auth_url' => $wechatAuthUrl,
-            'wechatAuthUrl' => $wechatAuthUrl,
+            'authUrl' => $authUrl,
         ]);
     }
 
@@ -1630,64 +1639,247 @@ class UserApiController extends ApiBaseController
             || $host === 'izhixu.com' || substr($host, -11) === '.izhixu.com';
     }
 
+    private function getFileWebBaseUrl()
+    {
+        $base = trim((string)env('JIAFANGYUN_FILE_WEB_BASE_URL', getenv('JIAFANGYUN_FILE_WEB_BASE_URL') ?: ''));
+        if ($base === '') {
+            $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+            $base = strpos($host, 'api-test.jfyuntu.com') !== false
+                ? 'https://file-test.jfyuntu.com/'
+                : 'https://file.jfyuntu.com/';
+        }
+        return rtrim($base, '/') . '/';
+    }
+
+    private function getWechatWebLoginCallback()
+    {
+        $callback = trim((string)Config::get('miniprogram.web_login_callback'));
+        if ($callback === '') {
+            $callback = $this->getFileWebBaseUrl() . 'wechat-login-callback';
+        }
+        return $callback;
+    }
+
+    private function createWechatLoginState($redirect)
+    {
+        try {
+            $state = bin2hex(random_bytes(16));
+        } catch (\Throwable $e) {
+            $state = md5(uniqid(mt_rand(), true));
+        }
+        Cache::set('wechat_web_login_state_' . $state, [
+            'redirect' => $redirect,
+            'created_at' => time(),
+        ], 600);
+        return $state;
+    }
+
+    private function consumeWechatLoginState($state)
+    {
+        $state = trim((string)$state);
+        if ($state !== '') {
+            try {
+                $cached = Cache::get('wechat_web_login_state_' . $state);
+                if (is_array($cached) && !empty($cached['redirect'])) {
+                    Cache::delete('wechat_web_login_state_' . $state);
+                    return $cached;
+                }
+            } catch (\Throwable $e) {
+            }
+
+            $decoded = base64_decode($state, true);
+            if ($decoded !== false) {
+                return ['redirect' => (string)$decoded, 'legacy' => true];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeWechatLoginRedirect($redirectUrl)
+    {
+        $redirectUrl = html_entity_decode(trim((string)$redirectUrl), ENT_QUOTES, 'UTF-8');
+        if ($redirectUrl === '' || !$this->isAllowedPcLoginRedirect($redirectUrl)) {
+            return $this->getFileWebBaseUrl();
+        }
+        return $redirectUrl;
+    }
+
+    private function resolveWechatLoginRedirect($state)
+    {
+        $cached = $this->consumeWechatLoginState($state);
+        return $this->normalizeWechatLoginRedirect(is_array($cached) ? ($cached['redirect'] ?? '') : '');
+    }
+
+    private function appendLoginQuery($url, $params)
+    {
+        $fragment = '';
+        $hashPosition = strpos($url, '#');
+        if ($hashPosition !== false) {
+            $fragment = substr($url, $hashPosition);
+            $url = substr($url, 0, $hashPosition);
+        }
+        $separator = (parse_url($url, PHP_URL_QUERY) === null) ? '?' : '&';
+        return $url . $separator . http_build_query($params) . $fragment;
+    }
+
+    private function requestWechatJson($url, $params)
+    {
+        $requestUrl = $url . '?' . http_build_query($params);
+        $body = false;
+        if (function_exists('curl_init')) {
+            $ch = curl_init($requestUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+            $body = curl_exec($ch);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            if ($body === false) {
+                throw new \Exception('wechat request failed: ' . $curlError);
+            }
+        } else {
+            $context = stream_context_create([
+                'http' => ['timeout' => 10],
+            ]);
+            $body = @file_get_contents($requestUrl, false, $context);
+            if ($body === false) {
+                throw new \Exception('wechat request failed');
+            }
+        }
+
+        $data = json_decode((string)$body, true);
+        if (!is_array($data)) {
+            throw new \Exception('wechat response invalid');
+        }
+        if (!empty($data['errcode'])) {
+            throw new \Exception('wechat api error: ' . (int)$data['errcode']);
+        }
+        return $data;
+    }
+
+    private function getWechatWebAccessToken($code)
+    {
+        $appid = trim((string)Config::get('miniprogram.web_appid'));
+        $secret = trim((string)Config::get('miniprogram.web_appsecret'));
+        if (!$appid || !$secret) {
+            throw new \Exception('wechat web login config missing');
+        }
+        $data = $this->requestWechatJson('https://api.weixin.qq.com/sns/oauth2/access_token', [
+            'appid' => $appid,
+            'secret' => $secret,
+            'code' => $code,
+            'grant_type' => 'authorization_code',
+        ]);
+        if (empty($data['access_token']) || empty($data['openid'])) {
+            throw new \Exception('wechat access token response incomplete');
+        }
+        return $data;
+    }
+
+    private function getWechatWebUserInfo($accessToken, $openid)
+    {
+        return $this->requestWechatJson('https://api.weixin.qq.com/sns/userinfo', [
+            'access_token' => $accessToken,
+            'openid' => $openid,
+            'lang' => 'zh_CN',
+        ]);
+    }
+
+    private function createWechatWebLoginToken($code)
+    {
+        $tokenInfo = $this->getWechatWebAccessToken($code);
+        $openid = (string)$tokenInfo['openid'];
+        $userInfo = $this->getWechatWebUserInfo((string)$tokenInfo['access_token'], $openid);
+
+        $unionid = (string)($userInfo['unionid'] ?? ($tokenInfo['unionid'] ?? ''));
+
+        // 查找或创建用户
+        $userModel = new \app\common\model\user\WdXcxUser();
+        $user = $userModel->getUserByWechatIdentity($openid, $unionid, true, '', [
+            'nickname' => $userInfo['nickname'] ?? '微信用户',
+            'avatar' => $userInfo['headimgurl'] ?? '',
+            'gender' => $userInfo['sex'] ?? 0,
+            'uniacid' => $this->uniacid,
+        ]);
+
+        // 生成Token
+        $tokenData = [
+            'user_id' => $user->id,
+            'openid' => $user->openid,
+            'user_uuid' => $user->user_uuid,
+        ];
+        return \app\common\service\JwtService::createToken($tokenData);
+    }
+
+    /**
+     * 前端回调页使用 code/state 换取登录 token
+     */
+    public function exchangeWechatLoginCode()
+    {
+        $code = trim((string)$this->request->param('code'));
+        $state = trim((string)$this->request->param('state'));
+
+        if (!$code || !$state) {
+            throwError('登录失败，请重试');
+        }
+
+        try {
+            $cached = $this->consumeWechatLoginState($state);
+            if (!is_array($cached) || empty($cached['redirect']) || !empty($cached['legacy'])) {
+                throw new \Exception('wechat login state invalid');
+            }
+
+            $token = $this->createWechatWebLoginToken($code);
+            $this->result([
+                'token' => $token,
+                'redirect' => $this->normalizeWechatLoginRedirect($cached['redirect']),
+            ], 0, '登录成功');
+        } catch (\Throwable $e) {
+            Log::warning('wechat web login exchange failed: ' . $e->getMessage());
+            throwError('登录失败，请重试');
+        }
+    }
+
     /**
      * 微信扫码登录回调
      */
     public function wechatCallback()
     {
-        $code = $this->request->param('code');
-        $state = $this->request->param('state');
+        $code = trim((string)$this->request->param('code'));
+        $state = trim((string)$this->request->param('state'));
         
         if (!$code) {
-            return $this->redirectWithError($state, '授权失败，未获取到code');
+            return $this->redirectWithError($state);
         }
         
         try {
-            $app = (new WxService(3))->getAppData();
-            $oauthUser = $app->oauth->user();
-            $original = $oauthUser->getOriginal();
-            
-            $openid = $original['openid'];
-            $unionid = $original['unionid'] ?? '';
-            
-            // 查找或创建用户
-            $userModel = new \app\common\model\user\WdXcxUser();
-            $user = $userModel->getUserByWechatIdentity($openid, $unionid, true, '', [
-                'nickname' => $original['nickname'] ?? '微信用户',
-                'avatar' => $original['headimgurl'] ?? '',
-                'gender' => $original['sex'] ?? 0,
-                'uniacid' => $this->uniacid,
-            ]);
-            
-            // 生成Token
-            $tokenData = [
-                'user_id' => $user->id,
-                'openid' => $user->openid,
-                'user_uuid' => $user->user_uuid,
-            ];
-            $token = \app\common\service\JwtService::createToken($tokenData);
+            $token = $this->createWechatWebLoginToken($code);
             
             // 重定向回前端
-            $redirectUrl = $state ? base64_decode($state) : '/';
-            $redirectUrl = html_entity_decode((string)$redirectUrl, ENT_QUOTES, 'UTF-8');
-            if (empty($redirectUrl)) $redirectUrl = '/';
-            
-            $separator = (parse_url($redirectUrl, PHP_URL_QUERY) == NULL) ? '?' : '&';
-            $finalUrl = $redirectUrl . $separator . 'token=' . $token . '&login=success';
+            $redirectUrl = $this->resolveWechatLoginRedirect($state);
+            $finalUrl = $this->appendLoginQuery($redirectUrl, [
+                'token' => $token,
+                'login' => 'success',
+            ]);
             
             return redirect($finalUrl);
             
-        } catch (\Exception $e) {
-            return $this->redirectWithError($state, '登录失败: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            Log::warning('wechat web login failed: ' . $e->getMessage());
+            return $this->redirectWithError($state);
         }
     }
 
-    private function redirectWithError($state, $msg) {
-        $redirectUrl = $state ? base64_decode($state) : '/';
-        $redirectUrl = html_entity_decode((string)$redirectUrl, ENT_QUOTES, 'UTF-8');
-        if (empty($redirectUrl)) $redirectUrl = '/';
-        $separator = (parse_url($redirectUrl, PHP_URL_QUERY) == NULL) ? '?' : '&';
-        return redirect($redirectUrl . $separator . 'error=' . urlencode($msg));
+    private function redirectWithError($state)
+    {
+        $redirectUrl = $this->resolveWechatLoginRedirect($state);
+        return redirect($this->appendLoginQuery($redirectUrl, [
+            'login' => 'failed',
+            'error' => 'login_failed',
+        ]));
     }
 
     /**

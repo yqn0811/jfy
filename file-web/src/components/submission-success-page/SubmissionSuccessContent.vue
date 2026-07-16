@@ -18,6 +18,7 @@ const sourceSubmissionId = ref<string>('')
 onMounted(() => {
   const params = new URLSearchParams(window.location.search)
   const submissionId = params.get('submissionId') || ''
+  const receiptToken = params.get('receiptToken') || params.get('receipt_token') || ''
   const queryTaskId = params.get('taskId') || ''
   sourceSubmissionId.value = params.get('sourceSubmissionId') || params.get('source_submission_id') || ''
   
@@ -31,7 +32,7 @@ onMounted(() => {
     return
   }
 
-  PublicSubmissionService.getReceipt(submissionId)
+  PublicSubmissionService.getReceipt(submissionId, receiptToken)
     .then((result) => {
       receipt.value = result
       taskId.value = result.taskId || queryTaskId

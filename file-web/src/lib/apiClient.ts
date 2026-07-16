@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 
-const DEFAULT_API_BASE = 'https://api.jfyuntu.com/api'
+const PRODUCTION_API_BASE = 'https://api.jfyuntu.com/api'
+const TEST_API_BASE = 'https://api-test.jfyuntu.com/api'
 
 export interface ApiEnvelope<T = any> {
   code?: number | string
@@ -13,13 +14,41 @@ export interface ApiEnvelope<T = any> {
 export class ApiError extends Error {
   code: number
   data: any
+  rawMessage: string
 
-  constructor(message: string, code = -1, data: any = null) {
+  constructor(message: string, code = -1, data: any = null, rawMessage = message) {
     super(message)
     this.name = 'ApiError'
     this.code = code
     this.data = data
+    this.rawMessage = rawMessage
   }
+}
+
+const INTERNAL_ERROR_PATTERNS = [
+  /controller\s+not\s+exists/i,
+  /class\s+not\s+found/i,
+  /method\s+not\s+exist/i,
+  /call\s+to\s+undefined/i,
+  /fatal\s+error/i,
+  /parse\s+error/i,
+  /sqlstate/i,
+  /pdoexception/i,
+  /\\app\\|app\\/i,
+  /\\think\\|think\\/i,
+  /\/var\/|\/www\/|\/runtime\/|\/vendor\//i,
+]
+
+const isInternalErrorMessage = (message = '') => {
+  const normalized = String(message || '').trim()
+  if (!normalized) return false
+  return INTERNAL_ERROR_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+const sanitizeApiErrorMessage = (message = '', fallback = '请求失败，请重试') => {
+  const normalized = String(message || '').trim()
+  if (!normalized) return fallback
+  return isInternalErrorMessage(normalized) ? fallback : normalized
 }
 
 type ApiMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
@@ -42,8 +71,12 @@ const notifyAuthChanged = () => {
 }
 
 export const getRuntimeApiBase = () => {
-  if (typeof window === 'undefined') return DEFAULT_API_BASE
-  return (window as any).__JFYUNTU_API_BASE__ || import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
+  if (typeof window === 'undefined') return import.meta.env.PUBLIC_API_BASE || PRODUCTION_API_BASE
+  const runtimeBase = (window as any).__JFYUNTU_API_BASE__ || import.meta.env.PUBLIC_API_BASE
+  if (runtimeBase) return runtimeBase
+  return ['file-test.jfyuntu.com', 'localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? TEST_API_BASE
+    : PRODUCTION_API_BASE
 }
 
 const joinUrl = (base: string, path: string) => {
@@ -119,7 +152,8 @@ const unwrapEnvelope = <T>(payload: ApiEnvelope<T> | T, fallbackStatus: number):
 
   const code = rawCode === undefined || rawCode === '' ? 0 : Number(rawCode)
   if (Number.isFinite(code) && code !== 0 && code !== 200) {
-    throw new ApiError(envelope.msg || envelope.message || '请求失败', code, envelope.data)
+    const rawMessage = envelope.msg || envelope.message || '请求失败'
+    throw new ApiError(sanitizeApiErrorMessage(rawMessage), code, envelope.data, rawMessage)
   }
 
   return (envelope.data ?? (payload as T)) as T
@@ -173,7 +207,8 @@ export async function apiDownload(
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as ApiEnvelope | null
-    throw new ApiError(payload?.msg || payload?.message || '下载失败，请重试', response.status, payload?.data)
+    const rawMessage = payload?.msg || payload?.message || ''
+    throw new ApiError(sanitizeApiErrorMessage(rawMessage, '下载失败，请重试'), response.status, payload?.data, rawMessage)
   }
 
   const blob = await response.blob()
@@ -206,8 +241,39 @@ export async function apiUpload<T = any>(
   return unwrapEnvelope<T>(payload as ApiEnvelope<T>, response.status)
 }
 
+export async function rawUpload(
+  url: string,
+  body: BodyInit,
+  options: { method?: ApiMethod; headers?: Record<string, string> } = {}
+): Promise<Response> {
+  let uploadUrl: URL
+  try {
+    uploadUrl = new URL(url)
+  } catch {
+    throw new ApiError('直传上传地址无效，请重试')
+  }
+  if (!['http:', 'https:'].includes(uploadUrl.protocol)) {
+    throw new ApiError('直传上传地址无效，请重试')
+  }
+
+  const response = await fetch(url, {
+    method: options.method || 'PUT',
+    headers: options.headers || {},
+    body,
+  })
+  if (!response.ok) {
+    throw new ApiError('直传上传失败，请重试', response.status)
+  }
+  return response
+}
+
 export const getApiErrorMessage = (error: unknown, fallback = '请求失败，请重试') => {
-  if (error instanceof ApiError) return error.message || fallback
-  if (error instanceof Error) return error.message || fallback
+  if (error instanceof ApiError) return sanitizeApiErrorMessage(error.message, fallback)
+  if (error instanceof Error) return sanitizeApiErrorMessage(error.message, fallback)
   return fallback
+}
+
+export const isRecoverableApiRouteError = (error: unknown) => {
+  if (!(error instanceof ApiError)) return false
+  return error.code === 404 || error.code === 405 || isInternalErrorMessage(error.rawMessage || error.message)
 }

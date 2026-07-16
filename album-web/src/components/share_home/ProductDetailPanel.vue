@@ -252,6 +252,7 @@ const handleViewImage = (imageIndex: number, type: 'colorChart' | 'detailChart')
     :images="previewImages"
     :current-index="previewIndex"
     :can-download="canDownload"
+    :can-view-original="canUseOriginalImage"
     :is-logged-in="isLoggedIn"
     @update:open="showImagePreview = $event"
     @update:current-index="previewIndex = $event"

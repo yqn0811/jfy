@@ -4,6 +4,7 @@ import { ref, onUnmounted } from 'vue';
 import { cn } from '@/lib/utils';
 import SafeIcon from '@/components/common/SafeIcon.vue';
 import { toast } from 'vue-sonner';
+import { filterUploadableFiles, validateFileBatch } from '@/lib/fileSecurityPolicy';
 
 interface Props {
   accept?: string;
@@ -20,7 +21,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  (e: 'files-selected', files: FileList): void;
+  (e: 'files-selected', files: File[]): void;
 }>();
 
 const isDragging = ref(false);
@@ -38,15 +39,29 @@ const handleDragLeave = (e: DragEvent) => {
   isDragging.value = false;
 };
 
-const validateFiles = (files: FileList): boolean => {
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (props.maxSize && file.size > props.maxSize * 1024 * 1024) {
-      toast.error(`文件 "${file.name}" 超过最大限制 ${props.maxSize}MB`);
-      return false;
-    }
+const validateFiles = (files: File[]): boolean => {
+  const allowedExtensions = props.accept && props.accept !== '*'
+    ? props.accept.split(',').map((item) => item.trim()).filter((item) => item.startsWith('.'))
+    : [];
+  const result = validateFileBatch(files, {
+    maxSizeMb: props.maxSize,
+    allowedExtensions,
+  });
+  if (!result.ok) {
+    toast.error(result.message || '文件不符合上传要求');
+    return false;
   }
   return true;
+};
+
+const emitUploadableFiles = (selectedFiles: FileList) => {
+  const { files, ignoredCount } = filterUploadableFiles(selectedFiles);
+  if (ignoredCount > 0) {
+    toast.info(`已忽略 ${ignoredCount} 个系统隐藏文件`);
+  }
+  if (files.length > 0 && validateFiles(files)) {
+    emit('files-selected', files);
+  }
 };
 
 const handleDrop = (e: DragEvent) => {
@@ -56,9 +71,7 @@ const handleDrop = (e: DragEvent) => {
 
   const files = e.dataTransfer?.files;
   if (files && files.length > 0) {
-    if (validateFiles(files)) {
-      emit('files-selected', files);
-    }
+    emitUploadableFiles(files);
   }
 };
 
@@ -71,9 +84,7 @@ const handleInputChange = (e: Event) => {
   const target = e.target as HTMLInputElement;
   const files = target.files;
   if (files && files.length > 0) {
-    if (validateFiles(files)) {
-      emit('files-selected', files);
-    }
+    emitUploadableFiles(files);
     // Reset input to allow selecting the same file again if needed
     target.value = '';
   }
@@ -141,4 +152,3 @@ const handleInputChange = (e: Event) => {
   }
 }
 </style>
-    

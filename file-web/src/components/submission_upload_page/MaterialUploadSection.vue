@@ -7,6 +7,8 @@ import FileUploadZone from '@/components/common/FileUploadZone.vue'
 import FileListItem from '@/components/common/FileListItem.vue'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import type { TaskMaterialItemData } from '@/data/CollectionTaskData'
+import { validateFileBatch } from '@/lib/fileSecurityPolicy'
+import { toast } from 'vue-sonner'
 
 interface Props {
   materials: TaskMaterialItemData[]
@@ -21,12 +23,25 @@ const emit = defineEmits<{
 
 const uploadingMaterials = ref<Record<string, boolean>>({})
 
-const handleFilesSelected = (materialId: string, files: FileList) => {
-  const fileArray = Array.from(files)
+const handleFilesSelected = (materialId: string, files: File[]) => {
+  const material = props.materials.find((item) => item.id === materialId)
+  if (!material) return
+
+  const result = validateFileBatch(files, {
+    maxSizeMb: material.maxSizeMb,
+    existingCount: props.uploadedFiles[materialId]?.length || 0,
+    allowedExtensions: material.fileTypes,
+    materialName: material.materialName,
+  })
+  if (!result.ok) {
+    toast.error(result.message || '文件不符合上传要求')
+    return
+  }
+
   uploadingMaterials.value[materialId] = true
   
   setTimeout(() => {
-    emit('files-selected', materialId, fileArray)
+    emit('files-selected', materialId, files)
     uploadingMaterials.value[materialId] = false
   }, 800)
 }

@@ -3035,7 +3035,7 @@ class AlbumService extends BaseService
      * @throws \think\db\exception\DbException
      * @throws \think\db\exception\ModelNotFoundException
      */
-    public function getProductDetail($product_id, $uid = 0)
+    public function getProductDetail($product_id, $uid = 0, $allowSharedPrivate = false)
     {
         $this->ensureProductStatusColumns();
         $product = WdXcxAlbumFolder::where('id', $product_id)->where('folder_type', 2)->find();
@@ -3043,7 +3043,7 @@ class AlbumService extends BaseService
             throwError('产品不存在');
         }
         
-        if ($product->private_type == 2 && $product->uid != $uid) {
+        if ($product->private_type == 2 && $product->uid != $uid && !$allowSharedPrivate) {
              throwError('此内容为私有，请勿访问');
         }
 

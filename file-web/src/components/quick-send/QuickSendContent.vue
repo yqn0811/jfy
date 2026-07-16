@@ -41,6 +41,13 @@ import {
   type FileTransferShareVO,
 } from '@/data/FileTransferApi'
 import { authStore, getApiErrorMessage } from '@/lib/apiClient'
+import {
+  QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB,
+  QUICK_SEND_USER_MAX_FILE_SIZE_MB,
+  MAX_FILES_PER_BATCH,
+  filterUploadableFiles,
+  validateFileBatch,
+} from '@/lib/fileSecurityPolicy'
 import { navigateTo } from '@/navigation'
 
 interface UploadFile {
@@ -68,7 +75,8 @@ type UtilityPanel = 'pickup' | 'recent' | 'support' | 'security'
 type LegalDialogType = 'service' | 'privacy'
 type ShareRecord = ReturnType<typeof FileShareService.getAll>[number]
 
-const MAX_FILE_SIZE_MB = 500
+const PICKUP_CODE_PATTERN = /^[A-Za-z0-9]{4}$/
+const PICKUP_CODE_CHARSET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
@@ -84,8 +92,9 @@ const termsAccepted = ref(true)
 const sendMode = ref<SendMode>('standard')
 const activePanel = ref<UtilityPanel>('pickup')
 const pickupCode = ref('')
-const pickupResult = ref<ShareRecord | null>(null)
+const pickupResult = ref<FileTransferShareVO | null>(null)
 const pickupSearched = ref(false)
+const isPickupSearching = ref(false)
 const legalDialog = ref<LegalDialogType | null>(null)
 const generatedShare = ref<FileTransferShareVO | null>(null)
 const isShareResultOpen = ref(false)
@@ -129,7 +138,7 @@ const panelTabs: Array<{ value: UtilityPanel; label: string; icon: string }> = [
 ]
 
 function generatePassword(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  return Array.from({ length: 4 }, () => PICKUP_CODE_CHARSET[Math.floor(Math.random() * PICKUP_CODE_CHARSET.length)]).join('')
 }
 
 const totalSizeMb = computed(() => {
@@ -154,6 +163,10 @@ const generateButtonLabel = computed(() => {
 
 const fileAccept = computed(() => {
   return sendMode.value === 'image' ? 'image/*' : '*'
+})
+
+const maxFileSizeMb = computed(() => {
+  return authStore.hasToken() ? QUICK_SEND_USER_MAX_FILE_SIZE_MB : QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB
 })
 
 const pickerLabel = computed(() => {
@@ -200,6 +213,7 @@ const recentShares = computed<ShareRecord[]>(() => {
   const persistedShares = FileShareService.loadPersisted() ?? []
 
   persistedShares.forEach((share) => {
+    if (!isUsableShareRecord(share)) return
     const existing = shareMap.get(share.id)
     if (!existing || new Date(share.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
       shareMap.set(share.id, share)
@@ -212,6 +226,7 @@ const recentShares = computed<ShareRecord[]>(() => {
 })
 
 const normalizedPickupCode = computed(() => pickupCode.value.trim())
+const normalizedSharePickupCode = computed(() => shareSettings.value.accessPassword.trim())
 
 const isLegalDialogOpen = computed({
   get: () => legalDialog.value !== null,
@@ -225,8 +240,8 @@ const shareResultLink = computed(() => {
   return toAbsoluteShareUrl(generatedShare.value.shareUrl, generatedShare.value.shareCode)
 })
 
-const shareResultPassword = computed(() => generatedShare.value?.password || '')
-const shareResultPasswordDisplay = computed(() => shareResultPassword.value || '当前记录未返回访问密码')
+const shareResultPickupCode = computed(() => generatedShare.value?.pickupCode || generatedShare.value?.password || '')
+const shareResultPickupCodeDisplay = computed(() => shareResultPickupCode.value || '当前记录未返回取件码')
 const shareResultSummary = computed(() => {
   if (!generatedShare.value) return ''
   return `${generatedShare.value.fileCount} 个文件，${formatShareSize(generatedShare.value.totalSizeMb)}`
@@ -268,15 +283,15 @@ const legalDialogPoints = computed(() => {
   if (legalDialog.value === 'privacy') {
     return [
       '仅保存完成传输所需的文件名、链接状态和访问记录。',
-      '不会把取件码、访问密码展示给无权限的访客。',
-      '你可以在交付记录中管理过期、撤回和下载通知。',
+      '不会把取件码展示给无权限的访客。',
+      '你可以在收发记录中管理过期、撤回和下载通知。',
     ]
   }
 
   return [
     '请勿上传违法、侵权、涉密或其他违规内容。',
-    '分享链接默认需要访问密码，生成后可以继续管理有效期。',
-    '接收方访问、预览和下载行为会记录在交付记录中。',
+    '分享链接默认需要取件码，生成后可以继续管理有效期。',
+    '接收方访问、预览和下载行为会记录在收发记录中。',
   ]
 })
 
@@ -294,28 +309,34 @@ const openTextDialog = () => {
   isTextDialogOpen.value = true
 }
 
-const validateFiles = (files: FileList): boolean => {
-  for (let index = 0; index < files.length; index++) {
-    const file = files[index]
-    if (sendMode.value === 'image' && !file.type.startsWith('image/')) {
-      toast.error(`图片发送只支持图片文件: "${file.name}"`)
-      return false
-    }
+const showIgnoredSystemFilesToast = (ignoredCount: number) => {
+  if (ignoredCount > 0) {
+    toast.info(`已忽略 ${ignoredCount} 个系统隐藏文件`)
+  }
+}
 
-    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-      toast.error(`文件 "${file.name}" 超过最大限制 ${MAX_FILE_SIZE_MB}MB`)
-      return false
-    }
+const validateFiles = (files: File[]): boolean => {
+  const result = validateFileBatch(files, {
+    maxSizeMb: maxFileSizeMb.value,
+    existingCount: uploadedFiles.value.length,
+    imageOnly: sendMode.value === 'image',
+  })
+  if (!result.ok) {
+    toast.error(result.message || '文件不符合上传要求')
+    return false
   }
   return true
 }
 
-const appendFiles = (files: FileList) => {
+const appendFiles = (selectedFiles: FileList | File[]) => {
+  const { files, ignoredCount } = filterUploadableFiles(selectedFiles)
+  showIgnoredSystemFilesToast(ignoredCount)
+  if (!files.length) return
   if (!validateFiles(files)) return
+
   isUploadProgressOpen.value = true
 
-  for (let index = 0; index < files.length; index++) {
-    const file = files[index]
+  files.forEach((file, index) => {
     const id = `upload-${Date.now()}-${index}`
     const fileSizeMb = parseFloat((file.size / (1024 * 1024)).toFixed(2))
 
@@ -330,7 +351,7 @@ const appendFiles = (files: FileList) => {
     })
 
     uploadFile(id)
-  }
+  })
 }
 
 const handleInputChange = (event: Event) => {
@@ -397,7 +418,7 @@ async function uploadFile(fileId: string) {
   }, 300)
 
   try {
-    const [uploaded] = await FileTransferApi.uploadFiles([fileItem.file])
+    const uploaded = await FileTransferApi.uploadFileWithBestPath(fileItem.file)
     const latest = uploadedFiles.value.find((file) => file.id === fileId)
     if (!latest) return
     latest.backendFileId = uploaded?.id
@@ -446,61 +467,77 @@ const handlePanelSelect = (panel: UtilityPanel) => {
   activePanel.value = panel
 }
 
-const handlePickupSearch = () => {
+const handlePickupSearch = async () => {
   pickupSearched.value = true
   pickupResult.value = null
 
-  if (normalizedPickupCode.value.length < 4) {
-    toast.error('请输入取件码或分享口令')
+  if (!PICKUP_CODE_PATTERN.test(normalizedPickupCode.value)) {
+    toast.error('取件码需为 4 位大小写英文或数字')
     return
   }
 
-  const keyword = normalizedPickupCode.value.toLowerCase()
-  const match = recentShares.value.find((share) => {
-    const urlToken = share.shareUrl.split('/').pop()?.toLowerCase()
-    return share.password === normalizedPickupCode.value || share.id.toLowerCase() === keyword || urlToken === keyword
-  })
-
-  if (!match) {
-    toast.error('没有找到对应文件')
-    return
+  isPickupSearching.value = true
+  try {
+    const share = await FileTransferApi.getShareByPickupCode(normalizedPickupCode.value)
+    pickupResult.value = share
+    toast.success('已找到分享文件')
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '取件码不存在或已失效'))
+  } finally {
+    isPickupSearching.value = false
   }
-
-  pickupResult.value = match
-  toast.success('已找到分享记录')
 }
 
 const getShareCodeFromRecord = (share: Pick<ShareRecord, 'shareCode' | 'shareUrl'>) => {
   if (share.shareCode) return share.shareCode
   try {
-    return new URL(share.shareUrl || '/', window.location.origin).searchParams.get('shareCode') || ''
+    const params = new URL(share.shareUrl || '/', window.location.origin).searchParams
+    return params.get('shareCode') || params.get('code') || ''
   } catch {
     return ''
   }
 }
 
+const isUsableShareRecord = (share: ShareRecord | FileTransferShareVO) => {
+  const shareCode = getShareCodeFromRecord(share)
+  return Boolean(shareCode && share.fileCount > 0 && toAbsoluteShareUrl(share.shareUrl, shareCode))
+}
+
 const openShareResultDialog = async (share: ShareRecord | FileTransferShareVO) => {
   const shareCode = getShareCodeFromRecord(share)
-  const localPassword = share.password || shareSettings.value.accessPassword
-  generatedShare.value = normalizeShareVO({ ...share, shareCode }, localPassword)
-  isShareResultOpen.value = true
-  shareQrcode.value = ''
+  if (!shareCode) {
+    toast.error('这条记录缺少分享码，请重新发送文件')
+    return
+  }
 
-  if (!shareCode) return
+  const localPassword = (share as FileTransferShareVO).pickupCode || share.password || ''
 
   try {
-    const remoteShare = await FileTransferApi.getOwnerShare(shareCode)
+    const remoteShare = localPassword
+      ? await FileTransferApi.getPublicShare(shareCode, localPassword)
+      : await FileTransferApi.getOwnerShare(shareCode)
     generatedShare.value = {
       ...remoteShare,
       password: localPassword || remoteShare.password,
     }
-  } catch {
-    // 本地记录已经足够展示链接和密码；远端详情失败时不打断 A 端复制分享。
+    isShareResultOpen.value = true
+    shareQrcode.value = ''
+  } catch (error) {
+    toast.error(getApiErrorMessage(error, '分享记录加载失败，请重新发送文件'))
   }
 }
 
 const handleOpenShare = (share: ShareRecord) => {
   void openShareResultDialog(share)
+}
+
+const handleOpenPickupResult = () => {
+  const code = pickupResult.value?.pickupCode || normalizedPickupCode.value
+  if (!code) {
+    toast.error('缺少取件码')
+    return
+  }
+  navigateTo(`/share-result?pickupCode=${encodeURIComponent(code)}`)
 }
 
 const handleSupport = () => {
@@ -544,8 +581,8 @@ const handleCopyShareLink = () => {
   copyText(shareResultLink.value, '分享链接已复制')
 }
 
-const handleCopySharePassword = () => {
-  copyText(shareResultPassword.value, '访问密码已复制')
+const handleCopySharePickupCode = () => {
+  copyText(shareResultPickupCode.value, '取件码已复制')
 }
 
 const handleOpenPickupCode = () => {
@@ -626,6 +663,11 @@ const handleGenerateLink = async () => {
     return
   }
 
+  if (!PICKUP_CODE_PATTERN.test(normalizedSharePickupCode.value)) {
+    toast.error('取件码需为 4 位大小写英文或数字')
+    return
+  }
+
   isGenerating.value = true
 
   try {
@@ -641,18 +683,27 @@ const handleGenerateLink = async () => {
       title: `快速分享 - ${new Date().toLocaleString('zh-CN')}`,
       fileIds,
       transferToken: getAnonymousTransferToken(),
-      password: shareSettings.value.accessPassword,
+      password: normalizedSharePickupCode.value,
+      pickupCode: normalizedSharePickupCode.value,
       expiresAt: makeShareExpiresAt(authStore.hasToken() ? shareSettings.value.expiresIn : '24h'),
       maxDownloads: shareSettings.value.maxDownloads,
       allowPreview: shareSettings.value.allowPreview,
       notifyOnDownload: shareSettings.value.notifyOnDownload,
     })
 
+    const shareCode = share.shareCode
+    const hydratedShare = await FileTransferApi.getPublicShare(shareCode, normalizedSharePickupCode.value)
+      .catch(() => share)
+    const resultShare = {
+      ...hydratedShare,
+      password: normalizedSharePickupCode.value,
+    }
+
     const allShares = FileShareService.loadPersisted() ?? []
-    allShares.push(normalizeShareData(share, shareSettings.value.accessPassword))
+    allShares.push(normalizeShareData(resultShare, normalizedSharePickupCode.value))
     FileShareService.savePersisted(allShares)
 
-    generatedShare.value = share
+    generatedShare.value = resultShare
     isShareResultOpen.value = true
     isUploadProgressOpen.value = false
     shareQrcode.value = ''
@@ -683,6 +734,9 @@ const openShareResultFromQuery = async () => {
       })
     } else if (queryShareCode) {
       const remoteShare = await FileTransferApi.getOwnerShare(queryShareCode)
+      if (!remoteShare.shareCode || remoteShare.fileCount <= 0) {
+        throw new Error('分享记录无效')
+      }
       generatedShare.value = remoteShare
       isShareResultOpen.value = true
       shareQrcode.value = ''
@@ -702,6 +756,12 @@ const openShareResultFromQuery = async () => {
 }
 
 function formatShareSize(sizeMb: number): string {
+  if (sizeMb > 0 && sizeMb < 1 / 1024) {
+    return `${Math.max(1, Math.round(sizeMb * 1024 * 1024))} B`
+  }
+  if (sizeMb > 0 && sizeMb < 1) {
+    return `${Math.max(1, Math.round(sizeMb * 1024))} KB`
+  }
   if (sizeMb >= 1024) {
     return `${(sizeMb / 1024).toFixed(2)} GB`
   }
@@ -779,17 +839,51 @@ onMounted(() => {
 
         <main class="transfer-column">
           <div class="command-bar" aria-label="快捷操作">
-            <Button variant="outline" class="command-pill" @click="handlePanelSelect('pickup')">
+            <Button
+              type="button"
+              variant="outline"
+              class="command-pill"
+              :class="{ 'is-active': activePanel === 'pickup' }"
+              :aria-pressed="activePanel === 'pickup'"
+              @click="handlePanelSelect('pickup')"
+            >
               <SafeIcon name="KeyRound" :size="16" />
               钥匙串 / 取件码
             </Button>
-            <Button variant="ghost" size="icon" class="command-icon" title="图片发送" @click="handleModeSelect('image')">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="command-icon"
+              :class="{ 'is-active': sendMode === 'image' }"
+              :aria-pressed="sendMode === 'image'"
+              title="图片发送"
+              @click="handleModeSelect('image')"
+            >
               <SafeIcon name="Image" :size="19" />
             </Button>
-            <Button variant="ghost" size="icon" class="command-icon" title="最近发送" @click="handlePanelSelect('recent')">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="command-icon"
+              :class="{ 'is-active': activePanel === 'recent' }"
+              :aria-pressed="activePanel === 'recent'"
+              title="最近发送"
+              @click="handlePanelSelect('recent')"
+            >
               <SafeIcon name="CalendarCheck" :size="19" />
             </Button>
-            <Button variant="ghost" size="icon" class="command-icon" title="客服支持" @click="handleSupport">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="command-icon"
+              :class="{ 'is-active': activePanel === 'support' }"
+              :aria-pressed="activePanel === 'support'"
+              title="客服支持"
+              @click="handleSupport"
+            >
               <SafeIcon name="BadgeHelp" :size="19" />
             </Button>
           </div>
@@ -870,7 +964,8 @@ onMounted(() => {
               </DropdownMenu>
               <p>{{ emptyHint }}</p>
               <div class="format-row">
-                <span>最大 500MB</span>
+                <span>最大 {{ maxFileSizeMb }}MB</span>
+                <span>单批 {{ MAX_FILES_PER_BATCH }} 个</span>
                 <span>密码访问</span>
                 <span>可追踪下载</span>
               </div>
@@ -977,7 +1072,7 @@ onMounted(() => {
               <div>
                 <h2 class="text-item-title">分享设置</h2>
                 <p class="text-caption mt-1">
-                  {{ authStore.hasToken() ? '配置有效期、访问密码和下载限制' : '未登录文件有效期为 24 小时，到期后自动清理' }}
+                  {{ authStore.hasToken() ? `单批最多 ${MAX_FILES_PER_BATCH} 个文件，可配置有效期、取件码和下载限制` : `未登录单文件最大 ${QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB}MB，单批最多 ${MAX_FILES_PER_BATCH} 个，有效期为 24 小时` }}
                 </p>
               </div>
               <Button :disabled="!canGenerateLink" @click="handleGenerateLink">
@@ -1010,8 +1105,14 @@ onMounted(() => {
               </div>
 
               <div class="space-y-2">
-                <Label class="text-label">访问密码</Label>
-                <Input v-model="shareSettings.accessPassword" class="h-9 font-mono" />
+                <Label class="text-label">取件码</Label>
+                <Input
+                  v-model="shareSettings.accessPassword"
+                  class="h-9 font-mono"
+                  maxlength="4"
+                  autocomplete="off"
+                  placeholder="例如 aB3Z"
+                />
               </div>
 
               <div class="space-y-2">
@@ -1058,14 +1159,23 @@ onMounted(() => {
           <div v-if="activePanel === 'pickup'" class="panel-section">
             <div class="panel-heading">
               <h2>取件码查询</h2>
-              <p>输入取件码、分享 ID 或链接末尾口令。</p>
+              <p>输入分享者提供的取件码，可直接打开有效期内的文件。</p>
             </div>
 
             <form class="pickup-form" @submit.prevent="handlePickupSearch">
               <Label for="pickup-code" class="text-label">取件码</Label>
               <div class="pickup-input-row">
-                <Input id="pickup-code" v-model="pickupCode" placeholder="例如 482916" />
-                <Button type="submit">查询</Button>
+                <Input
+                  id="pickup-code"
+                  v-model="pickupCode"
+                  maxlength="4"
+                  autocomplete="one-time-code"
+                  placeholder="例如 aB3Z"
+                />
+                <Button type="submit" :disabled="isPickupSearching">
+                  <SafeIcon v-if="isPickupSearching" name="Loader2" :size="15" class="animate-spin" />
+                  查询
+                </Button>
               </div>
             </form>
 
@@ -1074,7 +1184,7 @@ onMounted(() => {
                 <strong>{{ pickupResult.title }}</strong>
                 <span>{{ pickupResult.fileCount }} 个文件 · {{ formatShareSize(pickupResult.totalSizeMb) }}</span>
               </div>
-              <Button size="sm" @click="handleOpenShare(pickupResult)">
+              <Button size="sm" @click="handleOpenPickupResult">
                 打开
               </Button>
             </div>
@@ -1087,11 +1197,11 @@ onMounted(() => {
             <div class="hint-list">
               <div>
                 <SafeIcon name="KeyRound" :size="16" />
-                <span>取件码可使用分享密码</span>
+                <span>取件码全局唯一，有效期内可用</span>
               </div>
               <div>
                 <SafeIcon name="Link2" :size="16" />
-                <span>也支持输入链接最后一段口令</span>
+                <span>即使没有分享链接，也能凭取件码打开</span>
               </div>
             </div>
           </div>
@@ -1120,7 +1230,7 @@ onMounted(() => {
 
             <Button variant="outline" class="panel-link-button" @click="navigateTo('/delivery-records')">
               <SafeIcon name="History" :size="16" />
-              全部交付记录
+              全部收发记录
             </Button>
           </div>
 
@@ -1152,21 +1262,21 @@ onMounted(() => {
           <div v-else class="panel-section">
             <div class="panel-heading">
               <h2>安全说明</h2>
-              <p>默认启用访问密码、有效期和下载次数限制。</p>
+              <p>默认启用取件码、有效期和下载次数限制。</p>
             </div>
 
             <div class="security-list">
               <div>
                 <SafeIcon name="ShieldCheck" :size="18" />
-                <span>分享链接可设置有效期</span>
+                <span>高风险类型会在上传前后拦截</span>
               </div>
               <div>
                 <SafeIcon name="LockKeyhole" :size="18" />
-                <span>访问密码默认自动生成</span>
+                <span>大文件优先走对象存储直传</span>
               </div>
               <div>
                 <SafeIcon name="BellRing" :size="18" />
-                <span>下载通知可随时关闭</span>
+                <span>访问频率和任务容量会自动限流</span>
               </div>
             </div>
           </div>
@@ -1267,7 +1377,7 @@ onMounted(() => {
             文件发送成功
           </DialogTitle>
           <DialogDescription>
-            {{ shareResultSummary }}，已生成公共链接和访问密码。
+            {{ shareResultSummary }}，已生成公共链接和取件码。
           </DialogDescription>
         </DialogHeader>
 
@@ -1317,10 +1427,10 @@ onMounted(() => {
             </div>
 
             <div class="share-result-field">
-              <Label class="text-label">访问密码</Label>
+              <Label class="text-label">取件码</Label>
               <div class="share-copy-row">
-                <Input :model-value="shareResultPasswordDisplay" readonly class="font-mono text-sm" />
-                <Button variant="outline" @click="handleCopySharePassword">
+                <Input :model-value="shareResultPickupCodeDisplay" readonly class="font-mono text-sm" />
+                <Button variant="outline" @click="handleCopySharePickupCode">
                   <SafeIcon name="Copy" :size="16" />
                   复制
                 </Button>
@@ -1366,7 +1476,7 @@ onMounted(() => {
         <DialogHeader>
           <DialogTitle>分享二维码</DialogTitle>
           <DialogDescription>
-            扫码打开公共链接，仍需要访问密码。
+            扫码打开公共链接，仍需要取件码。
           </DialogDescription>
         </DialogHeader>
         <div class="share-qrcode-box">
@@ -1404,19 +1514,19 @@ onMounted(() => {
         <DialogHeader>
           <DialogTitle>取件码</DialogTitle>
           <DialogDescription>
-            对方也可以用访问密码作为取件码打开文件。
+            对方即使没有分享链接，也可以用这个取件码打开文件。
           </DialogDescription>
         </DialogHeader>
         <div class="pickup-code-body">
-          <strong>{{ shareResultPasswordDisplay }}</strong>
+          <strong>{{ shareResultPickupCodeDisplay }}</strong>
           <p>有效期：{{ shareResultExpiresText }}</p>
-          <Button variant="outline" @click="handleCopySharePassword">
+          <Button variant="outline" @click="handleCopySharePickupCode">
             <SafeIcon name="Copy" :size="16" />
             复制取件码
           </Button>
         </div>
         <p class="pickup-code-note">
-          取件码与访问密码一致，用于接收方打开公开链接后的密码验证。
+          取件码是本次分享的唯一取件凭证，过期后不可再访问。
         </p>
       </DialogContent>
     </Dialog>
@@ -1632,13 +1742,18 @@ onMounted(() => {
 }
 
 .transfer-column {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .command-bar {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  width: fit-content;
+  max-width: 100%;
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -1658,6 +1773,26 @@ onMounted(() => {
   border: 1px solid hsl(var(--border));
   border-radius: 999px;
   color: hsl(var(--foreground));
+}
+
+.command-pill,
+.command-icon {
+  transition: border-color 0.18s, background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+
+.command-pill:hover,
+.command-icon:hover,
+.command-pill.is-active,
+.command-icon.is-active {
+  border-color: hsl(var(--primary) / 0.48);
+  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary));
+  box-shadow: 0 8px 18px hsl(var(--primary) / 0.12);
+}
+
+.command-pill.is-active,
+.command-icon.is-active {
+  transform: translateY(-1px);
 }
 
 .transfer-card {
@@ -1917,15 +2052,22 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  border: 1px solid transparent;
   border-radius: 6px;
   color: hsl(var(--muted-foreground));
   font-size: 13px;
   font-weight: 600;
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  transition: border-color 0.18s, background 0.18s, color 0.18s, box-shadow 0.18s;
 }
 
-.panel-tab.is-active {
-  background: white;
+.panel-tab:hover:not(.is-active) {
+  background: hsl(var(--card) / 0.55);
+  color: hsl(var(--foreground));
+}
+
+.panel-tabs .panel-tab.is-active {
+  border-color: hsl(var(--primary) / 0.22);
+  background: hsl(var(--card));
   color: hsl(var(--primary));
   box-shadow: var(--shadow-soft);
 }

@@ -17,6 +17,7 @@ use think\Response;
 use think\response\Json;
 use think\facade\Log;
 use think\facade\Request;
+use think\facade\Config;
 use think\exception\Handle;
 use think\db\exception\PDOException;
 use think\exception\HttpResponseException;
@@ -89,12 +90,9 @@ class ExceptionHandle extends Handle
             throw new HttpResponseException($response);
         }
         if($app_name == 'api'){
-            if(app()->isDebug()){
-                $this->status = 500;
-                $this->message = $e->getMessage();
-                return $this->outputDebug($e);
-            }
-            throwError($e->getMessage());
+            $this->status = Config::get('status.error', 500);
+            $this->message = $this->safeApiMessage($e);
+            return $this->output();
         }
         // 其他错误交给系统处理
         return parent::render($request, $e);
@@ -123,11 +121,20 @@ class ExceptionHandle extends Handle
             'file' => $e->getFile(),
             'line' => $e->getLine(),
             'code' => $this->getCode($e),
-            'message' => $this->getMessage($e),
-            'trace' => $e->getTrace(),
-            'source' => $this->getSourceCode($e),
+            'message' => $this->safeApiMessage($e),
         ];
         return $this->output(['debug' => $debug]);
+    }
+
+    /**
+     * API 输出只给用户安全文案，内部异常详情只进日志。
+     */
+    private function safeApiMessage(Throwable $e): string
+    {
+        if ($e instanceof BaseException && $e->message !== '') {
+            return $e->message;
+        }
+        return '服务暂不可用，请稍后重试';
     }
 
     /**

@@ -121,7 +121,8 @@ const handleSubmit = async () => {
     }
     toast.success('提交成功')
     const sourceQuery = receipt.sourceSubmissionId ? `&sourceSubmissionId=${encodeURIComponent(receipt.sourceSubmissionId)}` : ''
-    navigateTo(`/submission-success?submissionId=${encodeURIComponent(receipt.submissionId)}&taskId=${encodeURIComponent(receipt.taskId || props.taskVOData.taskId)}${sourceQuery}`)
+    const receiptQuery = receipt.receiptToken ? `&receiptToken=${encodeURIComponent(receipt.receiptToken)}` : ''
+    navigateTo(`/submission-success?submissionId=${encodeURIComponent(receipt.submissionId)}&taskId=${encodeURIComponent(receipt.taskId || props.taskVOData.taskId)}${receiptQuery}${sourceQuery}`)
   } catch (error) {
     toast.error(getApiErrorMessage(error, '提交出错，请重试'))
   } finally {
