@@ -619,8 +619,12 @@ const zoomOutPreviewImage = () => {
   previewImageScale.value = Math.max(0.5, Number((previewImageScale.value - 0.25).toFixed(2)))
 }
 
-const rotatePreviewImage = () => {
-  previewImageRotation.value = (previewImageRotation.value + 90) % 360
+const rotatePreviewImageLeft = () => {
+  previewImageRotation.value -= 90
+}
+
+const rotatePreviewImageRight = () => {
+  previewImageRotation.value += 90
 }
 
 const resetPreviewImageTransform = () => {
@@ -1079,7 +1083,16 @@ const handleLoginSuccess = () => {
               size="icon"
               class="h-9 w-9 rounded-full"
               :disabled="isPreviewOriginalLoading"
-              @click="rotatePreviewImage"
+              @click="rotatePreviewImageLeft"
+            >
+              <SafeIcon name="RotateCcw" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading"
+              @click="rotatePreviewImageRight"
             >
               <SafeIcon name="RotateCw" :size="18" />
             </Button>
