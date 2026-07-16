@@ -25,4 +25,9 @@ return [
     'account_key_v2' => '7FdKp9Qr2sT4vWxYzAbCeHjLmNqRtUvX',
     //公众号微信商户号
     'account_mchid' => '1645783039',
+
+    //微信开放平台网站应用（文件站网页登录）
+    'web_appid' => env('WECHAT_WEB_APPID', getenv('WECHAT_WEB_APPID') ?: ''),
+    'web_appsecret' => env('WECHAT_WEB_APPSECRET', getenv('WECHAT_WEB_APPSECRET') ?: ''),
+    'web_login_callback' => env('WECHAT_WEB_LOGIN_CALLBACK', getenv('WECHAT_WEB_LOGIN_CALLBACK') ?: ''),
 ];
