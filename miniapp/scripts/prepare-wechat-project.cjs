@@ -5,11 +5,14 @@ const os = require('os')
 
 const root = path.resolve(__dirname, '..')
 const buildRoot = path.join(root, 'dist', 'build')
+const outputRoot = process.env.UNI_OUTPUT_DIR
+  ? path.resolve(root, process.env.UNI_OUTPUT_DIR)
+  : path.join(root, 'dist', 'build', 'mp-weixin')
 const distRoot = path.join(root, 'dist', 'build', 'mp-weixin')
 const legacyPreviewRoot = path.join(root, 'dist', 'wechat-preview')
 const previewRoot = process.env.WECHAT_PREVIEW_ROOT
   ? path.resolve(process.env.WECHAT_PREVIEW_ROOT)
-  : path.join(os.tmpdir(), 'jfy-miniapp-wechat-preview', 'mp-weixin')
+  : distRoot
 const projectConfigPath = path.join(root, 'project.config.json')
 const projectPrivateConfigPath = path.join(root, 'project.private.config.json')
 const subpackageRootName = 'pagesOther'
@@ -30,9 +33,14 @@ const assetFileExtensions = new Set([
 const pngColorLimit = '48'
 const jpegQuality = '70'
 const imageOptimizeTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'jfy-miniapp-image-opt-'))
+const highFidelityAssets = new Set([
+  `${staticRootName}/image/start-image.png`,
+  `${staticRootName}/image/login-bg.png`,
+  `${staticRootName}/image/banner.png`
+])
 
-if (!fs.existsSync(distRoot)) {
-  throw new Error(`Build output not found: ${distRoot}`)
+if (!fs.existsSync(outputRoot)) {
+  throw new Error(`Build output not found: ${outputRoot}`)
 }
 
 const projectConfig = JSON.parse(fs.readFileSync(projectConfigPath, 'utf8'))
@@ -68,10 +76,28 @@ const loadPrivateConfig = () => {
   return JSON.parse(fs.readFileSync(projectPrivateConfigPath, 'utf8'))
 }
 
-const copyDir = (src, dest) => {
-  fs.rmSync(dest, { recursive: true, force: true })
-  fs.mkdirSync(dest, { recursive: true })
-  fs.cpSync(src, dest, { recursive: true })
+const syncDir = (src, dest) => {
+  ensureDir(dest)
+  for (const name of fs.readdirSync(src)) {
+    const srcPath = path.join(src, name)
+    const destPath = path.join(dest, name)
+    const stat = fs.statSync(srcPath)
+
+    if (stat.isDirectory()) {
+      syncDir(srcPath, destPath)
+    } else {
+      ensureDir(path.dirname(destPath))
+      fs.copyFileSync(srcPath, destPath)
+    }
+  }
+
+  for (const name of fs.readdirSync(dest)) {
+    const destPath = path.join(dest, name)
+    const srcPath = path.join(src, name)
+    if (!fs.existsSync(srcPath)) {
+      fs.rmSync(destPath, { recursive: true, force: true })
+    }
+  }
 }
 
 const writeJson = (filePath, value) => {
@@ -105,6 +131,11 @@ const ensureDir = (dir) => {
 const isTextFile = (filePath) => textFileExtensions.has(path.extname(filePath).toLowerCase())
 
 const isAssetFile = (filePath) => assetFileExtensions.has(path.extname(filePath).toLowerCase())
+
+const isHighFidelityAsset = (packageRoot, filePath) => {
+  const rel = toPosix(path.relative(packageRoot, filePath))
+  return highFidelityAssets.has(rel)
+}
 
 const removeEmptyDirectories = (dir, keepRoot = dir) => {
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
@@ -205,15 +236,9 @@ const relocateSubpackageStaticAssets = (packageRoot) => {
     }
   }
 
-  const staticRoot = path.join(packageRoot, staticRootName)
-  for (const filePath of walkFiles(staticRoot).filter(isAssetFile)) {
-    const asset = toPosix(path.relative(packageRoot, filePath))
-    if (!refs.main.has(asset)) {
-      fs.rmSync(filePath, { force: true })
-    }
-  }
-
-  removeEmptyDirectories(staticRoot)
+  // Keep the original root static assets for WeChat DevTools/resource scanning.
+  // Some generated or cached references may still resolve /static/* even after
+  // subpackage references are rewritten to /pagesOther/static/*.
 }
 
 const getMagickBinary = () => {
@@ -259,7 +284,7 @@ const convertLoginBackgroundToJpeg = (packageRoot, magickBinary) => {
   const pngPath = path.join(packageRoot, pngAsset)
   const jpgPath = path.join(packageRoot, jpgAsset)
 
-  if (!fs.existsSync(pngPath)) {
+  if (!fs.existsSync(pngPath) || isHighFidelityAsset(packageRoot, pngPath)) {
     return
   }
 
@@ -296,6 +321,9 @@ const optimizePackageImages = (packageRoot) => {
 
   for (const imageRoot of imageRoots) {
     for (const filePath of walkFiles(imageRoot)) {
+      if (isHighFidelityAsset(packageRoot, filePath)) {
+        continue
+      }
       const ext = path.extname(filePath).toLowerCase()
       if (ext === '.png') {
         replaceWithSmallerImage(
@@ -315,7 +343,7 @@ const preparePackageAssets = (packageRoot) => {
   optimizePackageImages(packageRoot)
 }
 
-writeJson(path.join(distRoot, 'project.config.json'), normalizeWechatProjectConfig(standaloneConfig))
+writeJson(path.join(outputRoot, 'project.config.json'), normalizeWechatProjectConfig(standaloneConfig))
 writeJson(path.join(buildRoot, 'project.config.json'), normalizeWechatProjectConfig(buildConfig))
 
 const privateConfig = loadPrivateConfig()
@@ -328,14 +356,19 @@ if (privateConfig) {
     miniprogramRoot: 'mp-weixin/'
   }
 
-  writeJson(path.join(distRoot, 'project.private.config.json'), normalizeWechatProjectConfig(standalonePrivateConfig))
+  writeJson(path.join(outputRoot, 'project.private.config.json'), normalizeWechatProjectConfig(standalonePrivateConfig))
   writeJson(path.join(buildRoot, 'project.private.config.json'), normalizeWechatProjectConfig(buildPrivateConfig))
 }
 
-preparePackageAssets(distRoot)
+preparePackageAssets(outputRoot)
 if (!previewRoot.startsWith(legacyPreviewRoot)) {
   fs.rmSync(legacyPreviewRoot, { recursive: true, force: true })
 }
-copyDir(distRoot, previewRoot)
+if (outputRoot !== distRoot) {
+  syncDir(outputRoot, distRoot)
+}
+if (previewRoot !== distRoot) {
+  syncDir(distRoot, previewRoot)
+}
 fs.rmSync(imageOptimizeTempRoot, { recursive: true, force: true })
-console.log(`[prepare-wechat-project] WeChat preview project: ${previewRoot}`)
+console.log(`[prepare-wechat-project] WeChat project: ${distRoot}`)

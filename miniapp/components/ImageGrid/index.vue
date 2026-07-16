@@ -1,18 +1,44 @@
 <template>
   <view class="image-grid">
-    <view class="grid" :class="normalizedColumns === 1 ? 'grid-1' : 'grid-2'">
+    <view
+      class="grid"
+      :class="[
+        normalizedColumns === 1 ? 'grid-1' : 'grid-2',
+        cardVariant ? `variant-${cardVariant}` : '',
+      ]"
+    >
       <view
         class="card"
+        :class="[
+          item && item.item_type === 'category' ? 'is-category' : '',
+          item && item.item_type === 'product' ? 'is-product' : '',
+        ]"
         v-for="(item, index) in list"
         :key="getItemKey(item, index)"
-        @click="handleClick($event, item, index)"
+        @tap="handleClick($event, item, index)"
       >
         <view
           class="thumb-wrap"
           :class="{ 'ratio-mode': useAspectRatio }"
           :style="thumbWrapStyle"
         >
+          <view
+            v-if="isClassDetailCategory(item)"
+            class="folder-cover"
+          >
+            <view class="category-tile-icon">
+              <view class="category-icon-tab"></view>
+              <view class="category-icon-body"></view>
+            </view>
+            <view class="category-tile-main">
+              <text class="category-tile-name">{{
+                getSeriesText(item) || "未命名分类"
+              }}</text>
+              <text class="category-tile-meta">{{ getBadgeText(item) }}子分类</text>
+            </view>
+          </view>
           <image
+            v-else
             :src="getImageSrc(item)"
             class="thumb"
             :style="imageStyle"
@@ -21,12 +47,21 @@
             :show-menu-by-longpress="showMenuByLongpress"
           >
           </image>
-          <view class="badge" v-if="showBadge">
+          <view class="badge" v-if="showBadge && !isClassDetailCategory(item)">
             <text>{{ getBadgeText(item) }}</text>
           </view>
-          <view class="series" v-if="showSeries">{{
+          <view class="series" v-if="showSeries && !isClassDetailCategory(item)">{{
             getSeriesText(item)
           }}</view>
+          <view
+            v-if="showMoreButton && item && item.item_type === 'category'"
+            class="grid-more-btn"
+            @tap.stop="handleMore(item, index)"
+          >
+            <view class="grid-more-dot"></view>
+            <view class="grid-more-dot"></view>
+            <view class="grid-more-dot"></view>
+          </view>
         </view>
       </view>
     </view>
@@ -118,6 +153,14 @@ export default {
       type: Boolean,
       default: false,
     },
+    cardVariant: {
+      type: String,
+      default: "",
+    },
+    showMoreButton: {
+      type: Boolean,
+      default: false,
+    },
   },
   computed: {
     normalizedColumns() {
@@ -203,8 +246,14 @@ export default {
       if (!text || text === "null" || text === "undefined") return "";
       return /^tmp[_-]/i.test(text) ? "" : text;
     },
+    isClassDetailCategory(item) {
+      return item && item.item_type === "category" && this.cardVariant === "class-detail";
+    },
     handleClick(e, item, index) {
       this.$emit("click", item, index);
+    },
+    handleMore(item, index) {
+      this.$emit("more", item, index);
     },
   },
 };
@@ -296,5 +345,176 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.variant-class-detail {
+  .card {
+    margin-bottom: 28rpx;
+  }
+
+  .thumb-wrap {
+    border-radius: 10rpx;
+    background: #eeeeee;
+    box-shadow: 0 8rpx 22rpx rgba(0, 0, 0, 0.04);
+  }
+
+  .badge {
+    left: 18rpx;
+    top: 18rpx;
+    min-width: 58rpx;
+    height: 42rpx;
+    padding: 0 18rpx;
+    border-radius: 999rpx;
+    background: rgba(35, 35, 35, 0.56);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24rpx;
+    line-height: 42rpx;
+    box-sizing: border-box;
+    backdrop-filter: blur(6rpx);
+  }
+
+  .series {
+    min-height: 88rpx;
+    padding: 34rpx 20rpx 18rpx;
+    font-size: 28rpx;
+    line-height: 36rpx;
+    border-radius: 0;
+    background: linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.7) 0%,
+      rgba(0, 0, 0, 0.35) 44%,
+      rgba(0, 0, 0, 0) 100%
+    );
+  }
+
+  .grid-more-btn {
+    position: absolute;
+    top: 16rpx;
+    right: 16rpx;
+    width: 48rpx;
+    height: 48rpx;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.86);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4rpx;
+    box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.08);
+    z-index: 3;
+  }
+
+  .grid-more-dot {
+    width: 6rpx;
+    height: 6rpx;
+    border-radius: 50%;
+    background: #4c535d;
+  }
+}
+
+.variant-class-detail .is-category {
+  .thumb-wrap {
+    background: #ffffff;
+    border: 1rpx solid rgba(38, 45, 56, 0.06);
+    box-shadow: 0 8rpx 20rpx rgba(32, 38, 48, 0.05);
+  }
+
+  .badge {
+    left: 16rpx;
+    top: 16rpx;
+    min-width: 54rpx;
+    height: 38rpx;
+    padding: 0 16rpx;
+    background: rgba(41, 47, 56, 0.58);
+    color: #ffffff;
+    font-size: 22rpx;
+    line-height: 38rpx;
+  }
+
+  .series {
+    color: #252b33;
+    min-height: 68rpx;
+    padding: 24rpx 18rpx 16rpx;
+    font-weight: 600;
+    font-size: 27rpx;
+    line-height: 34rpx;
+    text-shadow: none;
+    background: linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 255, 255, 0.92) 70%,
+      rgba(255, 255, 255, 0) 100%
+    );
+  }
+
+  .grid-more-btn {
+    width: 44rpx;
+    height: 44rpx;
+    background: rgba(255, 255, 255, 0.92);
+  }
+}
+
+.folder-cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24rpx 20rpx 20rpx;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+}
+
+.category-tile-icon {
+  position: relative;
+  width: 78rpx;
+  height: 62rpx;
+  margin-top: 16rpx;
+}
+
+.category-icon-tab {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 38rpx;
+  height: 18rpx;
+  border-radius: 10rpx 10rpx 4rpx 4rpx;
+  background: #ffd45a;
+}
+
+.category-icon-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48rpx;
+  border-radius: 14rpx;
+  background: linear-gradient(180deg, #ffc93d 0%, #f5a400 100%);
+  box-shadow: 0 8rpx 16rpx rgba(236, 156, 0, 0.14);
+}
+
+.category-tile-main {
+  min-width: 0;
+}
+
+.category-tile-name {
+  display: block;
+  font-weight: 600;
+  font-size: 28rpx;
+  line-height: 36rpx;
+  color: #222832;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-tile-meta {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  line-height: 28rpx;
+  color: #8b929d;
 }
 </style>

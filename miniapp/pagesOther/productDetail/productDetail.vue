@@ -165,6 +165,8 @@ export default {
       shareMiniPath: "",
       minShowCount: 1, // 控制“没有更多了~”显示逻辑
       uid: "",
+      source: "",
+      sharedCategoryId: "",
       shareOwnerId: "",
       lastProductRefreshAt: "",
       hideDetailPictures: false,
@@ -176,7 +178,11 @@ export default {
       ...(options || {}),
       ...sceneOptions,
     };
-    this.uid = this.normalizeShareParam(options.uid);
+    this.uid = this.resolveOwnerUid(options);
+    this.source = this.normalizeShareParam(options.source);
+    this.sharedCategoryId = this.normalizeShareParam(
+      options.category_id || options.cate_id || options.folder_id || "",
+    );
     this.shareOwnerId = this.uid;
     if (this.uid && !ensureSharedPageLogin("pagesOther/productDetail/productDetail", options, this.uid)) {
       return;
@@ -267,6 +273,15 @@ export default {
       if (!text || text === "null" || text === "undefined") return "";
       return text;
     },
+    resolveOwnerUid(options = {}) {
+      return (
+        this.normalizeShareParam(options.uid) ||
+        this.normalizeShareParam(options.target_user_id) ||
+        this.normalizeShareParam(options.share_uid) ||
+        this.normalizeShareParam(options.owner_uid) ||
+        this.normalizeShareParam(options.user_id)
+      );
+    },
     getShareOwnerId() {
       return (
         this.shareOwnerId ||
@@ -329,6 +344,8 @@ export default {
             data = {
               target_user_id: this.uid,
               product_id: this.productId,
+              direct_share: this.source === "share" ? 1 : 0,
+              cate_id: this.sharedCategoryId,
               timestamp: Date.now(),
             };
           }

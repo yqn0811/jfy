@@ -97,9 +97,14 @@ export const getImageUrls = (item = {}) => {
   const preview = asPreviewUrl(pickDisplayUrl(
     urls.preview,
     item.preview_url,
+    item.previewUrl,
     item.picture_url,
     item.imgurl,
     item.imageField,
+    item.new_thumb,
+    item.thumb,
+    item.cover_url,
+    item.coverUrl,
     item.src,
     item.url,
     origin,
@@ -107,10 +112,15 @@ export const getImageUrls = (item = {}) => {
   const edit = asPreviewUrl(pickDisplayUrl(urls.edit, item.edit_url, item.editUrl, preview, origin));
   const thumb = asPreviewUrl(pickDisplayUrl(
     urls.thumb,
+    item.new_thumb,
+    item.thumb,
     item.thumbnail_url,
     item.thumbnailUrl,
     item.thumb_url,
     item.thumbUrl,
+    item.imageField,
+    item.cover_url,
+    item.coverUrl,
     preview,
     edit,
     origin,
@@ -132,6 +142,28 @@ export const imageUrlFor = (item = {}, usage = "preview") => {
   if (usage === "origin") return pickDisplayUrl(urls.origin, urls.download, urls.edit, urls.preview, urls.thumb);
   if (usage === "download") return pickFirst(urls.download, urls.origin, urls.edit, urls.preview, urls.thumb);
   return pickDisplayUrl(urls.preview, urls.edit, urls.origin, urls.download, urls.thumb);
+};
+
+export const originalImageUrlForView = (item = {}) => {
+  const urls = getImageUrls(item);
+  return removePreviewStyle(pickDisplayUrl(
+    urls.origin,
+    item.picture_url_original,
+    item.original_url,
+    item.originalUrl,
+    item.file_url,
+    urls.download,
+    item.download_url,
+    item.downloadUrl,
+    item.uploadedUrl,
+    item.originUrl,
+    item.picture_url,
+    item.imgurl,
+    item.imageField,
+    item.src,
+    urls.preview,
+    urls.thumb,
+  ));
 };
 
 export const resolveImageDownloadUrl = (request, item = {}, extra = {}) => {
@@ -206,6 +238,7 @@ export const buildOriginalZipDownloadRequest = (items = [], extra = {}) => {
 export default {
   getImageUrls,
   imageUrlFor,
+  originalImageUrlForView,
   resolveImageDownloadUrl,
   buildOriginalDownloadStreamUrl,
   buildOriginalDownloadRequest,

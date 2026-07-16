@@ -322,7 +322,7 @@ import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 import {
   buildOriginalDownloadRequest,
   imageUrlFor,
-  resolveImageDownloadUrl,
+  originalImageUrlForView,
 } from "@/common/helper/imageUrls.js";
 import {
   buildPictureListForNavigation,
@@ -373,6 +373,11 @@ export default {
           icon: "/static/icon/down-yuantu.png",
           text: "下载原图",
           action: "handleDownload",
+        },
+        {
+          icon: "/static/icon/eye@2x.png",
+          text: "查看原图",
+          action: "handleViewOriginal",
         },
         {
           icon: "/static/icon/remark-icon.png",
@@ -457,6 +462,11 @@ export default {
         {
           icon: "/static/icon/down-yuantu.png",
           text: "下载原图",
+          action: "handleDownload",
+        },
+        {
+          icon: "/static/icon/eye@2x.png",
+          text: "查看原图",
           action: "handleViewOriginal",
         },
         {
@@ -1209,7 +1219,7 @@ export default {
     },
 
     // 查看原图
-    async handleViewOriginal() {
+    handleViewOriginal() {
       // 只有图片才可以查看原图
       if (this.currentItem && this.currentItem.is_video) {
         return;
@@ -1223,18 +1233,18 @@ export default {
         return;
       }
       const currentItem = this.currentItem || this.imageInfo || {};
-      const originalUrl = await resolveImageDownloadUrl(this.$go, currentItem, {
-        target_user_id: this.uid,
-        product_id: currentItem.product_id || currentItem.folder_id,
-        file_size: currentItem.file_size || currentItem.size,
-      });
-      if (originalUrl) {
-        this.currentImageUrl = originalUrl;
-        if (this.currentItem) {
-          this.currentItem.picture_url = originalUrl;
-        }
-        this.imageInfo.picture_url = originalUrl;
+      const originalUrl = originalImageUrlForView(currentItem);
+      if (!originalUrl) {
+        uni.showToast({
+          title: "原图地址无效",
+          icon: "none",
+        });
+        return;
       }
+      uni.previewImage({
+        current: originalUrl,
+        urls: [originalUrl],
+      });
     },
     canUseOriginalImage() {
       const userInfo = uni.getStorageSync("userInfo") || {};

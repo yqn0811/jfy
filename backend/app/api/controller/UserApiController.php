@@ -1334,6 +1334,7 @@ class UserApiController extends ApiBaseController
             ['include_current', 0],
             ['share_v', null],
             ['sv', null],
+            ['direct_share', 0],
         ]);
         $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $visitorUid = 0;
@@ -1342,7 +1343,7 @@ class UserApiController extends ApiBaseController
         } catch (\Exception $e) {
         }
         $shareVersion = $params['share_v'] !== null && $params['share_v'] !== '' ? $params['share_v'] : $params['sv'];
-        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid, $params['fid'], (int)$params['include_current'], $shareVersion));
+        $this->result($this->userService->getHomeCategories($targetUserId, $visitorUid, $params['fid'], (int)$params['include_current'], $shareVersion, (int)$params['direct_share'] === 1));
     }
 
     public function getHomeProducts()
@@ -1354,8 +1355,14 @@ class UserApiController extends ApiBaseController
             ['share_code', ''],
             ['invite_code', ''],
             ['cate_id', 0],
+            ['category_id', 0],
+            ['fid', 0],
             ['product_id', 0],
+            ['direct_share', 0],
         ]);
+        if (empty($params['cate_id'])) {
+            $params['cate_id'] = $params['category_id'] ?: $params['fid'];
+        }
         $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $visitorUid = 0;
         try {
@@ -1363,9 +1370,9 @@ class UserApiController extends ApiBaseController
         } catch (\Exception $e) {
         }
         if (!empty($params['product_id'])) {
-            $this->result($this->userService->getHomeProductsDetails($targetUserId, $params['product_id'], $visitorUid));
+            $this->result($this->userService->getHomeProductsDetails($targetUserId, $params['product_id'], $visitorUid, (int)$params['direct_share'] === 1, $params['cate_id']));
         }
-        $this->result($this->userService->getHomeProducts($targetUserId, $visitorUid, $params['cate_id']));
+        $this->result($this->userService->getHomeProducts($targetUserId, $visitorUid, $params['cate_id'], (int)$params['direct_share'] === 1));
     }
 
     public function getHomeProductsDetails()
@@ -1377,7 +1384,14 @@ class UserApiController extends ApiBaseController
             ['share_code', ''],
             ['invite_code', ''],
             ['product_id', 0],
+            ['cate_id', 0],
+            ['category_id', 0],
+            ['fid', 0],
+            ['direct_share', 0],
         ]);
+        if (empty($params['cate_id'])) {
+            $params['cate_id'] = $params['category_id'] ?: $params['fid'];
+        }
         $targetUserId = $this->resolveHomeTargetUserId($params, false);
         $productId = $params['product_id'];
         if (!$productId) {
@@ -1388,7 +1402,7 @@ class UserApiController extends ApiBaseController
             $visitorUid = request()->userID();
         } catch (\Exception $e) {
         }
-        $this->result($this->userService->getHomeProductsDetails($targetUserId, $productId, $visitorUid));
+        $this->result($this->userService->getHomeProductsDetails($targetUserId, $productId, $visitorUid, (int)$params['direct_share'] === 1, $params['cate_id']));
     }
 
     public function getHomePictureDetail()

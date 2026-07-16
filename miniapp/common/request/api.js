@@ -63,7 +63,7 @@ export const requireShareLogin = (uid = "", redirectUrl = "") => {
     return true;
   }
   saveShareLoginRedirect(redirectUrl);
-  silentLogin(uid);
+  silentLogin(uid, redirectUrl);
   return false;
 };
 
@@ -108,6 +108,13 @@ export const silentLogin = (uid, redirectUrl = "") => {
       if (existToken) {
         // 已有 token，直接获取用户信息
         const userInfoSuccess = await getUserInfo();
+        if (userInfoSuccess && redirectUrl) {
+          const targetUrl = consumeShareLoginRedirect() || redirectUrl;
+          uni.redirectTo({
+            url: targetUrl,
+            fail: () => uni.reLaunch({ url: targetUrl }),
+          });
+        }
         isLoggingIn = false;
         loginPromise = null;
         return resolve(userInfoSuccess);

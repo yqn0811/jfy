@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "scripts": {
     "dev:mp-weixin": "cross-env NODE_ENV=development VUE_APP_API_ENV=test VUE_APP_API_DOMAIN=https://api-test.jfyuntu.com UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. vue-cli-service uni-build --watch",
-    "build:mp-weixin": "cross-env NODE_OPTIONS=--require=./scripts/node-compat.cjs NODE_ENV=production VUE_APP_API_ENV=production VUE_APP_API_DOMAIN=https://api.jfyuntu.com UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. vue-cli-service uni-build && node ./scripts/prepare-wechat-project.cjs",
-    "build:mp-weixin:test": "cross-env NODE_OPTIONS=--require=./scripts/node-compat.cjs NODE_ENV=production VUE_APP_API_ENV=test VUE_APP_API_DOMAIN=https://api-test.jfyuntu.com UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. vue-cli-service uni-build && node ./scripts/prepare-wechat-project.cjs",
-    "build:mp-weixin:prod": "cross-env NODE_OPTIONS=--require=./scripts/node-compat.cjs NODE_ENV=production VUE_APP_API_ENV=production VUE_APP_API_DOMAIN=https://api.jfyuntu.com UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. vue-cli-service uni-build && node ./scripts/prepare-wechat-project.cjs"
+    "build:mp-weixin": "cross-env NODE_OPTIONS=--require=./scripts/node-compat.cjs NODE_ENV=production VUE_APP_API_ENV=test VUE_APP_API_DOMAIN=https://api-test.jfyuntu.com UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. UNI_OUTPUT_DIR=dist/.build-tmp/mp-weixin vue-cli-service uni-build && cross-env UNI_OUTPUT_DIR=dist/.build-tmp/mp-weixin node ./scripts/prepare-wechat-project.cjs",
+    "build:mp-weixin:test": "cross-env NODE_OPTIONS=--require=./scripts/node-compat.cjs NODE_ENV=production VUE_APP_API_ENV=test VUE_APP_API_DOMAIN=https://api-test.jfyuntu.com UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. UNI_OUTPUT_DIR=dist/.build-tmp/mp-weixin vue-cli-service uni-build && cross-env UNI_OUTPUT_DIR=dist/.build-tmp/mp-weixin node ./scripts/prepare-wechat-project.cjs",
+    "build:mp-weixin:prod": "cross-env NODE_OPTIONS=--require=./scripts/node-compat.cjs NODE_ENV=production VUE_APP_API_ENV=production VUE_APP_API_DOMAIN=https://api.jfyuntu.com UNI_PLATFORM=mp-weixin UNI_INPUT_DIR=. UNI_OUTPUT_DIR=dist/.build-tmp/mp-weixin vue-cli-service uni-build && cross-env UNI_OUTPUT_DIR=dist/.build-tmp/mp-weixin node ./scripts/prepare-wechat-project.cjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "^2.0.1-3040420220401001",

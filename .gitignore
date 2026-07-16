@@ -36,6 +36,7 @@ backend/**/*.cer
 # Miniapp dependencies/build outputs
 miniapp/node_modules/
 miniapp/dist/
+miniapp/wechat-preview/
 miniapp/unpackage/
 miniapp/*.zip
 

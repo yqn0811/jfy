@@ -1,4 +1,5 @@
-import { requireShareLogin } from "@/common/request/api.js";
+import { checkLoginStatus, requireShareLogin } from "@/common/request/api.js";
+import { getAuthToken } from "@/common/helper/auth.js";
 
 export function normalizeShareLoginValue(value = "") {
   if (value === null || value === undefined) return "";
@@ -15,10 +16,14 @@ export function buildShareLoginPath(route = "", options = {}) {
   return `/${String(route || "").replace(/^\//, "")}${query ? `?${query}` : ""}`;
 }
 
-export function ensureSharedPageLogin(route, options = {}, uid = "") {
+export function ensureSharedPageLogin(route, options = {}, uid = "", config = {}) {
   const ownerUid = normalizeShareLoginValue(uid || options.uid || options.target_user_id);
   const source = normalizeShareLoginValue(options.source);
+  const strict = config === true || !!(config && config.strict);
   if (!ownerUid && source !== "share") {
+    return true;
+  }
+  if (strict ? checkLoginStatus() : checkLoginStatus() || getAuthToken()) {
     return true;
   }
   const redirectUrl = buildShareLoginPath(route, options);
