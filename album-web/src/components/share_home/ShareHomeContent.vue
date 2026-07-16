@@ -1022,14 +1022,14 @@ const handleLoginSuccess = () => {
     />
 
     <Dialog :open="showImagePreviewDialog" @update:open="showImagePreviewDialog = $event">
-      <DialogContent class="flex max-h-[92vh] max-w-[92vw] flex-col overflow-hidden p-0 sm:max-w-[960px]">
+      <DialogContent class="flex h-[92vh] max-h-[92vh] max-w-[92vw] flex-col overflow-hidden p-0 sm:max-w-[960px]">
         <DialogHeader class="relative z-30 shrink-0 border-b border-border bg-background px-5 py-4">
           <DialogTitle class="truncate text-base">
             {{ previewImage?.name || '图片预览' }}
           </DialogTitle>
         </DialogHeader>
 
-        <div class="relative min-h-0 flex-1 overflow-hidden bg-muted/40 p-4">
+        <div class="relative min-h-[360px] flex-1 overflow-hidden bg-muted/40 p-4">
           <div class="absolute inset-4 flex items-center justify-center overflow-hidden">
             <img
               v-if="previewImage"
