@@ -1023,36 +1023,38 @@ const handleLoginSuccess = () => {
 
     <Dialog :open="showImagePreviewDialog" @update:open="showImagePreviewDialog = $event">
       <DialogContent class="flex max-h-[92vh] max-w-[92vw] flex-col overflow-hidden p-0 sm:max-w-[960px]">
-        <DialogHeader class="border-b border-border px-5 py-4">
+        <DialogHeader class="relative z-30 shrink-0 border-b border-border bg-background px-5 py-4">
           <DialogTitle class="truncate text-base">
             {{ previewImage?.name || '图片预览' }}
           </DialogTitle>
         </DialogHeader>
 
-        <div class="relative flex min-h-0 flex-1 items-center justify-center bg-muted/40 p-4">
+        <div class="relative min-h-0 flex-1 overflow-hidden bg-muted/40 p-4">
+          <div class="absolute inset-4 flex items-center justify-center overflow-hidden">
+            <img
+              v-if="previewImage"
+              :src="previewImageDisplayUrl"
+              :alt="previewImage.name"
+              class="max-h-full max-w-full rounded-md object-contain transition-[opacity,transform] duration-200"
+              :class="isPreviewOriginalLoading ? 'opacity-45' : 'opacity-100'"
+              :style="previewImageTransformStyle"
+              draggable="false"
+              @contextmenu.prevent
+            />
+          </div>
           <Button
             v-if="previewImages.length > 1"
             variant="outline"
             size="sm"
-            class="absolute left-4 top-1/2 z-10 h-10 w-10 -translate-y-1/2 rounded-full p-0"
+            class="absolute left-4 top-1/2 z-20 h-10 w-10 -translate-y-1/2 rounded-full p-0"
             :disabled="isPreviewOriginalLoading"
             @click="handlePreviewPrev"
           >
             <SafeIcon name="ChevronLeft" :size="18" />
           </Button>
-          <img
-            v-if="previewImage"
-            :src="previewImageDisplayUrl"
-            :alt="previewImage.name"
-            class="max-h-[70vh] max-w-full rounded-md object-contain transition-[opacity,transform] duration-200"
-            :class="isPreviewOriginalLoading ? 'opacity-45' : 'opacity-100'"
-            :style="previewImageTransformStyle"
-            draggable="false"
-            @contextmenu.prevent
-          />
           <div
             v-if="previewImage"
-            class="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-background/90 p-1.5 text-foreground shadow-lg ring-1 ring-border backdrop-blur-sm"
+            class="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-background/90 p-1.5 text-foreground shadow-lg ring-1 ring-border backdrop-blur-sm"
           >
             <Button
               variant="ghost"
@@ -1102,7 +1104,7 @@ const handleLoginSuccess = () => {
             v-if="previewImages.length > 1"
             variant="outline"
             size="sm"
-            class="absolute right-4 top-1/2 z-10 h-10 w-10 -translate-y-1/2 rounded-full p-0"
+            class="absolute right-4 top-1/2 z-20 h-10 w-10 -translate-y-1/2 rounded-full p-0"
             :disabled="isPreviewOriginalLoading"
             @click="handlePreviewNext"
           >
@@ -1110,7 +1112,7 @@ const handleLoginSuccess = () => {
           </Button>
         </div>
 
-        <DialogFooter class="border-t border-border px-5 py-4">
+        <DialogFooter class="relative z-30 shrink-0 border-t border-border bg-background px-5 py-4">
           <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span class="text-sm text-muted-foreground">
               {{ previewImages.length ? `${previewImageIndex + 1} / ${previewImages.length}` : '' }}
