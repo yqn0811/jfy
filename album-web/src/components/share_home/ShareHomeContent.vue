@@ -56,6 +56,8 @@ const previewImageIndex = ref(0)
 const showImagePreviewDialog = ref(false)
 const loadedOriginalImageUrls = ref<Record<string, string>>({})
 const loadingOriginalImageIds = ref<Record<string, boolean>>({})
+const previewImageScale = ref(1)
+const previewImageRotation = ref(0)
 
 const isHomeFavorited = ref(false)
 let routeLoadSerial = 0
@@ -80,6 +82,9 @@ const previewImageDisplayUrl = computed(() => {
   if (!image) return ''
   return loadedOriginalImageUrls.value[image.id] || productImageUrl(image, 'preview')
 })
+const previewImageTransformStyle = computed(() => ({
+  transform: `scale(${previewImageScale.value}) rotate(${previewImageRotation.value}deg)`,
+}))
 const isPreviewOriginalLoading = computed(() => {
   const image = previewImage.value
   return !!image && !!loadingOriginalImageIds.value[image.id]
@@ -588,6 +593,7 @@ const handleViewImage = (index: number, type: 'colorChart' | 'detailChart') => {
   if (!images.length) return
   previewImages.value = images
   previewImageIndex.value = index
+  resetPreviewImageTransform()
   showImagePreviewDialog.value = true
 }
 
@@ -595,12 +601,31 @@ const handlePreviewPrev = () => {
   if (isPreviewOriginalLoading.value) return
   if (!previewImages.value.length) return
   previewImageIndex.value = (previewImageIndex.value - 1 + previewImages.value.length) % previewImages.value.length
+  resetPreviewImageTransform()
 }
 
 const handlePreviewNext = () => {
   if (isPreviewOriginalLoading.value) return
   if (!previewImages.value.length) return
   previewImageIndex.value = (previewImageIndex.value + 1) % previewImages.value.length
+  resetPreviewImageTransform()
+}
+
+const zoomInPreviewImage = () => {
+  previewImageScale.value = Math.min(3, Number((previewImageScale.value + 0.25).toFixed(2)))
+}
+
+const zoomOutPreviewImage = () => {
+  previewImageScale.value = Math.max(0.5, Number((previewImageScale.value - 0.25).toFixed(2)))
+}
+
+const rotatePreviewImage = () => {
+  previewImageRotation.value = (previewImageRotation.value + 90) % 360
+}
+
+const resetPreviewImageTransform = () => {
+  previewImageScale.value = 1
+  previewImageRotation.value = 0
 }
 
 const handleOpenOriginalImage = async () => {
@@ -1019,11 +1044,53 @@ const handleLoginSuccess = () => {
             v-if="previewImage"
             :src="previewImageDisplayUrl"
             :alt="previewImage.name"
-            class="max-h-[70vh] max-w-full rounded-md object-contain transition-opacity duration-200"
+            class="max-h-[70vh] max-w-full rounded-md object-contain transition-[opacity,transform] duration-200"
             :class="isPreviewOriginalLoading ? 'opacity-45' : 'opacity-100'"
+            :style="previewImageTransformStyle"
             draggable="false"
             @contextmenu.prevent
           />
+          <div
+            v-if="previewImage"
+            class="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-background/90 p-1.5 text-foreground shadow-lg ring-1 ring-border backdrop-blur-sm"
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading || previewImageScale <= 0.5"
+              @click="zoomOutPreviewImage"
+            >
+              <SafeIcon name="ZoomOut" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading || previewImageScale >= 3"
+              @click="zoomInPreviewImage"
+            >
+              <SafeIcon name="ZoomIn" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading"
+              @click="rotatePreviewImage"
+            >
+              <SafeIcon name="RotateCw" :size="18" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 rounded-full"
+              :disabled="isPreviewOriginalLoading"
+              @click="resetPreviewImageTransform"
+            >
+              <SafeIcon name="RefreshCcw" :size="18" />
+            </Button>
+          </div>
           <div
             v-if="isPreviewOriginalLoading"
             class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/70 text-sm text-foreground backdrop-blur-sm"
