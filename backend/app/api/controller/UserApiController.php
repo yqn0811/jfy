@@ -1595,27 +1595,26 @@ class UserApiController extends ApiBaseController
             $redirect = $this->getFileWebBaseUrl();
         }
 
-        $callback = $this->getWechatWebLoginCallback();
+        $loginConfig = $this->resolvePcLoginConfig($redirect);
 
-        $appid = trim((string)Config::get('miniprogram.web_appid'));
-        if (!$appid) {
-            Log::warning('wechat web login appid missing');
+        if (empty($loginConfig['appid'])) {
+            Log::warning('wechat pc login appid missing: ' . ($loginConfig['provider'] ?? 'unknown'));
             throwError('登录服务暂不可用');
         }
 
-        $state = $this->createWechatLoginState($redirect);
+        $state = $this->createWechatLoginState($redirect, $loginConfig['provider']);
         $authUrl = 'https://open.weixin.qq.com/connect/qrconnect?' . http_build_query([
-            'appid' => $appid,
-            'redirect_uri' => $callback,
+            'appid' => $loginConfig['appid'],
+            'redirect_uri' => $loginConfig['callback'],
             'response_type' => 'code',
             'scope' => 'snsapi_login',
             'state' => $state,
         ]) . '#wechat_redirect';
 
         $this->result([
-            'appid' => $appid,
+            'appid' => $loginConfig['appid'],
             'scope' => 'snsapi_login',
-            'redirect_uri' => $callback,
+            'redirect_uri' => $loginConfig['callback'],
             'state' => $state,
             'auth_url' => $authUrl,
             'authUrl' => $authUrl,
@@ -1660,7 +1659,46 @@ class UserApiController extends ApiBaseController
         return $callback;
     }
 
-    private function createWechatLoginState($redirect)
+    private function getAlbumPcLoginCallback()
+    {
+        $callback = trim((string)env('JIAFANGYUN_PC_LOGIN_CALLBACK', getenv('JIAFANGYUN_PC_LOGIN_CALLBACK') ?: ''));
+        if ($callback === '') {
+            $callback = 'https://api.jfyuntu.com/api/user/login/callback';
+        }
+        return $callback;
+    }
+
+    private function isFileWebLoginRedirect($redirect)
+    {
+        $host = strtolower((string)parse_url($redirect, PHP_URL_HOST));
+        return in_array($host, ['file.jfyuntu.com', 'file-test.jfyuntu.com'], true);
+    }
+
+    private function resolvePcLoginConfig($redirect, $provider = '')
+    {
+        $provider = trim((string)$provider);
+        if ($provider === '') {
+            $provider = $this->isFileWebLoginRedirect($redirect) ? 'file_web' : 'album_pc';
+        }
+
+        if ($provider === 'file_web') {
+            return [
+                'provider' => 'file_web',
+                'appid' => trim((string)Config::get('miniprogram.web_appid')),
+                'secret' => trim((string)Config::get('miniprogram.web_appsecret')),
+                'callback' => $this->getWechatWebLoginCallback(),
+            ];
+        }
+
+        return [
+            'provider' => 'album_pc',
+            'appid' => trim((string)Config::get('miniprogram.account_appid')),
+            'secret' => trim((string)Config::get('miniprogram.account_appsecret')),
+            'callback' => $this->getAlbumPcLoginCallback(),
+        ];
+    }
+
+    private function createWechatLoginState($redirect, $provider = '')
     {
         try {
             $state = bin2hex(random_bytes(16));
@@ -1669,6 +1707,7 @@ class UserApiController extends ApiBaseController
         }
         Cache::set('wechat_web_login_state_' . $state, [
             'redirect' => $redirect,
+            'provider' => $provider ?: ($this->isFileWebLoginRedirect($redirect) ? 'file_web' : 'album_pc'),
             'created_at' => time(),
         ], 600);
         return $state;
@@ -1760,16 +1799,15 @@ class UserApiController extends ApiBaseController
         return $data;
     }
 
-    private function getWechatWebAccessToken($code)
+    private function getWechatWebAccessToken($code, $provider = '')
     {
-        $appid = trim((string)Config::get('miniprogram.web_appid'));
-        $secret = trim((string)Config::get('miniprogram.web_appsecret'));
-        if (!$appid || !$secret) {
-            throw new \Exception('wechat web login config missing');
+        $loginConfig = $this->resolvePcLoginConfig('', $provider);
+        if (empty($loginConfig['appid']) || empty($loginConfig['secret'])) {
+            throw new \Exception('wechat web login config missing: ' . ($loginConfig['provider'] ?? 'unknown'));
         }
         $data = $this->requestWechatJson('https://api.weixin.qq.com/sns/oauth2/access_token', [
-            'appid' => $appid,
-            'secret' => $secret,
+            'appid' => $loginConfig['appid'],
+            'secret' => $loginConfig['secret'],
             'code' => $code,
             'grant_type' => 'authorization_code',
         ]);
@@ -1788,9 +1826,9 @@ class UserApiController extends ApiBaseController
         ]);
     }
 
-    private function createWechatWebLoginToken($code)
+    private function createWechatWebLoginToken($code, $provider = '')
     {
-        $tokenInfo = $this->getWechatWebAccessToken($code);
+        $tokenInfo = $this->getWechatWebAccessToken($code, $provider);
         $openid = (string)$tokenInfo['openid'];
         $userInfo = $this->getWechatWebUserInfo((string)$tokenInfo['access_token'], $openid);
 
@@ -1832,7 +1870,7 @@ class UserApiController extends ApiBaseController
                 throw new \Exception('wechat login state invalid');
             }
 
-            $token = $this->createWechatWebLoginToken($code);
+            $token = $this->createWechatWebLoginToken($code, (string)($cached['provider'] ?? 'file_web'));
             $this->result([
                 'token' => $token,
                 'redirect' => $this->normalizeWechatLoginRedirect($cached['redirect']),
@@ -1856,10 +1894,11 @@ class UserApiController extends ApiBaseController
         }
         
         try {
-            $token = $this->createWechatWebLoginToken($code);
+            $cached = $this->consumeWechatLoginState($state);
+            $token = $this->createWechatWebLoginToken($code, (string)(is_array($cached) ? ($cached['provider'] ?? 'album_pc') : 'album_pc'));
             
             // 重定向回前端
-            $redirectUrl = $this->resolveWechatLoginRedirect($state);
+            $redirectUrl = $this->normalizeWechatLoginRedirect(is_array($cached) ? ($cached['redirect'] ?? '') : '');
             $finalUrl = $this->appendLoginQuery($redirectUrl, [
                 'token' => $token,
                 'login' => 'success',
