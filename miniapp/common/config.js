@@ -1,6 +1,6 @@
 const environment = process.env.NODE_ENV || "development";
 const apiEnvironment = process.env.VUE_APP_API_ENV || environment;
-const domain = process.env.VUE_APP_API_DOMAIN || "https://api-test.jfyuntu.com";
+const domain = process.env.VUE_APP_API_DOMAIN || "https://api.jfyuntu.com";
 
 const config = {
 	domain,

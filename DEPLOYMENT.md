@@ -322,8 +322,8 @@ npm install
 npm run build:mp-weixin
 ```
 
-小程序测试构建前必须先检查 `miniapp/common/config.js`。当前开发和发行配置都指向
-`https://api-test.jfyuntu.com`，也就是测试 API。
+小程序正式构建默认指向 `https://api.jfyuntu.com`。如需测试包，必须显式使用
+`npm run build:mp-weixin:test`，该脚本指向 `https://api-test.jfyuntu.com`。
 
 ## 部署前确认门槛
 

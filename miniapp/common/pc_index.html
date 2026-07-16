@@ -542,7 +542,7 @@
 
 			async function getUploadToken() {
 				try {
-					const response = await fetch('https://api-test.jfyuntu.com/api/web/token/upload', {
+					const response = await fetch('https://api.jfyuntu.com/api/web/token/upload', {
 						method: 'POST',
 						headers: {
 							'Content-Type': 'application/json',
@@ -570,7 +570,7 @@
 
 			async function getFolderInfo() {
 				try {
-					const response = await fetch(`https://api-test.jfyuntu.com/api/web/upload?code=${albumCode}`, {
+					const response = await fetch(`https://api.jfyuntu.com/api/web/upload?code=${albumCode}`, {
 						method: 'GET',
 						headers: {
 							'Content-Type': 'application/json'
@@ -821,7 +821,7 @@
 						`正在上传第 ${i + 1}/${totalFiles} 张 (已成功 ${successCount}/${totalFiles})...`;
 					
 					try {
-						const resp = await fetch('https://api-test.jfyuntu.com/api/web/folder/pic/upload', {
+						const resp = await fetch('https://api.jfyuntu.com/api/web/folder/pic/upload', {
 							method: 'POST',
 							headers: {
 								'authorization-token': `Bearer ${uploadToken}`
