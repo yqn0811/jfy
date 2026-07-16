@@ -440,25 +440,21 @@ class FileCollectionService extends BaseService
         $submitterSnapshot = $this->normalizeSubmitterSnapshot($param);
         $this->validateSubmitterSnapshot($fields, $submitterSnapshot);
 
-        $uploadFiles = $this->normalizeUploadedFiles($files);
-        if (empty($uploadFiles)) {
+        $materialIds = $this->normalizeMaterialIdList($param['material_ids'] ?? ($param['materialIds'] ?? []));
+        $uploadItems = $this->normalizeSubmissionUploadItems($files, $param, $materialIds, (int)$task->id);
+        if (empty($uploadItems)) {
             throwError('请上传材料文件');
         }
         $rawTotalBytes = 0;
-        foreach ($uploadFiles as $file) {
-            $rawTotalBytes += method_exists($file, 'getSize') ? max(0, (int)$file->getSize()) : 0;
+        foreach ($uploadItems as $item) {
+            $rawTotalBytes += method_exists($item['file'], 'getSize') ? max(0, (int)$item['file']->getSize()) : 0;
         }
-        $this->uploadSecurity->prepareUploadRequest('public_submission', (int)$task->owner_user_id, count($uploadFiles), $rawTotalBytes, [
+        $this->uploadSecurity->prepareUploadRequest('public_submission', (int)$task->owner_user_id, count($uploadItems), $rawTotalBytes, [
             'flow' => 'public_submission',
             'task_id' => (int)$task->id,
             'owner_user_id' => (int)$task->owner_user_id,
         ]);
-        $this->riskGuard->assertPublicSubmissionAllowed((int)$task->id, count($uploadFiles), $rawTotalBytes);
-
-        $materialIds = $this->normalizeMaterialIdList($param['material_ids'] ?? ($param['materialIds'] ?? []));
-        if (count($materialIds) < count($uploadFiles)) {
-            throwError('材料文件参数不完整');
-        }
+        $this->riskGuard->assertPublicSubmissionAllowed((int)$task->id, count($uploadItems), $rawTotalBytes);
 
         $materialMap = [];
         foreach ($materials as $material) {
@@ -467,13 +463,14 @@ class FileCollectionService extends BaseService
 
         $preparedFiles = [];
         $materialFileCount = [];
-        foreach ($uploadFiles as $index => $file) {
-            $materialId = (int)$materialIds[$index];
+        foreach ($uploadItems as $index => $item) {
+            $file = $item['file'];
+            $materialId = (int)$item['material_id'];
             if (empty($materialMap[$materialId])) {
                 throwError('材料项不存在或已失效');
             }
 
-            $originalName = $this->getUploadOriginalName($file, $index, $param);
+            $originalName = $item['original_name'];
             if ($originalName === '') {
                 throwError('文件名不正确');
             }
@@ -1228,6 +1225,33 @@ class FileCollectionService extends BaseService
         return array_values(array_map('intval', $value));
     }
 
+    private function normalizeSubmissionUploadItems($files, array $param, array $materialIds, int $taskId): array
+    {
+        $uploadFiles = $this->normalizeUploadedFiles($files);
+        $items = [];
+        foreach ($uploadFiles as $index => $file) {
+            $originalName = $this->getUploadOriginalName($file, $index, $param);
+            if ($this->isSystemMetadataFileName($originalName)) {
+                $this->riskGuard->recordRiskEvent('ignored_system_metadata_upload', [
+                    'flow' => 'public_submission',
+                    'task_id' => $taskId,
+                    'name_hash' => hash('sha256', $originalName),
+                ], 'info');
+                continue;
+            }
+            if (!isset($materialIds[$index])) {
+                throwError('材料文件参数不完整');
+            }
+            $items[] = [
+                'file' => $file,
+                'original_index' => $index,
+                'original_name' => $originalName,
+                'material_id' => (int)$materialIds[$index],
+            ];
+        }
+        return $items;
+    }
+
     private function normalizeUploadedFiles($files)
     {
         $result = [];
@@ -1261,6 +1285,20 @@ class FileCollectionService extends BaseService
             }
         }
         return '';
+    }
+
+    private function isSystemMetadataFileName(string $name): bool
+    {
+        $normalized = str_replace('\\', '/', trim($name));
+        $lower = strtolower($normalized);
+        $parts = array_values(array_filter(explode('/', $lower), function ($part) {
+            return $part !== '';
+        }));
+        $baseName = $parts ? end($parts) : $lower;
+
+        return in_array($baseName, ['.ds_store', 'thumbs.db', 'desktop.ini', 'ehthumbs.db'], true)
+            || strpos($baseName, '._') === 0
+            || in_array('__macosx', $parts, true);
     }
 
     private function cleanFileName(string $name)

@@ -45,6 +45,7 @@ import {
   QUICK_SEND_ANONYMOUS_MAX_FILE_SIZE_MB,
   QUICK_SEND_USER_MAX_FILE_SIZE_MB,
   MAX_FILES_PER_BATCH,
+  filterUploadableFiles,
   validateFileBatch,
 } from '@/lib/fileSecurityPolicy'
 import { navigateTo } from '@/navigation'
@@ -308,7 +309,13 @@ const openTextDialog = () => {
   isTextDialogOpen.value = true
 }
 
-const validateFiles = (files: FileList): boolean => {
+const showIgnoredSystemFilesToast = (ignoredCount: number) => {
+  if (ignoredCount > 0) {
+    toast.info(`已忽略 ${ignoredCount} 个系统隐藏文件`)
+  }
+}
+
+const validateFiles = (files: File[]): boolean => {
   const result = validateFileBatch(files, {
     maxSizeMb: maxFileSizeMb.value,
     existingCount: uploadedFiles.value.length,
@@ -321,12 +328,15 @@ const validateFiles = (files: FileList): boolean => {
   return true
 }
 
-const appendFiles = (files: FileList) => {
+const appendFiles = (selectedFiles: FileList | File[]) => {
+  const { files, ignoredCount } = filterUploadableFiles(selectedFiles)
+  showIgnoredSystemFilesToast(ignoredCount)
+  if (!files.length) return
   if (!validateFiles(files)) return
+
   isUploadProgressOpen.value = true
 
-  for (let index = 0; index < files.length; index++) {
-    const file = files[index]
+  files.forEach((file, index) => {
     const id = `upload-${Date.now()}-${index}`
     const fileSizeMb = parseFloat((file.size / (1024 * 1024)).toFixed(2))
 
@@ -341,7 +351,7 @@ const appendFiles = (files: FileList) => {
     })
 
     uploadFile(id)
-  }
+  })
 }
 
 const handleInputChange = (event: Event) => {

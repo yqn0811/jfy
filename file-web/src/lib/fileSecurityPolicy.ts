@@ -49,6 +49,7 @@ export const BLOCKED_FILE_EXTENSIONS = [
 const BLOCKED_EXTENSION_SET = new Set(BLOCKED_FILE_EXTENSIONS)
 const DOUBLE_EXTENSION_PATTERN = /\.(php[0-9]?|phtml|phar|asp|aspx|jsp|jspx)(\.|$)/i
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'])
+const SYSTEM_METADATA_FILE_NAMES = new Set(['.ds_store', 'thumbs.db', 'desktop.ini', 'ehthumbs.db'])
 
 export interface FileBatchValidationOptions {
   maxSizeMb: number
@@ -64,10 +65,42 @@ export interface FileBatchValidationResult {
   message?: string
 }
 
+export interface UploadableFileFilterResult {
+  files: File[]
+  ignoredCount: number
+}
+
 export const getFileExtension = (fileName: string) => {
   const cleanName = fileName.trim().toLowerCase()
   const dotIndex = cleanName.lastIndexOf('.')
   return dotIndex >= 0 ? cleanName.slice(dotIndex + 1) : ''
+}
+
+export const getFileRelativePath = (file: File) => {
+  return String((file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name || '')
+}
+
+export const isSystemMetadataFileName = (fileName: string) => {
+  const normalizedPath = fileName.replace(/\\/g, '/').trim()
+  const lowerPath = normalizedPath.toLowerCase()
+  const parts = lowerPath.split('/').filter(Boolean)
+  const baseName = parts[parts.length - 1] || lowerPath
+
+  return (
+    SYSTEM_METADATA_FILE_NAMES.has(baseName) ||
+    baseName.startsWith('._') ||
+    parts.includes('__macosx')
+  )
+}
+
+export const filterUploadableFiles = (files: FileList | File[]): UploadableFileFilterResult => {
+  const source = Array.from(files)
+  const filtered = source.filter((file) => !isSystemMetadataFileName(getFileRelativePath(file)))
+
+  return {
+    files: filtered,
+    ignoredCount: source.length - filtered.length,
+  }
 }
 
 export const isBlockedFileName = (fileName: string) => {

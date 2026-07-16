@@ -23,7 +23,7 @@ const emit = defineEmits<{
 
 const uploadingMaterials = ref<Record<string, boolean>>({})
 
-const handleFilesSelected = (materialId: string, files: FileList) => {
+const handleFilesSelected = (materialId: string, files: File[]) => {
   const material = props.materials.find((item) => item.id === materialId)
   if (!material) return
 
@@ -38,11 +38,10 @@ const handleFilesSelected = (materialId: string, files: FileList) => {
     return
   }
 
-  const fileArray = Array.from(files)
   uploadingMaterials.value[materialId] = true
   
   setTimeout(() => {
-    emit('files-selected', materialId, fileArray)
+    emit('files-selected', materialId, files)
     uploadingMaterials.value[materialId] = false
   }, 800)
 }

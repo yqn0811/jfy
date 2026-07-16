@@ -31,8 +31,8 @@ class FileTransferService extends BaseService
 
     public function uploadFiles(array $files, array $param, int $uid)
     {
-        $uploadFiles = $this->normalizeUploadedFiles($files);
-        if (empty($uploadFiles)) {
+        $uploadItems = $this->normalizeUploadItems($files, $param);
+        if (empty($uploadItems)) {
             throwError('请选择上传文件');
         }
         $transferToken = $this->normalizeTransferToken($param, $uid, true);
@@ -40,17 +40,18 @@ class FileTransferService extends BaseService
 
         $maxSizeMb = $this->riskGuard->maxUploadSizeMb($uid);
         $totalBytes = 0;
-        foreach ($uploadFiles as $file) {
-            $totalBytes += method_exists($file, 'getSize') ? max(0, (int)$file->getSize()) : 0;
+        foreach ($uploadItems as $item) {
+            $totalBytes += method_exists($item['file'], 'getSize') ? max(0, (int)$item['file']->getSize()) : 0;
         }
-        $this->uploadSecurity->prepareUploadRequest('quick_send', $uid, count($uploadFiles), $totalBytes, [
+        $this->uploadSecurity->prepareUploadRequest('quick_send', $uid, count($uploadItems), $totalBytes, [
             'flow' => 'quick_send',
             'uid' => $uid,
         ]);
-        $this->riskGuard->assertUploadAllowed($uid, $transferToken, count($uploadFiles), $totalBytes);
+        $this->riskGuard->assertUploadAllowed($uid, $transferToken, count($uploadItems), $totalBytes);
         $saved = [];
-        foreach ($uploadFiles as $index => $file) {
-            $originalName = $this->getUploadOriginalName($file, $index, $param);
+        foreach ($uploadItems as $item) {
+            $file = $item['file'];
+            $originalName = $item['original_name'];
             if ($originalName === '') {
                 throwError('文件名不正确');
             }
@@ -925,6 +926,28 @@ class FileTransferService extends BaseService
         return $data;
     }
 
+    private function normalizeUploadItems($files, array $param): array
+    {
+        $uploadFiles = $this->normalizeUploadedFiles($files);
+        $items = [];
+        foreach ($uploadFiles as $index => $file) {
+            $originalName = $this->getUploadOriginalName($file, $index, $param);
+            if ($this->isSystemMetadataFileName($originalName)) {
+                $this->riskGuard->recordRiskEvent('ignored_system_metadata_upload', [
+                    'flow' => 'quick_send',
+                    'name_hash' => hash('sha256', $originalName),
+                ], 'info');
+                continue;
+            }
+            $items[] = [
+                'file' => $file,
+                'original_index' => $index,
+                'original_name' => $originalName,
+            ];
+        }
+        return $items;
+    }
+
     private function normalizeUploadedFiles($files)
     {
         $result = [];
@@ -965,6 +988,20 @@ class FileTransferService extends BaseService
             }
         }
         return '';
+    }
+
+    private function isSystemMetadataFileName(string $name): bool
+    {
+        $normalized = str_replace('\\', '/', trim($name));
+        $lower = strtolower($normalized);
+        $parts = array_values(array_filter(explode('/', $lower), function ($part) {
+            return $part !== '';
+        }));
+        $baseName = $parts ? end($parts) : $lower;
+
+        return in_array($baseName, ['.ds_store', 'thumbs.db', 'desktop.ini', 'ehthumbs.db'], true)
+            || strpos($baseName, '._') === 0
+            || in_array('__macosx', $parts, true);
     }
 
     private function cleanFileName(string $name)
