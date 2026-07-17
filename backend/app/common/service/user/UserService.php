@@ -4432,12 +4432,24 @@ class UserService extends BaseService
             }
             \imagedestroy($im);
 
-            return file_exists($filePath) ? (request()->domain() . '/storage/poster/' . $filename) : '';
+            return file_exists($filePath) ? ($this->buildPosterPublicUrl($filename)) : '';
         } catch (\Throwable $e) {
             \think\facade\Log::error('Save Poster Error: ' . $e->getMessage());
             if (isset($im) && is_resource($im)) \imagedestroy($im);
             return '';
         }
+    }
+
+    private function buildPosterPublicUrl($filename)
+    {
+        $root = rtrim((string)request()->domain(), '/');
+        $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+        if (strpos($host, 'pic-test.jfyuntu.com') !== false) {
+            $root = 'https://api-test.jfyuntu.com';
+        } elseif (strpos($host, 'pic.jfyuntu.com') !== false) {
+            $root = 'https://api.jfyuntu.com';
+        }
+        return $root . '/storage/poster/' . ltrim((string)$filename, '/');
     }
 
     private function resizeImageCover($img, $w, $h) {
