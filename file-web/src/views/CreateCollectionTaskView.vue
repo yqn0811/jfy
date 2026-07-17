@@ -5,17 +5,6 @@ import CreateCollectionTaskForm from '@/components/create-collection-task/Create
 
 <template>
   <StandardLayout>
-    <div class="page-body">
-      <div class="create-collection-shell">
-        <CreateCollectionTaskForm />
-      </div>
-    </div>
+    <CreateCollectionTaskForm />
   </StandardLayout>
 </template>
-
-<style scoped>
-.create-collection-shell {
-  width: min(100%, 1040px);
-  margin: 0 auto;
-}
-</style>
