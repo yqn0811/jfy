@@ -57,7 +57,7 @@ class WdXcxWorkbenchMenuSet extends Model
                 ['icon' => 'homepage', 'title' => '主页编辑', 'url' => '', 'is_show' => 1, 'is_login' => 1],
                 ['icon' => 'authority', 'title' => '权限管理', 'url' => '', 'is_show' => 1, 'is_login' => 1],
                 ['icon' => 'visitor', 'title' => '访客记录', 'url' => '', 'is_show' => 1, 'is_login' => 1],
-                ['icon' => 'vip', 'title' => '升级会员', 'url' => '', 'is_show' => 1, 'is_login' => 1],
+                ['icon' => 'vip', 'title' => '升级会员', 'url' => '', 'is_show' => 0, 'is_login' => 1],
                 ['icon' => 'recycle', 'title' => '回收站', 'url' => '', 'is_show' => 1, 'is_login' => 1],
             ];
             foreach ($merchants as $item) {

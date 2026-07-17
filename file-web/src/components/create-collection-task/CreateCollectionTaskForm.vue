@@ -592,11 +592,10 @@ onBeforeUnmount(() => {
 }
 
 .collection-form-card {
-  min-height: 640px;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  padding: 112px 40px 38px;
+  padding: 96px 40px 38px;
 }
 
 .line-field {
@@ -627,7 +626,7 @@ onBeforeUnmount(() => {
 }
 
 .collection-actions {
-  margin-top: auto;
+  margin-top: 88px;
   display: grid;
   grid-template-columns: 120px 1fr;
   gap: 28px;
@@ -904,7 +903,10 @@ onBeforeUnmount(() => {
     padding: 28px 12px 0;
   }
 
-  .collection-form-card,
+  .collection-form-card {
+    padding: 52px 20px 24px;
+  }
+
   .collection-success-card {
     min-height: 560px;
     padding: 56px 20px 24px;
@@ -918,6 +920,11 @@ onBeforeUnmount(() => {
   .success-action-grid,
   .public-link-row {
     grid-template-columns: 1fr;
+  }
+
+  .collection-actions {
+    margin-top: 48px;
+    gap: 14px;
   }
 
   .settings-button {

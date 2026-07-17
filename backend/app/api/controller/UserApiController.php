@@ -1794,9 +1794,18 @@ class UserApiController extends ApiBaseController
             throw new \Exception('wechat response invalid');
         }
         if (!empty($data['errcode'])) {
-            throw new \Exception('wechat api error: ' . (int)$data['errcode']);
+            throw new \Exception('wechat api error: ' . (int)$data['errcode'] . ' ' . (string)($data['errmsg'] ?? ''));
         }
         return $data;
+    }
+
+    private function getThrowableLogMessage(\Throwable $e)
+    {
+        $message = $e->getMessage();
+        if ($message === '' && isset($e->message)) {
+            $message = (string)$e->message;
+        }
+        return $message === '' ? get_class($e) : $message;
     }
 
     private function getWechatWebAccessToken($code, $provider = '')
@@ -1828,28 +1837,36 @@ class UserApiController extends ApiBaseController
 
     private function createWechatWebLoginToken($code, $provider = '')
     {
-        $tokenInfo = $this->getWechatWebAccessToken($code, $provider);
-        $openid = (string)$tokenInfo['openid'];
-        $userInfo = $this->getWechatWebUserInfo((string)$tokenInfo['access_token'], $openid);
+        $stage = 'access_token';
+        try {
+            $tokenInfo = $this->getWechatWebAccessToken($code, $provider);
+            $openid = (string)$tokenInfo['openid'];
+            $stage = 'userinfo';
+            $userInfo = $this->getWechatWebUserInfo((string)$tokenInfo['access_token'], $openid);
 
-        $unionid = (string)($userInfo['unionid'] ?? ($tokenInfo['unionid'] ?? ''));
+            $unionid = (string)($userInfo['unionid'] ?? ($tokenInfo['unionid'] ?? ''));
 
-        // 查找或创建用户
-        $userModel = new \app\common\model\user\WdXcxUser();
-        $user = $userModel->getUserByWechatIdentity($openid, $unionid, true, '', [
-            'nickname' => $userInfo['nickname'] ?? '微信用户',
-            'avatar' => $userInfo['headimgurl'] ?? '',
-            'gender' => $userInfo['sex'] ?? 0,
-            'uniacid' => $this->uniacid,
-        ]);
+            // 查找或创建用户
+            $stage = 'user';
+            $userModel = new \app\common\model\user\WdXcxUser();
+            $user = $userModel->getUserByWechatIdentity($openid, $unionid, true, '', [
+                'nickname' => $userInfo['nickname'] ?? '微信用户',
+                'avatar' => $userInfo['headimgurl'] ?? '',
+                'gender' => $userInfo['sex'] ?? 0,
+                'uniacid' => $this->uniacid,
+            ]);
 
-        // 生成Token
-        $tokenData = [
-            'user_id' => $user->id,
-            'openid' => $user->openid,
-            'user_uuid' => $user->user_uuid,
-        ];
-        return \app\common\service\JwtService::createToken($tokenData);
+            // 生成Token
+            $tokenData = [
+                'user_id' => $user->id,
+                'openid' => $user->openid,
+                'user_uuid' => $user->user_uuid,
+            ];
+            $stage = 'jwt';
+            return \app\common\service\JwtService::createToken($tokenData);
+        } catch (\Throwable $e) {
+            throw new \Exception('wechat login ' . $stage . ' failed: ' . $this->getThrowableLogMessage($e));
+        }
     }
 
     /**
@@ -1864,21 +1881,24 @@ class UserApiController extends ApiBaseController
             throwError('登录失败，请重试');
         }
 
-        try {
-            $cached = $this->consumeWechatLoginState($state);
-            if (!is_array($cached) || empty($cached['redirect']) || !empty($cached['legacy'])) {
-                throw new \Exception('wechat login state invalid');
-            }
-
-            $token = $this->createWechatWebLoginToken($code, (string)($cached['provider'] ?? 'file_web'));
-            $this->result([
-                'token' => $token,
-                'redirect' => $this->normalizeWechatLoginRedirect($cached['redirect']),
-            ], 0, '登录成功');
-        } catch (\Throwable $e) {
-            Log::warning('wechat web login exchange failed: ' . $e->getMessage());
+        $cached = $this->consumeWechatLoginState($state);
+        if (!is_array($cached) || empty($cached['redirect']) || !empty($cached['legacy'])) {
+            Log::warning('wechat web login exchange failed: wechat login state invalid');
             throwError('登录失败，请重试');
         }
+
+        $provider = (string)($cached['provider'] ?? 'file_web');
+        try {
+            $token = $this->createWechatWebLoginToken($code, $provider);
+        } catch (\Throwable $e) {
+            Log::warning('wechat web login exchange failed: provider=' . $provider . ' redirect_host=' . (string)parse_url((string)$cached['redirect'], PHP_URL_HOST) . ' ' . $this->getThrowableLogMessage($e));
+            throwError('登录失败，请重试');
+        }
+
+        $this->result([
+            'token' => $token,
+            'redirect' => $this->normalizeWechatLoginRedirect($cached['redirect']),
+        ], 0, '登录成功');
     }
 
     /**

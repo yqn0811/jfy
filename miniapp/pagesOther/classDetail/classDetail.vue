@@ -649,7 +649,6 @@ export default {
           const loaded = await this.loadPublicCategoryInfo();
           this.debugShare("loadInitialData-public-loaded", { loaded });
           if (!loaded) return;
-          if (this.directShareAccess && this.hasContent) return;
         }
         await this.loadCategoryContent({ manageLoading: false });
       } finally {
@@ -1179,7 +1178,7 @@ export default {
         });
         if (!res || res.code !== 0) {
           this.products = [];
-          if (this.uid) {
+          if (this.uid && !this.hasChildren) {
             this.setPageError(this.getResponseErrorMessage(res));
           }
           return false;
@@ -1190,7 +1189,7 @@ export default {
         return true;
       } catch (e) {
         console.error("[classDetail-share-debug]", "loadProducts-error", e);
-        if (this.uid) {
+        if (this.uid && !this.hasChildren) {
           this.setPageError(this.getExceptionMessage(e));
         } else {
           uni.showToast({ title: "加载产品失败", icon: "none" });
@@ -1663,8 +1662,8 @@ export default {
 }
 
 .manage-folder-cell {
-  width: 50%;
-  padding: 0 12rpx 24rpx;
+  width: 33.3333%;
+  padding: 0 8rpx 18rpx;
   box-sizing: border-box;
 }
 
@@ -1675,7 +1674,7 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 16rpx 14rpx 12rpx;
+  padding: 16rpx 8rpx 12rpx;
   background: #ffffff;
   border: 1rpx solid rgba(226, 229, 234, 0.9);
   border-radius: 16rpx;
@@ -1685,17 +1684,17 @@ export default {
 
 .manage-folder-icon {
   position: relative;
-  width: 76rpx;
-  height: 58rpx;
-  flex: 0 0 58rpx;
+  width: 66rpx;
+  height: 52rpx;
+  flex: 0 0 52rpx;
 }
 
 .manage-folder-tab {
   position: absolute;
   left: 0;
   top: 0;
-  width: 38rpx;
-  height: 17rpx;
+  width: 34rpx;
+  height: 15rpx;
   border-radius: 10rpx 10rpx 4rpx 4rpx;
   background: #ffd45a;
 }
@@ -1705,8 +1704,8 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 45rpx;
-  border-radius: 12rpx;
+  height: 40rpx;
+  border-radius: 11rpx;
   background: linear-gradient(180deg, #ffc93d 0%, #f4a500 100%);
   box-shadow: 0 7rpx 14rpx rgba(236, 156, 0, 0.14);
 }
@@ -1714,14 +1713,14 @@ export default {
 .manage-folder-title {
   display: block;
   width: 100%;
-  margin-top: 12rpx;
+  margin-top: 13rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
-  font-size: 28rpx;
+  font-size: 25rpx;
   font-weight: 600;
-  line-height: 34rpx;
+  line-height: 30rpx;
   color: #252b33;
 }
 
@@ -1733,8 +1732,8 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
-  font-size: 23rpx;
-  line-height: 28rpx;
+  font-size: 20rpx;
+  line-height: 24rpx;
   color: #8a929d;
 }
 
