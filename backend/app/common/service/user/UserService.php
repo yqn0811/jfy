@@ -4284,7 +4284,6 @@ class UserService extends BaseService
         $textX = $avatarX + $avatarSize + 20;
         $textY = $avatarY + $avatarSize / 2 + $fontSize / 2;
         $this->drawText($im, $fontSize, 0, $textX, $textY, $colorBlack, $font, $this->clipTextByWidth($nickname, $font, $fontSize, $bgWidth * 0.58));
-        $this->drawText($im, $bgWidth * 0.022, 0, $textX, $textY + 42, $colorMuted, $font, '邀请你浏览云相册');
 
         // 4. Collection Title & Content (Grid or Main Image)
         $collTitle = '可访问相册';
@@ -4306,11 +4305,6 @@ class UserService extends BaseService
         $titleX = $bgWidth * 0.08;
         $titleY = $avatarY + $avatarSize + 118;
         if ($collTitle) {
-            $badgeX = $titleX;
-            $badgeY = $titleY - 92;
-            $this->drawRoundedRect($im, $badgeX, $badgeY, $badgeX + 178, $badgeY + 42, 21, $colorWarm);
-            $this->drawText($im, $bgWidth * 0.02, 0, $badgeX + 22, $badgeY + 29, $colorMuted, $font, '云相册分享');
-
             $iconPath = $this->app->getRootPath() . 'public/image/folder-open.png';
             if (file_exists($iconPath)) {
                 $iconImg = @\imagecreatefrompng($iconPath);
@@ -4326,9 +4320,7 @@ class UserService extends BaseService
             $this->drawText($im, $titleFontSize, 0, $titleX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, $titleFontSize, $bgWidth - $titleX - ($bgWidth * 0.08)));
         }
 
-        $this->drawText($im, $bgWidth * 0.024, 0, $bgWidth * 0.08, $titleY + 42, $colorGray, $font, '仅展示当前访问权限可见的相册封面');
-
-        $contentY = $titleY + 76;
+        $contentY = $titleY + 46;
         $gridX = $bgWidth * 0.08;
         $gridWidth = $bgWidth - ($gridX * 2);
         $gridHeight = $bgWidth * 0.72;
