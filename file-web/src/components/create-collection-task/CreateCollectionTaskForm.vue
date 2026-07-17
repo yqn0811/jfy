@@ -585,7 +585,7 @@ onBeforeUnmount(() => {
 .collection-card {
   position: relative;
   z-index: 1;
-  width: min(760px, 100%);
+  width: min(620px, 100%);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.98);
   box-shadow: 0 18px 50px rgba(27, 66, 112, 0.18);
@@ -595,7 +595,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  padding: 96px 40px 38px;
+  padding: 56px 36px 32px;
 }
 
 .line-field {
@@ -603,7 +603,7 @@ onBeforeUnmount(() => {
 }
 
 .line-field + .line-field {
-  margin-top: 34px;
+  margin-top: 22px;
 }
 
 .line-field:focus-within {
@@ -612,12 +612,12 @@ onBeforeUnmount(() => {
 
 .line-field input {
   width: 100%;
-  height: 42px;
+  height: 34px;
   border: 0;
   outline: 0;
   background: transparent;
   color: hsl(var(--foreground));
-  font-size: 24px;
+  font-size: 18px;
   letter-spacing: 0;
 }
 
@@ -626,16 +626,16 @@ onBeforeUnmount(() => {
 }
 
 .collection-actions {
-  margin-top: 88px;
+  margin-top: 44px;
   display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 28px;
+  grid-template-columns: 96px 1fr;
+  gap: 18px;
 }
 
 .settings-button,
 .primary-collect-button,
 .continue-button {
-  height: 64px;
+  height: 52px;
   border-radius: 8px;
 }
 
@@ -647,7 +647,7 @@ onBeforeUnmount(() => {
 
 .primary-collect-button,
 .continue-button {
-  font-size: 22px;
+  font-size: 18px;
 }
 
 .collection-success-card {
@@ -776,8 +776,8 @@ onBeforeUnmount(() => {
 .risk-banner {
   position: relative;
   z-index: 1;
-  width: min(640px, calc(100% - 64px));
-  min-height: 62px;
+  width: min(560px, calc(100% - 64px));
+  min-height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -786,7 +786,7 @@ onBeforeUnmount(() => {
   background: #f3a217;
   color: #fff;
   box-shadow: 0 10px 28px rgba(96, 62, 0, 0.2);
-  font-size: 22px;
+  font-size: 18px;
 }
 
 .settings-panel {
@@ -904,7 +904,7 @@ onBeforeUnmount(() => {
   }
 
   .collection-form-card {
-    padding: 52px 20px 24px;
+    padding: 34px 18px 22px;
   }
 
   .collection-success-card {
@@ -913,7 +913,8 @@ onBeforeUnmount(() => {
   }
 
   .line-field input {
-    font-size: 20px;
+    height: 32px;
+    font-size: 16px;
   }
 
   .collection-actions,
@@ -923,7 +924,7 @@ onBeforeUnmount(() => {
   }
 
   .collection-actions {
-    margin-top: 48px;
+    margin-top: 32px;
     gap: 14px;
   }
 
