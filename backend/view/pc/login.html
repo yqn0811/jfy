@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="0;url=https://pic.jfyuntu.com/">
   <title>正在进入云相册</title>
   <script>
-    window.location.replace('https://pic.jfyuntu.com/');
+    (function () {
+      var host = String(window.location.hostname || '').toLowerCase();
+      var rootDomain = host === 'izhixu.com' || host.endsWith('.izhixu.com') ? 'izhixu.com' : 'jfyuntu.com';
+      window.location.replace('https://pic.' + rootDomain + '/');
+    })();
   </script>
 </head>
 <body></body>

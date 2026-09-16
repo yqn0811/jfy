@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 
 const DEFAULT_API_BASE = 'https://api.jfyuntu.com/api'
+const IZHIXU_API_BASE = 'https://api.izhixu.com/api'
 
 export interface ApiEnvelope<T = any> {
   code?: number | string
@@ -43,7 +44,9 @@ const notifyAuthChanged = () => {
 
 export const getRuntimeApiBase = () => {
   if (typeof window === 'undefined') return DEFAULT_API_BASE
-  return (window as any).__JFYUNTU_API_BASE__ || import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
+  const hostname = window.location.hostname
+  const hostApiBase = hostname === 'izhixu.com' || hostname.endsWith('.izhixu.com') ? IZHIXU_API_BASE : ''
+  return (window as any).__JFYUNTU_API_BASE__ || hostApiBase || import.meta.env.PUBLIC_API_BASE || DEFAULT_API_BASE
 }
 
 const joinUrl = (base: string, path: string) => {

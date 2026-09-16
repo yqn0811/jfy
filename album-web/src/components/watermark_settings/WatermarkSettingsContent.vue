@@ -32,7 +32,15 @@ const isClient = ref(true)
 const isSaving = ref(false)
 const isLoading = ref(false)
 
-const previewImageUrl = 'https://api.jfyuntu.com/image/img_default.png'
+const getApiOrigin = () => {
+  if (typeof window === 'undefined') return 'https://api.jfyuntu.com'
+  const hostname = window.location.hostname
+  return hostname === 'izhixu.com' || hostname.endsWith('.izhixu.com')
+    ? 'https://api.izhixu.com'
+    : 'https://api.jfyuntu.com'
+}
+
+const previewImageUrl = `${getApiOrigin()}/image/img_default.png`
 
 onMounted(() => {
   isClient.value = false

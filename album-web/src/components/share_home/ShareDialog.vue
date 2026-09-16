@@ -53,7 +53,7 @@ const buildPcShareUrl = () => {
 
 const pickMobileShareLink = (data: any) => {
   const value = data?.mobile_link || data?.share_link || data?.url_link || data?.link || ''
-  if (!value || /^https?:\/\/pic\.jfyuntu\.com\/share-home/i.test(value)) return ''
+  if (!value || /^https?:\/\/pic\.(?:jfyuntu|izhixu)\.com\/share-home/i.test(value)) return ''
   return value
 }
 const pickWebShareLink = (data: any) => data?.pc_link || data?.web_link || data?.web_url || data?.pc_url || ''
