@@ -33,6 +33,10 @@ backend/**/*.p12
 backend/**/*.crt
 backend/**/*.cer
 
+# Local-only DB/ops debug scripts: never commit credentials in public/
+backend/public/db_check.php
+backend/public/db_update.php
+
 # Miniapp dependencies/build outputs
 miniapp/node_modules/
 miniapp/dist/
