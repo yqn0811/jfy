@@ -430,7 +430,9 @@ class AlbumService extends BaseService
                 throwError('请选择花色图');
             }
         }
-        $fid_param = $param['fid'];
+        $fid_param = ((int)$param['folder_type'] === 1 && array_key_exists('pid', $param) && $param['pid'] !== null)
+            ? $param['pid']
+            : $param['fid'];
         $first_fid = 0;
         $all_fids = [];
 
@@ -471,7 +473,10 @@ class AlbumService extends BaseService
             if($folder->folder_type == 2){
                 throwError('请选择正确的分类');
             }
-            if($folder->uid != $uid){
+            if((int)$param['folder_type'] === 1 && (int)$folder->uid !== (int)$uid){
+                throwError('上级分类不存在或不属于当前用户');
+            }
+            if((int)$param['folder_type'] === 2 && $folder->uid != $uid){
                 if(!$folder->checkFolderRule($uid)){
                     throwError('您没有权限操作此分类');
                 }
@@ -633,6 +638,12 @@ class AlbumService extends BaseService
         if(isset($param['hide_detail_pictures'])){
             $updateData['hide_detail_pictures'] = (int)$param['hide_detail_pictures'] === 1 ? 1 : 0;
         }
+
+        if ((int)$folder->folder_type === 1 && array_key_exists('pid', $param) && $param['pid'] !== null) {
+            $parentId = (int)$param['pid'];
+            $this->assertValidCategoryParent($folder, $parentId, $uid);
+            $updateData['pid'] = $parentId;
+        }
         
         // 如果是产品(type=2)且提供了category_ids，更新分类绑定
         if ($folder->folder_type == 2 && isset($param['category_ids'])) {
@@ -651,9 +662,7 @@ class AlbumService extends BaseService
              foreach($cids as $c){
                  if((int)$c > 0) $valid_cids[] = (int)$c;
              }
-             if(!empty($valid_cids)){
-                 $updateData['pid'] = $valid_cids[0];
-             }
+             $updateData['pid'] = !empty($valid_cids) ? $valid_cids[0] : 0;
         }
 
         if(!empty($updateData)){
@@ -665,6 +674,123 @@ class AlbumService extends BaseService
             (new AiResourceBridgeService($this->app))->safeSyncProductPictures($uid, $folder);
         }
     }
+
+    private function assertValidCategoryParent($category, $parentId, $uid)
+    {
+        $parentId = (int)$parentId;
+        if ($parentId === 0) {
+            return;
+        }
+        if ($parentId === (int)$category->id) {
+            throwError('上级分类不能选择当前分类');
+        }
+
+        $current = WdXcxAlbumFolder::where('id', $parentId)
+            ->where('uid', $uid)
+            ->where('folder_type', 1)
+            ->find();
+        if (!$current) {
+            throwError('上级分类不存在或不属于当前用户');
+        }
+
+        $visited = [];
+        while ($current) {
+            $currentId = (int)$current->id;
+            if ($currentId === (int)$category->id) {
+                throwError('不能将分类移动到自己的子分类下');
+            }
+            if (isset($visited[$currentId])) {
+                throwError('分类层级数据异常，请先检查分类关系');
+            }
+            $visited[$currentId] = true;
+            $nextId = (int)$current->pid;
+            if ($nextId === 0) {
+                break;
+            }
+            $current = WdXcxAlbumFolder::where('id', $nextId)
+                ->where('uid', $uid)
+                ->where('folder_type', 1)
+                ->find();
+            if (!$current) {
+                throwError('上级分类层级数据异常');
+            }
+        }
+    }
+
+    private function getBoundCategoryIdsForProduct($productId, $ownerUid)
+    {
+        $ids = WdXcxProductCategoryBind::where('product_id', (int)$productId)
+            ->whereIn('userid', [(int)$ownerUid, 0])
+            ->column('category_id');
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids ?: []))));
+        if (empty($ids)) {
+            return [];
+        }
+
+        $validIds = WdXcxAlbumFolder::whereIn('id', $ids)
+            ->where('uid', (int)$ownerUid)
+            ->where('folder_type', 1)
+            ->column('id');
+        $validMap = array_fill_keys(array_map('intval', $validIds ?: []), true);
+        return array_values(array_filter($ids, function ($id) use ($validMap) {
+            return isset($validMap[(int)$id]);
+        }));
+    }
+
+    private function getProductCategoryIds($productId, $ownerUid, $directCategoryId = 0)
+    {
+        $ids = $this->getBoundCategoryIdsForProduct($productId, $ownerUid);
+        if ((int)$directCategoryId > 0) {
+            array_unshift($ids, (int)$directCategoryId);
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (empty($ids)) {
+            return [];
+        }
+
+        $validIds = WdXcxAlbumFolder::whereIn('id', $ids)
+            ->where('uid', (int)$ownerUid)
+            ->where('folder_type', 1)
+            ->column('id');
+        $validMap = array_fill_keys(array_map('intval', $validIds ?: []), true);
+        return array_values(array_filter($ids, function ($id) use ($validMap) {
+            return isset($validMap[(int)$id]);
+        }));
+    }
+
+    private function getBoundProductIdsForCategory($categoryId, $ownerUid)
+    {
+        $ids = WdXcxProductCategoryBind::where('category_id', (int)$categoryId)
+            ->whereIn('userid', [(int)$ownerUid, 0])
+            ->column('product_id');
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids ?: []))));
+        if (empty($ids)) {
+            return [];
+        }
+
+        $validIds = WdXcxAlbumFolder::whereIn('id', $ids)
+            ->where('uid', (int)$ownerUid)
+            ->where('folder_type', 2)
+            ->column('id');
+        $validMap = array_fill_keys(array_map('intval', $validIds ?: []), true);
+        return array_values(array_filter($ids, function ($id) use ($validMap) {
+            return isset($validMap[(int)$id]);
+        }));
+    }
+
+    private function getCategoryProductIds($categoryId, $ownerUid)
+    {
+        $boundIds = $this->getBoundProductIdsForCategory($categoryId, $ownerUid);
+        $directIds = WdXcxAlbumFolder::where('pid', (int)$categoryId)
+            ->where('uid', (int)$ownerUid)
+            ->where('folder_type', 2)
+            ->column('id');
+        return array_values(array_unique(array_filter(array_map(
+            'intval',
+            array_merge($boundIds ?: [], $directIds ?: [])
+        ))));
+    }
+
     public function addAlbumPics($param, $uid)
     {
         $folder = WdXcxAlbumFolder::where('id', $param['fid'])->find();
@@ -1201,8 +1327,9 @@ class AlbumService extends BaseService
         $option_flag = true;
         
         // Target UID logic
-        $target_uid = isset($param['target_uid']) ? $param['target_uid'] : 0;
-        if (!$target_uid && !empty($param['target_user_id'])) {
+        $owner_only = !empty($param['owner_only']);
+        $target_uid = $owner_only ? 0 : (isset($param['target_uid']) ? $param['target_uid'] : 0);
+        if (!$owner_only && !$target_uid && !empty($param['target_user_id'])) {
             $target_uid = $param['target_user_id'];
         }
         $visitor_uid = $uid;
@@ -1253,7 +1380,7 @@ class AlbumService extends BaseService
             $this->bindShreAlbum($param['share_uid'], $visitor_uid, $fid);
         }
         $share_folders = [];
-        if(!$fid && !$is_visiting_others){
+        if(!$fid && !$is_visiting_others && !$owner_only){
             //查询绑定的产品
             $share_folders = WdXcxAlbumShareBind::where('bind_uid', $visitor_uid)->column('fid');
         }
@@ -1282,7 +1409,7 @@ class AlbumService extends BaseService
                     $query->whereLike('folder_name', '%'.$param['key'].'%');
                 }
                 if($fid){
-                    $bound_ids = WdXcxProductCategoryBind::where('category_id', $fid)->where('userid', $owner_uid)->column('product_id');
+                    $bound_ids = $this->getBoundProductIdsForCategory($fid, $owner_uid);
                     $query->where(function($subQ) use ($fid, $bound_ids){
                         $subQ->where('pid', $fid);
                         if(!empty($bound_ids)){
@@ -1294,7 +1421,7 @@ class AlbumService extends BaseService
                         $query->where('uid', $owner_uid);
                     });
                     
-                    if(!$is_visiting_others){
+                    if(!$is_visiting_others && empty($param['owner_only'])){
                         $query->whereOr(function ($query)use($share_folders){
                             $query->where('id', 'in', $share_folders);
                         });
@@ -1320,7 +1447,7 @@ class AlbumService extends BaseService
                 $item->son_count = $item->SonCount;
                 // 分类增加子产品数量（去重：直系产品 + 关联产品）
                 if ($item->folder_type == 1) {
-                    $bound_ids = \app\common\model\album\WdXcxProductCategoryBind::where('category_id', $item->id)->where('userid', $item->uid)->column('product_id');
+                    $bound_ids = $this->getBoundProductIdsForCategory($item->id, $item->uid);
                     $direct_ids = \app\common\model\album\WdXcxAlbumFolder::where('pid', $item->id)
                         ->where('folder_type', 2)
                         ->column('id');
@@ -1349,7 +1476,7 @@ class AlbumService extends BaseService
                 $query->whereLike('folder_name', '%'.$param['key'].'%');
             }
             if($fid){
-                $bound_ids = WdXcxProductCategoryBind::where('category_id', $fid)->where('userid', $owner_uid)->column('product_id');
+                $bound_ids = $this->getBoundProductIdsForCategory($fid, $owner_uid);
                 $query->where(function($subQ) use ($fid, $bound_ids){
                     $subQ->where('pid', $fid);
                     if(!empty($bound_ids)){
@@ -1361,7 +1488,7 @@ class AlbumService extends BaseService
                     $query->where('uid', $owner_uid);
                 });
                 
-                if(!$is_visiting_others){
+                if(!$is_visiting_others && empty($param['owner_only'])){
                     $query->whereOr(function ($query)use($share_folders){
                         $query->where('id', 'in', $share_folders);
                     });
@@ -1377,7 +1504,7 @@ class AlbumService extends BaseService
                     $query->whereLike('folder_name', '%'.$param['key'].'%');
                 }
                 if($fid){
-                    $bound_ids = WdXcxProductCategoryBind::where('category_id', $fid)->where('userid', $owner_uid)->column('product_id');
+                    $bound_ids = $this->getBoundProductIdsForCategory($fid, $owner_uid);
                     $query->where(function($subQ) use ($fid, $bound_ids){
                         $subQ->where('pid', $fid);
                         if(!empty($bound_ids)){
@@ -1389,7 +1516,7 @@ class AlbumService extends BaseService
                         $query->where('uid', $owner_uid);
                     });
                     
-                    if(!$is_visiting_others){
+                    if(!$is_visiting_others && empty($param['owner_only'])){
                         $query->whereOr(function ($query)use($share_folders){
                             $query->where('id', 'in', $share_folders);
                         });
@@ -1462,11 +1589,7 @@ class AlbumService extends BaseService
         if (!$item || (int)$item->folder_type !== 2) {
             return;
         }
-        $bindIds = WdXcxProductCategoryBind::where('product_id', $item->id)
-            ->where('userid', $item->uid)
-            ->column('category_id');
-        $directId = ((int)$item->pid > 0) ? [(int)$item->pid] : [];
-        $categoryIds = array_values(array_unique(array_filter(array_map('intval', array_merge($directId, $bindIds ?: [])))));
+        $categoryIds = $this->getProductCategoryIds($item->id, $item->uid, $item->pid);
         $item->category_ids = $categoryIds;
         $item->category_id = $categoryIds[0] ?? 0;
         if (empty($categoryIds)) {
@@ -1496,14 +1619,7 @@ class AlbumService extends BaseService
         if ($categoryId <= 0 || $ownerUid <= 0) {
             return 0;
         }
-        $boundIds = WdXcxProductCategoryBind::where('category_id', $categoryId)
-            ->where('userid', $ownerUid)
-            ->column('product_id');
-        $directIds = WdXcxAlbumFolder::where('pid', $categoryId)
-            ->where('uid', $ownerUid)
-            ->where('folder_type', 2)
-            ->column('id');
-        $productIds = array_values(array_unique(array_filter(array_map('intval', array_merge($boundIds ?: [], $directIds ?: [])))));
+        $productIds = $this->getCategoryProductIds($categoryId, $ownerUid);
         if (empty($productIds)) {
             return 0;
         }
@@ -1572,7 +1688,7 @@ class AlbumService extends BaseService
             if($fid){
                 // 在分类详情页，获取关联的产品（多对多）
                 // 1. 获取所有关联的产品ID
-                $product_ids = WdXcxProductCategoryBind::where('category_id', $fid)->where('userid', $owner_uid)->column('product_id');
+                $product_ids = $this->getCategoryProductIds($fid, $owner_uid);
                 // 2. 查询这些产品
                 if(!empty($product_ids)){
                      $query->whereIn('id', $product_ids)->where('uid', $owner_uid);
@@ -1717,10 +1833,7 @@ class AlbumService extends BaseService
         $diagnostics = [];
         
         // 获取当前分类下所有的产品ID
-        $current_bind_ids = WdXcxProductCategoryBind::where([
-            'category_id' => $cate_id,
-            'userid' => $uid
-        ])->column('product_id');
+        $current_bind_ids = $this->getBoundProductIdsForCategory($cate_id, $uid);
 
         // 计算需要添加和需要删除的ID
         $to_add = array_diff($product_ids, $current_bind_ids);
@@ -1755,10 +1868,10 @@ class AlbumService extends BaseService
 
         // 执行移除
         if (!empty($to_remove)) {
-            $res = WdXcxProductCategoryBind::where([
-                'category_id' => $cate_id,
-                'userid' => $uid
-            ])->whereIn('product_id', $to_remove)->delete();
+            $res = WdXcxProductCategoryBind::where('category_id', $cate_id)
+                ->whereIn('product_id', $to_remove)
+                ->whereIn('userid', [(int)$uid, 0])
+                ->delete();
             
             $removed_count = count($to_remove); // Assuming delete is successful for all found
             foreach($to_remove as $pid) {
@@ -1843,11 +1956,10 @@ class AlbumService extends BaseService
             if(!$cate){
                 continue;
             }
-            $exists = WdXcxProductCategoryBind::where([
-                'product_id' => $product_id,
-                'category_id' => $cid,
-                'userid' => $uid
-            ])->find();
+            $exists = WdXcxProductCategoryBind::where('product_id', $product_id)
+                ->where('category_id', $cid)
+                ->whereIn('userid', [(int)$uid, 0])
+                ->find();
             if (!$exists) {
                 WdXcxProductCategoryBind::create([
                     'uniacid' => 0,
@@ -1903,11 +2015,10 @@ class AlbumService extends BaseService
                 if(!$cate){
                     continue;
                 }
-                WdXcxProductCategoryBind::where([
-                    'product_id' => $product_id,
-                    'category_id' => $cid,
-                    'userid' => $uid
-                ])->delete();
+                WdXcxProductCategoryBind::where('product_id', $product_id)
+                    ->where('category_id', $cid)
+                    ->whereIn('userid', [(int)$uid, 0])
+                    ->delete();
             }
         }
     }
@@ -1933,8 +2044,7 @@ class AlbumService extends BaseService
         }
         $desired = array_unique(array_map('intval', (array)$category_ids));
         $desired = array_values(array_filter($desired, function($v){ return $v > 0; }));
-        $current = WdXcxProductCategoryBind::where('product_id', $product_id)->where('userid', $uid)->column('category_id');
-        $current = array_map('intval', $current ?: []);
+        $current = $this->getBoundCategoryIdsForProduct($product_id, $uid);
         $add = array_values(array_diff($desired, $current));
         $remove = array_values(array_diff($current, $desired));
         if (!empty($add) || !empty($remove)) {
@@ -3077,10 +3187,7 @@ class AlbumService extends BaseService
         $product->is_collect = $isCollect;
 
         $this->ensureBindUseridColumn();
-        $bindIds = WdXcxProductCategoryBind::where('product_id', $product_id)->where('userid', $product->uid)->column('category_id');
-        $directId = ($product->pid > 0) ? [$product->pid] : [];
-        $allIds = array_unique(array_merge($bindIds ?: [], $directId));
-        $product->category_ids = array_values($allIds);
+        $product->category_ids = $this->getProductCategoryIds($product_id, $product->uid, $product->pid);
 
         return $product;
     }
@@ -3095,9 +3202,7 @@ class AlbumService extends BaseService
         if($product->uid != $uid){
             throwError('无权限访问该产品分类');
         }
-        $bindIds = WdXcxProductCategoryBind::where('product_id', $product_id)->where('userid', $uid)->column('category_id');
-        $directId = ($product->pid > 0) ? [$product->pid] : [];
-        $allIds = array_unique(array_merge($bindIds ?: [], $directId));
+        $allIds = $this->getProductCategoryIds($product_id, $uid, $product->pid);
         if (empty($allIds)) {
             return [];
         }
