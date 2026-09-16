@@ -41,6 +41,7 @@ backend/public/db_update.php
 miniapp/node_modules/
 miniapp/dist/
 miniapp/unpackage/
+miniapp/wechat-preview/
 miniapp/*.zip
 
 # Local test artifacts
