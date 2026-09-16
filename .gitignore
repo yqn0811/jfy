@@ -36,6 +36,14 @@ backend/**/*.cer
 # Local-only DB/ops debug scripts: never commit credentials in public/
 backend/public/db_check.php
 backend/public/db_update.php
+backend/public/debug.php
+backend/public/list_data.php
+backend/public/test_cli.php
+backend/public/oss_check.php
+backend/public/test_upload.txt
+
+# Unauthenticated SEO cloaking endpoint; must never be deployed again
+backend/public/home.php
 
 # Miniapp dependencies/build outputs
 miniapp/node_modules/
