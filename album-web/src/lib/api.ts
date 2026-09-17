@@ -35,7 +35,10 @@ const SHOULD_BUNDLE_MOCK =
 const getHostApiBase = () => {
   if (typeof window === 'undefined') return ''
   const hostname = window.location.hostname
-  return TEST_ALBUM_HOSTS.has(hostname) || hostname.endsWith('.pic-test.jfyuntu.com') ? TEST_API_BASE : ''
+  if (TEST_ALBUM_HOSTS.has(hostname) || hostname.endsWith('.pic-test.jfyuntu.com')) {
+    return TEST_API_BASE
+  }
+  return hostname === 'izhixu.com' || hostname.endsWith('.izhixu.com') ? 'https://api.izhixu.com/api' : ''
 }
 
 const getRuntimeApiBase = () => {
@@ -422,9 +425,9 @@ export const pcApi = {
     }),
 
   getManagementCategories: (params: Record<string, any>) =>
-    apiRequest<any>('album/lists/folder', { method: 'POST', body: { folder_type: 1, limit: 100, timestamp: Date.now(), ...params } }),
+    apiRequest<any>('album/lists/folder', { method: 'POST', body: { folder_type: 1, limit: 100, timestamp: Date.now(), ...params, owner_only: 1 } }),
   getManagementProducts: (params: Record<string, any>) =>
-    apiRequest<any>('album/lists/folder', { method: 'POST', body: { folder_type: 2, limit: 50, timestamp: Date.now(), ...params } }),
+    apiRequest<any>('album/lists/folder', { method: 'POST', body: { folder_type: 2, limit: 50, timestamp: Date.now(), ...params, owner_only: 1 } }),
   getProductEditDetail: (fid: string) =>
     apiRequest<any>('album/products/detail', { method: 'POST', body: { fid, timestamp: Date.now() } }),
   createProductOrCategory: (body: Record<string, any>) =>

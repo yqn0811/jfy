@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { toast } from 'vue-sonner'
 import { pcApi } from '@/lib/api'
-import { mapCategory, unwrapList } from '@/lib/jfyuntu-mappers'
+import { flattenCategoryTree, mapCategory, unwrapList } from '@/lib/jfyuntu-mappers'
 import { navigateTo } from '@/navigation'
 import StatCard from '@/components/management_workbench/StatCard.vue'
 import QuickActionCard from '@/components/management_workbench/QuickActionCard.vue'
@@ -48,7 +48,7 @@ const loadWorkbench = async () => {
 const loadCategories = async () => {
   try {
     const raw = await pcApi.getManagementCategories({ page: 1, limit: 500 })
-    categories.value = unwrapList(raw).map(item => mapCategory(item))
+    categories.value = flattenCategoryTree(unwrapList(raw).map(item => mapCategory(item)))
   } catch {
     // 工作台分类加载失败不影响概览展示
   }
@@ -131,6 +131,7 @@ const buildCategoryPayload = (data: CategoryData) => ({
   private_type: data.visibility === 'private' ? 2 : data.visibility === 'shared' ? 4 : 1,
   layout_type: data.layout === 'list' ? 2 : 1,
   pic_layout: data.layout === 'list' ? 2 : 1,
+  pid: data.parentId || 0,
 })
 
 const handleSaveCategory = async (data: CategoryData) => {
@@ -260,6 +261,7 @@ const handleStorageClick = () => {
     <!-- Category Edit Dialog -->
     <CategoryEditDialog
       :open="showCategoryDialog"
+      :categories="categories"
       @update:open="showCategoryDialog = $event"
       @save="handleSaveCategory"
     />
