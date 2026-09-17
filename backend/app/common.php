@@ -573,9 +573,13 @@ function getJiafangyunPcBaseUrl()
     $base = trim((string)env('JIAFANGYUN_PC_BASE_URL', getenv('JIAFANGYUN_PC_BASE_URL') ?: ''));
     if ($base === '') {
         $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-        $base = strpos($host, 'api-test.jfyuntu.com') !== false
-            ? 'https://pic-test.jfyuntu.com/'
-            : 'https://pic.jfyuntu.com/';
+        if (strpos($host, 'api-test.') !== false) {
+            $base = 'https://pic-test.jfyuntu.com/';
+        } elseif ($host === 'izhixu.com' || substr($host, -11) === '.izhixu.com') {
+            $base = 'https://pic.izhixu.com/';
+        } else {
+            $base = 'https://pic.jfyuntu.com/';
+        }
     }
     return rtrim($base, '/') . '/';
 }

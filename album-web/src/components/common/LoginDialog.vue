@@ -48,6 +48,11 @@ const isWechatBrowser = () => {
   return /micromessenger/i.test(navigator.userAgent || '')
 }
 
+const isMobileBrowser = () => {
+  if (typeof navigator === 'undefined') return false
+  return /android|iphone|ipad|ipod|windows phone|blackberry|iemobile|mobile/i.test(navigator.userAgent || '')
+}
+
 const renderWxLogin = (config: any) => {
   const container = document.getElementById(containerId)
   if (!container) return false
@@ -122,6 +127,15 @@ const loadOauthLogin = async () => {
     if (isWechatBrowser() && (wechatAuthUrl.value || authUrl.value)) {
       status.value = 'wechat'
       openWechatAuthUrl()
+      return
+    }
+
+    // 移动端浏览器无法完成跨域 iframe 的顶层跳转：微信扫码 iframe 在确认登录后
+    // 需要导航顶层窗口到回调地址，而移动端浏览器会拦截这类跨域导航，表现为
+    // 扫码确认后页面毫无反应。这里直接整页跳转到授权页，回调交给服务端 302 处理。
+    if (isMobileBrowser() && authUrl.value) {
+      status.value = 'wechat'
+      openAuthUrl()
       return
     }
 
