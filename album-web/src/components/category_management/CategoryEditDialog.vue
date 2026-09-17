@@ -26,9 +26,12 @@ import { toast } from 'vue-sonner'
 interface Props {
   open: boolean
   category?: CategoryData
+  categories?: CategoryData[]
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  categories: () => [],
+})
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
   (e: 'save', data: CategoryData): void
@@ -36,12 +39,71 @@ const emit = defineEmits<{
 
 const isEditing = computed(() => !!props.category?.id)
 const isLoading = ref(false)
+const ROOT_CATEGORY_VALUE = '__root__'
 
-const form = ref({
+const form = ref<{
+  name: string
+  intro: string
+  parentId: string
+  visibility: CategoryVisibility
+  layout: CategoryLayout
+}>({
   name: '',
   intro: '',
+  parentId: ROOT_CATEGORY_VALUE,
   visibility: 'public' as const,
   layout: 'grid' as const,
+})
+
+const parentOptions = computed(() => {
+  const rows: CategoryData[] = []
+  const allCategories: CategoryData[] = []
+  const seen = new Set<string>()
+
+  const collect = (items: CategoryData[], parentId = '') => {
+    items.forEach((category) => {
+      if (!category.id || seen.has(category.id)) return
+      seen.add(category.id)
+      const normalizedParentId = category.parentId || parentId
+      const normalized = { ...category, parentId: normalizedParentId || undefined }
+      allCategories.push(normalized)
+      rows.push(normalized)
+      collect(category.children || [], category.id)
+    })
+  }
+  collect(props.categories)
+
+  const blockedIds = new Set<string>()
+  if (props.category?.id) {
+    blockedIds.add(props.category.id)
+    let changed = true
+    while (changed) {
+      changed = false
+      allCategories.forEach((category) => {
+        if (category.parentId && blockedIds.has(category.parentId) && !blockedIds.has(category.id)) {
+          blockedIds.add(category.id)
+          changed = true
+        }
+      })
+    }
+  }
+
+  const categoryMap = new Map(allCategories.map(category => [category.id, category]))
+  const getLevel = (category: CategoryData) => {
+    let level = 0
+    let parentId = category.parentId
+    const visited = new Set<string>([category.id])
+    while (parentId && categoryMap.has(parentId) && !visited.has(parentId)) {
+      visited.add(parentId)
+      level++
+      parentId = categoryMap.get(parentId)?.parentId
+    }
+    return level
+  }
+
+  return rows
+    .filter(category => !blockedIds.has(category.id))
+    .map(category => ({ category, level: getLevel(category) }))
 })
 
 watch(
@@ -51,6 +113,7 @@ watch(
       form.value = {
         name: props.category.name,
         intro: props.category.intro,
+        parentId: props.category.parentId || ROOT_CATEGORY_VALUE,
         visibility: props.category.visibility,
         layout: props.category.layout,
       }
@@ -58,6 +121,7 @@ watch(
       form.value = {
         name: '',
         intro: '',
+        parentId: ROOT_CATEGORY_VALUE,
         visibility: 'public',
         layout: 'grid',
       }
@@ -79,7 +143,7 @@ const handleSave = async () => {
       ...(props.category || {}),
       id: props.category?.id || '',
       homeId: props.category?.homeId || '',
-      parentId: props.category?.parentId,
+      parentId: form.value.parentId === ROOT_CATEGORY_VALUE ? undefined : form.value.parentId,
       name: form.value.name.trim(),
       intro: form.value.intro.trim(),
       coverUrl: props.category?.coverUrl || '',
@@ -121,6 +185,28 @@ const handleClose = () => {
             placeholder="例如：床品套件、窗帘布艺"
             class="h-10"
           />
+        </div>
+
+        <!-- 上级分类 -->
+        <div class="space-y-2">
+          <Label for="parent-category" class="text-label">上级分类</Label>
+          <Select v-model="form.parentId">
+            <SelectTrigger id="parent-category" class="h-10">
+              <SelectValue placeholder="选择上级分类" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem :value="ROOT_CATEGORY_VALUE">顶级分类</SelectItem>
+              <SelectItem
+                v-for="option in parentOptions"
+                :key="option.category.id"
+                :value="option.category.id"
+              >
+                <span :style="{ paddingLeft: `${option.level * 16}px` }">
+                  {{ option.category.name }}
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <!-- 分类简介 -->

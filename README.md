@@ -7,6 +7,11 @@ This repository contains the Jiafangyun PHP backend and UniApp miniapp source co
 - `backend/` - ThinkPHP backend, PC pages, API routes, upload pages.
 - `miniapp/` - UniApp/WeChat miniapp source.
 
+## Release verification
+
+- `DEPLOYMENT.md` - confirmed deployment environments, domains, and fixed target directories.
+- `RELEASE_VERIFICATION.md` - this release's album category, product consistency, and visibility verification checklist.
+
 ## Secrets
 
 Runtime credentials are intentionally not committed. Copy `backend/.env.example` to the deployed environment and provide WeChat, payment, JWT, database, and Redis values there.

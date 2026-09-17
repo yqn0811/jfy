@@ -602,6 +602,7 @@ watch([keyword, visibilityFilter], () => {
       v-if="isClient"
       :open="editDialogOpen"
       :category="editingCategory"
+      :categories="categories"
       @update:open="handleCloseEditDialog"
       @save="handleSaveCategory"
     />

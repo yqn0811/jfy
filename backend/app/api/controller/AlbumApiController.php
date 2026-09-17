@@ -24,6 +24,7 @@ class AlbumApiController extends ApiBaseController
     {
         $param = $this->request->postMore([
             ['fid', 0],
+            ['pid', null],
             ['folder_name', ''],
             ['folder_type', ''], // 1:分类 2:产品
             ['folder_desc', ''],
@@ -50,6 +51,7 @@ class AlbumApiController extends ApiBaseController
     {
         $param = $this->request->postMore([
             ['fid', 0],
+            ['pid', null],
             ['category_ids', []], // 支持修改分类
             ['folder_name', ''],
             ['folder_desc', ''],
@@ -230,6 +232,7 @@ class AlbumApiController extends ApiBaseController
             ['share_uid', 0],
             ['link_share_str', ''],
             ['folder_type', 0],
+            ['owner_only', 0],
             ['target_uid', 0],
             ['target_user_id', 0],
             ['limit', 10],

@@ -29,7 +29,7 @@ import BatchUploadSettingsContent from '@/components/batch_upload_settings/Batch
 import type { ProductData } from '@/data/ProductData'
 import type { CategoryData } from '@/data/CategoryData'
 import { authStore, pcApi } from '@/lib/api'
-import { mapCategory, mapProduct, unwrapList } from '@/lib/jfyuntu-mappers'
+import { flattenCategoryTree, mapCategory, mapProduct, unwrapList } from '@/lib/jfyuntu-mappers'
 import { cn } from '@/lib/utils'
 
 const isClient = ref(true)
@@ -133,7 +133,7 @@ const loadData = async () => {
       await ensureUserShareInfo()
     }
     allProducts.value = unwrapList(productsRaw).map(item => mapProduct(item))
-    allCategories.value = unwrapList(categoriesRaw).map(item => mapCategory(item))
+    allCategories.value = flattenCategoryTree(unwrapList(categoriesRaw).map(item => mapCategory(item)))
   } catch (error: any) {
     toast.error(error?.message || '产品列表加载失败')
   } finally {

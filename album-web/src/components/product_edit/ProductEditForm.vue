@@ -18,7 +18,6 @@ import { toast } from 'vue-sonner'
 import SafeIcon from '@/components/common/SafeIcon.vue'
 import { cn } from '@/lib/utils'
 import { pcApi } from '@/lib/api'
-import { mapCategory, mapProduct, mapProductImagesFromDetail, pickImage, unwrapList } from '@/lib/jfyuntu-mappers'
 import type { ProductData, ProductImageType } from '@/data/ProductData'
 import type { CategoryData } from '@/data/CategoryData'
 import type { ProductImageData } from '@/data/ProductImageData'
@@ -237,7 +236,7 @@ onMounted(() => {
 const loadCategories = async () => {
   try {
     const raw = await pcApi.getManagementCategories({ page: 1, limit: 500 })
-    categories.value = unwrapList(raw).map(item => mapCategory(item))
+    categories.value = flattenCategoryTree(unwrapList(raw).map(item => mapCategory(item)))
   } catch (error) {
     console.error('Failed to load categories:', error)
   }

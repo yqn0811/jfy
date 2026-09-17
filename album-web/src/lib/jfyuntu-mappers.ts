@@ -3,7 +3,15 @@ import type { CategoryData } from '@/data/CategoryData'
 import type { ProductData } from '@/data/ProductData'
 import type { ProductImageData } from '@/data/ProductImageData'
 
-const fallbackImage = 'https://api.jfyuntu.com/image/static/footer/jfyuntu.png'
+const getApiOrigin = () => {
+  if (typeof window === 'undefined') return 'https://api.jfyuntu.com'
+  const hostname = window.location.hostname
+  return hostname === 'izhixu.com' || hostname.endsWith('.izhixu.com')
+    ? 'https://api.izhixu.com'
+    : 'https://api.jfyuntu.com'
+}
+
+const fallbackImage = `${getApiOrigin()}/image/static/footer/jfyuntu.png`
 
 export const toArray = (value: any): any[] => {
   if (!value) return []
@@ -154,6 +162,27 @@ export const mapCategory = (raw: any, homeId = ''): CategoryData => {
     updatedAt: formatDateText(raw.update_time || raw.updated_at || ''),
     createdAt: formatDateText(raw.create_time || raw.created_at || ''),
   }
+}
+
+export const flattenCategoryTree = (categories: CategoryData[]): CategoryData[] => {
+  const result: CategoryData[] = []
+  const seen = new Set<string>()
+
+  const walk = (items: CategoryData[], parentId = '') => {
+    items.forEach((category) => {
+      if (!category.id || seen.has(category.id)) return
+      seen.add(category.id)
+      const normalized = {
+        ...category,
+        parentId: category.parentId || parentId || undefined,
+      }
+      result.push(normalized)
+      walk(category.children || [], category.id)
+    })
+  }
+
+  walk(categories)
+  return result
 }
 
 export const mapProduct = (raw: any, homeId = ''): ProductData => {
