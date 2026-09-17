@@ -2,7 +2,9 @@
 
 namespace app\api\controller;
 
+use app\common\service\CorsOriginService;
 use app\common\service\file\FileCollectionService;
+use app\common\service\file\FileRiskGuardService;
 use think\App;
 
 class FileCollectionApiController extends ApiBaseController
@@ -45,9 +47,10 @@ class FileCollectionApiController extends ApiBaseController
             ['sso_subject', ''],
             ['ssoSubject', ''],
         ], false, false);
-        $param = $this->normalizeTaskParam($param, $this->request->post());
+        $rawPayload = $this->getRequestPayload();
+        $param = $this->normalizeTaskParam($param, $rawPayload);
 
-        $this->result($this->collection_service->createTask($param, (int)request()->userID()), 0, '创建成功');
+        $this->result($this->collection_service->createTask($param, $this->getOptionalUserId()), 0, '创建成功');
     }
 
     public function listTasks()
@@ -201,7 +204,7 @@ class FileCollectionApiController extends ApiBaseController
         }
 
         $download = $this->collection_service->prepareTaskSubmissionsZip($taskId, (int)request()->userID());
-        $this->streamZipFile($download['path'], $download['download_name'], $download['work_dir']);
+        $this->streamZipFile($download['path'], $download['download_name'], $download['work_dir'], $download['lock'] ?? []);
     }
 
     public function getPublicTask()
@@ -245,13 +248,16 @@ class FileCollectionApiController extends ApiBaseController
             ['id', 0],
             ['submission_id', 0],
             ['submissionId', 0],
+            ['receipt_token', ''],
+            ['receiptToken', ''],
         ], false, false);
         $submissionId = (int)($param['id'] ?: ($param['submission_id'] ?: $param['submissionId']));
         if ($submissionId <= 0) {
             throwError('提交记录参数不完整');
         }
+        $receiptToken = $this->pickFirst($param, ['receipt_token', 'receiptToken']);
 
-        $this->result($this->collection_service->getPublicSubmissionReceipt($submissionId), 0, '获取成功');
+        $this->result($this->collection_service->getPublicSubmissionReceipt($submissionId, $receiptToken), 0, '获取成功');
     }
 
     private function normalizeTaskParam(array $param, array $raw = [])
@@ -276,7 +282,44 @@ class FileCollectionApiController extends ApiBaseController
                 $param[$to] = $param[$from];
             }
         }
+        foreach (['fields', 'materials'] as $key) {
+            if (array_key_exists($key, $raw) && !$this->isBlankValue($raw[$key])) {
+                $param[$key] = $raw[$key];
+            }
+        }
         return $param;
+    }
+
+    private function getRequestPayload()
+    {
+        $contentType = strtolower((string)$this->request->header('content-type', ''));
+        $rawContent = '';
+        try {
+            if (method_exists($this->request, 'getInput')) {
+                $rawContent = (string)$this->request->getInput();
+            } elseif (method_exists($this->request, 'getContent')) {
+                $rawContent = (string)$this->request->getContent();
+            }
+        } catch (\Throwable $e) {
+            $rawContent = '';
+        }
+        if ($rawContent === '') {
+            $rawContent = (string)file_get_contents('php://input');
+        }
+
+        $payload = $this->request->param();
+        if (!is_array($payload)) {
+            $payload = [];
+        }
+
+        if ($rawContent !== '' && (strpos($contentType, 'json') !== false || substr(ltrim($rawContent), 0, 1) === '{')) {
+            $decoded = json_decode($rawContent, true);
+            if (is_array($decoded)) {
+                $payload = array_merge($payload, $decoded);
+            }
+        }
+
+        return $payload;
     }
 
     private function isBlankValue($value)
@@ -315,33 +358,50 @@ class FileCollectionApiController extends ApiBaseController
         return [];
     }
 
-    private function streamZipFile($zipPath, $filename, $workDir)
+    private function getOptionalUserId()
+    {
+        try {
+            return (int)request()->userID();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function streamZipFile($zipPath, $filename, $workDir, array $lock = [])
     {
         if (!is_file($zipPath)) {
+            (new FileRiskGuardService())->releaseLock($lock);
             throwError('ZIP文件生成失败');
         }
+        register_shutdown_function(function () use ($lock) {
+            (new FileRiskGuardService())->releaseLock($lock);
+        });
+        register_shutdown_function(function () use ($workDir) {
+            $this->removeDirectory($workDir);
+        });
         while (ob_get_level() > 0) {
             ob_end_clean();
         }
 
-        $origin = $this->request->header('origin') ?: '*';
-        if (preg_match('/[\r\n]/', $origin)) {
-            $origin = '*';
-        }
+        $origin = CorsOriginService::resolveAllowedOrigin((string)$this->request->header('origin', ''));
         $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
         if ($fallbackName === '') {
             $fallbackName = 'submissions.zip';
         }
 
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Credentials: true');
-        header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        if ($origin !== '') {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Credentials: ' . (CorsOriginService::allowCredentials($origin) ? 'true' : 'false'));
+            header('Access-Control-Expose-Headers: Content-Disposition, Content-Length, Content-Type');
+        }
+        header('Vary: Origin');
         header('Content-Type: application/zip');
         header('Content-Length: ' . filesize($zipPath));
         header('Content-Disposition: attachment; filename="' . $fallbackName . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
         header('Cache-Control: private, max-age=0, no-cache');
         readfile($zipPath);
         $this->removeDirectory($workDir);
+        (new FileRiskGuardService())->releaseLock($lock);
         exit;
     }
 

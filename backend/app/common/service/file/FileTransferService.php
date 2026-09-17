@@ -19,27 +19,43 @@ class FileTransferService extends BaseService
     const TENCENT_COS_PROVIDER = 'ten_cos';
     const ANONYMOUS_SHARE_TTL_SECONDS = 86400;
 
+    private $riskGuard;
+    private $uploadSecurity;
+
     public function __construct(App $app)
     {
         parent::__construct($app);
+        $this->riskGuard = new FileRiskGuardService();
+        $this->uploadSecurity = new FileUploadSecurityService($this->riskGuard);
     }
 
     public function uploadFiles(array $files, array $param, int $uid)
     {
-        $uploadFiles = $this->normalizeUploadedFiles($files);
-        if (empty($uploadFiles)) {
+        $uploadItems = $this->normalizeUploadItems($files, $param);
+        if (empty($uploadItems)) {
             throwError('请选择上传文件');
         }
         $transferToken = $this->normalizeTransferToken($param, $uid, true);
         $ownerSubject = $uid > 0 ? ($param['sso_subject'] ?? null) : $transferToken;
 
-        $maxSizeMb = max(1, (int)env('file_transfer.max_upload_mb', 500));
+        $maxSizeMb = $this->riskGuard->maxUploadSizeMb($uid);
+        $totalBytes = 0;
+        foreach ($uploadItems as $item) {
+            $totalBytes += method_exists($item['file'], 'getSize') ? max(0, (int)$item['file']->getSize()) : 0;
+        }
+        $this->uploadSecurity->prepareUploadRequest('quick_send', $uid, count($uploadItems), $totalBytes, [
+            'flow' => 'quick_send',
+            'uid' => $uid,
+        ]);
+        $this->riskGuard->assertUploadAllowed($uid, $transferToken, count($uploadItems), $totalBytes);
         $saved = [];
-        foreach ($uploadFiles as $index => $file) {
-            $originalName = $this->getUploadOriginalName($file, $index, $param);
+        foreach ($uploadItems as $item) {
+            $file = $item['file'];
+            $originalName = $item['original_name'];
             if ($originalName === '') {
                 throwError('文件名不正确');
             }
+            $this->riskGuard->assertUploadNameSafe($originalName, ['flow' => 'quick_send', 'uid' => $uid]);
             $sizeBytes = method_exists($file, 'getSize') ? (int)$file->getSize() : 0;
             if ($sizeBytes < 0 || $sizeBytes > $maxSizeMb * 1024 * 1024) {
                 throwError('文件大小超过限制');
@@ -49,7 +65,7 @@ class FileTransferService extends BaseService
             $saveName = bin2hex(random_bytes(16)) . ($extension ? '.' . $extension : '');
             $relativeDir = 'file_transfer/' . $uid . '/' . date('Ymd');
             $targetDir = rtrim(app()->getRuntimePath(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
-            if (!is_dir($targetDir) && !mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
+            if (!is_dir($targetDir) && !@mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
                 throwError('文件存储目录创建失败');
             }
 
@@ -59,16 +75,26 @@ class FileTransferService extends BaseService
             }
 
             $objectKey = $relativeDir . '/' . $saveName;
+            $storedPath = $targetDir . DIRECTORY_SEPARATOR . $saveName;
+            try {
+                $this->riskGuard->assertStoredFileSafe($storedPath, $originalName, ['flow' => 'quick_send', 'uid' => $uid]);
+            } catch (\Throwable $e) {
+                if (is_file($storedPath)) {
+                    @unlink($storedPath);
+                }
+                throw $e;
+            }
+
             $fileModel = FtFile::create([
                 'owner_user_id' => $uid,
                 'sso_subject' => $ownerSubject,
                 'original_name' => $originalName,
                 'object_key' => $objectKey,
                 'storage_provider' => self::LOCAL_PROVIDER,
-                'mime_type' => $this->detectMimeType($targetDir . DIRECTORY_SEPARATOR . $saveName),
+                'mime_type' => $this->detectMimeType($storedPath),
                 'extension' => $extension,
                 'size_bytes' => $sizeBytes,
-                'sha256' => is_file($targetDir . DIRECTORY_SEPARATOR . $saveName) ? hash_file('sha256', $targetDir . DIRECTORY_SEPARATOR . $saveName) : null,
+                'sha256' => is_file($storedPath) ? hash_file('sha256', $storedPath) : null,
                 'status' => 'uploaded',
                 'preview_url' => '',
             ]);
@@ -88,36 +114,67 @@ class FileTransferService extends BaseService
 
     public function registerFile(array $param, int $uid)
     {
+        $ownerSubject = $uid > 0 ? ($param['sso_subject'] ?? null) : $this->normalizeTransferToken($param, $uid, false);
         $originalName = trim((string)($param['original_name'] ?? ''));
         if ($originalName === '') {
             throwError('请填写文件名');
         }
+        $this->riskGuard->assertUploadNameSafe($originalName, ['flow' => 'register_file', 'uid' => $uid]);
 
         $sizeBytes = (int)($param['size_bytes'] ?? 0);
         if ($sizeBytes < 0) {
             throwError('文件大小不正确');
+        }
+        if ($sizeBytes > $this->riskGuard->maxRegisteredUploadSizeMb() * 1024 * 1024) {
+            throwError('文件大小超过限制');
         }
 
         $objectKey = trim((string)($param['object_key'] ?? ''));
         if ($objectKey === '') {
             $objectKey = 'pending/' . date('Ymd') . '/' . bin2hex(random_bytes(12));
         }
+        $objectKey = $this->normalizeRegisteredObjectKey($objectKey);
+        $storageProvider = trim((string)($param['storage_provider'] ?? 'pending'));
+        if (!in_array($storageProvider, ['pending', self::ALI_OSS_PROVIDER, self::TENCENT_COS_PROVIDER, 'tencent_cos'], true)) {
+            throwError('文件存储类型不支持');
+        }
+        if ($storageProvider === 'tencent_cos') {
+            $storageProvider = self::TENCENT_COS_PROVIDER;
+        }
+        if ($uid <= 0 && $storageProvider === 'pending') {
+            throwError('上传凭证无效，请重新上传');
+        }
+        $this->uploadSecurity->assertDirectRegisterAllowed($param, $uid);
+        $status = trim((string)($param['status'] ?? 'uploaded'));
+        if (!in_array($status, ['pending', 'uploaded'], true)) {
+            throwError('文件状态不正确');
+        }
 
         $file = FtFile::create([
             'owner_user_id' => $uid,
-            'sso_subject' => $param['sso_subject'] ?? null,
+            'sso_subject' => $ownerSubject,
             'original_name' => $originalName,
             'object_key' => $objectKey,
-            'storage_provider' => trim((string)($param['storage_provider'] ?? 'pending')),
+            'storage_provider' => $storageProvider,
             'mime_type' => trim((string)($param['mime_type'] ?? '')),
             'extension' => strtolower(trim((string)($param['extension'] ?? pathinfo($originalName, PATHINFO_EXTENSION)))),
             'size_bytes' => $sizeBytes,
             'sha256' => $this->normalizeSha256($param['sha256'] ?? ''),
-            'status' => trim((string)($param['status'] ?? 'uploaded')),
+            'status' => $status,
             'preview_url' => $param['preview_url'] ?? null,
         ]);
 
         return $this->formatFile($file);
+    }
+
+    public function makeDirectUploadPolicy(array $param, int $uid)
+    {
+        return $this->uploadSecurity->makeDirectUploadPolicy($param, $uid);
+    }
+
+    public function uploadHealth()
+    {
+        return $this->uploadSecurity->runtimeHealth();
     }
 
     public function createShare(array $param, int $uid)
@@ -143,22 +200,23 @@ class FileTransferService extends BaseService
         if (count($files) !== count(array_unique($fileIds))) {
             throwError('存在无权分享的文件');
         }
+        $totalSize = 0;
+        foreach ($files as $file) {
+            $totalSize += (int)$file->size_bytes;
+        }
+        $this->riskGuard->assertShareCreateAllowed($uid, $transferToken, count($files), $totalSize);
 
         $conn = Db::connect('pgsql_file');
         $conn->startTrans();
         try {
             $fileCount = count($files);
-            $totalSize = 0;
-            foreach ($files as $file) {
-                $totalSize += (int)$file->size_bytes;
-            }
 
             $shareData = [
                 'owner_user_id' => $uid,
                 'sso_subject' => $ownerSubject,
                 'title' => $title,
                 'share_code' => $this->makeShareCode(),
-                'password_hash' => $this->makePasswordHash($param['password'] ?? ''),
+                'pickup_code' => $this->makePickupCode($param['pickup_code'] ?? ($param['pickupCode'] ?? ($param['password'] ?? ''))),
                 'max_downloads' => max(0, (int)($param['max_downloads'] ?? 0)),
                 'allow_preview' => !empty($param['allow_preview']) ? 1 : 0,
                 'notify_on_download' => !empty($param['notify_on_download']) ? 1 : 0,
@@ -166,6 +224,7 @@ class FileTransferService extends BaseService
                 'file_count' => $fileCount,
                 'total_size_bytes' => $totalSize,
             ];
+            $shareData['password_hash'] = $this->makePasswordHash((string)$shareData['pickup_code']);
             if ($uid > 0) {
                 $shareData['expires_at'] = $this->normalizeDateTime($param['expires_at'] ?? null);
             }
@@ -198,6 +257,31 @@ class FileTransferService extends BaseService
         return $this->getShareByCode($code, true, $password);
     }
 
+    public function getShareByPickupCode(string $pickupCode)
+    {
+        $pickupCode = $this->normalizePickupCode($pickupCode);
+        if ($pickupCode === '') {
+            throwError('请输入取件码');
+        }
+        $this->riskGuard->assertPublicAccessAllowed('pickup', $pickupCode);
+
+        $share = FtFileShare::where('pickup_code', $pickupCode)
+            ->whereNull('deleted_at')
+            ->find();
+        if (!$share) {
+            throwError('取件码不存在或已失效');
+        }
+        $this->assertShareUsable($share, false);
+        $this->recordShareLog((int)$share->id, 'pickup');
+
+        $items = FtFileShareItem::with(['file'])
+            ->where('share_id', $share->id)
+            ->order('sort_order asc, id asc')
+            ->select();
+
+        return $this->formatShare($share, $items, true, true);
+    }
+
     public function getOwnerShareByCode(string $code, int $uid, array $param = [])
     {
         if ($uid > 0) {
@@ -225,6 +309,7 @@ class FileTransferService extends BaseService
 
     public function getShareQrcode(string $code, string $url)
     {
+        $this->riskGuard->assertPublicAccessAllowed('qrcode', $code);
         $share = FtFileShare::where('share_code', trim($code))
             ->whereNull('deleted_at')
             ->find();
@@ -256,6 +341,12 @@ class FileTransferService extends BaseService
 
     public function getShareByCode(string $code, bool $publicView = true, string $password = '', int $ownerUid = 0)
     {
+        if ($publicView) {
+            $this->riskGuard->assertPublicAccessAllowed('share_view', $code);
+            if ($password !== '') {
+                $this->riskGuard->assertPublicAccessAllowed('share_password', $code);
+            }
+        }
         $share = FtFileShare::where('share_code', trim($code))
             ->whereNull('deleted_at')
             ->find();
@@ -268,9 +359,9 @@ class FileTransferService extends BaseService
         $this->assertShareUsable($share, false);
 
         $hasPassword = !empty($share->password_hash);
-        $passwordVerified = !$hasPassword || !$publicView || $this->verifyPassword($password, (string)$share->password_hash);
+        $passwordVerified = !$hasPassword || !$publicView || $this->verifyShareAccessCode($password, (string)$share->password_hash, $share);
         if ($publicView && $hasPassword && $password !== '' && !$passwordVerified) {
-            throwError('访问密码不正确');
+            throwError('取件码不正确');
         }
 
         if ($publicView) {
@@ -323,21 +414,31 @@ class FileTransferService extends BaseService
         ];
     }
 
-    public function getSharedDownloadFile(int $fileId, string $code, string $password = '', bool $preview = false)
+    public function getSharedDownloadFile(int $fileId, string $code, string $password = '', bool $preview = false, string $pickupCode = '')
     {
-        if ($fileId <= 0 || trim($code) === '') {
+        $code = trim($code);
+        $pickupCode = $this->normalizePickupCode($pickupCode);
+        if ($fileId <= 0 || ($code === '' && $pickupCode === '')) {
             throwError('下载参数不完整');
         }
+        $this->riskGuard->assertPublicAccessAllowed('share_download', $code !== '' ? $code : $pickupCode);
 
-        $share = FtFileShare::where('share_code', trim($code))
+        $shareQuery = FtFileShare::whereNull('deleted_at');
+        if ($code !== '') {
+            $shareQuery->where('share_code', $code);
+        } else {
+            $shareQuery->where('pickup_code', $pickupCode);
+        }
+        $share = $shareQuery
             ->whereNull('deleted_at')
             ->find();
         if (!$share) {
             throwError('分享不存在或已失效');
         }
         $this->assertShareUsable($share, !$preview);
-        if (!empty($share->password_hash) && !$this->verifyPassword($password, (string)$share->password_hash)) {
-            throwError('访问密码不正确');
+        $pickupVerified = $pickupCode !== '' && hash_equals((string)$share->pickup_code, $pickupCode);
+        if (!$pickupVerified && !empty($share->password_hash) && !$this->verifyShareAccessCode($password, (string)$share->password_hash, $share)) {
+            throwError('取件码不正确');
         }
 
         $item = FtFileShareItem::with(['file'])
@@ -351,8 +452,7 @@ class FileTransferService extends BaseService
         $file = $item->file;
         $path = $this->getLocalFilePath($file);
         if (!$preview) {
-            $share->download_count = (int)$share->download_count + 1;
-            $share->save();
+            $this->consumeShareDownloadQuota($share);
             $this->recordShareLog((int)$share->id, 'download', ['file_id' => $fileId]);
         }
 
@@ -478,6 +578,35 @@ class FileTransferService extends BaseService
         }
     }
 
+    private function consumeShareDownloadQuota($share)
+    {
+        $affected = Db::connect('pgsql_file')
+            ->name('file_shares')
+            ->where('id', (int)$share->id)
+            ->where('status', 'active')
+            ->whereNull('deleted_at')
+            ->whereRaw('(expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)')
+            ->whereRaw('(max_downloads <= 0 OR download_count < max_downloads)')
+            ->update([
+                'download_count' => Db::raw('download_count + 1'),
+                'updated_at' => $this->nowDbExpression(),
+            ]);
+
+        if ((int)$affected > 0) {
+            $share->download_count = (int)$share->download_count + 1;
+            return;
+        }
+
+        $fresh = FtFileShare::where('id', (int)$share->id)->find();
+        if (!$fresh || !empty($fresh->deleted_at) || (string)$fresh->status !== 'active') {
+            throwError('分享不存在或已失效');
+        }
+        if (!empty($fresh->expires_at) && $this->isShareExpired($fresh)) {
+            throwError('分享已过期');
+        }
+        throwError('分享下载次数已用完');
+    }
+
     private function isShareExpired($share)
     {
         if (empty($share->id)) {
@@ -534,7 +663,8 @@ class FileTransferService extends BaseService
         $base = realpath($runtimeRoot . 'file_transfer');
         $path = $runtimeRoot . str_replace('/', DIRECTORY_SEPARATOR, $objectKey);
         $realPath = realpath($path);
-        if (!$base || !$realPath || strpos($realPath, $base) !== 0 || !is_file($realPath)) {
+        $baseDir = $base ? rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR : '';
+        if (!$base || !$realPath || strpos($realPath, $baseDir) !== 0 || !is_file($realPath)) {
             throwError('文件不存在或已失效');
         }
         return $realPath;
@@ -646,6 +776,15 @@ class FileTransferService extends BaseService
         return $objectKey;
     }
 
+    private function normalizeRegisteredObjectKey(string $objectKey)
+    {
+        $objectKey = ltrim(str_replace('\\', '/', trim($objectKey)), '/');
+        if ($objectKey === '' || mb_strlen($objectKey) > 512 || strpos($objectKey, '..') !== false || preg_match('/^[a-z]+:\/\//i', $objectKey)) {
+            throwError('文件路径不合法');
+        }
+        return $objectKey;
+    }
+
     private function formatFile($file, bool $includeStorage = true, string $shareCode = '')
     {
         $data = [
@@ -709,7 +848,7 @@ class FileTransferService extends BaseService
                 ->toArray();
         }
 
-        return array_merge($this->formatShareRow($share), [
+        return array_merge($this->formatShareRow($share, !$publicView || $passwordVerified), [
             'has_password' => !empty($share->password_hash),
             'hasPassword' => !empty($share->password_hash),
             'password_verified' => $passwordVerified,
@@ -745,9 +884,9 @@ class FileTransferService extends BaseService
         ];
     }
 
-    private function formatShareRow($share)
+    private function formatShareRow($share, bool $includePickupCode = false)
     {
-        return [
+        $data = [
             'id' => (int)$share->id,
             'task_id' => '',
             'taskId' => '',
@@ -780,6 +919,33 @@ class FileTransferService extends BaseService
             'updated_at' => (string)$share->updated_at,
             'updatedAt' => (string)$share->updated_at,
         ];
+        if ($includePickupCode) {
+            $data['pickup_code'] = (string)$share->pickup_code;
+            $data['pickupCode'] = (string)$share->pickup_code;
+        }
+        return $data;
+    }
+
+    private function normalizeUploadItems($files, array $param): array
+    {
+        $uploadFiles = $this->normalizeUploadedFiles($files);
+        $items = [];
+        foreach ($uploadFiles as $index => $file) {
+            $originalName = $this->getUploadOriginalName($file, $index, $param);
+            if ($this->isSystemMetadataFileName($originalName)) {
+                $this->riskGuard->recordRiskEvent('ignored_system_metadata_upload', [
+                    'flow' => 'quick_send',
+                    'name_hash' => hash('sha256', $originalName),
+                ], 'info');
+                continue;
+            }
+            $items[] = [
+                'file' => $file,
+                'original_index' => $index,
+                'original_name' => $originalName,
+            ];
+        }
+        return $items;
     }
 
     private function normalizeUploadedFiles($files)
@@ -822,6 +988,20 @@ class FileTransferService extends BaseService
             }
         }
         return '';
+    }
+
+    private function isSystemMetadataFileName(string $name): bool
+    {
+        $normalized = str_replace('\\', '/', trim($name));
+        $lower = strtolower($normalized);
+        $parts = array_values(array_filter(explode('/', $lower), function ($part) {
+            return $part !== '';
+        }));
+        $baseName = $parts ? end($parts) : $lower;
+
+        return in_array($baseName, ['.ds_store', 'thumbs.db', 'desktop.ini', 'ehthumbs.db'], true)
+            || strpos($baseName, '._') === 0
+            || in_array('__macosx', $parts, true);
     }
 
     private function cleanFileName(string $name)
@@ -931,12 +1111,67 @@ class FileTransferService extends BaseService
         return $password !== '' && password_verify($password, $hash);
     }
 
+    private function verifyShareAccessCode(string $code, string $hash, $share)
+    {
+        if ($hash === '') {
+            return true;
+        }
+        if ($code === '') {
+            return false;
+        }
+        if (!empty($share->pickup_code)) {
+            return $this->verifyPassword($this->normalizePickupCode($code), $hash);
+        }
+        return $this->verifyPassword($code, $hash);
+    }
+
     private function makeShareCode()
     {
         do {
             $code = strtolower(bin2hex(random_bytes(5)));
             $exists = FtFileShare::where('share_code', $code)->find();
         } while ($exists);
+        return $code;
+    }
+
+    private function normalizePickupCode($code)
+    {
+        $code = trim((string)$code);
+        if ($code === '') {
+            return '';
+        }
+        if (!preg_match('/^[A-Za-z0-9]{4}$/', $code)) {
+            throwError('取件码需为 4 位大小写英文或数字');
+        }
+        return $code;
+    }
+
+    private function makePickupCode($preferred = '')
+    {
+        $preferred = $this->normalizePickupCode($preferred);
+        if ($preferred !== '') {
+            $exists = FtFileShare::where('pickup_code', $preferred)->find();
+            if ($exists) {
+                throwError('取件码已被使用，请换一个');
+            }
+            return $preferred;
+        }
+
+        do {
+            $code = $this->makeRandomPickupCode();
+            $exists = FtFileShare::where('pickup_code', $code)->find();
+        } while ($exists);
+        return $code;
+    }
+
+    private function makeRandomPickupCode()
+    {
+        $alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        $code = '';
+        $maxIndex = strlen($alphabet) - 1;
+        for ($i = 0; $i < 4; $i++) {
+            $code .= $alphabet[random_int(0, $maxIndex)];
+        }
         return $code;
     }
 }
