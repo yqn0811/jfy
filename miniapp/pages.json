@@ -128,14 +128,6 @@
           }
         },
         {
-          "path": "profile/profile",
-          "style": {
-            "navigationBarTitleText": "个人资料",
-            "navigationBarBackgroundColor": "#f5f5f5",
-            "navigationBarTextStyle": "black"
-          }
-        },
-        {
           "path": "picDetail/picDetail",
           "style": {
             "navigationBarTitleText": "",
@@ -282,14 +274,6 @@
           "path": "productSelect/productSelect",
           "style": {
             "navigationBarTitleText": "添加产品到分类",
-            "navigationBarBackgroundColor": "#f5f5f5",
-            "navigationBarTextStyle": "black"
-          }
-        },
-        {
-          "path": "categoryPreview/categoryPreview",
-          "style": {
-            "navigationBarTitleText": "产品预览",
             "navigationBarBackgroundColor": "#f5f5f5",
             "navigationBarTextStyle": "black"
           }

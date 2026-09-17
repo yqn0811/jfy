@@ -331,10 +331,6 @@
 </template>
 
 <script>
-import Upload from "@/common/request/upload.js";
-
-const uploader = new Upload();
-
 export default {
   data() {
     return {
@@ -530,13 +526,18 @@ export default {
     uploadShareImage(filePath) {
       this.uploadingShareImage = true;
 
-      uploader
-        .upload(filePath, {
-          endpoint: "/api/common/upload",
-          showErrorToast: false,
-        })
-        .then((data) => {
+      uni.uploadFile({
+        url: this.$config.domain + "/api/common/upload",
+        filePath: filePath,
+        name: "file",
+        header: {
+          "content-type": "multipart/form-data", // 默认值
+          "authorization-token": `Bearer ${uni.getStorageSync("token")}`,
+        },
+        success: (uploadRes) => {
           try {
+            const data = JSON.parse(uploadRes.data);
+            console.log(data);
             if (data.code === 0) {
               this.shareForm.imageUrl = data.data.url;
               uni.showToast({
@@ -558,18 +559,19 @@ export default {
             });
             this.shareForm.image = "";
           }
-        })
-        .catch((err) => {
+        },
+        fail: (err) => {
           console.error("上传失败:", err);
           uni.showToast({
             title: "上传失败",
             icon: "none",
           });
           this.shareForm.image = "";
-        })
-        .finally(() => {
+        },
+        complete: () => {
           this.uploadingShareImage = false;
-        });
+        },
+      });
     },
 
     // 移除分享图片

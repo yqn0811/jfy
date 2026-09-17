@@ -108,9 +108,7 @@ export default {
     categories: {
       immediate: true,
       handler(v) {
-        if (Array.isArray(v)) {
-          this.all = v;
-        }
+        if (v && v.length) this.all = v;
       },
     },
   },
@@ -138,24 +136,15 @@ export default {
       this.fetchCategories();
     },
     getChildCount(item) {
-      if (!item) return 0;
-      const fields = [
-        "product_count",
-        "product_num",
-        "folder_count",
-        "goods_count",
-        "child_count",
-        "children_count",
-        "son_count",
-        "count",
-      ];
-      for (const field of fields) {
-        if (item[field] !== undefined && item[field] !== null && item[field] !== "") {
-          const value = Number(item[field]);
-          return Number.isFinite(value) ? value : 0;
-        }
-      }
-      return 0;
+      return Number(
+        (item &&
+          (item.product_count ||
+            item.child_count ||
+            item.children_count ||
+            item.son_count ||
+            item.count)) ||
+          0,
+      );
     },
     async fetchCategories() {
       this.loading = true;

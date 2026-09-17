@@ -10,6 +10,7 @@ import * as base from "@/common/helper/base.js";
  */
 export async function toggleFavorite(options) {
   const { type, id, isFavorite } = options;
+  console.log(options);
   if (!type || !id) {
     uni.showToast({
       title: "参数错误",

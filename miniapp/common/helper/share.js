@@ -39,7 +39,6 @@ export function parseShareScene(scene = "") {
   if (!result.uid && result.u) result.uid = result.u;
   if (!result.id && result.i) result.id = result.i;
   if (!result.type && result.t) result.type = typeMap[result.t] || result.t;
-  if (!result.share_v && result.v) result.share_v = result.v;
   if (!result.invite_code && result.ic) result.invite_code = result.ic;
 
   return result;

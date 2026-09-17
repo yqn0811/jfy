@@ -1,7 +1,6 @@
 import config from "../config";
 
 import { showLoading } from "../helper/base.js";
-import { buildAuthHeader, getAuthToken, normalizeAuthToken } from "../helper/auth.js";
 
 const HEADER = {
   "content-type": "application/json",
@@ -11,18 +10,18 @@ const HEADER = {
 const AUTH_ERROR_CODES = [4001, 4100, 403];
 let isRedirectingToLogin = false;
 
-const OPTIONAL_AUTH_PATHS = [
-  "user/home/info",
-  "user/home/categories",
-  "user/home/products",
-  "user/home/products/detail",
-  "user/home/products/details",
-  "user/home/picture/detail",
-  "user/home/minicode",
-  "user/home/minicode_image",
-  "user/home/share_link",
-  "user/home/share_poster",
-];
+const normalizeAuthToken = (value) => {
+  if (value === null || value === undefined) return "";
+  const token = String(value).replace(/^Bearer\s+/i, "").trim();
+  if (!token || token === "null" || token === "undefined") return "";
+
+  const segments = token.split(".");
+  if (segments.length !== 3 || segments.some((item) => !item)) {
+    return "";
+  }
+
+  return token;
+};
 
 const getSafeErrorMessage = (message) => {
   const text = message === null || message === undefined ? "" : String(message).trim();
@@ -62,25 +61,6 @@ const getCurrentLoginUid = () => {
   return String(uid);
 };
 
-const buildCurrentPagePath = () => {
-  const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
-  const currentPage = pages && pages[pages.length - 1];
-  if (!currentPage || !currentPage.route) return "";
-  const options = currentPage.options || {};
-  const query = Object.keys(options)
-    .filter((key) => options[key] !== undefined && options[key] !== null && options[key] !== "")
-    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(options[key])}`)
-    .join("&");
-  return `/${currentPage.route}${query ? `?${query}` : ""}`;
-};
-
-const saveLoginRedirect = () => {
-  const redirectUrl = buildCurrentPagePath();
-  if (redirectUrl) {
-    uni.setStorageSync("share_login_redirect", redirectUrl);
-  }
-};
-
 const getCurrentInviteCode = () => {
   const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
   const currentPage = pages && pages[pages.length - 1];
@@ -97,7 +77,6 @@ const redirectToLogin = () => {
   if (route === "pages/login/login" || isRedirectingToLogin) return;
 
   isRedirectingToLogin = true;
-  saveLoginRedirect();
   uni.removeStorageSync("token");
   uni.removeStorageSync("user");
   uni.removeStorageSync("userInfo");
@@ -119,11 +98,6 @@ const redirectToLogin = () => {
       }, 800);
     },
   });
-};
-
-const isOptionalAuthRequest = (path = "") => {
-  const text = String(path || "").replace(/^https?:\/\/[^/]+\/api\//i, "").replace(/^\//, "");
-  return OPTIONAL_AUTH_PATHS.some((item) => text === item || text.indexOf(`${item}?`) === 0);
 };
 
 const go = (
@@ -149,15 +123,11 @@ const go = (
   }
   return new Promise((resolve, reject) => {
     const rawToken = uni.getStorageSync("token");
-    const token = getAuthToken();
-    const header = { ...HEADER, ...buildAuthHeader(token) };
+    const token = normalizeAuthToken(rawToken);
+    const header = { ...HEADER };
     if (token) {
-      const segments = token.split(".");
-      if (segments.length !== 3 || segments.some((item) => !item)) {
-        delete header["authorization-token"];
-        uni.removeStorageSync("token");
-      }
-    } else if (normalizeAuthToken(rawToken)) {
+      header["authorization-token"] = `Bearer ${token}`;
+    } else if (rawToken) {
       uni.removeStorageSync("token");
     }
     let url = full_url ? path : `${config.host}/${path}`;
@@ -169,7 +139,7 @@ const go = (
       success: (res) => {
         if (_loading) uni.hideLoading();
         const responseData = res.data || {};
-        if (isAuthError(responseData) && !isOptionalAuthRequest(path)) {
+        if (isAuthError(responseData)) {
           redirectToLogin();
           return resolve(responseData);
         }

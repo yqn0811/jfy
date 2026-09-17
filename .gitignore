@@ -41,13 +41,20 @@ miniapp/wechat-preview/
 miniapp/unpackage/
 miniapp/*.zip
 
-# Package manager local stores
+# Package manager local stores / build outputs
 album-web/.pnpm-store/
+file-web/node_modules/
+file-web/dist/
+file-web/output/
+file-web/.playwright-cli/
 
 # Local test artifacts
 /.playwright-cli/
 /output/
 /album-web/output/
+
+# Ad-hoc editor copies
+* copy.js
 
 # Web-root entry points pulled out in the 2026-09 security cleanup
 # (SEO cloaking backdoor, plaintext DB credentials, unauthenticated

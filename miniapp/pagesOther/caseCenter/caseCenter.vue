@@ -58,9 +58,8 @@
         <view
           class="case-item"
           v-for="(item, index) in caseList"
-          :key="getCaseKey(item, index)"
-          :data-index="index"
-          @click="toCaseDetail(item, index, $event)"
+          :key="index"
+          @click="toCaseDetail(item)"
         >
           <view class="case-header">
             <view class="case-left">
@@ -68,7 +67,6 @@
                 class="case-avatar"
                 :src="item.new_thumb || '/static/image/pic.png'"
                 mode="aspectFill"
-                lazy-load
               ></image>
               <view class="case-info">
                 <view class="case-name">{{ item.folder_name }}</view>
@@ -86,10 +84,9 @@
               <image
                 class="case-img"
                 v-for="(img, imgIndex) in item.images"
-                :key="getCaseImageKey(img, imgIndex)"
+                :key="imgIndex"
                 :src="img || '/static/image/pic.png'"
                 mode="aspectFill"
-                lazy-load
                 @click.stop="previewImage(item.images, imgIndex)"
               ></image>
             </view>
@@ -101,13 +98,6 @@
 </template>
 
 <script>
-import { buildListItemKey } from "@/common/helper/listKey.js";
-import {
-  getObjectId,
-  resolveClickedListItem,
-  showInvalidRecordToast,
-} from "@/common/helper/clickItem.js";
-
 export default {
   data() {
     return {
@@ -189,12 +179,6 @@ export default {
     }
   },
   methods: {
-    getCaseKey(item, index) {
-      return buildListItemKey(item, index, "case");
-    },
-    getCaseImageKey(img, index) {
-      return img ? `case-img-${img}` : `case-img-${index}`;
-    },
     // 返回上一页
     back() {
       uni.navigateBack();
@@ -208,27 +192,17 @@ export default {
     },
 
     // 跳转到案例详情
-    toCaseDetail(item, index, event) {
-      const current = resolveClickedListItem(item, index, event, this.caseList);
-      const caseId = getObjectId(current, ["id", "folder_id", "fid"]);
-      if (!caseId) {
-        showInvalidRecordToast();
-        return;
-      }
+    toCaseDetail(item) {
       uni.navigateTo({
-        url: `/pagesOther/caseDetail/caseDetail?id=${caseId}`,
+        url: `/pagesOther/caseDetail/caseDetail?id=${item.id}`,
       });
     },
 
     // 预览图片
     previewImage(images, current) {
-      const urls = Array.isArray(images) ? images.filter((item) => !!item) : [];
-      if (!urls.length) {
-        return;
-      }
       uni.previewImage({
-        urls,
-        current: urls[current] || urls[0],
+        urls: images,
+        current: current,
       });
     },
 

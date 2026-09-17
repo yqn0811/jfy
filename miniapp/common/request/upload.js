@@ -3,38 +3,6 @@ import config from '../config.js';
 import {
 	showToast,
 } from '../helper/base.js';
-import { buildAuthHeader } from '../helper/auth.js';
-
-const DEFAULT_UPLOAD_ENDPOINT = '/api/file/upload';
-
-const buildUploadUrl = (endpoint = DEFAULT_UPLOAD_ENDPOINT) => {
-	if (/^https?:\/\//.test(endpoint)) return endpoint;
-	if (endpoint.charAt(0) === '/') return `${config.domain}${endpoint}`;
-	return `${config.host}/${endpoint}`;
-};
-
-const parseUploadResponse = (response) => {
-	const rawData = response && response.data !== undefined ? response.data : response;
-	if (typeof rawData === 'string') {
-		return JSON.parse(rawData || '{}');
-	}
-	return rawData || {};
-};
-
-const getUploadResultUrl = (response) => {
-	const payload = Array.isArray(response && response.data)
-		? response.data[0] || {}
-		: (response && response.data) || response || {};
-	return (
-		payload.full_url ||
-		payload.url ||
-		payload.imgurl ||
-		payload.src ||
-		payload.fileUrl ||
-		payload.picture_url ||
-		''
-	);
-};
 
 /**
  * 上传类
@@ -46,9 +14,17 @@ class Upload {
 	 * 批量上传图片
 	 * @param {Object} paths
 	 */
-	uploadMutiple(paths, options = {}) {
-		return Promise.all(paths.map((path) => this.upload(path, options))).then((results) => {
-			return results.map((res) => getUploadResultUrl(res)).filter(Boolean);
+	uploadMutiple(paths) {
+		return new Promise((resolve) => {
+			let img_url_ok = [];
+			paths.forEach((path) => {
+				this.upload(path).then((res) => {
+					img_url_ok.push(res.data.url);
+					if (img_url_ok.length == paths.length) {
+						return resolve(img_url_ok);
+					}
+				});
+			});
 		});
 	}
 
@@ -56,42 +32,25 @@ class Upload {
 	 * 上传单图
 	 * @param {Object} path
 	 */
-	upload(path, tokenOrOptions = '') {
-		const options = typeof tokenOrOptions === 'object'
-			? tokenOrOptions
-			: { token: tokenOrOptions };
-		const {
-			token = '',
-			endpoint = DEFAULT_UPLOAD_ENDPOINT,
-			formData = {},
-			name = 'file',
-			header: customHeader = {},
-			showErrorToast = true,
-		} = options;
-
+	upload(path, token) {
+		console.log(path,'00000000')
+		console.log(`Bearer ${token}`)
 		return new Promise((resolve, reject) => {
-			const header = {
-				'content-type': 'multipart/form-data',
-				...customHeader,
-				...buildAuthHeader(token),
-			};
 			wx.uploadFile({
-				url: buildUploadUrl(endpoint),
+				url: `${config.domain}/api/file/upload`,
 				filePath: path,
-				name,
-				header,
-				formData,
+				name: 'file',
+				header: {
+					'content-type': 'multipart/form-data', // 默认值
+					'authorization': `Bearer ${token}` // 携带token的请求头
+				},
 				success: (res) => {
-					try {
-						return resolve(parseUploadResponse(res));
-					} catch (e) {
-						if (showErrorToast) showToast('上传响应异常,请重试');
-						return reject(e);
-					}
+					return resolve(JSON.parse(res.data));
 				},
 				fail: (res) => {
-					if (showErrorToast) showToast('上传图片失败,请重试');
-					return reject(res);
+					console.log(res)
+					showToast('上传图片失败,请重试');
+					return reject(!1);
 				},
 			});
 		});

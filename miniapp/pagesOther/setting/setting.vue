@@ -347,6 +347,7 @@ export default {
         })
         .catch((err) => {
           this.isTop = !nextValue;
+          console.log("置顶设置失败:", err);
         });
     },
 
@@ -410,6 +411,7 @@ export default {
           return Promise.reject({ ...res, rolledBack: true });
         })
         .catch((err) => {
+          console.log("更新产品状态失败:", err);
           if (!err || !err.rolledBack) {
             this.rollbackStatus(field);
           }

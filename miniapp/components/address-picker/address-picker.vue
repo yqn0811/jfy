@@ -101,6 +101,7 @@ export default {
     };
   },
   mounted() {
+    console.log(this.addressList);
     this.formatData();
   },
   watch: {

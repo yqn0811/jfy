@@ -185,6 +185,7 @@ export default {
           }
         })
         .catch((err) => {
+          console.log("加载签到数据失败，使用模拟数据:", err);
           this.useMockCheckInData();
         });
     },
@@ -229,6 +230,7 @@ export default {
           }
         })
         .catch((err) => {
+          console.log("签到失败，使用模拟签到:", err);
           this.mockCheckIn();
         });
     },

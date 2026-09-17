@@ -44,18 +44,20 @@
           <view
             class="style-item"
             v-for="(item, index) in styleList"
-            :key="getStyleKey(item, index)"
-            :data-index="index"
-            @click="toStyleDetail(item, index, $event)"
+            :key="index"
+            @click="toStyleDetail(item)"
           >
             <view class="style-header">
               <view class="header-left">
                 <image
                   v-if="fromPage !== 'my'"
                   class="item-avatar"
-                  :src="getUserAvatar(item.customer)"
+                  :src="
+                    item.customer && item.customer.avatar
+                      ? item.customer.avatar
+                      : '/static/image/pic.png'
+                  "
                   mode="aspectFill"
-                  lazy-load
                 />
                 <view class="item-title-block">
                   <view class="item-title">{{ item.title }}</view>
@@ -86,13 +88,12 @@
               <view
                 class="image-box"
                 v-for="(img, imgIndex) in item.images"
-                :key="getStyleImageKey(img, imgIndex)"
+                :key="imgIndex"
               >
                 <image
                   class="item-img"
-                  :src="getImageUrl(img)"
+                  :src="img.url || '/static/image/pic.png'"
                   mode="aspectFill"
-                  lazy-load
                 ></image>
                 <view class="image-label">{{
                   img.label || `预览${imgIndex + 1}`
@@ -113,13 +114,6 @@
 </template>
 
 <script>
-import {
-  getObjectId,
-  resolveClickedListItem,
-  showInvalidRecordToast,
-} from "@/common/helper/clickItem.js";
-import { buildListItemKey } from "@/common/helper/listKey.js";
-
 export default {
   data() {
     return {
@@ -133,7 +127,7 @@ export default {
       loading: false,
       refreshing: false,
       listContainerHeight: 0,
-      fromPage: "my",
+      fromPage: "",
     };
   },
 
@@ -143,9 +137,11 @@ export default {
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.totalHeight = this.statusBarHeight + this.navigationBarHeight;
     this.calculateListHeight();
-    const fromPage = options.fromPage === "customer" ? "customer" : "my";
-    this.navTitle = fromPage === "my" ? "我的选款单" : "客户的选款单";
-    this.fromPage = fromPage;
+    const fromPage = options.fromPage;
+    if (fromPage) {
+      this.navTitle = fromPage === "my" ? "我的选款单" : "客户的选款单";
+      this.fromPage = fromPage;
+    }
     this.getList();
   },
 
@@ -158,99 +154,6 @@ export default {
   },
 
   methods: {
-    getStyleKey(item, index) {
-      return buildListItemKey(item, index, "style");
-    },
-    getStyleImageKey(item, index) {
-      return buildListItemKey(item, index, "style-img");
-    },
-    safeText(value) {
-      if (value === null || value === undefined) return "";
-      const text = String(value).trim();
-      if (!text || text === "null" || text === "undefined") return "";
-      return text;
-    },
-    normalizeImageUrl(url, fallback = "/static/image/pic.png") {
-      const text = this.safeText(url);
-      if (!text) return fallback;
-      if (
-        text.startsWith("http://") ||
-        text.startsWith("https://") ||
-        text.startsWith("data:") ||
-        text.startsWith("blob:") ||
-        text.startsWith("/static/")
-      ) {
-        return text;
-      }
-      const domain =
-        this.$config && this.$config.domain
-          ? this.$config.domain
-          : "https://api.jfyuntu.com";
-      const path = text.startsWith("/") ? text : `/${text}`;
-      return `${domain}${path}`;
-    },
-    pickImage(...values) {
-      for (const value of values) {
-        if (typeof value === "string") {
-          const text = this.safeText(value);
-          if (text) return text;
-        }
-        if (value && typeof value === "object") {
-          const nested =
-            value.image_urls ||
-            value.imageUrls ||
-            value.urls ||
-            value.picture ||
-            value.pic ||
-            {};
-          const image =
-            value.src ||
-            value.preview_url ||
-            value.previewUrl ||
-            value.picture_url ||
-            value.pictureUrl ||
-            value.thumbnail_url ||
-            value.thumbnailUrl ||
-            value.thumb_url ||
-            value.thumbUrl ||
-            value.imgurl ||
-            value.url ||
-            value.file_url ||
-            value.fileUrl ||
-            value.image_url ||
-            value.imageUrl ||
-            nested.preview ||
-            nested.preview_url ||
-            nested.previewUrl ||
-            nested.thumb ||
-            nested.thumbnail ||
-            nested.thumbnail_url ||
-            nested.thumbnailUrl ||
-            nested.url;
-          const text = this.safeText(image);
-          if (text) return text;
-        }
-      }
-      return "";
-    },
-    getImageUrl(image) {
-      return this.normalizeImageUrl(this.pickImage(image), "/static/image/pic.png");
-    },
-    getUserAvatar(user = {}) {
-      return this.normalizeImageUrl(
-        this.pickImage(
-          user.avatar,
-          user.avatar_url,
-          user.avatarUrl,
-          user.headimgurl,
-          user.head_img,
-          user.headImg,
-          user.company_logo,
-          user.logo,
-        ),
-        "/static/image/headurl.jpg",
-      );
-    },
     handleRefreshData() {
       this.page = 1;
       this.styleList = [];
@@ -304,7 +207,7 @@ export default {
               url:
                 typeof product === "string"
                   ? product
-                  : this.pickImage(picture) || item.share_img || "",
+                  : picture.src || picture.imgurl || item.share_img || "",
               id:
                 (typeof product === "string"
                   ? product
@@ -360,8 +263,6 @@ export default {
             const list = res.data.data || [];
             const formattedList = list.map((item) => {
               const product = item.product || {};
-              const customer = item.customer || {};
-              const factory = item.factory || {};
               return {
                 ...item,
                 id: item.id,
@@ -370,25 +271,8 @@ export default {
                   item.display_time || item.create_time || item.created_at || "",
                 images: this.buildPreviewImages(item),
                 product_count: item.product_count || 0,
-                customer: {
-                  ...customer,
-                  avatar: this.getUserAvatar(customer),
-                  nickname:
-                    customer.nickname ||
-                    customer.display_name ||
-                    customer.name ||
-                    "微信用户",
-                },
-                factory: {
-                  ...factory,
-                  avatar: this.getUserAvatar(factory),
-                  nickname:
-                    factory.company_name ||
-                    factory.nickname ||
-                    factory.display_name ||
-                    factory.name ||
-                    "",
-                },
+                customer: item.customer || {},
+                factory: item.factory || {},
                 product_name: product.name || "",
               };
             });
@@ -410,23 +294,9 @@ export default {
         });
     },
 
-    getClickedStyleItem(item, index, event) {
-      return resolveClickedListItem(item, index, event, this.styleList);
-    },
-
-    getStyleId(item) {
-      return getObjectId(item, ["id", "selection_id", "selectionId"]);
-    },
-
-    toStyleDetail(item, index, event) {
-      const detail = this.getClickedStyleItem(item, index, event);
-      const styleId = detail ? this.getStyleId(detail) : "";
-      if (!styleId) {
-        showInvalidRecordToast("选款单数据异常，请刷新后重试");
-        return;
-      }
+    toStyleDetail(item) {
       uni.navigateTo({
-        url: `/pagesOther/styleResult/styleResult?id=${styleId}&fromPage=${this.fromPage}`,
+        url: `/pagesOther/styleResult/styleResult?id=${item.id}&fromPage=${this.fromPage}`,
       });
     },
   },

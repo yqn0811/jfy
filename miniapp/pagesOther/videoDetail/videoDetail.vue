@@ -70,9 +70,9 @@
 							@click="addAlbum">新建</view>
 					</view>
 					<view class="album-box">
-							<view class="album" v-for="(item,index) in albumList" :key="getAlbumKey(item, index)">
-								<view class="album-img" :data-index="index" @click="selectAlbum(item,index,$event)">
-									<image v-if="item.new_thumb" :src="item.new_thumb" lazy-load mode="aspectFill"></image>
+						<view class="album" v-for="(item,index) in albumList" :key="index">
+							<view class="album-img" @click="selectAlbum(item,index)">
+								<image v-if="item.new_thumb" :src="item.new_thumb" mode="aspectFill"></image>
 								<image v-else src="/static/image/pic.png" mode="aspectFill"></image>
 								<view class="select-box" v-if="item.isChecked">
 									<image src="../../static/icon/checked.png" mode=""></image>
@@ -108,16 +108,9 @@
 	</view>
 </template>
 
-	<script>
-		import { notifyFolderRefresh } from '@/common/helper/refresh.js';
-		import { buildOriginalDownloadRequest } from '@/common/helper/imageUrls.js';
-		import { buildListItemKey } from '@/common/helper/listKey.js';
-		import {
-			getObjectId,
-			resolveClickedListItem,
-			showInvalidRecordToast,
-		} from '@/common/helper/clickItem.js';
-		export default {
+<script>
+	import { notifyFolderRefresh } from '@/common/helper/refresh.js';
+	export default {
 		data() {
 			return {
 				videoInfo: {
@@ -160,17 +153,9 @@
 			this.videoContext = uni.createVideoContext('video-player', this)
 		},
 
-			methods: {
-				getAlbumKey(item, index) {
-					return buildListItemKey(item, index, 'album');
-				},
-				getVideoPicId() {
-					return getObjectId(this.videoInfo, ['pic_id', 'id']);
-				},
-				visitInfo(){
-				const picId = this.getVideoPicId();
-				if (!picId) return;
-				const params = this.buildApiParams({ pic_id: picId });
+		methods: {
+			visitInfo(){
+				const params = this.buildApiParams({ pic_id:this.videoInfo.pic_id });
 				
 				this.$go('user/add/visit', params, 'post', { show_err: true })
 					.then(res => {
@@ -191,14 +176,9 @@
 			},
 			
 			addToAlbum(){
-				const picId = this.getVideoPicId();
-				if (!picId || !this.fidList.length) {
-					showInvalidRecordToast(!picId ? '视频数据异常，请刷新后重试' : '请选择相册');
-					return;
-				}
 				const querys = {
 					fid: this.fidList[this.fidList.length - 1],
-					pic_ids: picId,
+					pic_ids:this.videoInfo.pic_id,
 					timestamp: new Date().getTime(),
 				}
 				const data = {
@@ -248,15 +228,9 @@
 					this.getAlbumList()
 				})
 			},
-			selectAlbum(item,index,event){
-				const current = resolveClickedListItem(item, index, event, this.albumList);
-				const folderId = getObjectId(current, ['id', 'folder_id', 'fid']);
-				if (!current || !folderId) {
-					showInvalidRecordToast();
-					return;
-				}
-				if(current.folder_type == 2){
-					this.fidList.push(folderId)
+			selectAlbum(item,index){
+				if(item.folder_type == 2){
+					this.fidList.push(item.id)
 					this.albumList.forEach((item,idx)=>{
 						if(index == idx){
 							this.albumList[idx].isChecked = true
@@ -265,8 +239,8 @@
 						}
 					})
 				}
-				if(current.folder_type == 1){
-					this.fidList.push(folderId)
+				if(item.folder_type == 1){
+					this.fidList.push(item.id)
 					const querys = {
 						fid: this.fidList[this.fidList.length - 1],
 						timestamp: new Date().getTime(),
@@ -340,13 +314,8 @@
 			},
 
 			delPic(e) {
-				const picId = this.getVideoPicId();
-				if (!picId) {
-					showInvalidRecordToast('视频数据异常，请刷新后重试');
-					return;
-				}
 				const querys = {
-					pic_id: picId,
+					pic_id: this.videoInfo.id,
 					del_type: e,
 					timestamp: new Date().getTime(),
 				}
@@ -363,33 +332,14 @@
 			},
 
 			// 下载原视频
-			async handleDownload() {
-				if (!this.canUseOriginalMedia()) {
-					uni.showToast({
-						title: '请先升级成为会员',
-						icon: 'none'
-					})
-					return
-				}
-				const downloadRequest = buildOriginalDownloadRequest(this.videoInfo, {
-					pic_id: this.videoInfo.pic_id || this.videoInfo.id,
-					file_size: this.videoInfo.file_size || this.videoInfo.size,
-				})
-				if (!downloadRequest.url) {
-					uni.showToast({
-						title: '视频地址无效',
-						icon: 'none'
-					})
-					return
-				}
+			handleDownload() {
 				uni.showLoading({
 					title: '下载中...'
 				})
 
 				// 下载视频
 				uni.downloadFile({
-					url: downloadRequest.url,
-					header: downloadRequest.header,
+					url: this.videoInfo.picture_url_original,
 					success: (res) => {
 						if (res.statusCode === 200) {
 							uni.saveVideoToPhotosAlbum({
@@ -412,6 +362,7 @@
 						}
 					},
 					fail: (err) => {
+						console.log(err)
 						uni.hideLoading()
 						uni.showToast({
 							title: '下载失败',
@@ -419,30 +370,6 @@
 						})
 					}
 				})
-			},
-			canUseOriginalMedia() {
-				const userInfo = uni.getStorageSync('userInfo') || {}
-				const gradeLevel = Number(
-					userInfo.grade_level ||
-					userInfo.gradeLevel ||
-					userInfo.vip_grade ||
-					userInfo.vipGrade ||
-					0
-				)
-				const rawEndTime =
-					userInfo.end_time ||
-					userInfo.endTime ||
-					userInfo.vip_end_time ||
-					userInfo.vipEndTime ||
-					userInfo.expire_time ||
-					userInfo.expireTime ||
-					0
-				let endTime = Number(rawEndTime || 0)
-				if (!endTime && typeof rawEndTime === 'string' && rawEndTime) {
-					const parsed = new Date(rawEndTime).getTime()
-					endTime = Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000)
-				}
-				return gradeLevel > 0 && (!endTime || endTime > Math.floor(Date.now() / 1000))
 			},
 
 			// 播放/暂停切换
@@ -462,9 +389,9 @@
 						icon:'none'
 					})
 				}else{
-						this.openShow = true
-					}
+					this.openShow = true
 				}
+			}
 		},
 
 		// 分享配置

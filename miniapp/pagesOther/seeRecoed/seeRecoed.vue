@@ -79,9 +79,8 @@
           <view
             class="visit-item"
             v-for="(item, index) in visitList"
-            :key="getVisitKey(item, index)"
-            :data-index="index"
-            @click="toDetail(item, index, $event)"
+            :key="index"
+            @click="toDetail(item)"
           >
             <view class="item-left">
               <view class="item-title-subtitle">
@@ -89,7 +88,6 @@
                   class="item-avatar"
                   :src="item.avatar || '/static/image/pic.png'"
                   mode="aspectFill"
-                  lazy-load
                 ></image>
                 <view class="item-center">
                   <view class="item-title">{{ item.title }}</view>
@@ -132,13 +130,6 @@
 </template>
 
 <script>
-import {
-  getObjectId,
-  resolveClickedListItem,
-  showInvalidRecordToast,
-} from "@/common/helper/clickItem.js";
-import { buildListItemKey } from "@/common/helper/listKey.js";
-
 export default {
   data() {
     return {
@@ -177,9 +168,6 @@ export default {
     this.calculateListHeight();
   },
   methods: {
-    getVisitKey(item, index) {
-      return buildListItemKey(item, index, "visit");
-    },
     // 返回上一页
     back() {
       uni.navigateBack();
@@ -268,54 +256,27 @@ export default {
       return iconMap[type] || "";
     },
 
-    getClickedItem(item, index, event) {
-      return resolveClickedListItem(item, index, event, this.visitList);
-    },
-
-    getOwnerUid(item) {
-      const user = uni.getStorageSync("userInfo") || {};
-      const targetUid = item.target_uid || item.targetUid || "";
-      return targetUid && String(targetUid) !== String(user.id || user.uid || "")
-        ? targetUid
-        : "";
-    },
-
-    getTargetId(item) {
-      return getObjectId(item, ["target_id", "targetId", "fid", "folder_id", "folderId"]);
-    },
-
     // 跳转到详情页
-    toDetail(item, index, event) {
-      const detail = this.getClickedItem(item, index, event);
-      if (!detail) {
-        showInvalidRecordToast("记录异常，请刷新后重试");
-        return;
-      }
-
-      const ownerUid = this.getOwnerUid(detail);
-      const targetId = this.getTargetId(detail);
-      if (detail.type === "homepage") {
+    toDetail(item) {
+      const user = uni.getStorageSync("userInfo");
+      const ownerUid =
+        item.target_uid && user && item.target_uid !== user.id
+          ? item.target_uid
+          : "";
+      if (item.type === "homepage") {
         // 主页类型
         uni.navigateTo({
           url: `/pages/index/index?uid=${ownerUid}`,
         });
-      } else if (detail.type === "product") {
-        if (!targetId) {
-          showInvalidRecordToast("记录异常，请刷新后重试");
-          return;
-        }
+      } else if (item.type === "product") {
         // 产品类型
         uni.navigateTo({
-          url: `/pagesOther/productDetail/productDetail?id=${targetId}&uid=${ownerUid}`,
+          url: `/pagesOther/productDetail/productDetail?id=${item.target_id}&uid=${ownerUid}`,
         });
-      } else if (detail.type === "category") {
-        if (!targetId) {
-          showInvalidRecordToast("记录异常，请刷新后重试");
-          return;
-        }
+      } else if (item.type === "category") {
         // 分类类型
         uni.navigateTo({
-          url: `/pagesOther/classDetail/classDetail?id=${targetId}&uid=${ownerUid}`,
+          url: `/pagesOther/classDetail/classDetail?id=${item.target_id}&uid=${ownerUid}`,
         });
       }
     },

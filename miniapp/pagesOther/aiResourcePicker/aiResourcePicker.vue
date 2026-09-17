@@ -27,14 +27,13 @@
       <view v-else-if="!loading && list.length === 0" class="state-text">暂无资源库图片</view>
       <view v-else class="grid">
         <view
-          v-for="(item, index) in list"
+          v-for="item in list"
           :key="item.id"
           class="card"
           :class="{ selected: isSelected(item.id) }"
-          :data-index="index"
-          @click="toggle(item, index, $event)"
+          @click="toggle(item)"
         >
-          <image class="thumb" :src="imageUrl(item)" mode="aspectFill" lazy-load></image>
+          <image class="thumb" :src="imageUrl(item)" mode="aspectFill"></image>
           <view class="check" :class="{ active: isSelected(item.id) }">
             <text v-if="isSelected(item.id)">✓</text>
           </view>
@@ -55,13 +54,6 @@
 </template>
 
 <script>
-import {
-  getObjectId,
-  resolveClickedListItem,
-  showInvalidRecordToast,
-} from "@/common/helper/clickItem.js";
-import { imageUrlFor } from "@/common/helper/imageUrls.js";
-
 export default {
   data() {
     return {
@@ -91,7 +83,7 @@ export default {
   },
   methods: {
     imageUrl(item) {
-      return imageUrlFor(item, "thumb");
+      return item.thumbnail_url || item.preview_url || item.file_url || "";
     },
     resourceKey(item) {
       const url =
@@ -110,22 +102,16 @@ export default {
     isSelected(id) {
       return !!this.selected[id];
     },
-    toggle(item, index, event) {
-      const current = resolveClickedListItem(item, index, event, this.list);
-      const resourceId = getObjectId(current, ["id", "resource_id"]);
-      if (!resourceId) {
-        showInvalidRecordToast();
-        return;
-      }
-      if (this.isSelected(resourceId)) {
-        this.$delete(this.selected, resourceId);
+    toggle(item) {
+      if (this.isSelected(item.id)) {
+        this.$delete(this.selected, item.id);
         return;
       }
       if (this.selectedList.length >= this.limit) {
         uni.showToast({ title: "已达到可选上限", icon: "none" });
         return;
       }
-      this.$set(this.selected, resourceId, current);
+      this.$set(this.selected, item.id, item);
     },
     refresh() {
       this.refreshing = true;
@@ -178,14 +164,10 @@ export default {
       try {
         const imported = [];
         for (const item of this.selectedList) {
-          const resourceId = getObjectId(item, ["id", "resource_id"]);
-          if (!resourceId) {
-            continue;
-          }
           const res = await this.$go(
             "album/ai/import_resource",
             {
-              resource_id: resourceId,
+              resource_id: item.id,
               role: this.target,
             },
             "post",

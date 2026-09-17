@@ -10,11 +10,7 @@
         ></view>
         <view class="nav-wrap" :style="{ height: navigationBarHeight + 'px' }">
           <view v-if="!previewMode" class="nav-left">
-            <view
-              class="nav-left-item"
-              :style="{ height: navButtonHeight + 'px' }"
-              @click="onSetting"
-            >
+            <view class="nav-left-item" @click="onSetting">
               <image
                 src="/static/icon/setting-icon.png"
                 class="nav-icon"
@@ -23,11 +19,7 @@
               </image>
               <view class="nav-text">设置</view>
             </view>
-            <view
-              class="nav-left-item"
-              :style="{ height: navButtonHeight + 'px' }"
-              @click="onPreview"
-            >
+            <view class="nav-left-item" @click="onPreview">
               <image
                 src="/static/icon/eye@2x.png"
                 class="nav-icon"
@@ -60,11 +52,11 @@
               </view>
             </view>
           </view>
-          <text class="desc" v-if="displayCompanyDesc">{{
-            displayCompanyDesc
-          }}</text>
           <view class="stats-row">
             <view class="stats-row-inner">
+              <text class="desc" v-if="displayCompanyDesc">{{
+                displayCompanyDesc
+              }}</text>
               <view class="stat">
                 <text class="stat-number">{{ total_num || 0 }}</text>
                 <text class="stat-label">产品</text>
@@ -108,7 +100,7 @@
               <view
                 class="chip"
                 :class="{ active: curCategoryId === '' }"
-                @click="selectCategory({ id: '', __all: true })"
+                @click="selectCategory({ id: '' })"
               >
                 <image
                   class="chip-icon"
@@ -121,8 +113,8 @@
                 class="chip"
                 :class="{ active: curCategoryId === c.id }"
                 v-for="(c, idx) in categories"
-                :key="getCategoryKey(c, idx)"
-                @click="selectCategory(c, idx)"
+                :key="idx"
+                @click="selectCategory(c)"
               >
                 <image
                   class="chip-icon"
@@ -135,7 +127,7 @@
           </scroll-view>
         </view>
         <!-- 内容区：图片网格 -->
-        <view class="content">
+        <view class="content" scroll-y="true">
           <ImageGrid
             :list="albumList"
             nameField="folder_name"
@@ -146,8 +138,8 @@
           >
           </ImageGrid>
 
-          <view class="loading-more" v-if="isAlbumLoading">加载中...</view>
-          <view class="no-more" v-if="!isAlbumLoading && albumList.length === 0"
+          <view class="loading-more" v-if="loadingMore">加载中...</view>
+          <view class="no-more" v-if="!loadingMore && albumList.length === 0"
             >暂无内容</view
           >
         </view>
@@ -163,9 +155,9 @@
     <!-- 自定义底部导航 -->
     <custom-tab-bar
       v-if="!previewMode"
-      @createProduct="navigateToCreate"
+      @createProduct="showCreatePopup = true"
     />
-    <view v-if="previewMode" class="preview-wrap">
+    <view class="preview-wrap">
       <view class="preview-item" @click="openCustomer">
         <image
           class="preview-item-icon"
@@ -193,7 +185,6 @@
     </view>
     <category-popup
       :uid="uid || ''"
-      :categories="categories"
       :visible="showCategory"
       @update:visible="(val) => (showCategory = val)"
       @select="onCategorySelected"
@@ -242,12 +233,6 @@ import {
   getRefreshMarker,
   markRefreshMarkerConsumed,
 } from "@/common/helper/refresh.js";
-import {
-  getObjectId,
-  resolveClickedListItem,
-  showInvalidRecordToast,
-} from "@/common/helper/clickItem.js";
-import { ensureSharedPageLogin } from "@/common/helper/shareLogin.js";
 
 import { getMiniCode, setPendingInviteCode } from "@/common/request/api.js";
 
@@ -265,22 +250,23 @@ export default {
   data() {
     return {
       columns: 2,
-      previewMode: false,
       showCreatePopup: false,
+      previewMode: false,
       showCategory: false,
       personalVisible: false,
       showSettingPopup: false, // 设置弹窗显示状态
       statusBarHeight: 0,
-      navigationBarHeight: 44,
-      navButtonHeight: 32,
+      navigationBarHeight: 88, // 显示区域高度（rpx等比转换后按样式处理）
       headerHeight: 520, // 头部占用高度（rpx）
       tabbarHeight: 140, // 自定义tabbar高度（rpx）
       safeAreaBottom: 0,
+      page: 1,
+      last_page: 1,
       total_num: 0,
       albumList: [],
       categories: [],
-      isAlbumLoading: false,
-      albumRequestSeq: 0,
+      loadingMore: false,
+      showCreatePopup: false,
       userInfo: {},
       isFollow: false,
       shareVisible: false,
@@ -308,10 +294,13 @@ export default {
       ...(options || {}),
       ...sceneOptions,
     };
-    this.initNavigationMetrics();
+    const sys = this.$base.getSystemInfoCompat();
+    // 在小程序中返回单位为 px，需要转换为 rpx 时通常用样式 rpx；这里只读取状态栏高度 px
+    this.statusBarHeight = sys.statusBarHeight || 0;
     this.safeAreaBottom = 0;
     const userInfo = uni.getStorageSync("userInfo") || {};
     this.homeId = userInfo.id || userInfo.uid || "";
+    console.log(options);
     const optionUid = this.normalizeShareParam(options.uid);
     const inviteCode = this.normalizeShareParam(options.invite_code);
     if (inviteCode) {
@@ -322,11 +311,8 @@ export default {
       this.homeId = optionUid;
       this.previewMode = true;
     }
-    if (this.redirectSceneTarget(options)) {
-      return;
-    }
     this.shareUrl = this.buildHomeSharePath();
-    if (this.previewMode && !ensureSharedPageLogin("pages/index/index", options, this.uid)) {
+    if (this.redirectSceneTarget(options)) {
       return;
     }
     this.getUserInfo();
@@ -378,28 +364,6 @@ export default {
     },
   },
   methods: {
-    getCategoryKey(item, index) {
-      return item && item.id ? `category-${item.id}` : `category-${index}`;
-    },
-    initNavigationMetrics() {
-      const sys = this.$base.getSystemInfoCompat();
-      const statusBarHeight = sys.statusBarHeight || 0;
-      let navigationBarHeight = 44;
-      let navButtonHeight = 32;
-
-      if (uni.getMenuButtonBoundingClientRect) {
-        const menuButton = uni.getMenuButtonBoundingClientRect();
-        if (menuButton && menuButton.height && menuButton.top >= statusBarHeight) {
-          const verticalGap = menuButton.top - statusBarHeight;
-          navigationBarHeight = menuButton.height + verticalGap * 2;
-          navButtonHeight = menuButton.height;
-        }
-      }
-
-      this.statusBarHeight = statusBarHeight;
-      this.navigationBarHeight = navigationBarHeight;
-      this.navButtonHeight = navButtonHeight;
-    },
     parseSceneOptions(options = {}) {
       if (!options.scene || !this.$parseShareScene) return {};
       return this.$parseShareScene(options.scene);
@@ -433,18 +397,7 @@ export default {
           : this.$buildPublicSharePath
             ? this.$buildPublicSharePath(type, id, uid)
             : `/pages/index/index?uid=${encodeURIComponent(uid)}`;
-      const shareVersion = this.normalizeShareParam(options.share_v || options.sv || "");
-      const query = [];
-      if (type === "category" && shareVersion) {
-        query.push(`share_v=${encodeURIComponent(shareVersion)}`);
-      }
-      if (type === "category" || type === "product" || type === "selection") {
-        query.push("source=share");
-      }
-      const targetPath = query.length
-        ? `${path}${path.indexOf("?") === -1 ? "?" : "&"}${query.join("&")}`
-        : path;
-      uni.redirectTo({ url: targetPath });
+      uni.redirectTo({ url: path });
       return true;
     },
     safeText(value) {
@@ -556,40 +509,21 @@ export default {
     handleShareAction(event) {
       // event.type: 'share'|'copy'|'preview-mini'|'poster'|'open-settings'|'open-help'
       // event.payload 包含对应数据
+      console.log("share action:", event);
       // 按需处理（多数情况父组件不必处理）
     },
-    resolveProductClickItem(item, index) {
-      if (item && item.detail && Array.isArray(item.detail.__args__)) {
-        return item.detail.__args__[0] || null;
-      }
-      if (item && item.detail && item.detail.item) {
-        return item.detail.item;
-      }
-      if (item && typeof item === "object" && !item.currentTarget) {
-        return item;
-      }
-      if (Number.isInteger(index) && this.albumList[index]) {
-        return this.albumList[index];
-      }
-      return null;
-    },
     handleImageClick(item, index) {
-      const current = this.resolveProductClickItem(item, index);
-      const productId = getObjectId(current, ["id", "product_id", "folder_id", "fid"]);
-      if (!current || !productId) {
-        showInvalidRecordToast();
-        return;
-      }
+      console.log(this.previewMode);
       if (this.previewMode) {
         uni.navigateTo({
           url: this.$buildPublicSharePath
-            ? this.$buildPublicSharePath("product", productId, this.uid)
-            : "/pagesOther/productDetail/productDetail?id=" + productId + "&uid=" + this.uid,
+            ? this.$buildPublicSharePath("product", item.id, this.uid)
+            : "/pagesOther/productDetail/productDetail?id=" + item.id + "&uid=" + this.uid,
         });
       } else {
         uni.navigateTo({
           url:
-            "/pagesOther/productDetailsSelf/productDetailsSelf?id=" + productId,
+            "/pagesOther/productDetailsSelf/productDetailsSelf?id=" + item.id,
         });
       }
     },
@@ -631,22 +565,12 @@ export default {
         this.isFollow = !this.isFollow;
       }
     },
-    selectCategory(item, index, event) {
-      const category = resolveClickedListItem(item, index, event, this.categories);
-      if (!category || typeof category !== "object") {
-        showInvalidRecordToast("分类数据异常，请刷新后重试");
-        return;
-      }
-      const categoryId = getObjectId(category, [
-        "id",
-        "fid",
-        "folder_id",
-        "category_id",
-      ]);
-      this.curCategoryId = category.__all ? "" : categoryId;
-      this.columns = !this.curCategoryId
+    selectCategory(item) {
+      this.curCategoryId = item.id;
+      this.columns = !item.id
         ? this.getSavedHomeColumns()
-        : this.getCategoryColumns(category);
+        : this.getCategoryColumns(item);
+      console.log(this.curCategoryId);
       this.getAlbumList();
     },
     formatCategoryName(item) {
@@ -670,9 +594,6 @@ export default {
     },
     navigateToCreate() {
       this.showCreatePopup = true;
-    },
-    handleCreateClose() {
-      this.showCreatePopup = false;
     },
     createAlbum() {
       this.showCreatePopup = false;
@@ -735,9 +656,6 @@ export default {
     },
     // 获取产品列表
     getAlbumList() {
-      const requestSeq = this.albumRequestSeq + 1;
-      this.albumRequestSeq = requestSeq;
-      this.isAlbumLoading = true;
       const data = {
         folder_type: 2,
         fid: this.curCategoryId,
@@ -752,7 +670,6 @@ export default {
         show_err: true,
       })
         .then((res) => {
-          if (requestSeq !== this.albumRequestSeq) return;
           if (res.code === 0 && res.data) {
             const dataList = this.uid
               ? Array.isArray(res.data)
@@ -772,17 +689,11 @@ export default {
                 folder_count: count,
               };
             });
+            console.log(this.albumList);
           }
         })
         .catch((err) => {
-          if (requestSeq !== this.albumRequestSeq) return;
-          this.albumList = [];
           console.error("获取商户信息失败:", err);
-        })
-        .finally(() => {
-          if (requestSeq === this.albumRequestSeq) {
-            this.isAlbumLoading = false;
-          }
         });
     },
     // 获取所有分类
@@ -846,11 +757,11 @@ export default {
 }
 
 .nav-wrap {
-  height: 44px;
+  height: 88px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0;
+  padding: 0 30rpx;
   color: #333;
   position: relative;
 }
@@ -861,8 +772,7 @@ export default {
   justify-content: center;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 96rpx;
-  box-sizing: border-box;
-  padding: 0 26rpx;
+  padding: 16rpx 26rpx;
   gap: 10rpx;
 }
 
@@ -973,11 +883,9 @@ export default {
 
 .desc {
   display: -webkit-box;
-  width: 100%;
-  box-sizing: border-box;
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.9);
-  margin-top: 28rpx;
+  margin-top: 10rpx;
   line-height: 1.45;
   max-height: 104rpx;
   overflow: hidden;
@@ -990,15 +898,17 @@ export default {
 /* 统计与按钮 */
 .stats-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  margin-top: 24rpx;
+  margin-top: 40rpx;
   gap: 20rpx;
 
   .stats-row-inner {
     display: flex;
-    align-items: center;
-    justify-content: flex-start;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16rpx;
     flex: 1;
     min-width: 0;
   }
@@ -1008,7 +918,6 @@ export default {
   display: flex;
   align-items: center;
   gap: 10rpx;
-  min-height: 64rpx;
 }
 
 .stat-number {
@@ -1028,7 +937,7 @@ export default {
   align-items: center;
   gap: 16rpx;
   flex: 0 0 auto;
-  align-self: center;
+  align-self: flex-end;
 
   .actions-inner {
     display: flex;

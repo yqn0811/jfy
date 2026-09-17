@@ -26,25 +26,25 @@
         <view
           class="trash-item"
           v-for="(item, index) in albumList"
-          :key="getTrashItemKey(item, index)"
-          :data-index="index"
-          @click="handleItemClick(item, index, $event)"
+          :key="index"
+          @click="handleItemClick(item)"
         >
           <view class="img-container">
-            <image :src="getItemImage(item)" lazy-load mode="aspectFill"></image>
+            <image :src="getItemImage(item)" mode="aspectFill"></image>
           </view>
           <view class="info-container">
             <view class="file-name">{{
               item.folder_name || "IMG_" + item.create_time
             }}</view>
-            <view class="file-info">{{ item.deletedAt }}</view>
+            <view class="file-info">{{
+              formatDate(item.create_time || "2021/05/27 13:57")
+            }}</view>
           </view>
           <view class="action-container">
             <view
               class="checkbox"
               :class="{ checked: item.isChecked }"
-              :data-index="index"
-              @click.stop="handleCheckboxClick(item, index, $event)"
+              @click.stop="handleCheckboxClick(item)"
             >
               <image
                 v-if="item.isChecked"
@@ -84,12 +84,6 @@
 
 <script>
 import { getSystemInfoCompat } from "@/common/helper/base.js";
-import { buildListItemKey } from "@/common/helper/listKey.js";
-import {
-  getObjectId,
-  resolveClickedListItem,
-  showInvalidRecordToast,
-} from "@/common/helper/clickItem.js";
 
 export default {
   data() {
@@ -124,24 +118,12 @@ export default {
     }
   },
   methods: {
-    getTrashItemKey(item, index) {
-      return buildListItemKey(item, index, "trash");
-    },
     parseDate(dateStr) {
       if (!dateStr) return null;
       if (dateStr instanceof Date) return dateStr;
-      if (typeof dateStr === "number") {
-        const milliseconds = dateStr > 1000000000000 ? dateStr : dateStr * 1000;
-        return new Date(milliseconds);
-      }
+      if (typeof dateStr === "number") return new Date(dateStr);
 
       const text = String(dateStr).trim();
-      if (/^\d+$/.test(text)) {
-        const timestamp = Number(text);
-        if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
-        const milliseconds = timestamp > 1000000000000 ? timestamp : timestamp * 1000;
-        return new Date(milliseconds);
-      }
       const normalizedText = text.includes(" ")
         ? text.replace(/-/g, "/")
         : text;
@@ -175,36 +157,18 @@ export default {
         "/static/image/pic.png"
       );
     },
-    getTrashId(item) {
-      return getObjectId(item, ["id", "product_id", "folder_id"]);
-    },
-    getSelectedProductIds() {
-      return this.pics
-        .map((item) => this.getTrashId(item))
-        .filter((id) => id !== undefined && id !== null && id !== "");
-    },
-    handleItemClick(item, index, event) {
+    handleItemClick(item) {
       // 点击项目时切换选中状态
-      this.handleCheckboxClick(item, index, event);
+      this.handleCheckboxClick(item);
     },
-    handleCheckboxClick(item, index, event) {
-      const current = resolveClickedListItem(item, index, event, this.albumList);
-      const itemId = this.getTrashId(current);
-      if (!current || !itemId) {
-        showInvalidRecordToast();
-        return;
-      }
-      current.isChecked = !current.isChecked;
-      if (current.isChecked) {
-        if (!this.pics.some((p) => String(this.getTrashId(p)) === String(itemId))) {
-          this.pics.push(current);
-        }
+    handleCheckboxClick(item) {
+      item.isChecked = !item.isChecked;
+      if (item.isChecked) {
+        this.pics.push(item);
       } else {
-        const selectedIndex = this.pics.findIndex(
-          (p) => String(this.getTrashId(p)) === String(itemId)
-        );
-        if (selectedIndex > -1) {
-          this.pics.splice(selectedIndex, 1);
+        const index = this.pics.findIndex((p) => p.id === item.id);
+        if (index > -1) {
+          this.pics.splice(index, 1);
         }
       }
     },
@@ -233,11 +197,10 @@ export default {
       });
     },
     reset() {
-      const pics = this.getSelectedProductIds();
-      if (!pics.length) {
-        showInvalidRecordToast("请选择有效产品");
-        return;
-      }
+      let pics = [];
+      this.pics.forEach((item) => {
+        pics.push(item.id);
+      });
       const querys = {
         product_ids: pics.join(","),
         timestamp: new Date().getTime(),
@@ -260,11 +223,10 @@ export default {
       });
     },
     del() {
-      const pics = this.getSelectedProductIds();
-      if (!pics.length) {
-        showInvalidRecordToast("请选择有效产品");
-        return;
-      }
+      let pics = [];
+      this.pics.forEach((item) => {
+        pics.push(item.id);
+      });
       const querys = {
         product_ids: pics.join(","),
         timestamp: new Date().getTime(),
@@ -313,15 +275,6 @@ export default {
         // 确保每个项目都有isChecked属性
         const newData = res.data.data.map((item) => ({
           ...item,
-          deletedAt: this.formatDate(
-            item.delete_time_str ||
-              item.deletedAt ||
-              item.delete_time ||
-              item.create_time_str ||
-              item.update_time ||
-              item.create_time ||
-              ""
-          ),
           imgurl:
             item.imgurl ||
             item.new_thumb ||

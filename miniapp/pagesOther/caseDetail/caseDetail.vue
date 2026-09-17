@@ -37,15 +37,13 @@
           <view
             class="folder-item"
             v-for="(item, index) in childFolders"
-            :key="getFolderKey(item, index)"
-            :data-index="index"
-            @click="openChild(item, index, $event)"
+            :key="index"
+            @click="openChild(item)"
           >
             <image
               class="folder-image"
               :src="item.new_thumb || '/static/image/pic.png'"
               mode="aspectFill"
-              lazy-load
             ></image>
             <view class="folder-name">{{ item.folder_name }}</view>
           </view>
@@ -58,10 +56,9 @@
           <image
             class="picture-item"
             v-for="(item, index) in pictureList"
-            :key="getPictureKey(item, index)"
+            :key="index"
             :src="item.picture_url || '/static/image/pic.png'"
             mode="aspectFill"
-            lazy-load
             @click="previewImage(index)"
           ></image>
         </view>
@@ -83,13 +80,6 @@
 </template>
 
 <script>
-import { buildListItemKey } from "@/common/helper/listKey.js";
-import {
-  getObjectId,
-  resolveClickedListItem,
-  showInvalidRecordToast,
-} from "@/common/helper/clickItem.js";
-
 export default {
   data() {
     return {
@@ -115,12 +105,6 @@ export default {
   },
 
   methods: {
-    getFolderKey(item, index) {
-      return buildListItemKey(item, index, "folder");
-    },
-    getPictureKey(item, index) {
-      return buildListItemKey(item, index, "picture");
-    },
     goBack() {
       uni.navigateBack();
     },
@@ -166,15 +150,9 @@ export default {
         });
     },
 
-    openChild(item, index, event) {
-      const current = resolveClickedListItem(item, index, event, this.childFolders);
-      const folderId = getObjectId(current, ["id", "folder_id", "fid"]);
-      if (!folderId) {
-        showInvalidRecordToast();
-        return;
-      }
+    openChild(item) {
       uni.navigateTo({
-        url: `/pagesOther/caseDetail/caseDetail?id=${folderId}`,
+        url: `/pagesOther/caseDetail/caseDetail?id=${item.id}`,
       });
     },
 

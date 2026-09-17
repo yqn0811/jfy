@@ -14,7 +14,7 @@
         }}</text>
       </view>
     </view>
-    <view class="right" v-if="showContact">
+    <view class="right">
       <view class="contact-btn" @tap="onContact">
         <text class="contact-text">联系我</text>
       </view>
@@ -29,7 +29,6 @@ export default {
     avatar: { type: String, default: "" },
     name: { type: String, default: "" },
     subtitle: { type: String, default: "" },
-    showContact: { type: Boolean, default: true },
   },
   data() {
     return {

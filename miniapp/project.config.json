@@ -24,7 +24,7 @@
         },
         "compileWorklet": false,
         "uglifyFileName": false,
-        "uploadWithSourceMap": false,
+        "uploadWithSourceMap": true,
         "packNpmManually": false,
         "minifyWXSS": true,
         "minifyWXML": true,

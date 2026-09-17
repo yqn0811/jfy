@@ -72,7 +72,6 @@
 
 <script>
 import ShmilyDragImage from "@/components/shmily-drag-image/components/shmily-drag-image/shmily-drag-image.vue";
-import { getObjectId } from "@/common/helper/clickItem.js";
 
 export default {
   components: {
@@ -122,12 +121,10 @@ export default {
           if (res && res.data) {
             // 处理花色图
             if (res.data.pic_list && Array.isArray(res.data.pic_list)) {
-              this.orderedCoverIds = res.data.pic_list
-                .map((item) => getObjectId(item, ["id", "pic_id"]))
-                .filter(Boolean);
+              this.orderedCoverIds = res.data.pic_list.map((item) => item.id);
               this.coverImages = res.data.pic_list.map((item) => ({
                 ...item,
-                id: getObjectId(item, ["id", "pic_id"]),
+                id: item.id,
                 title: item.pic_name,
                 src: item.imgurl,
               }));
@@ -138,12 +135,12 @@ export default {
               res.data.detail_pic_list &&
               Array.isArray(res.data.detail_pic_list)
             ) {
-              this.orderedDetailIds = res.data.detail_pic_list
-                .map((item) => getObjectId(item, ["id", "pic_id"]))
-                .filter(Boolean);
+              this.orderedDetailIds = res.data.detail_pic_list.map(
+                (item) => item.id,
+              );
               this.detailImages = res.data.detail_pic_list.map((item) => ({
                 ...item,
-                id: getObjectId(item, ["id", "pic_id"]),
+                id: item.id,
                 title: item.pic_name,
                 src: item.imgurl,
               }));
@@ -162,18 +159,14 @@ export default {
     onCoverOrderChange(newList) {
       if (!newList || !Array.isArray(newList)) return;
       this.coverImages = newList;
-      this.orderedCoverIds = newList
-        .map((item) => getObjectId(item, ["id", "pic_id"]))
-        .filter(Boolean);
+      this.orderedCoverIds = newList.map((item) => item.id);
     },
 
     // 详情图排序变更
     onDetailOrderChange(newList) {
       if (!newList || !Array.isArray(newList)) return;
       this.detailImages = newList;
-      this.orderedDetailIds = newList
-        .map((item) => getObjectId(item, ["id", "pic_id"]))
-        .filter(Boolean);
+      this.orderedDetailIds = newList.map((item) => item.id);
     },
     // 提交排序到后端
     async submitOrder() {
