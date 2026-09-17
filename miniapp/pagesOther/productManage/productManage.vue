@@ -125,7 +125,7 @@
 <script>
 import ImageGrid from "@/components/ImageGrid"; // ← 根据你项目实际路径调整
 import SettingPopup from "./components/settingPopup.vue";
-import { getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
+import { resolveClickedListItem, getObjectId, showInvalidRecordToast } from "@/common/helper/clickItem.js";
 
 export default {
   components: { ImageGrid, SettingPopup },
@@ -186,8 +186,10 @@ export default {
       this.lastProductRefreshAt = marker;
       uni.setStorageSync("productListNeedsRefreshManageConsumed", marker);
     },
-    handleImageClick(data) {
-      const productId = getObjectId(data, ["id", "product_id", "folder_id"]);
+    handleImageClick(data, index, event) {
+      const current = resolveClickedListItem(data, index, event, this.products);
+      const dataObject = current || data;
+      const productId = getObjectId(dataObject, ["id", "product_id", "folder_id"]);
       if (!productId) {
         showInvalidRecordToast();
         return;
