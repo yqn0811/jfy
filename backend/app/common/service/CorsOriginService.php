@@ -4,7 +4,7 @@ namespace app\common\service;
 
 class CorsOriginService
 {
-    const DEFAULT_ALLOWED_ORIGINS = 'https://file.jfyuntu.com,https://file-test.jfyuntu.com,https://pic.jfyuntu.com,https://pic-test.jfyuntu.com,https://api.jfyuntu.com,https://api-test.jfyuntu.com,http://localhost:5178,http://127.0.0.1:5178';
+    const DEFAULT_ALLOWED_ORIGINS = 'https://www.jfyuntu.com,https://www.izhixu.com,https://pic.jfyuntu.com,https://pic-test.jfyuntu.com,https://pic.izhixu.com,https://file.jfyuntu.com,https://file-test.jfyuntu.com,https://file.izhixu.com,https://api.jfyuntu.com,https://api-test.jfyuntu.com,https://api.izhixu.com,http://localhost:5178,http://127.0.0.1:5178';
 
     public static function resolveAllowedOrigin(string $origin): string
     {
