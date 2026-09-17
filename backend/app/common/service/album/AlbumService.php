@@ -1437,7 +1437,7 @@ class AlbumService extends BaseService
             })
             ->field('id,folder_name,folder_type,folder_desc,private_type,layout_type,pic_layout,new_thumb,sort,create_time,update_time,share_times, visit_times,uid, set_top, is_hot, sort, pid, pic_ids, detail_pic_ids')
             ->order('is_hot desc, ' . $order)
-            ->paginate($param['limit'] ?? 10)->each(function ($item)use($visitor_uid){
+            ->paginate(min(max((int)($param['limit'] ?? 100), 1), 500))->each(function ($item)use($visitor_uid){
                 $item->pic_ids_arr = $this->normalizeIdList($item->pic_ids);
                 $item->detail_pic_ids_arr = $this->normalizeIdList($item->detail_pic_ids);
                 if ((int)$item->folder_type === 2) {
