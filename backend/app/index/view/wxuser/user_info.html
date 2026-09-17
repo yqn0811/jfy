@@ -1,0 +1,2321 @@
+<!DOCTYPE html>
+<html lang="en" style="height:100%;overflow:hidden;">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/assets/cssv3/common.css?v={:session('version_app')}" />
+    <link rel="stylesheet" type="text/css" href="/assets/cssv3/bootstrap.min.css?v={:session('version_app')}" />
+    <link rel="stylesheet" type="text/css" href="/assets/cssv3/iconfont.css?v={:session('version_app')}" />
+    <link rel="stylesheet" type="text/css" href="/assets/plugin/datepicker/datepicker.css" />
+    <link rel="stylesheet" type="text/css" href="/assets/cssv3/user_info.css?v={:session('version_app')}" />
+    <script type="text/javascript" src="/assets/jsv3/jquery.js"></script>
+
+    <title></title>
+</head>
+
+<body class="now_colorType">
+<div class="bodyCon_box flex_box">
+    <div class="bodyCon_close" onclick="closeParentLayer()"></div>
+    <div class="bodyCon_show">
+        <!-- 基础信息 -->
+        <div class="infos">
+            <div class="flex_box flex_start ">
+                <img src="{$item['avatar']}" class="infos_avatar"/>
+                <div class="flex1">
+                    <div class="flex_box mb-10 mt-5">
+                        <div class="infos_nickname one_textHide">{$item['nickname']}</div>
+                        <div class="infos_tips {if $item['vip_grade']==0}infos_tipsno{/if}"><div>{if $item['vip_grade']>0 && $item->grade}LV.{$item['vip_grade']}{$item->grade->grade_name}{else}普通用户{/if} </div></div>
+                    </div>
+                    <div class="flex_bbox flex_start">
+                        <div class="flex_box flex_start infos_labelCon">
+                            余额: <div class="infos_itemNum" id="show_money">￥{$item->money}</div>
+                        </div>
+                        <div class="flex_box">
+                            <div class="btn btn-info ml-10" onclick="openEdit('money')">充值余额</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex_box flex_start flex_wrap">
+                <div class="infos_item flex_box flex_start mr-20">
+                    <div class="iconfont icon-c-qian1"></div>
+                    <div class="flex1 flex_column">
+                        <div class="flex_bbox">
+                            <div>零钱</div>
+                            <div class="text-primary" onclick="openEdit('give_money')">充值</div>
+                        </div>
+                        <div class="infos_itemNum" id="show_give_money">{$item->give_balance}</div>
+                    </div>
+                </div>
+                <div class="infos_item flex_box flex_start mr-20">
+                    <div class="iconfont icon-jifen"></div>
+                    <div class="flex1 flex_column">
+                        <div class="flex_bbox">
+                            <div>游戏币</div>
+                            <div class="text-primary" onclick="openEdit('gamecoin')">充值</div>
+                        </div>
+                        <div class="infos_itemNum" id="show_gamecoin">{$item->gamecoin}</div>
+                    </div>
+                </div>
+                <div class="infos_item flex_box flex_start mr-20">
+                    <div class="iconfont icon-youhuiquan4"></div>
+                    <div class="flex1 flex_column">
+                        <div class="flex_bbox">
+                            <div>彩票</div>
+                            <div class="text-primary" onclick="openEdit('lottery')">充值</div>
+                        </div>
+                        <div class="infos_itemNum" id="show_lottery">{$item->lottery}</div>
+                    </div>
+                </div>
+                <div class="infos_item flex_box flex_start mr-20">
+                    <div class="iconfont icon-x-jifen"></div>
+                    <div class="flex1 flex_column">
+                        <div class="flex_bbox">
+                            <div>积分</div>
+                            <div class="text-primary" onclick="openEdit('score')">充值</div>
+                        </div>
+                        <div class="infos_itemNum" id="show_score">{$item->integral}</div>
+                    </div>
+                </div>
+                <div class="infos_item flex_box flex_start mr-20">
+                    <div class="iconfont icon-asmkticon0131"></div>
+                    <div class="flex1 flex_column">
+                        <div class="flex_bbox">
+                            <div>钻石</div>
+                            <div class="text-primary" onclick="openEdit('diamond')">充值</div>
+                        </div>
+                        <div class="infos_itemNum" id="show_diamond">{$item->diamond}</div>
+                    </div>
+                </div>
+                <div class="infos_item flex_box flex_start mr-20">
+                    <div class="iconfont icon-c-jinrong"></div>
+                    <div class="flex1 flex_column">
+                        <div class="flex_bbox">
+                            <div>佣金</div>
+                            <div class="text-primary"></div>
+                        </div>
+                        <div class="infos_itemNum">{$item->current_commission}</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- 交易统计 -->
+        <div class="business pb-30">
+            <div class="business_title">交易统计</div>
+            <div class="flex_bbox flex_start pl-5 pr-5">
+                <div class="business_item flex_box flex_start">
+                    <img src="/image/users/post1.png" >
+                    <div class="pt-25">
+                        <div>总充值金额
+                            <span class="iconfont icon-xuzhi iconshow_tip1">
+									<div class="tipBox">
+										<div class="triangle"></div>
+										<div class="textBox">· 用户累计充值金额</div>
+									</div>
+								</span>
+                        </div>
+                        <div class="business_itemNum">{$item->total_recharge}</div>
+                    </div>
+                </div>
+                <div class="business_item flex_box flex_start">
+                    <img src="/image/users/post2.png" >
+                    <div class="pt-25">
+                        <div>总预约次数
+                            <span class="iconfont icon-xuzhi iconshow_tip2">
+									<div class="tipBox">
+										<div class="triangle"></div>
+										<div class="textBox">· 用户总共预约次数</div>
+									</div>
+								</span>
+                        </div>
+                        <div class="business_itemNum">
+                            <span id="show_virtualpay">{$item->appointment()->count()}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="business_item flex_box flex_start">
+                    <img src="/image/users/post3.png" >
+                    <div class="pt-25">
+                        <div>总游玩次数</div>
+                        <div class="business_itemNum">{$item->playRecord()->count()}</div>
+                    </div>
+                </div>
+                <div class="business_item flex_box flex_start">
+                    <img src="/image/users/post4.png" >
+                    <div class="pt-25">
+                        <div>累计订单数</div>
+                        <div class="business_itemNum">{$item->orders()->count()}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 底部展示 -->
+        <div class="makes">
+            <div class="business_title flex_box">
+                <div class="make_topItem make_topNum1 make_topOn" onclick="getChange(1)">基础信息<div class="make_onLine backColor"></div></div>
+                <div class="make_topItem make_topNum6" onclick="getChange(6)">余额明细<div class="make_onLine backColor"></div></div>
+                <div class="make_topItem make_topNum11" onclick="getChange(11)">零钱明细<div class="make_onLine backColor"></div></div>
+                <div class="make_topItem make_topNum3" onclick="getChange(12)">佣金明细<div class="make_onLine backColor"></div></div>
+                <div class="make_topItem make_topNum9" onclick="getChange(9)">游戏币<div class="make_onLine backColor"></div></div>
+                <div class="make_topItem make_topNum10" onclick="getChange(10)">彩票明细<div class="make_onLine backColor"></div></div>
+                <div class="make_topItem make_topNum5" onclick="getChange(5)">积分明细<div class="make_onLine backColor"></div></div>
+                <div class="make_topItem make_topNum4" onclick="getChange(4)">钻石明细<div class="make_onLine backColor"></div></div>
+                <div class="make_topItem make_topNum3" onclick="getChange(3)">游玩记录<div class="make_onLine backColor"></div></div>
+
+            </div>
+            <div class="make_con">
+                <!-- 基础信息 -->
+                <div class="make_boxCon make_boxCon1">
+                    <div class="flex_box flex_wrap">
+                        <div class="con1_item flex_box">
+                            <div class="con1_item_left">真实姓名：</div>
+                            <div class="con1_item_right flex_box">
+                                <div class="one_textHide" id="con1_show1">{if $item->realname}{$item->realname}{else}暂无{/if}</div>
+                                <div class="iconfont icon-x-bianji" onclick="openEdit('truename')"></div>
+                            </div>
+                        </div>
+                        <div class="con1_item flex_box">
+                            <div class="con1_item_left">加入时间：</div>
+                            <div class="con1_item_right flex_box">
+                                <div class="one_textHide">{$item->join_time}</div>
+                            </div>
+                        </div>
+                        <div class="con1_item flex_box">
+                            <div class="con1_item_left">手机号：</div>
+                            <div class="con1_item_right flex_box">
+                                <div class="one_textHide" id="con1_show2">{$item['mobile']}</div>
+                            </div>
+                        </div>
+                        <div class="con1_item flex_box">
+                            <div class="con1_item_left">生日：</div>
+                            <div class="con1_item_right flex_box">
+                                <div class="one_textHide" id="con1_show3">{$item->birth_day}</div>
+                                <div class="iconfont icon-x-bianji" onclick="openEdit('birth')"></div>
+                            </div>
+                        </div>
+                        <div class="con1_item flex_box">
+                            <div class="con1_item_left">openid：</div>
+                            <div class="con1_item_right flex_box">
+                                <div class="one_textHide">{$item->openid}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="con1_line"></div>
+                    <div class="flex_box flex_wrap">
+                        <div class="con1_item flex_box">
+                            <div class="con1_item_left">会员等级：</div>
+                            <div class="con1_item_right flex_box">
+                                <div class="one_textHide" style="color:#9D6C44;" id="con1_show5">{if $item['vip_grade']>0}LV.{$item['vip_grade']}{/if}{$item->gradeInfo->grade_name} </div>
+                                <div class="iconfont icon-x-bianji" onclick="openEdit('grade')"></div>
+                            </div>
+                        </div>
+                        <div class="con1_item flex_box">
+                            <div class="con1_item_left">会员到期时间：</div>
+                            <div class="con1_item_right flex_box">
+                                <div class="one_textHide">{$item->gradeInfo->EndTimeStr}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 分销信息 -->
+
+                <!-- 雷达轨迹 -->
+                <div class="make_boxCon make_boxCon3">
+                    <div class="con2_no">
+                        <img src="/image/users/file-empty.png" >
+                        <div class="con2_noText">暂无数据</div>
+                    </div>
+                    <div class="con2_have">
+                        <table class="con_table">
+                            <thead class="con_thead">
+                            <tr>
+                                <th width="264px;">记录号</th>
+                                <th>类型</th>
+                                <th>消费</th>
+                                <th>得分</th>
+                                <th>时间</th>
+                            </tr>
+                            </thead>
+                            <tbody class="con_tbody con3_tbody">
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 消费记录 -->
+                <div class="make_boxCon make_boxCon4">
+                    <div class="con2_no">
+                        <img src="/image/users/file-empty.png" >
+                        <div class="con2_noText">暂无数据</div>
+                    </div>
+                    <div class="con2_have">
+                        <table class="con_table">
+                            <thead class="con_thead">
+                            <tr>
+                                <th width="264px;">订单号</th>
+                                <th>钻石</th>
+                                <th>变化后</th>
+                                <th>说明</th>
+                                <th>时间</th>
+                            </tr>
+                            </thead>
+                            <tbody class="con_tbody con4_tbody">
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- 积分明细 -->
+                <div class="make_boxCon make_boxCon5">
+                    <div class="con2_no">
+                        <img src="/image/users/file-empty.png" >
+                        <div class="con2_noText">暂无数据</div>
+                    </div>
+                    <div class="con2_have">
+                        <table class="con_table">
+                            <thead class="con_thead">
+                            <tr>
+                                <th width="210px;">订单号</th>
+                                <th>积分</th>
+                                <th>变化后</th>
+                                <th>说明</th>
+                                <th>时间</th>
+                            </tr>
+                            </thead>
+                            <tbody class="con_tbody con5_tbody">
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- 余额明细 -->
+                <div class="make_boxCon make_boxCon6">
+                    <div class="con2_no">
+                        <img src="/image/users/file-empty.png" >
+                        <div class="con2_noText">暂无数据</div>
+                    </div>
+                    <div class="con2_have">
+                        <table class="con_table">
+                            <thead class="con_thead">
+                            <tr>
+                                <th width="210px;">订单号</th>
+                                <th>金额</th>
+                                <th>变化后</th>
+                                <th>说明</th>
+                                <th>时间</th>
+                            </tr>
+                            </thead>
+                            <tbody class="con_tbody con6_tbody">
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- 零钱明细 -->
+                <div class="make_boxCon make_boxCon11">
+                    <div class="con2_no">
+                        <img src="/image/users/file-empty.png" >
+                        <div class="con2_noText">暂无数据</div>
+                    </div>
+                    <div class="con2_have">
+                        <table class="con_table">
+                            <thead class="con_thead">
+                            <tr>
+                                <th width="210px;">订单号</th>
+                                <th>金额</th>
+                                <th>变化后</th>
+                                <th>说明</th>
+                                <th>时间</th>
+                            </tr>
+                            </thead>
+                            <tbody class="con_tbody con11_tbody">
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 佣金明细 -->
+                <div class="make_boxCon make_boxCon12">
+                    <div class="con2_no">
+                        <img src="/image/users/file-empty.png" >
+                        <div class="con2_noText">暂无数据</div>
+                    </div>
+                    <div class="con2_have">
+                        <table class="con_table">
+                            <thead class="con_thead">
+                            <tr>
+                                <th width="210px;">订单号</th>
+                                <th width="210px;">金额</th>
+                                <th>变化后</th>
+                                <th>说明</th>
+                                <th>时间</th>
+                            </tr>
+                            </thead>
+                            <tbody class="con_tbody con12_tbody">
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 游戏币明细 -->
+                <div class="make_boxCon make_boxCon9">
+                    <div class="con2_no">
+                        <img src="/image/users/file-empty.png" >
+                        <div class="con2_noText">暂无数据</div>
+                    </div>
+                    <div class="con2_have">
+                        <table class="con_table">
+                            <thead class="con_thead">
+                            <tr>
+                                <th width="210px;">变化类型</th>
+                                <th>变化值</th>
+                                <th>说明</th>
+                                <th>时间</th>
+                            </tr>
+                            </thead>
+                            <tbody class="con_tbody con9_tbody">
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- 彩票明细 -->
+                <div class="make_boxCon make_boxCon10">
+                    <div class="con2_no">
+                        <img src="/image/users/file-empty.png" >
+                        <div class="con2_noText">暂无数据</div>
+                    </div>
+                    <div class="con2_have">
+                        <table class="con_table">
+                            <thead class="con_thead">
+                            <tr>
+                                <th width="210px;">变化类型</th>
+                                <th>变化值</th>
+                                <th>说明</th>
+                                <th>时间</th>
+                            </tr>
+                            </thead>
+                            <tbody class="con_tbody con10_tbody">
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- 团队分红 -->
+                <!-- 跟进记录 -->
+                <!-- 分页 -->
+                <div class="paging_box flex_box">
+                    <div class="iconfont icon-x-zuo2" onclick="toPrevList()"></div>
+                    <input class="page_ipt" name="nowpage_num" type="number" value="1" min="1" step="1" onkeypress="getKey()" />
+                    <div id="show_max_page">/ <span id="maxPage"></span>页</div>
+                    <div class="iconfont icon-x-you2" onclick="toNextList()"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- 弹框 -->
+<div class="userMask"></div>
+<div class="userMask_con userM_label">
+    <div class="userM_title flex_bbox">
+        <div>添加标签</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con labelItem_box">
+
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureUserLabel()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_score">
+    <div class="userM_title flex_bbox">
+        <div>充值积分</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">当前积分：</div>
+            <div class="userM_cright flex_box">
+                <input disabled value="{$item.score}" id="disabled_score">
+                <div class="userM_unit">积分</div>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">类型：</div>
+            <div class="userM_cright flex_box">
+                <label class="radio">
+                    <input type="radio" name="score_change" value="1" checked/>
+                    减少
+                </label>
+                <label class="radio">
+                    <input type="radio" name="score_change" value="0" />
+                    增加
+                </label>
+                <label class="radio">
+                    <input type="radio" name="score_change" value="2" />
+                    最终积分
+                </label>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">充值积分：</div>
+            <div class="userM_cright flex_box">
+                <input id="mask_score" value="" autocomplete="off" onkeyup="clearNoNumNoDecimal(this)">
+                <div class="userM_unit">积分</div>
+            </div>
+        </div>
+        <div class="flex_box flex_start">
+            <div class="userM_cleft">备注：</div>
+            <div class="userM_cright">
+                <textarea id="mask_scoretip"></textarea>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureScoreMoney(1)">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_diamond">
+    <div class="userM_title flex_bbox">
+        <div>充值钻石</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">当前钻石：</div>
+            <div class="userM_cright flex_box">
+                <input disabled value="{$item.diamond}" id="disabled_diamond">
+                <div class="userM_unit">钻石</div>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">类型：</div>
+            <div class="userM_cright flex_box">
+                <label class="radio">
+                    <input type="radio" name="diamond_change" value="1" checked/>
+                    减少
+                </label>
+                <label class="radio">
+                    <input type="radio" name="diamond_change" value="0" />
+                    增加
+                </label>
+                <label class="radio">
+                    <input type="radio" name="diamond_change" value="2" />
+                    最终钻石
+                </label>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">充值钻石：</div>
+            <div class="userM_cright flex_box">
+                <input id="mask_diamond" value="" autocomplete="off" onkeyup="clearNoNumNoDecimal(this)">
+                <div class="userM_unit">钻石</div>
+            </div>
+        </div>
+        <div class="flex_box flex_start">
+            <div class="userM_cleft">备注：</div>
+            <div class="userM_cright">
+                <textarea id="mask_diamondip"></textarea>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureScoreMoney(3)">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_give_money">
+    <div class="userM_title flex_bbox">
+        <div>充值零钱</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">当前零钱：</div>
+            <div class="userM_cright flex_box">
+                <input disabled value="{$item.give_balance}" id="disabled_give_money">
+                <div class="userM_unit">零钱</div>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">类型：</div>
+            <div class="userM_cright flex_box">
+                <label class="radio">
+                    <input type="radio" name="give_money_change" value="1" checked/>
+                    减少
+                </label>
+                <label class="radio">
+                    <input type="radio" name="give_money_change" value="0" />
+                    增加
+                </label>
+                <label class="radio">
+                    <input type="radio" name="give_money_change" value="2" />
+                    最终零钱
+                </label>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">充值零钱：</div>
+            <div class="userM_cright flex_box">
+                <input id="change_give_money" value="" autocomplete="off" onkeyup="clearNoNumNoDecimal(this)">
+                <div class="userM_unit">零钱</div>
+            </div>
+        </div>
+        <div class="flex_box flex_start">
+            <div class="userM_cleft">备注：</div>
+            <div class="userM_cright">
+                <textarea id="mask_give_money"></textarea>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureScoreMoney(6)">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_gamecoin">
+    <div class="userM_title flex_bbox">
+        <div>充值游戏币</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">当前游戏币：</div>
+            <div class="userM_cright flex_box">
+                <input disabled value="{$item.diamond}" id="disabled_gamecoin">
+                <div class="userM_unit">个</div>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">类型：</div>
+            <div class="userM_cright flex_box">
+                <label class="radio">
+                    <input type="radio" name="gamecoin_change" value="1" checked/>
+                    减少
+                </label>
+                <label class="radio">
+                    <input type="radio" name="gamecoin_change" value="0" />
+                    增加
+                </label>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">充值游戏币：</div>
+            <div class="userM_cright flex_box">
+                <input id="mask_gamecoin" value="" autocomplete="off" onkeyup="clearNoNumNoDecimal(this)">
+                <div class="userM_unit">个</div>
+            </div>
+        </div>
+        <div class="flex_box flex_start">
+            <div class="userM_cleft">备注：</div>
+            <div class="userM_cright">
+                <textarea id="mask_gamecoinip"></textarea>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureScoreMoney(4)">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_lottery">
+    <div class="userM_title flex_bbox">
+        <div>充值彩票</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">当前彩票：</div>
+            <div class="userM_cright flex_box">
+                <input disabled value="{$item.diamond}" id="disabled_lottery">
+                <div class="userM_unit">张</div>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">类型：</div>
+            <div class="userM_cright flex_box">
+                <label class="radio">
+                    <input type="radio" name="lottery_change" value="1" checked/>
+                    减少
+                </label>
+                <label class="radio">
+                    <input type="radio" name="lottery_change" value="0" />
+                    增加
+                </label>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">充值彩票：</div>
+            <div class="userM_cright flex_box">
+                <input id="mask_lottery" value="" autocomplete="off" onkeyup="clearNoNumNoDecimal(this)">
+                <div class="userM_unit">张</div>
+            </div>
+        </div>
+        <div class="flex_box flex_start">
+            <div class="userM_cleft">备注：</div>
+            <div class="userM_cright">
+                <textarea id="mask_lotteryip"></textarea>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureScoreMoney(5)">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_money">
+    <div class="userM_title flex_bbox">
+        <div>充值余额</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">账户余额：</div>
+            <div class="userM_cright flex_box">
+                <input disabled value="{$item.money}" id="disabled_money">
+                <div class="userM_unit">元</div>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">类型：</div>
+            <div class="userM_cright flex_box">
+                <label class="radio">
+                    <input type="radio" name="money_change" value="1" checked/>
+                    减少
+                </label>
+                <label class="radio">
+                    <input type="radio" name="money_change" value="0" />
+                    增加
+                </label>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">充值金额：</div>
+            <div class="userM_cright flex_box">
+                <input id="mask_money" value="" autocomplete="off" onkeyup="clearNoNum(this, 99999)">
+                <div class="userM_unit">元</div>
+            </div>
+        </div>
+        <div class="flex_box flex_start">
+            <div class="userM_cleft">备注：</div>
+            <div class="userM_cright">
+                <textarea id="mask_moneytip"></textarea>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureScoreMoney(2)">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_virtualpay">
+    <div class="userM_title flex_bbox">
+        <div>虚拟消费金额</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">当前金额：</div>
+            <div class="userM_cright flex_box">
+                <input id="mask_virtualpay" value="{$item['virtualpay']}" autocomplete="off" onkeyup="clearNoNum(this, 99999)">
+                <div class="userM_unit">元</div>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureVirtualpay()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_truename">
+    <div class="userM_title flex_bbox">
+        <div>真实姓名</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">真实姓名：</div>
+            <div class="userM_cright flex_box">
+                <input id="mask_truename" value="{if $item['realname']}{$item['realname']}{/if}" type="text" autocomplete="off">
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureTruename()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_phone">
+    <div class="userM_title flex_bbox">
+        <div>手机号</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">手机号：</div>
+            <div class="userM_cright flex_box">
+                <input id="mask_phone" value="{if $item['phone']}{$item['phone']}{/if}" type="text" autocomplete="off">
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="surePhone()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_birth">
+    <div class="userM_title flex_bbox">
+        <div>生日</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">生日：</div>
+            <div class="userM_cright flex_box datetimepicker_date">
+                <input id="mask_birth" value="{if $item->birth_day}{$item->birth_day}{/if}" readonly>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureBirth()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_trillid">
+    <div class="userM_title flex_bbox">
+        <div>备注</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">备注：</div>
+            <div class="userM_cright flex_box">
+                <input id="mask_trillid" value="" type="text" autocomplete="off">
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureTrillid()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_grade">
+    <div class="userM_title flex_bbox">
+        <div>修改会员信息</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">会员有效期：</div>
+            <div class="userM_cright flex_box">
+                <label class="radio">
+                    <input type="radio" name="date_type" onchange="changeDate()" value="1" {if $item->VipGradeInfo['end_time'] == 0}checked='checked'{/if} />
+                    永久有效
+                </label>
+                <label class="radio">
+                    <input type="radio" name="date_type" onchange="changeDate()" value="2" {if $item->VipGradeInfo['end_time'] != '0'}checked='checked'{/if} />
+                    指定日期
+                </label>
+            </div>
+        </div>
+        <div class="flex_box mb-25" id="date_time" style="display:{if $item->VipGradeInfo['end_time'] != 0}flex{else}none{/if};">
+            <div class="userM_cleft">指定日期：</div>
+            <div class="userM_cright flex_box datetimepicker_date">
+                <input name="end_time" id="datetimepicker_date" value="{if $item->VipGradeInfo['end_time'] != 0}{$item->VipGradeInfo['end_time']}{/if}" readonly>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">会员等级：</div>
+            <div class="userM_cright flex_box">
+                <select name="vip_grade">
+                    <option value="0">普通用户</option>
+                    {if $all_grade}
+                    {foreach $all_grade as $it}
+                    <option value="{$it.grade_level}" {if $it.grade_level == $item.vip_grade}selected="selected"{/if}>{$it.grade_name}</option>
+                    {/foreach}
+                    {/if}
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureGrade()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_group">
+    <div class="userM_title flex_bbox">
+        <div>选择用户组</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">用户组：</div>
+            <div class="userM_cright flex_box">
+                <select name="user_group">
+                    <option value="0">暂无分组</option>
+
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureGroup()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_setfx">
+    <div class="userM_title flex_bbox">
+        <div>设为分销商</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box">
+            <div class="userM_cleft">分销等级：</div>
+            <div class="userM_cright flex_box">
+                <select name="fxs_grade">
+
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureSetfx()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_setleader">
+    <div class="userM_title flex_bbox">
+        <div>设为队长</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div>是否确定设置该用户为团队队长？</div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureSetleader()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_addfollow">
+    <div class="userM_title flex_bbox">
+        <div>添加跟进</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box flex_start">
+            <div class="userM_cleft">跟进详情：</div>
+            <div class="userM_cright">
+                <textarea id="follow_info"></textarea>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureAddfollow()">确定</div>
+    </div>
+</div>
+<div class="userMask_con userM_followinfo">
+    <div class="userM_title flex_bbox">
+        <div>编辑</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">选择员工：</div>
+            <div class="userM_cright dropdown-sin-1">
+                <select id="follow_wxnumber" style="display:none" placeholder="请选择绑定微信">
+                    <option value="0">请选择员工</option>
+
+                </select>
+            </div>
+        </div>
+        <div class="flex_box">
+            <div class="userM_cleft">用户状态：</div>
+            <div class="userM_cright flex_box">
+                <select id="follow_status">
+                    
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureFollowinfo()">确定</div>
+    </div>
+</div>
+
+
+<script type="text/javascript" src="/assets/jsv3/common.js"></script>
+<script type="text/javascript" src="/assets/plugin/uniform/jquery.uniform.min.js"></script>
+<script type="text/javascript" src="/assets/plugin/layer/layer.js"></script>
+<script type="text/javascript" src="/assets/plugin/datepicker/moment.min.js"></script>
+<script type="text/javascript" src="/assets/plugin/datepicker/datepicker.all.min.js"></script>
+
+<script type="text/javascript">
+    var change_type = 1
+    $(function(){
+        $('.paging_box').hide();
+        getUserInfo();
+    })
+    // layer提示
+    function showMsg(_msgs,_icon,_time){
+        layer.open({
+            title: '提示',
+            content: _msgs,
+            time: _time,
+            icon: _icon,
+            closeBtn: 0,
+            btn: []
+        })
+    }
+
+    // 关闭用户详情弹框
+    function closeParentLayer(){
+        parent.layer.closeAll('iframe'); //关闭所有的iframe层
+        parent.location.reload();
+    }
+
+    // 用户标签展示全部
+    function showLabel(_show){
+        $('.infos_labelBox').removeClass('infos_labelBox1 infos_labelBox1');
+        $('.infos_labelIcon').hide();
+        $('.infos_labelBox').addClass('infos_labelBox'+_show);
+        $('.infos_labelIcon'+_show).show();
+    }
+
+    // 底部展示切换
+    var _bottomType = 1;
+    var _page = 1;
+    function getChange(_type){
+        change_type = _type;
+        _bottomType = _type;
+        _page = 1;
+        $('input[name="nowpage_num"]').val(1);
+        $('.make_topItem').removeClass('make_topOn');
+        $('.make_topNum'+_type).addClass('make_topOn');
+        $('.make_con .make_boxCon').hide();
+        $('.make_con .make_boxCon'+_type).show();
+        $('.paging_box').hide();
+        if(_type == 3 || _type == 4 || _type == 5 || _type == 6 || _type == 9 || _type == 10 || _type == 11 || _type == 12){
+            $('.paging_box').show();
+            if(_type == 3) getUserTrail();
+            if(_type == 4) getUserPay();
+            if(_type == 5) getUserScore();
+            if(_type == 6) getUserMoney();
+            if(_type == 9) getUserGamecoin();
+            if(_type == 10) getUserLottery();
+            if(_type == 11) getUserGiveMoney();
+            if(_type == 12) getUserCommissionMoney();
+            if(_type == 9 || _type == 10){
+                $('#show_max_page').hide();
+            }else{
+                $('#show_max_page').show();
+            }
+        }else{
+            if(_type == 1) getUserInfo();
+            if(_type == 2) getUserFenxiao();
+            if(_type == 7) getUserTeam();
+            if(_type == 8) getUserFollow();
+        }
+    }
+    // 分页跳转
+    function toPrevList(){
+        var _nowPage = ($('input[name="nowpage_num"]').val()) * 1;
+        if(_nowPage > 1){
+            $('input[name="nowpage_num"]').val((_nowPage - 1) * 1);
+            _page = ($('input[name="nowpage_num"]').val()) * 1;
+            if(_bottomType == 3) getUserTrail();
+            if(_bottomType == 4) getUserPay();
+            if(_bottomType == 5) getUserScore();
+            if(_bottomType == 6) getUserMoney();
+            if(_bottomType == 9) getUserGamecoin();
+            if(_bottomType == 10) getUserLottery();
+            if(_bottomType == 11) getUserGiveMoney();
+            if(_bottomType == 12) getUserCommissionMoney();
+        }else{
+            if(change_type == 10 || change_type == 9){
+                if(_nowPage == 1){
+                    showMsg('当前为第一页',0,600);
+                    return false
+                }
+                $('input[name="nowpage_num"]').val((_nowPage - 1) * 1);
+                _page = ($('input[name="nowpage_num"]').val()) * 1;
+                if(change_type == 10){
+                    getUserLottery();
+                }
+                if(change_type == 9){
+                    getUserGamecoin();
+                }
+            }
+            showMsg('当前为第一页',0,600);
+        }
+    }
+    function toNextList(){
+        var _nowPage = ($('input[name="nowpage_num"]').val()) * 1;
+        var _maxPage = ($('#maxPage').html()) * 1;
+        if(_nowPage < _maxPage){
+            $('input[name="nowpage_num"]').val((_nowPage + 1) * 1);
+            _page = ($('input[name="nowpage_num"]').val()) * 1;
+            if(_bottomType == 3) getUserTrail();
+            if(_bottomType == 4) getUserPay();
+            if(_bottomType == 5) getUserScore();
+            if(_bottomType == 6) getUserMoney();
+            if(_bottomType == 11) getUserGiveMoney();
+            if(_bottomType == 12) getUserCommissionMoney();
+        }else{
+            if(change_type == 10 || change_type == 9){
+                $('input[name="nowpage_num"]').val((_nowPage + 1) * 1);
+                _page = ($('input[name="nowpage_num"]').val()) * 1;
+                if(change_type == 10){
+                    getUserLottery();
+                }
+                if(change_type == 9){
+                    getUserGamecoin();
+                }
+            }
+            showMsg('当前为最后一页',0,600);
+        }
+    }
+    function getKey() {
+        if (event.keyCode == 13) {
+            toPageList();
+        }
+    }
+    function toPageList() {
+        var iptPage = ($('input[name="nowpage_num"]').val()) * 1;
+        var iptMaxPage = ($('#maxPage').html()) * 1;
+        if(!iptPage || iptPage < 1){
+            iptPage = 1
+        }
+        if(iptPage > iptMaxPage){
+            iptPage = iptMaxPage
+        }
+        iptPage = parseInt(iptPage)
+        $('input[name="nowpage_num"]').val(iptPage)
+        _page = ($('input[name="nowpage_num"]').val()) * 1;
+        if(_bottomType == 3) getUserTrail();
+        if(_bottomType == 4) getUserPay();
+        if(_bottomType == 5) getUserScore();
+        if(_bottomType == 6) getUserMoney();
+        if(_bottomType == 11) getUserGiveMoney();
+        if(_bottomType == 12) getUserCommissionMoney();
+    }
+
+    // 1 - 基础信息
+    function getUserInfo(){
+        // var now_load = layer.open({
+        // 	title: '提示',
+        // 	content: '加载中...',
+        // 	icon: 0,
+        // 	closeBtn: 0,
+        // 	btn: []
+        // });
+        // $.ajax({
+        //     url: "{:Url('WxUserController/getUserBaseInfo')}",
+        //     data:{
+        //         uniacid: 1,
+        //         suid: "{$item.id}",
+        //     },
+        //     dataType: 'json',
+        //     success: function(res){
+        //         // layer.close(now_load);
+        //         if(res.code == 1){
+        //             var _res1 = res.data;
+        //             $('#con1_show1').html(_res1.truename || '暂无');
+        //             $('#con1_show2').html(_res1.phone || '暂无');
+        //             $('#con1_show3').html(_res1.birth || '暂无');
+        //             $('#con1_show4').html(_res1.trill_id || '暂无');
+        //             $('#con1_show7').html(_res1.user_group_name || '暂无分组');
+        //             var _gradelv = ''
+        //             if(_res1.grade > 0){
+        //                 _gradelv = 'LV.' + _res1.grade + ' ';
+        //             }
+        //             $('select[name="vip_grade"] option[value="'+_res1.grade+'"]').attr('selected', true);
+        //             $('#con1_show5').html(_gradelv + _res1.grade_name);
+        //             $('#con1_show6').html(_res1.vip_end_time);
+        //             if(_res1.do_total == 1){
+        //                 $('.switch_dototal').addClass('switch_box_checked btn-primary');
+        //             }else{
+        //                 $('.switch_dototal').removeClass('switch_box_checked btn-primary');
+        //             }
+        //             if(_res1.is_hx_user == 1){
+        //                 $('.switch_hx').addClass('switch_box_checked btn-primary');
+        //             }else{
+        //                 $('.switch_hx').removeClass('switch_box_checked btn-primary');
+        //             }
+        //         }else{
+        //             showMsg(res.msg,0,1000);
+        //         }
+        //     }
+        // })
+    }
+    // 2 - 分销信息
+    function getUserFenxiao(){
+        $.ajax({
+            url: "{:Url('WxUserController/getUserFxInfo')}",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    var _res2 = res.data
+                    $('.con2_show4').html(_res2.up_fx_user);
+                    if(_res2.fxs == 1){
+                        $('.make_boxCon2 .con2_no').show();
+                        $('.make_boxCon2 .con2_have').hide();
+                    }else if(_res2.fxs == 2){
+                        $('.make_boxCon2 .con2_no').hide();
+                        $('.make_boxCon2 .con2_have').show();
+                        $('#con2_show1').html(_res2.fx_grade_name);
+                        $('#con2_show2').html(_res2.fx_allmoney);
+                        $('#con2_show3').html(_res2.fx_order_count);
+                        $('#con2_show5').html(_res2.fx_getmoney+' 元');
+                        $('#con2_show6').html(_res2.fx_lower_user_counts+' 客户');
+                        $('#con2_show7').html(_res2.fx_lower_fxs_counts+' 团队');
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+    // 3 - 游玩记录
+    function getUserTrail(){
+        $('.paging_box').hide();
+        $('.con3_tbody').html('');
+        $.ajax({
+            url: "{:Url('/index/user/play')}",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                page: _page
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    var _res3 = res.data
+                    if(_res3.total_page > 0){
+                        $('.paging_box').show();
+                        $('.make_boxCon3 .con2_no').hide();
+                        $('.make_boxCon3 .con2_have').show();
+                        $('#maxPage').html(_res3.total_page);
+                        var _html3 = '';
+                        var _arrlist3 = _res3.lists;
+                        _arrlist3.forEach((val)=>{
+                            _html3 += `<tr>
+                                            <td>`+val.consume_id+`</td>
+                                            <td>`+val.record_type_str+`</td>
+                                            <td>`+val.code_str+`</td>
+                                            <td>`+val.score_result+`</td>
+                                            <td>`+val.create_time+`</td>
+                                        </tr>`;
+                        })
+                        $('.con3_tbody').append(_html3);
+                    }else{
+                        $('.make_boxCon3 .con2_no').show();
+                        $('.make_boxCon3 .con2_have').hide();
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+    // 4 - 钻石记录
+    function getUserPay(){
+        $('.paging_box').hide();
+        $('.con4_tbody').html('');
+        $.ajax({
+            url: "/index/user/diamond",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                page: _page,
+                size: 6,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    var _res4 = res.data
+                    if(_res4.total_page > 0){
+                        $('.paging_box').show();
+                        $('.make_boxCon4 .con2_no').hide();
+                        $('.make_boxCon4 .con2_have').show();
+                        $('#maxPage').html(_res4.total_page);
+                        var _html4 = '';
+                        var _arrlist4 = _res4.lists;
+                        _arrlist4.forEach((val,index)=>{
+                            val.order_id = val.order_id ? val.order_id : '--';
+                            if(val.change_type == '2'){
+                                _html4 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td>+`+val.change_diamond+`</td>
+															<td>`+val.new_diamond+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                            if(val.change_type == '1'){
+                                _html4 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td class="table_red">-`+val.change_diamond+`</td>
+															<td>`+val.new_diamond+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                        })
+                        $('.con4_tbody').append(_html4);
+                    }else{
+                        $('.make_boxCon4 .con2_no').show();
+                        $('.make_boxCon4 .con2_have').hide();
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+    // 5 - 积分明细
+    function getUserScore(){
+        $('.paging_box').hide();
+        $('.con5_tbody').html('');
+        $.ajax({
+            url: "/index/user/integral_record",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                page: _page,
+                size: 6,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    var _res5 = res.data
+                    if(_res5.total_page > 0){
+                        $('.paging_box').show();
+                        $('.make_boxCon5 .con2_no').hide();
+                        $('.make_boxCon5 .con2_have').show();
+                        $('#maxPage').html(_res5.total_page);
+                        var _html5 = '';
+                        var _arrlist5 = _res5.lists;
+                        _arrlist5.forEach((val,index)=>{
+                            val.order_id = val.order_id ? val.order_id : '--';
+                            if(val.change_type == '2'){
+                                _html5 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td>+`+val.change_integral+`</td>
+															<td>`+val.new_integral+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                            if(val.change_type == '1'){
+                                _html5 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td class="table_red">-`+val.change_integral+`</td>
+															<td>`+val.new_integral+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                        })
+                        $('.con5_tbody').append(_html5);
+                    }else{
+                        $('.make_boxCon5 .con2_no').show();
+                        $('.make_boxCon5 .con2_have').hide();
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+    // 6 - 余额明细
+    function getUserMoney(){
+        $('.paging_box').hide();
+        $('.con6_tbody').html('');
+        $.ajax({
+            url: "/index/user/consumption",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                page: _page,
+                size: 6,
+            },
+            type:"post",
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    var _res6 = res.data
+                    if(_res6.total_page > 0){
+                        $('.paging_box').show();
+                        $('.make_boxCon6 .con2_no').hide();
+                        $('.make_boxCon6 .con2_have').show();
+                        $('#maxPage').html(_res6.total_page);
+                        var _html6 = '';
+                        var _arrlist6 = _res6.lists;
+                        _arrlist6.forEach((val,index)=>{
+                            val.order_id = val.order_id ? val.order_id : '--';
+                            if(val.change_type == '2'){
+                                _html6 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td>+`+val.change_price+`</td>
+															<td>`+val.new_price+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                            if(val.change_type == '1'){
+                                _html6 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td class="table_red">-`+val.change_price+`</td>
+															<td>`+val.new_price+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                        })
+                        $('.con6_tbody').append(_html6);
+                    }else{
+                        $('.make_boxCon6 .con2_no').show();
+                        $('.make_boxCon6 .con2_have').hide();
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    function getUserGiveMoney(){
+        $('.paging_box').hide();
+        $('.con11_tbody').html('');
+        $.ajax({
+            url: "/index/user/giveMoney",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                page: _page,
+                size: 6,
+            },
+            type:"post",
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    var _res6 = res.data
+                    if(_res6.total_page > 0){
+                        $('.paging_box').show();
+                        $('.make_boxCon11 .con2_no').hide();
+                        $('.make_boxCon11 .con2_have').show();
+                        $('#maxPage').html(_res6.total_page);
+                        var _html6 = '';
+                        var _arrlist6 = _res6.lists;
+                        _arrlist6.forEach((val,index)=>{
+                            val.order_id = val.order_id ? val.order_id : '--';
+                            if(val.change_type == '2'){
+                                _html6 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td>+`+val.change_price+`</td>
+															<td>`+val.new_price+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                            if(val.change_type == '1'){
+                                _html6 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td class="table_red">-`+val.change_price+`</td>
+															<td>`+val.new_price+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                        })
+                        $('.con11_tbody').append(_html6);
+                    }else{
+                        $('.make_boxCon11 .con2_no').show();
+                        $('.make_boxCon11 .con2_have').hide();
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    //12 佣金明细
+    function getUserCommissionMoney(){
+        $('.paging_box').hide();
+        $('.con12_tbody').html('');
+        $.ajax({
+            url: "/index/user/commission",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                page: _page,
+                size: 6,
+            },
+            type:"post",
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    var _res6 = res.data
+                    if(_res6.total_page > 0){
+                        $('.paging_box').show();
+                        $('.make_boxCon12 .con2_no').hide();
+                        $('.make_boxCon12 .con2_have').show();
+                        $('#maxPage').html(_res6.total_page);
+                        var _html6 = '';
+                        var _arrlist6 = _res6.lists;
+                        _arrlist6.forEach((val,index)=>{
+                            val.order_id = val.order_id ? val.order_id : '--';
+                            if(val.change_type == '2'){
+                                _html6 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td>+`+val.change_price+`</td>
+															<td>`+val.new_price+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                            if(val.change_type == '1'){
+                                _html6 += `<tr>
+															<td>`+val.order_id+`</td>
+															<td class="table_red">-`+val.change_price+`</td>
+															<td>`+val.new_price+`</td>
+															<td>`+val.message+`</td>
+															<td>`+val.create_time+`</td>
+														</tr>`;
+                            }
+                        })
+                        $('.con12_tbody').append(_html6);
+                    }else{
+                        $('.make_boxCon12 .con2_no').show();
+                        $('.make_boxCon12 .con2_have').hide();
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 9 - 游戏币明细
+    function getUserGamecoin(){
+        $('.paging_box').hide();
+        $('.con9_tbody').html('');
+        var now_load = layer.open({
+            title: '提示',
+            content: '加载中...',
+            icon: 0,
+            closeBtn: 0,
+            btn: []
+        });
+        $.ajax({
+            url: "/index/user/gamecoin",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                page: _page,
+                size: 6,
+            },
+            type:"post",
+            dataType: 'json',
+            success: function(res){
+                layer.close(now_load);
+                if(res.code == 1){
+                    var _res6 = res.data
+                    if(_res6.lists){
+                        $('.paging_box').show();
+                        $('.make_boxCon9 .con2_no').hide();
+                        $('.make_boxCon9 .con2_have').show();
+                        var _html6 = '';
+                        var _arrlist6 = _res6.lists;
+                        _arrlist6.forEach((val,index)=>{
+                            if(val.ChangeAmount >= 0){
+                                _html6 += `<tr>
+															<td>`+val.OrderTypeName+`</td>
+															<td>+`+val.ChangeAmount+`</td>
+															<td>`+val.Summary+`</td>
+															<td>`+val.LogTime+`</td>
+														</tr>`;
+                            }
+                            if(val.ChangeAmount < 0){
+                                _html6 += `<tr>
+															<td>`+val.OrderTypeName+`</td>
+															<td class="table_red">-`+ Math.abs(val.ChangeAmount) +`</td>
+															<td>`+val.Summary+`</td>
+															<td>`+val.LogTime+`</td>
+														</tr>`;
+                            }
+                        })
+                        $('.con9_tbody').append(_html6);
+                    }else{
+                        $('.make_boxCon9 .con2_no').show();
+                        $('.make_boxCon9 .con2_have').hide();
+                    }
+                }else{
+                    showMsg(res.msg,0, 3000);
+                }
+            }
+        })
+    }
+
+    // 10 - 彩票币明细
+    function getUserLottery(){
+        $('.paging_box').hide();
+        $('.con10_tbody').html('');
+        var now_load = layer.open({
+            title: '提示',
+            content: '加载中...',
+            icon: 0,
+            closeBtn: 0,
+            btn: []
+        });
+        $.ajax({
+            url: "/index/user/lottery",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                page: _page,
+                size: 6,
+            },
+            type:"post",
+            dataType: 'json',
+            success: function(res){
+                layer.close(now_load);
+                if(res.code == 1){
+                    var _res6 = res.data
+                    if(_res6.lists){
+                        $('.paging_box').show();
+                        $('.make_boxCon10 .con2_no').hide();
+                        $('.make_boxCon10 .con2_have').show();
+                        var _html6 = '';
+                        var _arrlist6 = _res6.lists;
+                        _arrlist6.forEach((val,index)=>{
+                            if(val.ChangeAmount >= 0){
+                                _html6 += `<tr>
+															<td>`+val.OrderTypeName+`</td>
+															<td>+`+val.ChangeAmount+`</td>
+															<td>`+val.Summary+`</td>
+															<td>`+val.LogTime+`</td>
+														</tr>`;
+                            }
+                            if(val.ChangeAmount < 0){
+                                _html6 += `<tr>
+															<td>`+val.OrderTypeName+`</td>
+															<td class="table_red">-`+ Math.abs(val.ChangeAmount) +`</td>
+															<td>`+val.Summary+`</td>
+															<td>`+val.LogTime+`</td>
+														</tr>`;
+                            }
+                        })
+                        $('.con10_tbody').append(_html6);
+                    }else{
+                        $('.make_boxCon10 .con2_no').show();
+                        $('.make_boxCon10 .con2_have').hide();
+                    }
+                }else{
+                    showMsg(res.msg,0, 3000);
+                }
+            }
+        })
+    }
+
+    // 7 - 团队分红
+    function getUserTeam(){
+        $('.con7_team').hide();
+        $('#con7_show3').html('');
+        $.ajax({
+            url: "{:Url('index/Wxuser/getUserTeamInfo')}",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    var _res7 = res.data
+                    if(_res7.is_team_leader == 0){
+                        $('.make_boxCon7 .con2_no').show();
+                        $('.make_boxCon7 .con2_have').hide();
+                    }else if(_res7.is_team_leader == 1){
+                        $('.make_boxCon7 .con2_no').hide();
+                        $('.make_boxCon7 .con2_have').show();
+                        $('#con7_show1').html(_res7.data.total_count);
+                        $('#con7_show2').html(_res7.data.leader_total_price);
+                        if(_res7.data.total_count > 0){
+                            $('.con7_team').show();
+                            var _html7 = '';
+                            var _con7List = _res7.data.user_lists
+                            _con7List.forEach((val)=>{
+                                _html7 += `<div class="team_item flex_box">
+															<img src=`+val.avatar+`>
+															<div>
+																<div class="mb-10">`+val.nickname+`</div>
+																<div>`+val.phone+`</div>
+															</div>
+														</div>`;
+                            })
+                            $('#con7_show3').append(_html7);
+                        }
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+    // 8 - 跟进记录
+    function getUserFollow(){
+        $('.con8_box').html('');
+        $.ajax({
+            url: "{:Url('index/Wxuser/getUserFollowInfo')}",
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    var _res8 = res.data.data
+                    if(res.data.is_follow == 0){
+                        $('.make_boxCon8 .con2_no').show();
+                        $('.make_boxCon8 .con2_have').hide();
+                    }else if(res.data.is_follow == 1){
+                        $('.make_boxCon8 .con2_no').hide();
+                        $('.make_boxCon8 .con2_have').show();
+                        $('#con8_show1').html(_res8.staff_name);
+                        $('#con8_show2').html(_res8.follow_status);
+                        var _html8 = '';
+                        var _arrlist8 = _res8.follow_info
+                        _arrlist8.forEach((val)=>{
+                            _html8 += `<div class="record_item">
+														<div>
+															<div class="record_circle"></div>
+															<div class="record_line"></div>
+														</div>
+														<div class="record_right">
+															<div class="record_con duo_textHide">`+val.follow_info+`</div>
+															<div>`+val.time+`</div>
+														</div>
+													</div>`;
+                        })
+                        $('.con8_box').append(_html8);
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+
+    // 参与累消升级
+    function changedototal(){
+        $('.dototal_switchLayer').show();
+        $.ajax({
+            url: "{:Url('index/Wxuser/setUserDoTotal')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+            },
+            dataType: 'json',
+            success: function(res){
+                $('.dototal_switchLayer').hide();
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    location.reload();
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 核销员
+    function changehx(){
+        $('.hx_switchLayer').show();
+        $.ajax({
+            url: "{:Url('index/Wxuser/setUserHxUser')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+            },
+            dataType: 'json',
+            success: function(res){
+                $('.hx_switchLayer').hide();
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    location.reload();
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 打开编辑弹框
+    function closeEdit(){
+        $('.userMask').hide();
+        $('.userMask_con').hide();
+    }
+    function openEdit(_type){
+        if(_type == 'fxup'){
+
+            return false
+        }
+        $('.userMask').show();
+        $('.userM_'+_type).show();
+        if(_type === 'label'){
+            var now_load = layer.open({
+                title: '提示',
+                content: '加载中...',
+                icon: 0,
+                closeBtn: 0,
+                btn: []
+            });
+            var _labelsHtml = '';
+            $.ajax({
+                url: "{:Url('index/Wxuser/getUserLabelList')}",
+                type: 'get',
+                data:{
+                    uniacid: "1",
+                    suid: "{$item.id}",
+                },
+                dataType: 'json',
+                success: function(res){
+                    layer.close(now_load);
+                    if(res.code == 1){
+                        var _ldata = res.data
+                        _ldata.forEach( (val,index)=> {
+                            if(val.user_has == 1){
+                                _labelsHtml += `<div class="user_labelItem user_labelShow" onclick="chooseLabbel(this)" data-id="` + val.id + `">` + val.name + `</div>`
+                            }else{
+                                _labelsHtml += `<div class="user_labelItem" onclick="chooseLabbel(this)" data-id="` + val.id + `">` + val.name + `</div>`
+                            }
+                        })
+                        $('.labelItem_box').html(_labelsHtml);
+                    }else{
+                        showMsg(res.msg,0,1000);
+                    }
+                }
+            })
+        }
+        if(_type === 'score'){
+            var _nowsco = $('#show_score').html();
+            $('#disabled_score').val(_nowsco);
+        }
+        if(_type === 'money'){
+            var _nowmon = $('#show_money').html();
+            $('#disabled_money').val(_nowmon);
+        }
+        if(_type === 'virtualpay'){
+            var _nowvir = $('#show_virtualpay').html();
+            $('#mask_virtualpay').val(_nowvir);
+        }
+        if(_type === 'diamond'){
+            var _nowmon = $('#show_diamond').html();
+            $('#disabled_diamond').val(_nowmon);
+        }
+        if(_type === 'lottery'){
+            var _nowmon = $('#show_lottery').html();
+            $('#disabled_lottery').val(_nowmon);
+        }
+        if(_type === 'gamecoin'){
+            var _nowmon = $('#show_gamecoin').html();
+            $('#disabled_gamecoin').val(_nowmon);
+        }
+        if(_type === 'give_money'){
+            var _nowmon = $('#show_give_money').html();
+            $('#disabled_give_money').val(_nowmon);
+        }
+    }
+
+    // 添加标签
+    function chooseLabbel(e) {
+        if($(e).is('.user_labelShow') == true){
+            $(e).removeClass('user_labelShow');
+        }else{
+            $(e).addClass('user_labelShow');
+        }
+    }
+    function sureUserLabel(){
+        var _lids = [];
+        $('.user_labelItem').each(function(){
+            if($(this).is('.user_labelShow') == true){
+                _lids.push($(this).attr('data-id'))
+            }
+        })
+        $.ajax({
+            url: "{:Url('index/Wxuser/setUserLabel')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                user_label: _lids.toString()
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    location.reload();
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+    // 积分，余额
+    function sureScoreMoney(_types){
+        var score_change = $('input[name="score_change"]:checked').val();
+        var mask_score = $('#mask_score').val();
+        var mask_scoretip = $('#mask_scoretip').val();
+        var money_change = $('input[name="money_change"]:checked').val();
+        var mask_money = $('#mask_money').val();
+        var mask_moneytip = $('#mask_moneytip').val();
+        var diamond_change = $('input[name="diamond_change"]:checked').val();
+        var mask_diamond = $('#mask_diamond').val();
+        var mask_diamondip = $('#mask_diamondip').val();
+        var gamecoin_change = $('input[name="gamecoin_change"]:checked').val();
+        var mask_gamecoin = $('#mask_gamecoin').val();
+        var mask_gamecoinip = $('#mask_gamecoinip').val();
+        var lottery_change = $('input[name="lottery_change"]:checked').val();
+        var mask_lottery = $('#mask_lottery').val();
+        var mask_lotteryip = $('#mask_lotteryip').val();
+        var give_money_change = $('input[name="give_money_change"]:checked').val();
+        var change_give_money = $('#change_give_money').val();
+        var mask_give_money = $('#mask_give_money').val();
+        if(_types == 1){
+            if(!mask_score){
+                showMsg('请输入充值积分',0,3000);
+                return false;
+            }
+        }
+        if(_types == 2){
+            if(!mask_money){
+                showMsg('请输入充值金额',0,3000);
+                return false;
+            }
+        }
+        if(_types == 3){
+            if(!mask_diamond){
+                showMsg('请输入充值钻石',0,3000);
+                return false;
+            }
+        }
+        if(_types == 4){
+            if(!mask_gamecoin){
+                showMsg('请输入充值游戏币',0,3000);
+                return false;
+            }
+        }
+        if(_types == 5){
+            if(!mask_lottery){
+                showMsg('请输入充值彩票',0,3000);
+                return false;
+            }
+        }
+        if(_types == 6){
+            if(!change_give_money){
+                showMsg('请输入零钱充值金额',0,3000);
+                return false;
+            }
+        }
+        $.ajax({
+            url: "{:Url('/index/user/property')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                types: _types,
+                czjf_change: score_change,
+                scoreNum: mask_score,
+                scoreTip: mask_scoretip,
+                czye_change: money_change,
+                yueNum: mask_money,
+                change_tip: mask_moneytip,
+                czzs_change: diamond_change,
+                zsNum: mask_diamond,
+                change_diamond_tip: mask_diamondip,
+                gamecoin_change: gamecoin_change,
+                gamecoinNum: mask_gamecoin,
+                change_gamecoin_tip: mask_gamecoinip,
+                lottery_change: lottery_change,
+                lotteryNum: mask_lottery,
+                change_lottery_tip: mask_lotteryip,
+                give_money_change: give_money_change,
+                change_give_money: change_give_money,
+                mask_give_money: mask_give_money,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    $('#mask_score').val('');
+                    $('#mask_scoretip').val('');
+                    $('#mask_money').val('');
+                    $('#mask_moneytip').val('');
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    _page = 1;
+                    $('input[name="nowpage_num"]').val(1);
+                    if(_types == 1){
+                        getUserScore();
+                        $('#show_score').html(res.data.data);
+                    }
+                    if(_types == 2){
+                        getUserMoney();
+                        $('#show_money').html(res.data.data);
+                    }
+                    if(_types == 3){
+                        $('#show_diamond').html(res.data.data);
+                    }
+                    if(_types == 4){
+                        $('#show_gamecoin').html(res.data.data);
+                    }
+                    if(_types == 5){
+                        $('#show_lottery').html(res.data.data);
+                    }
+                    if(_types == 6){
+                        $('#show_give_money').html(res.data.data);
+                    }
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+    // 虚拟消费金额
+    function sureVirtualpay(){
+        var _virtualpay = $('#mask_virtualpay').val();
+        $.ajax({
+            url: "{:Url('index/Wxuser/setUserVirtualpay')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                virtualpay: _virtualpay,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    $('#show_virtualpay').html(_virtualpay);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 修改真实姓名
+    function sureTruename(){
+        var _truename = $('#mask_truename').val();
+        $.ajax({
+            url: "{:Url('/index/user/realname')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                truename: _truename,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    $('#con1_show1').html(_truename);
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    getChange(1);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 修改手机号
+    function surePhone(){
+        var _phone = $('#mask_phone').val();
+        $.ajax({
+            url: "{:Url('index/Wxuser/setUserPhone')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                phone: _phone,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    getChange(1);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 修改生日
+    function sureBirth(){
+        var _birth = $('#mask_birth').val();
+        $.ajax({
+            url: "{:Url('/index/user/birth')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                birth: _birth,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    $('#con1_show3').html(_birth);
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    // getChange(1);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 修改备注
+    function sureTrillid(){
+        var _trillid = $('#mask_trillid').val();
+        $.ajax({
+            url: "{:Url('index/Wxuser/setTrillId')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                trill_id: _trillid,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    getChange(1);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 修改会员信息
+    function changeDate() {
+        var type = $("input[name='date_type']:checked").val();
+        if(type == 1){
+            $("#date_time").hide();
+        }else{
+            $("#date_time").show();
+        }
+    }
+    function sureGrade(){
+        var grade = $('select[name="vip_grade"]').find('option:selected').val();
+        var date_type = $("input[name='date_type']:checked").val();
+        var end_time = $('#datetimepicker_date').val();
+        $.ajax({
+            url: "{:Url('/index/user/vipgrade')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                grade: grade,
+                date_type: date_type,
+                end_time: end_time,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    setTimeout(function(){
+                        location.reload();
+                    },800)
+                    // getChange(1);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 选择用户组
+    function sureGroup(){
+        var group = $('select[name="user_group"]').find('option:selected').val();
+        $.ajax({
+            url: "{:Url('index/Wxuser/changeUserGroup')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                gid: group,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    getChange(1);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 设为分销商
+    function sureSetfx(){
+        var fx_grade = $('select[name="fxs_grade"]').find('option:selected').val();
+        $.ajax({
+            url: "{:Url('index/fx/setuserfx')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                fx_grade: fx_grade,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    getChange(2);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 设为队长
+    function sureSetleader(){
+        $.ajax({
+            url: "{:Url('index/team_reward_controller/saveteamleader')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    getChange(7);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    // 添加跟进
+    function sureAddfollow(){
+        var follow_info = $('#follow_info').val();
+        if(!follow_info){
+            showMsg('请填写跟进详情',0,1000);
+            return false;
+        }
+        $.ajax({
+            url: "{:Url('index/Wxuser/addUserFollowInfo')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                follow_info: follow_info,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    getChange(8);
+                    $('#follow_info').val('');
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    function sureFollowinfo(){
+        var follow_wxnumber = $('#follow_wxnumber').val();
+        var follow_status = $('#follow_status').val();
+        if(follow_wxnumber <= 0){
+            showMsg('请选择员工',0,1000);
+            return false;
+        }
+        if(follow_status <= 0){
+            showMsg('请选择用户状态',0,1000);
+            return false;
+        }
+        $.ajax({
+            url: "{:Url('index/Wxuser/setUserFollowInfo')}",
+            type: 'post',
+            data:{
+                uniacid: "1",
+                suid: "{$item.id}",
+                staff_id: follow_wxnumber,
+                follow_status: follow_status,
+            },
+            dataType: 'json',
+            success: function(res){
+                if(res.code == 1){
+                    showMsg(res.msg,1,800);
+                    closeEdit();
+                    getChange(8);
+                }else{
+                    showMsg(res.msg,0,1000);
+                }
+            }
+        })
+    }
+
+    function clearNoNum(obj, _max){
+        obj.value = obj.value.replace(/[^\d.]/g,"");  //清除“数字”和“.”以外的字符
+        if(obj.value.charAt(0,1) == "."){
+            obj.value = "";
+        }
+        obj.value = obj.value.replace(/\.{2,}/g,"."); //只保留第一个. 清除多余的
+        obj.value = obj.value.replace(".","$#$").replace(/\./g,"").replace("$#$",".");
+        obj.value = obj.value.replace(/^(\-)*(\d+)\.(\d\d).*$/,'$1$2.$3');//只能输入两个小数
+        if(obj.value.indexOf(".") < 0 && obj.value != ""){
+            obj.value = parseFloat(obj.value);
+        }
+        if(_max && obj.value > _max){
+            obj.value = parseFloat(_max);
+        }
+    }
+    function clearNoNumNoDecimal(obj) { // 只允许输入数字
+        // 如果出现非法字符就截取掉
+        obj.value = obj.value.replace(/[^\d]/g, '');
+    }
+</script>
+</body>
+</html>

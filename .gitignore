@@ -16,6 +16,7 @@ backend/.secrets/
 backend/**/*.bak
 backend/**/*.bak-*
 backend/**/*.bak.*
+backend/**/*.bak_*
 backend/**/*.backup
 
 # PHP runtime/dependencies
@@ -40,7 +41,22 @@ miniapp/wechat-preview/
 miniapp/unpackage/
 miniapp/*.zip
 
+# Package manager local stores
+album-web/.pnpm-store/
+
 # Local test artifacts
 /.playwright-cli/
 /output/
 /album-web/output/
+
+# Web-root entry points pulled out in the 2026-09 security cleanup
+# (SEO cloaking backdoor, plaintext DB credentials, unauthenticated
+# debug scripts). The files stay on disk but must never be tracked again.
+backend/public/home.php
+backend/public/db_check.php
+backend/public/db_update.php
+backend/public/debug.php
+backend/public/list_data.php
+backend/public/test_cli.php
+backend/public/oss_check.php
+backend/public/test_upload.txt

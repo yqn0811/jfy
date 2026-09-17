@@ -1,0 +1,540 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navVIP" class="navVIP2">
+
+<style>
+    .vip_gradeBox{
+        position: absolute;
+        left: 20px;
+        top: 23px;
+        color: #413F3C;
+        text-align: left;
+        font-size: 12px;
+    }
+    .vip_gradeShow{
+        display: flex;
+        align-items: flex-end;
+        margin-bottom: 8px;
+        line-height: 1;
+    }
+    .vip_gradeShow #grage_nowName{
+        font-size: 19px;
+        font-weight: bold;
+        margin-right: 7px;
+    }
+    .vip_gradeShow .iconfont{
+        font-size: 15px;
+        line-height: 1;
+    }
+    .vip_gradeShow #grage_now{
+        font-size: 12px;
+        line-height: 1;
+    }
+
+    .basic-grey .Companies {
+        position:relative;
+    }
+    .basic-grey .Companies ul {
+        position: absolute;
+        height: 210px;
+        width: 85%;
+        overflow-y: auto;
+        border: 1px solid #DDD;
+        display: none;
+        float: left;
+        background-color: #fff;
+        z-index: 1;
+        left: 0;
+    }
+    .basic-grey .Companies ul li {
+        padding:3px 12px;
+        white-space: nowrap;
+    }
+    .basic-grey .Companies ul li a{
+        color: #555;
+    }
+    .basic-grey .Companies ul li:hover {
+        background-color:#1e90ff;
+        cursor:pointer;
+        color: #fff;
+    }
+    .basic-grey .Companies ul li:hover a{
+        color: #fff;
+    }
+    .basic-grey .Companies ul li.top {
+        position:absolute;
+        top:0;
+    }
+    table.fx_tableBox{
+        margin-left: 26px;
+        width: 490px;
+    }
+    table.fx_tableBox tr{
+        height: 40px;
+    }
+    table.fx_tableBox tr td.table_left{
+        box-sizing: border-box;
+        padding: 0 10px;
+        width: 300px;
+    }
+    table.fx_tableBox tr td.table_right{
+        box-sizing: border-box;
+        padding: 0 10px;
+        width: 160px;
+    }
+    table.fx_tableBox tr td.table_right input{
+        width: 140px;
+        border: 1px dashed #dfe4e7 !important;
+        text-align: center;
+        border-radius: 3px !important;
+        background-color: #F4F7F9 !important;
+    }
+    span.people_havetip{
+        margin-left: 20px;
+        line-height: 30px;
+        white-space: nowrap;
+    }
+    .inputs {
+        margin-right: 10px;
+    }
+</style>
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box">
+            <div class="portlet-body form">
+
+                <div class="tabs_v3 tabs_v3_hover">
+                    <ul>
+                        <li class="tabs_v3_active">基础信息</li>
+<!--                        <li >升级模式</li>-->
+<!--                        <li >会员权益</li>-->
+                    </ul>
+                </div>
+
+                <form action="{:Url('WxuserController/saveGrade')}?gid={$item.id}"
+                      id="form_sample_2" class="form-horizontal" method="post" enctype="multipart/form-data"
+                      onsubmit="return checkinfo();">
+                    <input type="hidden" name="grade" value="{if $item}{$item.grade_level}{else}0{/if}">
+                    <div class="tabs_v3_content">
+                        <!-- 基础信息 -->
+                        <div class="tabs_v3_content_box">
+                            <div class="control-group">
+                                <label class="control-label">选择等级</label>
+                                <div class="controls">
+                                    <select name="grade" id="select_grade" class="controls-content" {if $item}{if $item['grade_level'] > 0}disabled style="background: #efefef!important;"{/if}{/if}>
+                                        {foreach $grade_arr as $i}
+                                        <option value="{$i}" {if in_array($i, $changed)}disabled style="background: #efefef;"{/if}
+                                        {if $item}{if $item['grade_level']==$i}selected='selected'{/if}{/if} >
+                                        {$i}级会员
+                                        </option>
+                                        {/foreach}
+                                    </select>
+                                    <span class="help-block">数字越大，等级越高；会员满足条件由低到高自动升级</span>
+                                </div>
+                            </div>
+                            <div class="control-group">
+                                <label class="control-label"><span>*</span> 等级名称</label>
+                                <div class="controls">
+                                    <input name="grade_name" id="grade_name" maxlength="15" type="text" class="controls-content" value="{if $item}{$item.grade_name}{/if}" onkeyup="getName()" />
+                                    <span class="help-block">最多16个汉字,不得包含'-'字符</span>
+                                </div>
+                            </div>
+<!--                            <div class="control-group">-->
+<!--                                <label class="control-label">权益等级图</label>-->
+<!--                                <div class="controls">-->
+<!--                                    <div class="fileupload fileupload-new controls-content" data-provides="fileupload">-->
+<!--                                        <div class="fileupload-new thumbnail commonuploadpic1" style="width:315px;height:189px;position:relative;border-radius:0;">-->
+<!--                                            {if $item&& $item.card_img}-->
+<!--                                            <img src="{$item.card_img}" style="object-fit:cover;" />-->
+<!--                                            {else}-->
+<!--                                            <img src="/image/vip_card.png" style="object-fit:cover;" />-->
+<!--                                            {/if}-->
+<!--                                            <div class="vip_gradeBox">-->
+<!--                                                <div class="vip_gradeShow">-->
+<!--                                                    <div id="grage_nowName"></div>-->
+<!--                                                    <div class="iconfont icon-huiyuandengji"></div>-->
+<!--                                                    <div id="grage_now"></div>-->
+<!--                                                </div>-->
+<!--                                            </div>-->
+<!--                                        </div>-->
+<!--                                        <div style="position:relative;">-->
+<!--                                            <div style="position:absolute;bottom:0;left:0;width:300px;">-->
+<!--											<span class="btn btn-file d-inline-block">-->
+<!--												<span class="fileupload-new commonchangepic btn btn-outline-primary" data-type="1">选择图片-->
+<!--													<input type="hidden" name="commonuploadpic1" value="{$item.card_img}">-->
+<!--												</span>-->
+<!--											</span>-->
+<!--&lt;!&ndash;                                                <span class="d-inline-block btn btn-outline-danger" onclick="defaultimg()">使用默认图片</span>&ndash;&gt;-->
+<!--                                            </div>-->
+<!--                                        </div>-->
+<!--                                    </div>-->
+<!--                                    <span class="help-block">宽度640px，高度360px</span>-->
+<!--                                </div>-->
+<!--                            </div>-->
+<!--                            <div class="control-group">-->
+<!--                                <label class="control-label">等级说明</label>-->
+<!--                                <div class="controls">-->
+<!--                                    <textarea class="span7 m-wrap" style="height:150px;" name="grade_descs" maxlength="200">{if $item}{$item.grade_descs}{/if}</textarea>-->
+<!--                                    <span class="help-block">最多200字</span>-->
+<!--                                </div>-->
+<!--                            </div>-->
+
+                            <div class="control-group">
+                                <label class="control-label">12个月价格</label>
+                                <div class="controls">
+                                    <div class="controls-content controls-content-input-group">
+                                        <span class="controls-content-input-group-first">售价</span>
+                                        <input class="controls-content-input-group-nb" name="annual_fee" min="0.01" step="0.01" type="number" value="{if $item}{$item.annual_fee}{/if}" />
+                                        <span class="controls-content-input-group-last">原价</span>
+                                        <input name="market_annual_fee" min="0.01" step="0.01" type="number"  class="controls-content-input-group-nb" value="{if $item}{$item.market_annual_fee}{/if}" />
+                                        <span class="controls-content-input-group-last">元</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="control-group">
+                                <label class="control-label">3个月价格</label>
+                                <div class="controls">
+                                    <div class="controls-content controls-content-input-group">
+                                        <span class="controls-content-input-group-first">售价</span>
+                                        <input class="controls-content-input-group-nb" name="midd_month_fee" min="0.01" step="0.01" type="number" value="{if $item}{$item.midd_month_fee}{/if}" />
+                                        <span class="controls-content-input-group-last">原价</span>
+                                        <input name="market_midd_month_fee" min="0.01" step="0.01" type="number"  class="controls-content-input-group-nb" value="{if $item}{$item.market_midd_month_fee}{/if}" />
+                                        <span class="controls-content-input-group-last">元</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="control-group">
+                                <label class="control-label">1个月价格</label>
+                                <div class="controls">
+                                    <div class="controls-content controls-content-input-group">
+                                        <span class="controls-content-input-group-first">售价</span>
+                                        <input class="controls-content-input-group-nb" name="month_fee" min="0.01" step="0.01" type="number" value="{if $item}{$item.month_fee}{/if}" />
+                                        <span class="controls-content-input-group-last">原价</span>
+                                        <input name="market_month_fee" min="0.01" step="0.01" type="number"  class="controls-content-input-group-nb" value="{if $item}{$item.market_month_fee}{/if}" />
+                                        <span class="controls-content-input-group-last">元</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="control-group">
+                                <label class="control-label">新客年卡优惠</label>
+                                <div class="controls">
+                                    <div class="controls-content controls-content-input-group">
+                                        <input name="new_buy_annual" id="new_buy_annual" onkeyup="clearNoNum(this)" type="number" min="0" step="0.01" class="controls-content-input-group-lb" value="{if $item}{$item.new_buy_annual}{else}0{/if}" />
+                                        <span class="controls-content-input-group-last">元</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="control-group">
+                                <label class="control-label">云空间</label>
+                                <div class="controls">
+                                    <div class="controls-content controls-content-input-group">
+                                        <input name="cloud_size" id="cloud_size" onkeyup="clearNoNum(this)" type="number" min="0" step="0.01" class="controls-content-input-group-lb" value="{if $item}{$item.cloud_size}{else}5{/if}" />
+                                        <span class="controls-content-input-group-last">G</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="control-group">
+                                <label class="control-label">编辑人数</label>
+                                <div class="controls">
+                                    <div class="controls-content controls-content-input-group">
+                                        <input name="editor_number" id="editor_number" onkeyup="clearNoNum(this)" type="number" min="0" step="1" class="controls-content-input-group-lb" value="{if $item}{$item.editor_number}{else}3{/if}" />
+                                        <span class="controls-content-input-group-last">人</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="control-group">
+                                <label class="control-label">上传文件</label>
+                                <div class="controls">
+                                    <div class="controls-content">
+                                        <label class="radio">
+                                            <input type="radio" name="upload_size_type" value="1" onchange="changeFeeType()" {if $item}{if $item.upload_size_type==1}checked=checked{/if}{else}checked=checked{/if} /> M
+                                        </label>
+                                        <label class="radio">
+                                            <input type="radio" name="upload_size_type" value="2" onchange="changeFeeType()" {if $item}{if $item.upload_size_type==2}checked=checked{/if}{/if} />G
+                                        </label>
+                                    </div>
+                                    <span class="help-block">上传文件大小单位</span>
+                                </div>
+                            </div>
+
+                            <div class="control-group">
+                                <div class="controls">
+                                    <div class="controls-content controls-content-input-group">
+                                        <input name="upload_size" id="upload_size" onkeyup="clearNoNum(this)" type="number" min="0" step="1" class="controls-content-input-group-lb" value="{if $item}{$item.upload_size}{else}200{/if}" />
+                                        <span class="controls-content-input-group-last"><span class="fee_name">M</span></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+
+                        <!-- 会员卡模式 -->
+                        <div class="tabs_v3_content_box" style="display:none;">
+                            <!-- 消费模式 -->
+                            <div id="vip_canBuy" style="display:block;">
+                                <div class="control-group">
+                                    <label class="control-label">升级条件</label>
+                                    <div class="controls">
+                                        <div class="controls-content">
+                                            <label class="checkbox">
+                                                <input type="checkbox" name="recharge_grade" id="recharge_grade" value="1" {if $item}{if $item.recharge_grade == 1} checked {/if}{else}checked{/if}>
+                                                累计充值
+                                            </label>
+                                            <label class="checkbox">
+                                                <input type="checkbox" name="buy_grade" id="buy_grade" value="1" {if $item}{if $item.buy_grade == 1} checked {/if}{/if}>
+                                                直接购买
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="control-group" >
+                                    <label class="control-label">有效时长</label>
+                                    <div class="controls">
+                                        <div class="controls-content controls-content-input-group">
+                                            <input name="buy_day_limit" id="buy_day_limit" onkeyup="clearNoNumNoDecimal(this)" type="number" min="0" class="controls-content-input-group-lb" value="{if $item}{$item.buy_day_limit}{else}0{/if}" />
+                                            <span class="controls-content-input-group-last">天</span>
+                                        </div>
+                                        <span class="help-block">默认为0<span class="badge badge-danger">永久生效</span>，达到该会员等级的有效期</span>
+                                    </div>
+                                </div>
+                                <!-- 累计消费模式 -->
+                                <div class="control-group" id="sjtj">
+                                    <div class="alert alert-light">累计充值升级</div>
+                                    <label class="control-label">升级条件</label>
+                                    <div class="controls">
+                                        <div class="controls-content controls-content-input-group">
+                                            <span class="controls-content-input-group-first">累计充值达到</span>
+                                            <input class="controls-content-input-group-nb" name="total_recharge" id="total_recharge" onkeyup="clearNoNum(this)" placeholder="累计充值达到的金额" type="number" min="0" step="0.01" value="{if $item}{$item.total_recharge}{/if}"  />
+                                            <span class="controls-content-input-group-last">元</span>
+                                        </div>
+                                        <span class="help-block" style="display:{if $item.grade < 2}none;{/if}">
+										需大于{if $item.grade == 1}等于{/if}
+										<span class="badge badge-danger prev_upgrade">
+											{if $item.grade > 1}
+												{if $item['prev']>0}
+													{$item['prev']}
+												{else}
+													0
+												{/if}
+											{else}
+											 0
+											{/if}</span>元
+										<span  style="display:{if $item.grade > 1}{if $item['next']==0}none;{/if}{/if}">
+											且小于<span class="badge badge-danger next_upgrade">{if $item.grade > 1}{$item['next']}{/if}</span>元
+										</span>
+									</span>
+                                    </div>
+                                </div>
+                                <!-- 购买等级 -->
+                                <div id="pay_priceShow">
+                                    <div class="alert alert-light">直接购买升级</div>
+                                    <div class="control-group">
+                                        <label class="control-label">购买价格</label>
+                                        <div class="controls">
+                                            <div class="controls-content controls-content-input-group">
+                                                <input name="buy_price" id="buy_price" onkeyup="clearNoNum(this)" type="number" min="0" step="0.01" class="controls-content-input-group-lb" value="{if $item}{$item.buy_price}{else}999{/if}" />
+                                                <span class="controls-content-input-group-last">元</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- 会员权益 -->
+                        <div class="tabs_v3_content_box" style="display:none;">
+                            <label class="control-label">会员权益</label>
+
+
+                            <div class="control-group">
+                                <label class="control-label"></label>
+                                <div class="controls" style="display: flex;">
+                                    <label class="inputs">
+                                        <input type="checkbox" name="discount_flag" value="1" {if $item}{if $item.discount_flag == 1} checked {/if}{/if}>
+                                        <span style="line-height: 30px;">会员折扣</span>
+                                    </label>
+                                    <input type="number" name='discount_grade' min="0" step="0.01" max="10" value="{if $item.id > 0}{$item.discount_grade}{else}10{/if}" onkeyup="clearNoNum(this)">
+                                    <span style="margin-left: 10px;line-height: 30px;">折</span>
+                                    <font color="#c7cddb" style="line-height:30px;margin-left:20px;">会员购买部分商品可享受会员折扣</font>
+                                </div>
+                            </div>
+
+                            <div class="control-group">
+                                <label class="control-label"></label>
+                                <div class="controls" style="display: flex;">
+                                    <label class="inputs">
+                                        <input type="checkbox" name="score_flag" value="1" {if $item.id>0}{if $item.score_flag == 1} checked {/if}{/if} />
+                                        <span style="line-height: 30px;">积分回馈</span>
+                                    </label>
+                                    <input type="number" name='score_back' min="0" step="1"  value="{if $item}{$item.score_back}{else}0{/if}" />
+                                    <font color="#c7cddb" style="line-height:30px;margin-left:20px;">成为会员后，可获得积分</font>
+                                </div>
+                            </div>
+
+                            <!-- 自定义会员权益 -->
+                            <div class="slides">
+                                <div class="second_lm">
+                                    {if $item.other_interests}
+                                    {foreach $item['other_interests'] as $k => $vv}
+                                    <div class="control-group delPower{$k}">
+                                        <label class="control-label"></label>
+                                        <div class="controls flex_box">
+                                            <input type="text" name="other_interests[]" maxlength="6" value="{$vv}" placeholder="请输入权益名称，不超过6个字">
+                                            <div class="btn btn-danger" onclick="delPower({$k})">删除</div>
+                                        </div>
+                                    </div>
+                                    {/foreach}
+                                    {/if}
+                                </div>
+                                <div class="control-group">
+                                    <label class="control-label"></label>
+                                    <div class="controls">
+                                        <div class="btn btn-primary" onclick="addPower()">新增自定义权益</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="form-actions form_nobg">
+                        <button type="submit" class="btn btn-primary">确定</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var now_grade = $("#select_grade").val();
+    var now_grade_color = $("#tabbar_bg6").val();
+    $('#grage_now').html(now_grade)
+    $('.vip_gradeBox').css('color', now_grade_color);
+    var now_nameGrade = $("#name").val();
+    if(now_nameGrade){
+        $('#grage_nowName').html(now_nameGrade)
+    }
+    function getName(){
+        now_nameGrade = $("#name").val()
+        $('#grage_nowName').html(now_nameGrade)
+    }
+
+
+    // 会员卡默认图片
+    function defaultimg() {
+        $("input[name='commonuploadpic1']").val("/image/vip_card.png");
+        $(".commonuploadpic1 img").attr("src", "/image/vip_card.png");
+    }
+
+    // 会员模式选择
+    $('input[name="vip_grade_mode"]').change(function () {
+        if ($(this).val() == '1') {
+            $("#vip_canBuy").show()
+            $("#vip_canApply").hide()
+        } else {
+            $("#vip_canBuy").hide()
+            $("#vip_canApply").show()
+        }
+    })
+    // 累计消费开启关闭
+    $('input[name="grand_total"]').change(function () {
+        var is_grandTotal = $(this).is(':checked')
+        if (is_grandTotal) {
+            $('#sjtj').css('display', 'block')
+        } else {
+            $('#sjtj').css('display', 'none')
+        }
+    })
+
+    // 会员权益 - 优惠券
+    var i = 1;
+    function del(j) {
+        $(".del" + j).remove();
+    }
+
+    // 会员权益 - 提货卡商品
+
+
+
+    // 输入框检测
+    function clearNoNum(obj) {
+        // obj.value = obj.value.replace(/[^\d.]/g, "");  //清除“数字”和“.”以外的字符
+        // if (obj.value.charAt(0, 1) == ".") {
+        //     obj.value = "";
+        // }
+        // obj.value = obj.value.replace(/\.{2,}/g, "."); //只保留第一个. 清除多余的
+        // obj.value = obj.value.replace(".", "$#$").replace(/\./g, "").replace("$#$", ".");
+        // obj.value = obj.value.replace(/^(\-)*(\d+)\.(\d\d).*$/, '$1$2.$3');//只能输入两个小数
+        // if (obj.value.indexOf(".") < 0 && obj.value != "") {
+        //     obj.value = parseFloat(obj.value);
+        // }
+    }
+    function clearNoNumNoDecimal(obj) { // 只允许输入数字
+        // 如果出现非法字符就截取掉
+        obj.value = obj.value.replace(/[^\d]/g, '');
+    }
+
+    // 数据检测
+    function checkinfo() {
+        var grade = "1";
+        var name = $("#grade_name").val();
+        if (name == '') {
+            alert('等级名称不能为空');
+            return false;
+        }
+
+    }
+
+    // 新增自定义权益
+    var _i = ($(".second_lm").find(".control-group").length) * 1;
+    function addPower() {
+        var str = '<div class="control-group delPower' + _i + '">\
+							<label class="control-label"></label>\
+							<div class="controls flex_box">\
+							<input type="text" name="other_interests[]" maxlength="6" placeholder="请输入权益名称，不超过6个字">\
+							<div class="btn btn-danger" onclick="delPower('+ _i + ')">删除</div>\
+							</div>\
+							</div>';
+        $(".second_lm").append(str);
+        ++_i;
+    }
+    // 删除新增自定义权益
+    function delPower(j) {
+        $(".delPower" + j).remove();
+    }
+
+    $(function () {
+        var upload_size_type = '{$upload_size_type}'
+        if(upload_size_type == 1){
+            $(".fee_name").text('M')
+        }else{
+            $(".fee_show").text('G')
+        }
+    })
+
+    function changeFeeType(){
+        var upload_size_type = $("input[name='upload_size_type']:checked").val();
+        if(upload_size_type == 1){
+            $(".fee_name").text('M')
+        }else{
+            $(".fee_name").text('G')
+        }
+    }
+</script>
+
+
+
+{include file="public/foot_more" /}

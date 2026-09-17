@@ -1,0 +1,11 @@
+<div class="fileupload_v3 controls-content" data-provides="fileupload">
+	<div class="thumbnail [name]">
+		{if isset($[arr]) && $[arr] && count($[arr])>0}
+		<img src="{$[arr_value]}"/>
+		{else}
+		<img src="/image/noimage_1.png" alt="" />
+		{/if}
+	</div>
+	<div class="add_imgs commonchangepic" data-type="1"><div>+</div>选择图片<input type="hidden" name="[name]" value="{if isset($[arr]) && $[arr] && count($[arr])>0}{$[arr_value]}{/if}"></div>
+</div>
+<span class="help-block">建议尺寸<em class="badge badge-danger">[size]</em>，不超过[quality]</span>

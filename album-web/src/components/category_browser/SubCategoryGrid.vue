@@ -2,9 +2,7 @@
 <script setup lang="ts">
 import { Card, CardContent } from '@/components/ui/card'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import FallbackImage from '@/components/common/FallbackImage.vue'
 import type { CategoryVO } from '@/data/CategoryService'
-import { navigateToInternal } from '@/navigation'
 
 interface Props {
   categories: CategoryVO[]
@@ -18,7 +16,7 @@ const handleNavigate = (categoryId: string) => {
   const params = new URLSearchParams({ categoryId })
   if (props.shareCode) params.set('code', props.shareCode)
   else if (props.targetUserId) params.set('uid', props.targetUserId)
-  navigateToInternal(`./category?${params.toString()}`)
+  window.location.href = `./category.html?${params.toString()}`
 }
 </script>
 
@@ -32,16 +30,11 @@ const handleNavigate = (categoryId: string) => {
     >
       <CardContent class="p-0">
         <div class="aspect-square overflow-hidden bg-muted">
-          <FallbackImage
+          <img 
             :src="category.coverUrl"
-            :candidates="category.coverUrlCandidates"
             :alt="category.name"
             class="w-full h-full object-cover"
-          >
-            <div class="flex h-full w-full items-center justify-center bg-muted">
-              <SafeIcon name="Image" :size="36" class="text-muted-foreground/60" />
-            </div>
-          </FallbackImage>
+          />
         </div>
         <div class="p-4 space-y-2">
           <h3 class="text-item-title font-medium truncate">

@@ -1,82 +1,51 @@
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import ImageViewerHeader from './ImageViewerHeader.vue'
 import ImageViewerContent from './ImageViewerContent.vue'
 import ImageViewerFooter from './ImageViewerFooter.vue'
 import LoginDialog from '@/components/common/LoginDialog.vue'
-import { authStore, getCurrentUserId, pcApi } from '@/lib/api'
-import { downloadUrl, preloadImageUrl, revokeImageObjectUrl } from '@/lib/download'
-import { isVipMember } from '@/lib/account'
+import { authStore } from '@/lib/api'
 
 interface ImageData {
-  id: string
   url: string
-  originalUrl: string
-  downloadUrl: string
   name: string
   type: 'colorChart' | 'detailChart'
   isOriginalLarge: boolean
-  sizeBytes: number
 }
 
 const isClient = ref(true)
-const images = ref<ImageData[]>([])
+const imageUrls = ref<string[]>([])
 const currentIndex = ref(0)
 const productId = ref('')
 const isAuthenticated = ref(false)
-const canUseOriginal = ref(false)
 const isLoadingOriginal = ref(false)
 const showLoginDialog = ref(false)
 const imageLoadError = ref(false)
-const loadedOriginalUrls = ref<Record<string, string>>({})
-const imageScale = ref(1)
-const imageRotation = ref(0)
 
 const currentImage = computed(() => {
-  const image = images.value[currentIndex.value]
-  if (!image) return null
+  if (imageUrls.value.length === 0) return null
   return {
-    ...image,
+    url: imageUrls.value[currentIndex.value],
     index: currentIndex.value + 1,
-    total: images.value.length,
+    total: imageUrls.value.length,
+    type: 'colorChart'
   }
 })
 
 const handlePrevious = () => {
-  if (isLoadingOriginal.value) return
   if (currentIndex.value > 0) {
     currentIndex.value--
-    resetImageTransform()
     updateUrlParams()
   }
 }
 
 const handleNext = () => {
-  if (isLoadingOriginal.value) return
-  if (currentIndex.value < images.value.length - 1) {
+  if (currentIndex.value < imageUrls.value.length - 1) {
     currentIndex.value++
-    resetImageTransform()
     updateUrlParams()
   }
-}
-
-const zoomIn = () => {
-  imageScale.value = Math.min(3, Number((imageScale.value + 0.25).toFixed(2)))
-}
-
-const zoomOut = () => {
-  imageScale.value = Math.max(0.5, Number((imageScale.value - 0.25).toFixed(2)))
-}
-
-const rotateImage = () => {
-  imageRotation.value = (imageRotation.value + 90) % 360
-}
-
-const resetImageTransform = () => {
-  imageScale.value = 1
-  imageRotation.value = 0
 }
 
 const updateUrlParams = () => {
@@ -85,107 +54,36 @@ const updateUrlParams = () => {
   window.history.replaceState(null, '', `?${params.toString()}`)
 }
 
-const resolveCurrentDownloadUrl = async () => {
-  const image = currentImage.value
-  if (!image) return ''
-  const entry = image.downloadUrl || image.originalUrl || image.url
-  if (!entry) return ''
-  if (/\/api\/user\/download\/original(?:\?|$)/.test(entry) && image.id) {
-    const data = await pcApi.getOriginalDownloadUrl(image.id)
-    return String(data?.download_url || data?.downloadUrl || data?.url || '')
-  }
-  return entry
-}
-
-const resolveCurrentOriginalViewUrl = async () => {
-  const image = currentImage.value
-  if (!image) return ''
-  const entry = image.downloadUrl || image.originalUrl || image.url
-  if (/\/api\/user\/download\/original(?:\?|$)/.test(entry) && image.id) {
-    const response = await pcApi.getOriginalDownloadBlob(image.id, {
-      skip_remote_size: 1,
-    })
-    const blob = await response.blob()
-    if (!blob.size) {
-      throw new Error('原图暂不可查看')
-    }
-    return URL.createObjectURL(blob)
-  }
-  if (/^\d+$/.test(image.id)) {
-    const response = await pcApi.getOriginalDownloadBlob(image.id, {
-      skip_remote_size: 1,
-    })
-    const blob = await response.blob()
-    if (!blob.size) {
-      throw new Error('原图暂不可查看')
-    }
-    return URL.createObjectURL(blob)
-  }
-  if (image.originalUrl && !/\/api\/user\/download\/original(?:\?|$)/.test(image.originalUrl)) {
-    return image.originalUrl
-  }
-  return image.originalUrl || image.url
-}
-
-const handleViewOriginal = async () => {
+const handleViewOriginal = () => {
   if (!isAuthenticated.value) {
     showLoginDialog.value = true
     return
   }
-  if (!canUseOriginal.value) {
-    toast.warning('开通会员后可查看原图')
-    return
-  }
 
-  const image = currentImage.value
-  if (!image) return
-  const targetIndex = currentIndex.value
-  const cachedUrl = loadedOriginalUrls.value[image.id]
-  if (cachedUrl) {
-    if (cachedUrl !== image.url && images.value[targetIndex]?.id === image.id) {
-      const next = [...images.value]
-      next[targetIndex] = { ...next[targetIndex], url: cachedUrl }
-      images.value = next
-    }
-    return
-  }
-
-  let resolvedUrl = ''
-  try {
+  if (currentImage.value?.isOriginalLarge) {
     isLoadingOriginal.value = true
-    resolvedUrl = await resolveCurrentOriginalViewUrl()
-    if (!resolvedUrl) return
-    await preloadImageUrl(resolvedUrl)
-    loadedOriginalUrls.value = {
-      ...loadedOriginalUrls.value,
-      [image.id]: resolvedUrl,
-    }
-    if (resolvedUrl !== images.value[targetIndex]?.url && images.value[targetIndex]?.id === image.id) {
-      const next = [...images.value]
-      next[targetIndex] = { ...next[targetIndex], url: resolvedUrl }
-      images.value = next
-    }
-  } catch (error: any) {
-    revokeImageObjectUrl(resolvedUrl)
-    toast.error(error?.message || '原图暂不可查看')
-  } finally {
-    isLoadingOriginal.value = false
+    setTimeout(() => {
+      isLoadingOriginal.value = false
+      toast.success('原图已加载')
+    }, 1500)
   }
 }
 
-const handleDownload = async () => {
+const handleDownload = () => {
   if (!isAuthenticated.value) {
     showLoginDialog.value = true
     return
   }
-  if (!canUseOriginal.value) {
-    toast.warning('开通会员后可下载原图')
-    return
-  }
 
-  const url = await resolveCurrentDownloadUrl()
+  const url = currentImage.value?.url
   if (!url) return
-  downloadUrl(url, currentImage.value?.name || url.split('/').pop() || 'image.jpg')
+  const link = document.createElement('a')
+  link.href = url
+  link.download = url.split('/').pop() || 'image.jpg'
+  link.target = '_blank'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 
 const handleClose = () => {
@@ -206,31 +104,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
   } else if (event.key === 'Escape') {
     event.preventDefault()
     handleClose()
-  } else if (event.key === '+' || event.key === '=') {
-    event.preventDefault()
-    zoomIn()
-  } else if (event.key === '-' || event.key === '_') {
-    event.preventDefault()
-    zoomOut()
-  } else if (event.key.toLowerCase() === 'r') {
-    event.preventDefault()
-    rotateImage()
-  } else if (event.key === '0') {
-    event.preventDefault()
-    resetImageTransform()
   }
-}
-
-const parseJsonArrayParam = (params: URLSearchParams, key: string) => {
-  const raw = params.get(key)
-  if (!raw) return params.getAll(key).filter(Boolean)
-  try {
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) return parsed
-  } catch {
-    return raw.split(',').map(item => item.trim()).filter(Boolean)
-  }
-  return []
 }
 
 onMounted(() => {
@@ -241,61 +115,31 @@ onMounted(() => {
 
   // 从URL读取参数
   const params = new URLSearchParams(window.location.search)
-  const urls = parseJsonArrayParam(params, 'imageUrls').map(item => String(item || '')).filter(Boolean)
-  const ids = parseJsonArrayParam(params, 'imageIds')
-  const names = parseJsonArrayParam(params, 'imageNames')
-  const sizes = parseJsonArrayParam(params, 'imageSizes')
-  const originalUrls = parseJsonArrayParam(params, 'imageOriginalUrls')
-  const downloadUrls = parseJsonArrayParam(params, 'imageDownloadUrls')
-  const types = parseJsonArrayParam(params, 'imageTypes')
+  const rawUrls = params.get('imageUrls')
+  let urls: string[] = params.getAll('imageUrls')
+  if (rawUrls) {
+    try {
+      const parsed = JSON.parse(rawUrls)
+      if (Array.isArray(parsed)) urls = parsed.filter(Boolean)
+    } catch {
+      urls = rawUrls.split(',').map(item => item.trim()).filter(Boolean)
+    }
+  }
   const index = parseInt(params.get('currentIndex') || '0', 10)
   const pId = params.get('productId') || ''
 
-  images.value = urls.map((url, itemIndex) => ({
-    id: String(ids[itemIndex] || ''),
-    url,
-    originalUrl: String(originalUrls[itemIndex] || url),
-    downloadUrl: String(downloadUrls[itemIndex] || originalUrls[itemIndex] || url),
-    name: String(names[itemIndex] || url.split('/').pop() || 'image.jpg'),
-    type: types[itemIndex] === 'detailChart' ? 'detailChart' : 'colorChart',
-    isOriginalLarge: Number(sizes[itemIndex] || 0) > 3 * 1024 * 1024,
-    sizeBytes: Number(sizes[itemIndex] || 0),
-  }))
-  currentIndex.value = Math.min(Math.max(index, 0), Math.max(images.value.length - 1, 0))
+  imageUrls.value = urls
+  currentIndex.value = Math.min(Math.max(index, 0), imageUrls.value.length - 1)
   productId.value = pId
   isAuthenticated.value = authStore.isLoggedIn()
   if (!isAuthenticated.value) {
     showLoginDialog.value = true
-  } else {
-    loadCurrentUserPermission()
   }
 
   window.addEventListener('keydown', handleKeyDown)
-})
-
-const loadCurrentUserPermission = async () => {
-  try {
-    let user = authStore.getUser<any>() || {}
-    if (!getCurrentUserId(user)) {
-      user = await pcApi.getCurrentUser()
-      authStore.setUser(user)
-    }
-    canUseOriginal.value = isVipMember(user)
-  } catch {
-    canUseOriginal.value = false
+  return () => {
+    window.removeEventListener('keydown', handleKeyDown)
   }
-}
-
-const handleLoginSuccess = () => {
-  isAuthenticated.value = true
-  showLoginDialog.value = false
-  loadCurrentUserPermission()
-}
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown)
-  Object.values(loadedOriginalUrls.value).forEach(revokeImageObjectUrl)
-  loadedOriginalUrls.value = {}
 })
 </script>
 
@@ -319,17 +163,10 @@ onUnmounted(() => {
         :image-index="currentImage.index"
         :total-images="currentImage.total"
         :can-go-prev="currentIndex > 0"
-        :can-go-next="currentIndex < images.length - 1"
-        :is-loading-original="isLoadingOriginal"
-        :scale="imageScale"
-        :rotation="imageRotation"
+        :can-go-next="currentIndex < imageUrls.length - 1"
         @previous="handlePrevious"
         @next="handleNext"
         @load-error="imageLoadError = true"
-        @zoom-in="zoomIn"
-        @zoom-out="zoomOut"
-        @rotate="rotateImage"
-        @reset-transform="resetImageTransform"
       />
 
       <!-- Error State -->
@@ -351,7 +188,7 @@ onUnmounted(() => {
     <ImageViewerFooter
       v-if="isAuthenticated"
       :current-index="currentIndex + 1"
-      :total-images="images.length"
+      :total-images="imageUrls.length"
       :image-type="currentImage?.type || 'colorChart'"
     />
 
@@ -359,7 +196,7 @@ onUnmounted(() => {
     <LoginDialog
       :open="showLoginDialog"
       @update:open="showLoginDialog = $event"
-      @login-success="handleLoginSuccess"
+      @login-success="isAuthenticated = true"
     />
   </div>
 </template>

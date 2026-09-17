@@ -62,7 +62,6 @@ const markBroken = (id: string) => {
             v-if="(resource.thumbnailUrl || resource.url) && !brokenIds.has(resource.id)"
             :src="resource.thumbnailUrl || resource.url"
             :alt="resource.name"
-            loading="lazy"
             class="w-full h-full object-cover"
             @error="markBroken(resource.id)"
           />

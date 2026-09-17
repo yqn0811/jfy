@@ -4204,6 +4204,12 @@ class UserService extends BaseService
         // Always use standard background
         $bgFile = 'wechat_share.png';
         
+        $posterFilename = $this->buildSharePosterCacheFilename($targetUserId, $type, $id);
+        $posterFilePath = $this->app->getRootPath() . 'public/storage/poster/' . $posterFilename;
+        if (file_exists($posterFilePath)) {
+            return $this->buildPosterPublicUrl($posterFilename);
+        }
+
         $bgPath = $this->app->getRootPath() . 'public/image/' . $bgFile;
         if (!file_exists($bgPath)) {
             return '';
@@ -4219,7 +4225,10 @@ class UserService extends BaseService
         \imagesavealpha($im, true);
 
         // Fonts & Colors
-        $font = $this->app->getRootPath() . 'public/assets/front/douyuzhuiguangti.ttf';
+        $font = $this->app->getRootPath() . 'public/assets/front/wqy-microhei.ttc';
+        if (!file_exists($font)) {
+            $font = $this->app->getRootPath() . 'public/assets/front/douyuzhuiguangti.ttf';
+        }
         $colorBlack = \imagecolorallocate($im, 51, 51, 51);
         $colorGray = \imagecolorallocate($im, 153, 153, 153);
         $colorMuted = \imagecolorallocate($im, 119, 119, 119);
@@ -4228,6 +4237,9 @@ class UserService extends BaseService
         $colorLine = \imagecolorallocate($im, 232, 224, 214);
         $colorWarm = \imagecolorallocate($im, 255, 250, 226);
         $colorShadow = \imagecolorallocatealpha($im, 0, 0, 0, 112);
+
+        // Hide legacy copy baked into the poster background.
+        $this->maskSharePosterTemplateText($im, $bgWidth, $bgHeight, $colorWhite);
 
         // 2. Avatar (Round)
         $avatarUrl = $user->avatar;
@@ -4280,10 +4292,10 @@ class UserService extends BaseService
         $nickname = $user->company_name ?: $user->nickname;
         if (!$nickname) $nickname = '用户'; // Fallback name
         
-        $fontSize = $bgWidth * 0.035; // Reduced from 0.04
-        $textX = $avatarX + $avatarSize + 20;
-        $textY = $avatarY + $avatarSize / 2 + $fontSize / 2;
-        $this->drawText($im, $fontSize, 0, $textX, $textY, $colorBlack, $font, $this->clipTextByWidth($nickname, $font, $fontSize, $bgWidth * 0.58));
+        $fontSize = $bgWidth * 0.027;
+        $textX = $avatarX + $avatarSize + 22;
+        $textY = $avatarY + ($avatarSize / 2) + ($fontSize / 2) - 2;
+        $this->drawText($im, $fontSize, 0, $textX, $textY, $colorBlack, $font, $this->clipTextByWidth($nickname, $font, $fontSize, $bgWidth * 0.42));
 
         // 4. Collection Title & Content (Grid or Main Image)
         $collTitle = '可访问相册';
@@ -4301,9 +4313,9 @@ class UserService extends BaseService
             else $collTitle = '选款单';
         }
 
-        $titleFontSize = $bgWidth * 0.042;
+        $titleFontSize = $bgWidth * 0.033;
         $titleX = $bgWidth * 0.08;
-        $titleY = $avatarY + $avatarSize + 118;
+        $titleY = $avatarY + $avatarSize + 104;
         if ($collTitle) {
             $iconPath = $this->app->getRootPath() . 'public/image/folder-open.png';
             if (file_exists($iconPath)) {
@@ -4311,10 +4323,10 @@ class UserService extends BaseService
                 if ($iconImg) {
                     $iconH = $titleFontSize; 
                     $iconW = $iconH * (\imagesx($iconImg) / \imagesy($iconImg));
-                    $iconY = $titleY - $titleFontSize * 0.9;
+                    $iconY = $titleY - $titleFontSize * 0.88;
                     \imagecopyresampled($im, $iconImg, $titleX, $iconY, 0, 0, $iconW, $iconH, \imagesx($iconImg), \imagesy($iconImg));
                     \imagedestroy($iconImg);
-                    $titleX += $iconW + 15;
+                    $titleX += $iconW + 13;
                 }
             }
             $this->drawText($im, $titleFontSize, 0, $titleX, $titleY, $colorBlack, $font, $this->clipTextByWidth($collTitle, $font, $titleFontSize, $bgWidth - $titleX - ($bgWidth * 0.08)));
@@ -4378,12 +4390,17 @@ class UserService extends BaseService
         } else {
             $covers = $this->getSharePosterCovers($targetUserId, $type, $id, $visitorUid, 4);
             $coverUrl = $this->normalizePosterCoverUrl($coverUrl);
-            if ($coverUrl) {
-                array_unshift($covers, $coverUrl);
+            if ($coverUrl && empty($covers)) {
+                $covers[] = $coverUrl;
             }
             $covers = array_values(array_unique(array_filter($covers)));
             $this->drawPosterCoverGrid($im, $covers, $gridX, $contentY, $gridWidth, $gridHeight, $font, $colorWhite, $colorGray, $colorSoft);
         }
+
+        $footerTextX = $bgWidth * 0.285;
+        $footerTitleY = $bgHeight - ($gridX * 1.95);
+        $this->drawText($im, $bgWidth * 0.028, 0, $footerTextX, $footerTitleY, $colorBlack, $font, '我们的云相册');
+        $this->drawText($im, $bgWidth * 0.020, 0, $footerTextX, $footerTitleY + 40, $colorGray, $font, '扫码查看作品详情');
 
         // 5. Footer (QR Code)
         $qrDrawn = false;
@@ -4421,8 +4438,8 @@ class UserService extends BaseService
                 }
             }
             
-            $filename = 'poster_' . $type . '_' . $id . '_' . $targetUserId . '_' . time() . '.png';
-            $filePath = $saveDir . '/' . $filename;
+            $filename = $posterFilename;
+            $filePath = $posterFilePath;
             
             if (!@\imagepng($im, $filePath)) {
                  $error = error_get_last();
@@ -4440,6 +4457,15 @@ class UserService extends BaseService
         }
     }
 
+    private function buildSharePosterCacheFilename($targetUserId, $type, $id)
+    {
+        $type = preg_replace('/[^a-z0-9_-]/i', '', (string)$type);
+        if ($type === '') {
+            $type = 'home';
+        }
+        return 'poster_' . $type . '_' . (int)$id . '_' . (int)$targetUserId . '.png';
+    }
+
     private function buildPosterPublicUrl($filename)
     {
         $root = rtrim((string)request()->domain(), '/');
@@ -4450,6 +4476,23 @@ class UserService extends BaseService
             $root = 'https://api.jfyuntu.com';
         }
         return $root . '/storage/poster/' . ltrim((string)$filename, '/');
+    }
+
+    private function maskSharePosterTemplateText($image, $bgWidth, $bgHeight, $colorWhite)
+    {
+        $rects = [
+            [0.255, 0.800, 0.700, 0.940],
+        ];
+        foreach ($rects as $rect) {
+            \imagefilledrectangle(
+                $image,
+                (int)($bgWidth * $rect[0]),
+                (int)($bgHeight * $rect[1]),
+                (int)($bgWidth * $rect[2]),
+                (int)($bgHeight * $rect[3]),
+                $colorWhite
+            );
+        }
     }
 
     private function resizeImageCover($img, $w, $h) {
@@ -4638,27 +4681,61 @@ class UserService extends BaseService
     private function getProductPosterCoverUrls($product, $limit = 4)
     {
         $urls = [];
-        if (!empty($product->new_thumb)) {
-            $urls[] = $product->new_thumb;
-        }
-        $picIds = $this->normalizePosterIdList($product->pic_ids ?? '');
+        $seen = [];
+        $addUrl = function($url) use (&$urls, &$seen, $limit) {
+            $url = trim((string)$url);
+            if ($url === '' || count($urls) >= $limit) {
+                return;
+            }
+            $key = $this->getPosterCoverUniqueKey($url);
+            if (isset($seen[$key])) {
+                return;
+            }
+            $seen[$key] = true;
+            $urls[] = $url;
+        };
+
+        $addUrl($product->new_thumb ?? '');
+
+        $picIds = array_values(array_unique(array_merge(
+            $this->normalizePosterIdList($product->pic_ids ?? ''),
+            $this->normalizePosterIdList($product->detail_pic_ids ?? '')
+        )));
         if (!empty($picIds) && count($urls) < $limit) {
-            $pics = WdXcxPic::whereIn('id', array_slice($picIds, 0, $limit))->select();
+            $pics = WdXcxPic::whereIn('id', $picIds)->select();
+            $picMap = [];
             foreach ($pics as $pic) {
+                $picMap[(int)$pic->id] = $pic;
+            }
+            foreach ($picIds as $picId) {
+                if (empty($picMap[$picId])) {
+                    continue;
+                }
                 try {
-                    $url = $pic->TruePic;
+                    $url = $picMap[$picId]->TruePic;
                 } catch (\Throwable $e) {
                     $url = '';
                 }
-                if ($url) {
-                    $urls[] = $url;
-                }
+                $addUrl($url);
                 if (count($urls) >= $limit) {
                     break;
                 }
             }
         }
-        return array_values(array_unique(array_filter($urls)));
+        return $urls;
+    }
+
+    private function getPosterCoverUniqueKey($url)
+    {
+        $url = trim((string)$url);
+        if ($url === '') {
+            return '';
+        }
+        $parts = parse_url($url);
+        if (!empty($parts['host']) && !empty($parts['path'])) {
+            return strtolower($parts['host']) . '/' . ltrim($parts['path'], '/');
+        }
+        return preg_replace('/[?#].*$/', '', $url);
     }
 
     private function normalizePosterIdList($value)

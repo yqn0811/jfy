@@ -1,7 +1,7 @@
 
 <script setup lang="ts">
-import SafeIcon from '@/components/common/SafeIcon.vue'
-import { productImageUrl, type ProductImageData } from '@/data/ProductImageData'
+import { computed } from 'vue'
+import type { ProductImageData } from '@/data/ProductImageData'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -13,31 +13,39 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'image-click', index: number): void
 }>()
+
+const gridCols = computed(() => {
+  const count = props.images.length
+  if (count === 1) return 'grid-cols-1'
+  if (count === 2) return 'grid-cols-2'
+  if (count === 3) return 'grid-cols-3'
+  return 'grid-cols-4'
+})
 </script>
 
 <template>
-  <div :class="cn('grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5', props.images.length === 1 && 'max-w-56')">
+  <div :class="cn('grid gap-3', gridCols)">
     <div
       v-for="(image, index) in images"
       :key="image.id"
-      class="group relative aspect-square overflow-hidden rounded-lg border border-border bg-card cursor-pointer transition-all hover:border-primary hover:shadow-card"
+      class="group relative aspect-square bg-muted rounded-lg overflow-hidden cursor-pointer border border-border hover:border-primary transition-all hover:shadow-card"
       @click="emit('image-click', index)"
     >
       <!-- Image -->
-      <div class="flex h-full w-full items-center justify-center bg-muted/40">
-        <img
-          :src="productImageUrl(image, 'preview')"
-          :alt="image.name"
-          loading="lazy"
-          class="max-h-full max-w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
-        />
-      </div>
+      <img
+        :src="image.thumbnailUrl"
+        :alt="image.name"
+        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+      />
 
       <!-- Overlay on hover -->
       <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
         <div class="opacity-0 group-hover:opacity-100 transition-opacity">
           <div class="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center">
-            <SafeIcon name="Eye" :size="20" class="text-foreground" />
+            <svg class="w-5 h-5 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
           </div>
         </div>
       </div>

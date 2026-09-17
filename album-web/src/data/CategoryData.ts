@@ -8,7 +8,6 @@ export interface CategoryData {
   name: string
   intro: string
   coverUrl: string
-  coverUrlCandidates?: string[]
   productCount: number
   childCount: number
   visibility: CategoryVisibility

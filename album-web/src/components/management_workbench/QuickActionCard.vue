@@ -2,7 +2,6 @@
 <script setup lang="ts">
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import { navigateTo } from '@/navigation'
 
 interface Props {
   title: string
@@ -14,7 +13,7 @@ interface Props {
 defineProps<Props>()
 
 const handleClick = (href: string) => {
-  navigateTo(href)
+  window.location.href = href
 }
 </script>
 

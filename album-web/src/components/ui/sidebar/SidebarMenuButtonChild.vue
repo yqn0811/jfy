@@ -14,6 +14,7 @@ export interface SidebarMenuButtonProps extends PrimitiveProps {
 }
 
 const props = withDefaults(defineProps<SidebarMenuButtonProps>(), {
+  as: "button",
   variant: "default",
   size: "default",
 })
@@ -25,7 +26,7 @@ const props = withDefaults(defineProps<SidebarMenuButtonProps>(), {
     :data-size="size"
     :data-active="isActive"
     :class="cn(sidebarMenuButtonVariants({ variant, size }), props.class)"
-    :as="as || 'button'"
+    :as="as"
     :as-child="asChild"
     v-bind="$attrs"
   >

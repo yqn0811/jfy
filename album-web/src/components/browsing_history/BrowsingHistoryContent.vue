@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import FallbackImage from '@/components/common/FallbackImage.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
@@ -15,7 +14,6 @@ import { toast } from 'vue-sonner'
 import { cn } from '@/lib/utils'
 import { pcApi } from '@/lib/api'
 import { buildPcTargetUrl, mapPcRecord, unwrapList, type PcRecordItem } from '@/lib/jfyuntu-mappers'
-import { navigateToInternal } from '@/navigation'
 
 type TabType = 'all' | 'homepage' | 'category' | 'product'
 
@@ -26,10 +24,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   embedded: false,
 })
-
-const emit = defineEmits<{
-  (e: 'navigate'): void
-}>()
 
 const isClient = ref(true)
 const activeTab = ref<TabType>('all')
@@ -98,8 +92,7 @@ const handleKeywordInput = (event: Event) => {
 }
 
 const handleView = (record: PcRecordItem) => {
-  emit('navigate')
-  navigateToInternal(buildPcTargetUrl(record.targetType, record.targetId, record.targetUserId, record.targetShareCode))
+  window.location.href = buildPcTargetUrl(record.targetType, record.targetId, record.targetUserId, record.targetShareCode)
 }
 
 const handleCollect = async (record: PcRecordItem) => {
@@ -138,8 +131,7 @@ const handleConfirmDelete = async () => {
 }
 
 const handleGoToBrowse = () => {
-  emit('navigate')
-  navigateToInternal('./share-home')
+  window.location.href = './share-home.html'
 }
 
 const formatDate = (dateStr: string) => {
@@ -293,14 +285,13 @@ watch(currentPage, () => {
               <!-- Cover Image -->
               <TableCell class="px-4 py-3">
                 <div class="w-16 h-16 rounded-md overflow-hidden bg-muted flex items-center justify-center shrink-0">
-                  <FallbackImage
+                  <img
+                    v-if="record.coverUrl"
                     :src="record.coverUrl"
-                    :candidates="record.coverUrlCandidates"
                     :alt="record.title"
                     class="w-full h-full object-cover"
-                  >
-                    <SafeIcon name="Image" :size="24" class="text-muted-foreground" />
-                  </FallbackImage>
+                  />
+                  <SafeIcon v-else name="Image" :size="24" class="text-muted-foreground" />
                 </div>
               </TableCell>
 

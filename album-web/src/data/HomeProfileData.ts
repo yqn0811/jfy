@@ -12,7 +12,6 @@ export interface HomeProfileData {
   address?: string
   isPublic: boolean
   allowSavePic: boolean
-  allowDownload?: boolean
   shareTitle?: string
   shareDescription?: string
   shareCoverUrl?: string

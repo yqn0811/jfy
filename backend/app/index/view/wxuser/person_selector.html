@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel='stylesheet' href='/pic/src/element.css'>
+  <link rel='stylesheet' href='/pic/src/iconfont/iconfont.css'>
+  <link rel='stylesheet' href='/peronnelSelector/assets/common.css'>
+  <title></title>
+  <style>
+    * {
+      padding: 0;
+      margin: 0;
+      font-family: MicrosoftYaHei;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <person-selector :datatype="datatype" :appletid="appletid" :gettype="gettype" @cancel="closeLayer" @submit="submit"></person-selector>
+</div>
+</body>
+<script src='/pic/src/vue.js'></script>
+<script src='/pic/src/httpVueLoader.js'></script>
+<script src='/pic/src/element.js'></script>
+<script src='/pic/src/axios.min.js'></script>
+<script src='/peronnelSelector/utils/request.js'></script>
+<script src='/peronnelSelector/api/index.js'></script>
+<script>
+  new Vue({
+    el: "#app",
+    data() {
+      return {
+        datatype:'single',
+        appletid:162,
+        gettype:''
+      }
+    },
+    components: {
+      "PersonSelector": httpVueLoader("/peronnelSelector/components/PersonSelector.vue")
+    },
+    created() {
+      // http://127.0.0.1:5500/index.html?type=single&appletid=162&gettype=add_fx
+      //获取路由参数
+      this.datatype = this.getQueryVariable('datatype') || 'single';
+      this.appletid = this.getQueryVariable('appletid') || 162;
+      this.gettype = this.getQueryVariable('gettype') || '';
+      this.getThemeColor()
+    },
+    methods:{
+      getQueryVariable(variable) {
+        var query = window.location.search.substring(1);
+        var vars = query.split("&");
+        for (var i = 0; i < vars.length; i++) {
+          var pair = vars[i].split("=");
+          if (pair[0] == variable) { return pair[1]; }
+        }
+        return (false);
+      },
+      getThemeColor() {
+        var theme_type = "{$backend_style['themeColor']}" || 14
+        var theme_arr = [{ color1: '#6954F0', color2: 'rgba(105,84,240,0.15)' },
+          { color1: '#373C46', color2: 'rgba(55,60,70,0.15)' },
+          { color1: '#002FA4', color2: 'rgba(0,47,164,0.15)' },
+          { color1: '#165AE2', color2: 'rgba(22,90,226,0.15)' },
+          { color1: '#0DA29D', color2: 'rgba(13,162,157,0.15)' },
+          { color1: '#0E9069', color2: 'rgba(14,144,105,0.15)' },
+          { color1: '#4FA140', color2: 'rgba(79,161,64,0.15)' },
+          { color1: '#FCB801', color2: 'rgba(252,184,1,0.15)' },
+          { color1: '#AA7646', color2: 'rgba(170,118,70,0.15)' },
+          { color1: '#FF4400', color2: 'rgba(255,68,0,0.15)' },
+          { color1: '#F7201E', color2: 'rgba(247,32,30,0.15)' },
+          { color1: '#FE0137', color2: 'rgba(254,1,55,0.15)' },
+          { color1: '#FF3A68', color2: 'rgba(255,58,104,0.15)' },
+          { color1: '#722ED1', color2: 'rgba(114,46,209,0.15)' },
+          { color1: '#6954F0', color2: 'rgba(105,84,240,0.15)' }]
+        document.documentElement.style.setProperty('--active-bg', theme_arr[theme_type].color1)
+        document.documentElement.style.setProperty('--font-active-color', theme_arr[theme_type].color1)
+        document.documentElement.style.setProperty('--border-active-color', theme_arr[theme_type].color1)
+        document.documentElement.style.setProperty('--active-transe-bg', theme_arr[theme_type].color2)
+      },
+      closeLayer(){
+        let index = parent.layer.getFrameIndex(window.name);
+        parent.layer.close(index)
+      },
+      submit(value){
+
+        let res = JSON.stringify(value)
+        parent.$("#handle_status").val(res)
+        this.closeLayer()
+      }
+    }
+  })
+</script>
+</html>

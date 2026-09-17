@@ -1,0 +1,281 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navCoupon" class="navCoupon3">
+
+<style type="text/css">
+    .chongdingy {
+        background-color: #f9f9f9;
+        padding: 10px 0;
+        border-radius: 5px;
+    }
+
+    .chongdingywz {
+        text-align: left !important;
+        font-size: 16px;
+        padding-left: 20px;
+    }
+</style>
+<link rel="stylesheet" href="/assets/plugin/select2/select2.css">
+<script type="text/javascript">
+    var a = {
+        "themeCss": ".select2-container--krajee",
+        "sizeCss": "",
+        "doReset": true,
+        "doToggle": true,
+        "doOrder": false
+    };
+    window.b = {
+        "theme": "krajee",
+        "width": "415px",
+        "placeholder": "请选择用户，可多选",
+        "language": "zh-CN"
+    };
+</script>
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box">
+            <div class="portlet-body form">
+                <form action="" id="form_sample_2" class="form-horizontal" method="post" enctype="multipart/form-data">
+                    <div class="control-group chongdingy">
+                        <label class="control-label chongdingywz">选择优惠券</label>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">优惠券</label>
+                        <div class="controls">
+                            <div class="btn green" onclick="add()" style="background-color:#6954F0;color:#fff">添加</div>
+                            <span class="help-block">仅可选择类型为系统发放的优惠券</span>
+                        </div>
+                    </div>
+                    <div class="couponadd"></div>
+
+                    <div class="control-group chongdingy">
+                        <label class="control-label chongdingywz">发送对象</label>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">发送类型</label>
+                        <div class="controls">
+                            <div class="controls-content">
+                                <label class="radio">
+                                    <input type="radio" name="send_object" value="1" checked="checked"/>指定人
+                                </label>
+                            </div>
+                            <span class="help-block">发送类型</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label" style="margin-right:15px"><span>*</span> 选择用户</label>
+                        <div class="controls" id="shops" style="    display: flex;align-items: center;">
+						<span id="parent-s2-togall-w2" style="display:none">
+							<span id="s2-togall-w2" class="s2-togall-button s2-togall-select">
+								<span class="s2-select-label"><i class="glyphicon glyphicon-unchecked"></i>全选</span>
+								<span class="s2-unselect-label"><i class="glyphicon glyphicon-check"></i>全不选</span>
+							</span>
+						</span>
+                            <input id="cates" name="cates" type="hidden"/>
+                            <div class="kv-plugin-loading loading-w2">&nbsp;</div>
+                            <div class="batch-sale-input-con" data-hidden-values="cates" data-html="davchMule" data-type="multipart"
+                                 id="morepopLyer" data-uniacid="1"
+                                 data-fade="tendaddUrl">
+                                <input value="" type="text" class="batch-sale-input xm-select-default" >
+                                <div id="davchMule"></div>
+                            </div>
+                            <span class="help-block">选择发放的用户，可多选</span>
+                        </div>
+                    </div>
+
+                    <div class="form-actions form_nobg">
+                        <div class="btn btn-primary" onclick="checkinfo()">确定</div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .batch-sale-input-con input{border: none !important;}
+    .batch-sale-input-con{ height:100px  !important;    overflow: auto;   font-size: 14px;
+        background-color: #fff;
+        border: 1px solid #eaeaea;
+        border-radius: 3px;position: relative;width:60%;height:100%;    display: flex;
+        display: inline-block;
+        white-space:unset;}
+    .batch-sale-input-con input{height:auto;}
+    #davchMule{position:absolute;top:0;left: 10px;display: flex;justify-content: flex-start;flex-wrap: wrap;}
+    #davchMule li {  line-height: 1.428571429; list-style: none;    color: #555;
+        background: #f5f5f5;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: default;
+        float: left;
+        margin: 5px 0 0 6px;
+        padding: 0 6px;
+        max-width: 386px;
+        white-space: normal;}
+    .select2-selection__choice__remove {    font-size: 14px;    line-height: 1.428571429;
+        list-style: none;}
+
+</style>
+<div class="loader"></div>
+<div class="popup" style="display: none">
+    <div class="popup_title">
+        <span>批量发券</span>
+    </div>
+    <div class="popup_content">
+        <div class="popup_l">
+            <div class="popup_l_t">发放中，请勿刷新</div>
+        </div>
+    </div>
+</div>
+<script type="text/javascript" src="/assets/jsv3/tenantadd.js"></script>
+<script type="text/javascript" charset="utf-8" src="/plugin/ueditor/select2.full.min.js"></script>
+<script type="text/javascript" charset="utf-8" src="/plugin/ueditor/select2-krajee.min.js"></script>
+
+<script>
+    function delmoreItem(id){
+        console.log(id)
+        $('#'+id).remove()
+    }
+    if (jQuery('#w2').data('select2')) {
+        jQuery('#w2').select2('destroy');
+    }
+    jQuery.when(jQuery('#w2').select2(b)).done(initS2Loading('w2', 'a'));
+
+    var i = "{$coupon_count}";
+
+    function add() {
+        var str = '<div class="control-group del' + i + '">\
+								<label class="control-label"></label>\
+								<div class="controls" style="display: flex;">\
+										<select class="controls-content" name="coupon_id[]" id="coupon_' + i + '" >\
+										{foreach $coupon as $v}\
+										<option value="{$v.id}" >{$v.title} </option>\
+										{/foreach}\
+										</select>\
+										<div class="add" style="display: flex;">\
+											<span class="ml-5 mr-5">每人可获得</span>\
+											<input type="number" min="1" name="coupon_num[]" value="1" style="border:1px solid #e7e7eb;margin-left:10px;width:95px;"><span style="line-height: 30px;margin:0 10px;" class="span"> 张 </span>\
+										</div>\
+										<div class="btn btn-outline-danger" onclick="del(' + i + ')">删除</div>\
+								</div>\
+							</div>';
+        $(".couponadd").append(str);
+        ++i;
+    }
+
+    function del(j) {
+        $(".del" + j).remove();
+    }
+
+    function checkinfo() {
+        var coupon_id = [];
+        var flag = 1;
+        $("select[name='coupon_id[]']").each(function () {
+            if ($(this).val() > 0) {
+                coupon_id.push($(this).val())
+            } else {
+                flag = 2;
+                return false;
+            }
+            console.log(coupon_id)
+            console.log("11111")
+        });
+        if (flag == 2) {
+            alert('请选择要发放的优惠券')
+            return false;
+        }
+        var coupon_num = [];
+        $("input[name='coupon_num[]']").each(function () {
+            if ($(this).val() > 0) {
+                coupon_num.push($(this).val())
+            } else {
+                flag = 3;
+                return false;
+            }
+            console.log(coupon_num)
+            console.log("222222")
+        });
+        if (flag == 3) {
+            alert('请输入优惠券数量')
+            return false;
+        }
+        if (coupon_id.length == 0 || coupon_num.length == 0) {
+            alert('请添加要发放的优惠券')
+            return false
+        }
+        // var cates = $("#w2").val()
+        var cateslen = $("#davchMule li").length
+        console.log(cateslen)
+        var cates = []
+        for(var i= 0;i < cateslen; i++){
+            var catesstr = $("#davchMule li").eq(i).attr('id')
+            cates.push(catesstr)
+
+        }
+        console.log(cates)
+        if (!cates) {
+            alert('请选择发放对象');
+            return false;
+        }
+        var _isSure = confirm('确认批量发送吗?')
+        if (!_isSure) {
+            return false;
+        } else if (_isSure) {
+            $('.loader').show();
+            $('.popup').show();
+            doSendCoupon(coupon_id, coupon_num, cates, 0)
+        }
+    }
+
+    function doSendCoupon(coupon_id, coupon_num, cates, page) {
+        $.ajax({
+            url: "{:Url('CouponsController/batchCoupon')}",
+            dataType: 'json',
+            type: 'post',
+            data: {
+                coupon_id: coupon_id,
+                coupon_num: coupon_num,
+                users: cates,
+                page: page,
+            },
+            success: function (res) {
+                if (res.code == 1) {
+                    if (res.data.code == 1) {
+                        $('.loader').hide();
+                        $('.popup').hide();
+                        layer.open({
+                            title: false,
+                            content: '发放完成',
+                            icon: 1,
+                            time: 1000,
+                            closeBtn: 0,
+                            btn: []
+                        });
+                        setTimeout(function () {
+                            window.location.href = "{:Url('CouponsController/batchRecords')}"
+                        }, 1000)
+                    } else {
+                        $(".popup_l_t").html(res.msg)
+                        doSendCoupon(coupon_id, coupon_num, cates, res.data.page)
+                    }
+                } else {
+                    $('.loader').hide();
+                    $('.popup').hide();
+                    layer.open({
+                        title: false,
+                        content: res.msg,
+                        icon: 0,
+                        time: 1000,
+                        closeBtn: 0,
+                        btn: []
+                    });
+                }
+            }
+        })
+    }
+</script>
+
+
+{include file="public/foot_more" /}

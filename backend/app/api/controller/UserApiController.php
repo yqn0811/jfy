@@ -1659,13 +1659,53 @@ class UserApiController extends ApiBaseController
         return $callback;
     }
 
+    /**
+     * 相册站 PC 扫码登录的回调地址。
+     * 默认按当前请求域名生成（仅限白名单内的站点域名），未命中白名单时回落到 pic.jfyuntu.com。
+     * 白名单外的域名不要随意加入：微信开放平台的「授权回调域」必须先登记该域名，
+     * 否则该域名下扫码会直接报 redirect_uri 参数错误。
+     */
     private function getAlbumPcLoginCallback()
     {
         $callback = trim((string)env('JIAFANGYUN_PC_LOGIN_CALLBACK', getenv('JIAFANGYUN_PC_LOGIN_CALLBACK') ?: ''));
-        if ($callback === '') {
-            $callback = 'https://pic.jfyuntu.com/index.php/api/user/login/callback';
+        if ($callback !== '') {
+            return $callback;
         }
-        return $callback;
+
+        $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+        $portPosition = strpos($host, ':');
+        if ($portPosition !== false) {
+            $host = substr($host, 0, $portPosition);
+        }
+
+        if (in_array($host, $this->getAlbumPcLoginCallbackHosts(), true)) {
+            return 'https://' . $host . '/index.php/api/user/login/callback';
+        }
+
+        return 'https://pic.jfyuntu.com/index.php/api/user/login/callback';
+    }
+
+    /**
+     * 允许各自回调本域名的站点列表（逗号分隔，可含端口无关的纯域名）。
+     * 需要放开更多域名时，在 backend/.env 配置 JIAFANGYUN_PC_LOGIN_CALLBACK_HOSTS 即可，不必改代码。
+     */
+    private function getAlbumPcLoginCallbackHosts()
+    {
+        $hosts = trim((string)env('JIAFANGYUN_PC_LOGIN_CALLBACK_HOSTS', getenv('JIAFANGYUN_PC_LOGIN_CALLBACK_HOSTS') ?: ''));
+        if ($hosts !== '') {
+            $list = [];
+            foreach (explode(',', $hosts) as $item) {
+                $item = strtolower(trim($item));
+                if ($item !== '') {
+                    $list[] = $item;
+                }
+            }
+            if (!empty($list)) {
+                return $list;
+            }
+        }
+
+        return ['pic.jfyuntu.com'];
     }
 
     private function isFileWebLoginRedirect($redirect)

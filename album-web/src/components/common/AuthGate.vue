@@ -19,8 +19,6 @@ const verifyLogin = async () => {
     return
   }
 
-  isReady.value = true
-
   try {
     const profile = await pcApi.getCurrentUser()
     authStore.setUser(profile)
@@ -30,6 +28,8 @@ const verifyLogin = async () => {
     isAuthenticated.value = false
     showLoginDialog.value = true
     toast.error(error?.message || '登录已失效，请重新扫码')
+  } finally {
+    isReady.value = true
   }
 }
 

@@ -8,7 +8,6 @@
 - 扩展要求：
   - openssl
   - pdo_mysql
-  - pdo_pgsql / pgsql（文件传输模块）
   - mbstring
   - curl
   - fileinfo
@@ -62,73 +61,6 @@ DATABASE_HOSTPORT = 3306
 DATABASE_CHARSET = utf8mb4
 DATABASE_PREFIX = 
 
-# 文件传输模块 PostgreSQL 配置
-# 103 测试服使用 AI 生图同库 ai_jf，不同表前缀 ft_。
-[FILE_DB]
-TYPE = pgsql
-HOSTNAME = 127.0.0.1
-DATABASE = ai_jf
-USERNAME = ai_jf_user
-PASSWORD = your_file_db_password
-HOSTPORT = 5433
-CHARSET = utf8
-PREFIX = ft_
-SCHEMA = public
-
-[FILE_TRANSFER]
-MAX_UPLOAD_MB = 500
-ANONYMOUS_MAX_UPLOAD_MB = 200
-MAX_REGISTERED_UPLOAD_MB = 500
-MAX_FILES_PER_REQUEST = 50
-MIN_FREE_DISK_MB = 2048
-MIN_TMP_FREE_DISK_MB = 1024
-DISK_CHECK_FAIL_CLOSED = true
-TMP_CHECK_FAIL_CLOSED = true
-UPLOAD_REQUEST_TIMEOUT_SECONDS = 600
-BLOCKED_EXTENSIONS = php,phtml,phar,php3,php4,php5,asp,aspx,jsp,jspx,exe,dll,bat,cmd,com,msi,sh,bash,zsh,ps1,vbs,js,mjs,jar,war,ear,htaccess,htpasswd,html,htm,svg,swf,scr,lnk,reg,apk,ipa,dmg,pkg,deb,rpm
-RECEIPT_TOKEN_REQUIRED = true
-RECEIPT_TOKEN_SECRET = change-me-use-32-random-chars
-ENABLE_DIRECT_UPLOAD = false
-DIRECT_UPLOAD_PROVIDERS = ten_cos,ali_oss
-DIRECT_UPLOAD_POLICY_TTL_SECONDS = 600
-DIRECT_UPLOAD_VERIFY_OBJECT = true
-DIRECT_UPLOAD_VERIFY_FAIL_CLOSED = true
-DIRECT_UPLOAD_SECRET = change-me-use-32-random-chars
-ENABLE_ANTIVIRUS_SCAN = false
-ANTIVIRUS_SCAN_COMMAND = clamscan --no-summary --infected %s
-ANTIVIRUS_SCAN_FAIL_CLOSED = true
-ALERT_WEBHOOK_URL =
-ANONYMOUS_UPLOAD_MINUTE_LIMIT = 12
-ANONYMOUS_TOKEN_UPLOAD_HOUR_LIMIT = 80
-ANONYMOUS_DAILY_UPLOAD_MB = 2048
-ANONYMOUS_SHARE_CREATE_MINUTE_LIMIT = 10
-ANONYMOUS_TOKEN_SHARE_HOUR_LIMIT = 60
-USER_UPLOAD_MINUTE_LIMIT = 60
-USER_SHARE_CREATE_MINUTE_LIMIT = 30
-PUBLIC_SUBMISSION_MINUTE_LIMIT = 6
-PUBLIC_SUBMISSION_TASK_HOUR_LIMIT = 20
-PUBLIC_TASK_DAILY_UPLOAD_MB = 10240
-PICKUP_MINUTE_LIMIT = 20
-PICKUP_HOUR_LIMIT = 80
-SHARE_VIEW_MINUTE_LIMIT = 40
-SHARE_VIEW_HOUR_LIMIT = 240
-SHARE_PASSWORD_MINUTE_LIMIT = 10
-SHARE_PASSWORD_HOUR_LIMIT = 30
-SHARE_DOWNLOAD_MINUTE_LIMIT = 60
-SHARE_DOWNLOAD_HOUR_LIMIT = 300
-QRCODE_MINUTE_LIMIT = 12
-QRCODE_HOUR_LIMIT = 60
-TASK_PUBLIC_MINUTE_LIMIT = 40
-TASK_PUBLIC_HOUR_LIMIT = 240
-TASK_ACCESS_CODE_MINUTE_LIMIT = 10
-TASK_ACCESS_CODE_HOUR_LIMIT = 30
-SUBMISSION_RECEIPT_MINUTE_LIMIT = 20
-SUBMISSION_RECEIPT_HOUR_LIMIT = 120
-MAX_ZIP_FILES = 100
-MAX_ZIP_MB = 512
-ZIP_MINUTE_LIMIT = 3
-ALLOWED_ORIGINS = https://file.jfyuntu.com,https://file-test.jfyuntu.com,https://pic.jfyuntu.com,https://pic-test.jfyuntu.com,https://api.jfyuntu.com,https://api-test.jfyuntu.com,http://localhost:5178,http://127.0.0.1:5178
-
 # 日志配置
 LOG_CHANNEL = file
 
@@ -178,34 +110,20 @@ php -S localhost:8080
 
 访问地址：
 - API接口：http://localhost:8000/api/
+- 管理后台：http://localhost:8000/index/
 
 #### 方式二：使用Nginx（生产环境）
 
 创建Nginx配置文件 `/etc/nginx/sites-available/jiafangyun`：
 
 ```nginx
-# 放在 nginx.conf 的 http {} 内，只需要定义一次。
-limit_req_zone $binary_remote_addr zone=file_public_api:10m rate=10r/s;
-
 server {
     listen 80;
     server_name localhost;
     root /Users/mac/Documents/jiafangyun/newjfybackend/public;
     index index.php;
-    client_max_body_size 520m;
-    client_body_timeout 120s;
-    keepalive_timeout 30s;
-
-    add_header X-Content-Type-Options nosniff always;
-    add_header X-Frame-Options SAMEORIGIN always;
-    add_header Referrer-Policy strict-origin-when-cross-origin always;
 
     location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ^~ /api/file/ {
-        limit_req zone=file_public_api burst=30 nodelay;
         try_files $uri $uri/ /index.php?$query_string;
     }
 
@@ -213,16 +131,7 @@ server {
         fastcgi_pass 127.0.0.1:9000;  # 或 unix:/var/run/php-fpm.sock
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        fastcgi_read_timeout 180s;
         include fastcgi_params;
-    }
-
-    location ~* ^/uploads/.*\.(php|phtml|phar|asp|aspx|jsp|jspx|cgi|pl|sh)$ {
-        deny all;
-    }
-
-    location /uploads/ {
-        add_header X-Content-Type-Options nosniff always;
     }
 
     # 禁止访问敏感目录
@@ -238,16 +147,6 @@ sudo nginx -t  # 测试配置
 sudo nginx -s reload  # 重载配置
 ```
 
-文件传输生产环境上线前必须确认：
-
-- `RECEIPT_TOKEN_SECRET` 已替换为 32 位以上随机密钥，不能使用示例值。
-- `ALLOWED_ORIGINS` 仅保留当前环境真实域名，不要使用 `*`。
-- 已安装并验证 ClamAV，`ENABLE_ANTIVIRUS_SCAN = true` 后 `clamscan` 返回 1 会阻断上传。
-- 对象存储直传启用前必须配置 bucket CORS、短期凭证和 `DIRECT_UPLOAD_SECRET`，否则保持 `ENABLE_DIRECT_UPLOAD = false`。
-- Nginx/CDN 层同时配置请求频率、上传大小、连接超时和上传目录禁止脚本执行。
-- 定时执行 `php think file:upload-health --webhook <url>` 和 `php think file:risk-report --threshold 10 --webhook <url>`。
-- 运行 `php -l` 检查改动 PHP 文件，并对上传、分享、取件码、投稿、回执、ZIP 下载做冒烟测试。
-
 #### 方式三：使用Apache
 
 确保启用 `mod_rewrite` 模块，并配置虚拟主机。
@@ -258,7 +157,8 @@ sudo nginx -s reload  # 重载配置
 # 测试API接口
 curl http://localhost:8000/api/index
 
-# 旧 PHP 管理后台已废弃并移除，后台管理统一在 AI 管理后台维护。
+# 测试管理后台
+curl http://localhost:8000/index/
 ```
 
 ## 三、常见问题
@@ -375,6 +275,7 @@ curl -H "authorization-token: Bearer YOUR_TOKEN" \
 newjfybackend/
 ├── app/              # 应用目录
 │   ├── api/         # API应用
+│   ├── index/       # 管理后台应用
 │   └── common/      # 公共模块
 ├── config/          # 配置文件
 ├── public/          # Web根目录（入口文件）

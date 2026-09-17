@@ -172,26 +172,23 @@ Route::any('pay/callback', 'PayNotifyController/orderNotify'); //支付回调通
 // 文件传输相关。使用 PostgreSQL ai_jf 库 ft_ 前缀表，独立于相册 MySQL 表。
 Route::group('file', function (){
     Route::post('files/upload', 'FileTransferApiController/uploadFiles')->middleware('auth', false);
-    Route::post('files/direct_upload_policy', 'FileTransferApiController/directUploadPolicy')->middleware('auth', false);
-    Route::post('files/register', 'FileTransferApiController/registerFile')->middleware('auth', false);
     Route::get('shares/public', 'FileTransferApiController/getPublicShare')->middleware('auth', false);
-    Route::get('shares/pickup', 'FileTransferApiController/getShareByPickupCode')->middleware('auth', false);
     Route::post('shares/verify_password', 'FileTransferApiController/verifySharePassword')->middleware('auth', false);
     Route::post('shares/qrcode', 'FileTransferApiController/getShareQrcode')->middleware('auth', false);
     Route::get('shares/download', 'FileTransferApiController/downloadSharedFile')->middleware('auth', false);
     Route::post('shares', 'FileTransferApiController/createShare')->middleware('auth', false);
     Route::get('shares', 'FileTransferApiController/listShares')->middleware('auth', false);
     Route::get('shares/detail', 'FileTransferApiController/getShare')->middleware('auth', false);
-    Route::post('collection/tasks', 'FileCollectionApiController/createTask')->middleware('auth', false);
     Route::get('collection/tasks/public', 'FileCollectionApiController/getPublicTask')->middleware('auth', false);
     Route::post('collection/tasks/verify_access_code', 'FileCollectionApiController/verifyPublicTaskAccessCode')->middleware('auth', false);
     Route::post('collection/submissions', 'FileCollectionApiController/submitPublicTask')->middleware('auth', false);
     Route::get('collection/submissions/receipt', 'FileCollectionApiController/getPublicSubmissionReceipt')->middleware('auth', false);
 
     Route::group('', function (){
+        Route::post('files/register', 'FileTransferApiController/registerFile');
         Route::get('files/download', 'FileTransferApiController/downloadFile');
-        Route::get('files/upload_health', 'FileTransferApiController/uploadHealth');
 
+        Route::post('collection/tasks', 'FileCollectionApiController/createTask');
         Route::get('collection/tasks', 'FileCollectionApiController/listTasks');
         Route::get('collection/tasks/detail', 'FileCollectionApiController/getTask');
         Route::post('collection/tasks/archive', 'FileCollectionApiController/archiveTask');

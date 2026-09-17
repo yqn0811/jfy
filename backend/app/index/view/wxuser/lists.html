@@ -1,0 +1,432 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navVIP" class="navVIP1">
+<style type="text/css">
+    .user_labelShow {
+        padding: 2px 7px;
+        border-radius: 3px;
+    }
+    .flex_box {
+        display: flex;
+        align-items: baseline;
+    }
+    .user_nickname {
+        width: 115px;
+        word-break: break-all;
+    }
+    /* 修改userM_con居中样式，保持内部元素左对齐 */
+    .userM_con.center-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    .userM_con.center-content > .flex_box {
+        width: 100%;
+        max-width: 500px; /* 可根据需要调整 */
+    }
+
+    .userM_con.center-content .userM_cleft {
+        min-width: 100px; /* 保持标签宽度一致 */
+    }
+
+    .userM_con.center-content .userM_cright {
+        flex: 1; /* 让右侧内容占据剩余空间 */
+    }
+</style>
+
+<script type="text/javascript">
+    function getKey() {
+        if (event.keyCode == 13) {
+            searchData();
+        }
+    }
+    function searchData() {
+        var user_info = $('#user_info').val();
+        window.location.href = "{:Url('WxuserController/lists')}?vip=" + $('#vip').val() + "&user_info=" + user_info;
+    }
+
+    function toExcel() {
+        var user_info = $('#user_info').val();
+        location.href = "{:Url('WxuserController/toUserExcel')}?vip=" + $('#vip').val() + "&user_info=" + user_info + "&toexcel=1";
+    }
+</script>
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box">
+            <div class="public_select_search_btn_box">
+                <div class="search_box_content search_box_title">会员:</div>
+                <select class="search_box_content" name="vip" id="vip" >
+                    <option value="all" {if isset($vip)}{if $vip=='all'} selected="selected" {/if}{/if} >全部</option>
+                    <option value="0" {if isset($vip)}{if $vip=='0'} selected="selected" {/if}{/if} >普通用户</option>
+                    {foreach $grade_arr as $i}
+                    <option value="{$i['grade_level']}" {if $vip== $i['grade_level']}selected='selected'{/if}>{$i['grade_name']}({$i['grade_level']}级)</option>
+                    {/foreach}
+                </select>
+                <input type="text" name="user_info" value="{if isset($_GET['user_info'])}{$_GET['user_info']}{/if}" id="user_info" class="search_box_content" placeholder="昵称或手机号的关键字" autocomplete="off" onkeypress="getKey()">
+                <a onclick="searchData()" class="btn btn-primary mr-10">搜索</a>
+                <a onclick="toExcel()" class="btn btn-success mr-10" />导出</a>
+            </div>
+
+            <div class="portlet-body">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th style="width: 120px;">ID</th>
+                        <th style="width: 300px;">用户信息</th>
+                        <th style="width: 200px;">会员等级</th>
+                        <th style="width: 160px;">加入时间</th>
+                        <th style="width: 160px;">到期时间</th>
+                        <th style="width: 160px;">相册数量</th>
+<!--                        <th style="width: 260px;">操作</th>-->
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    {if $user}
+                    {foreach $user as $item}
+                    <tr>
+                        <td>
+                            {$item.id}
+                        </td>
+                        <td class="text-left">
+                            <img src="{$item.avatar}" onerror="this.src='/image/users/user_default.png'" class="list_avatar_img align-baseline mr-10" >
+                            <div class="d-inline-block">
+                                <div class="mb-5 flex_box">
+                                    <span class="badge badge-info mr-10">昵称</span>
+                                    <div class="user_nickname">{$item.nickname}</div>
+                                </div>
+                                {if $item.mobile}<div class="mb-5"><span class="badge badge-warning mr-10">手机</span>{$item.mobile}</div>{/if}
+                            </div>
+                        </td>
+
+                        <td>
+                            {if $item.vip_grade > 0}
+                            {$item->VipGradeInfo['grade_name']}({$item->vip_grade}级)
+                            {else}
+                            普通用户
+                            {/if}
+                            <div class="iconfont icon-x-bianji" onclick="openEdit('grade', '{$item.id}')"></div>
+                        </td>
+                        <td>{$item.create_time}</td>
+                        <td>
+                            {$item->gradeInfo->EndTimeStr}
+                        </td>
+                        <td style="text-align:center;padding:0;">
+                            <div class="mb-5">
+                                <span>相册：</span>
+                                <a class="text-primary" style="text-decoration:underline!important;"
+                                   href="{:Url('AlbumController/albumLists')}?uid={$item.id}">
+                                    {$item.album->count()} </a>
+                            </div>
+                        </td>
+                        <!--<td>
+                            <a class="btn btn-outline-primary mt-5" href="javascript:;" onclick="openDeatil({$item.id})">详情</a>
+                        </td>-->
+                    </tr>
+                    {/foreach}
+                    {/if}
+                    </tbody>
+                </table>
+
+                <!-- 分页 -->
+                <div class="fenye_bottomBox">
+                    <div class="fenye_left">
+                        一共查询到<font color="red" style="padding:0 10px;">{$user->total()}</font>条数据
+                    </div>
+                    <div class="fenye_right">
+                        {$user|raw}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function userRole(id,itemRules) {
+        layer.open({
+            type: 1,
+            content: $("#userRoleModal"),
+            title: ["访问权限","text-align:center;padding:0;font-weight:600;font-size:17px"],
+            area: ["600px", "286px"],
+            btn: ["确定","取消"],
+            btnAlign: 'c',
+            closeBtn: 0,
+            success:function(){
+                $("input[type='checkbox']").prop('checked',false)
+                $("input[type='checkbox']").parent().removeClass('checked')
+                if (itemRules.indexOf(1) != -1){
+                    $("input[type='checkbox']").prop('checked',true)
+                    $("input[type='checkbox']").parent().addClass('checked')
+                    return false
+                }
+                if (itemRules.indexOf(2) != -1){
+                    $("input[name='wei']").prop('checked',true)
+                    $("input[name='wei']").parent().addClass('checked')
+                    $("input[name='pushs']").prop('checked',true)
+                    $("input[name='pushs']").parent().addClass('checked')
+                    $("input[name='replys']").prop('checked',true)
+                    $("input[name='replys']").parent().addClass('checked')
+                }
+                if (itemRules.indexOf(3) != -1){
+                    $("input[name='pushs']").prop('checked',true)
+                    $("input[name='pushs']").parent().addClass('checked')
+                }
+                if (itemRules.indexOf(4) != -1){
+                    $("input[name='replys']").prop('checked',true)
+                    $("input[name='replys']").parent().addClass('checked')
+                }
+            },
+            btn1:function(index){
+                let rulesArr = []
+                $("input[type='checkbox']:checked").each(function(){
+                    rulesArr.push($(this).val())
+                })
+                $.ajax({
+                    url: "{:url('index/WxuserController/allocateRules')}",
+                    type: "POST",
+                    data: {
+                        "rules": rulesArr,
+                        "uniacid": 1,
+                        "id": id
+                    },
+                    dataType:"JSON",
+                    success:function(data){
+                        if (data.code == 0){
+                            layer.msg(data.msg)
+                            layer.close(index)
+                            setTimeout(()=>{
+                                location.reload()
+                            },1000)
+                        } else {
+                            layer.msg(data.msg)
+                        }
+                    }
+                })
+            }
+        })
+    }
+
+    // 编辑用户详情
+    function openDeatil(_uid){
+        layer.open({
+            skin: 'layui-wxuser',
+            type: 2,
+            title: false,
+            area: ['100%'],
+            fixed: false, //不固定
+            closeBtn: 0,
+            anim: 5,
+            content: ['{:Url("WxuserController/userInfo")}?aid='+_uid, 'no']
+        });
+    }
+
+    function openEdit(_type, user_id){
+        layer.open({
+            type: 1,
+            content: $('#changeusergrade'),
+            title: ["修改会员等级", "text-align:center;padding:0;font-weight:600;font-size:17px"],
+            area: ["740px", "300px"],
+            btn: ["确定", "取消"],
+            btnAlign: 'c',
+            closeBtn: 0,
+            success: function () {
+                console.log('确定')
+            },
+            yes: function (index){
+                // 获取表单数据
+                var dateType = $("input[name='date_type']:checked").val();
+                var endTime = '';
+                var vipGrade = $("select[name='vip_grade']").val();
+
+                // 根据日期类型获取结束时间
+                if(dateType == '1') {
+                    endTime = '永久有效';
+                } else {
+                    endTime = $("#datetimepicker_date").val();
+                }
+
+                // 验证数据
+                if(!endTime) {
+                    layer.msg('请选择到期时间');
+                    return;
+                }
+
+                // 提交数据到接口
+                $.ajax({
+                    url: "{:Url('WxuserController/updateUserGrade')}", // 替换为实际的接口地址
+                    type: "POST",
+                    dataType: 'json',
+                    data: {
+                        user_id: user_id, // 用户ID，需要根据实际情况传递
+                        date_type: dateType,
+                        end_time: endTime,
+                        vip_grade: vipGrade
+                    },
+                    success: function(result){
+                        if(result.code == 1){
+                            layer.msg("操作成功", {
+                                time: 1000,
+                            });
+                            layer.close(index);
+                            setTimeout(() => {
+                                location.reload();
+                            }, 1000);
+                        } else {
+                            layer.msg(result.msg);
+                        }
+                    },
+                    error: function(){
+                        layer.msg('网络错误，请重试');
+                    }
+                });
+            }
+        })
+    }
+
+    // 修改会员信息
+    function changeDate() {
+        var type = $("input[name='date_type']:checked").val();
+        if (type == 1) {
+            $("#date_time").hide();
+        } else {
+            $("#date_time").show();
+        }
+    }
+</script>
+
+
+{include file="public/foot_more" /}
+
+<div id="changeusergrade"class="form-horizontal" style="display: none;padding-top: 40px;">
+    <div class="userM_con center-content">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">会员有效期：</div>
+            <div class="userM_cright flex_box">
+                <label class="radio">
+                    <input type="radio" name="date_type" onchange="changeDate()" value="2" checked='checked' />
+                    指定日期
+                </label>
+                <label class="radio">
+                    <input type="radio" name="date_type" onchange="changeDate()" value="1" />
+                    永久有效
+                </label>
+            </div>
+        </div>
+        <div class="flex_box mb-25" id="date_time" >
+            <div class="userM_cleft">指定日期：</div>
+            <div class="userM_cright flex_box datetimepicker_date">
+                <input name="end_time" id="datetimepicker_date"
+                       value="{if $item.end_time != '永久有效'}{$item.end_time}{/if}" readonly>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">会员等级：</div>
+            <div class="userM_cright flex_box">
+                <select name="vip_grade">
+                    <option value="0">普通用户</option>
+                    {if $grade_arr}
+                    {foreach $grade_arr as $it}
+                    <option value="{$it.grade_level}" >{$it.grade_name}
+                    </option>
+                    {/foreach}
+                    {/if}
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="userMask"></div>
+
+<div class="userMask_con userM_grade">
+    <div class="userM_title flex_bbox">
+        <div>修改会员信息</div>
+        <div class="iconfont icon-x-guanbi" onclick="closeEdit()"></div>
+    </div>
+    <div class="userM_con">
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">会员有效期：</div>
+            <div class="userM_cright flex_box">
+                <label class="radio">
+                    <input type="radio" name="date_type" onchange="changeDate()" value="1" {if
+                           $item.end_time=='永久有效' }checked='checked' {/if} />
+                    永久有效
+                </label>
+                <label class="radio">
+                    <input type="radio" name="date_type" onchange="changeDate()" value="2" {if $item.end_time
+                           !='永久有效' }checked='checked' {/if} />
+                    指定日期
+                </label>
+            </div>
+        </div>
+        <div class="flex_box mb-25" id="date_time"
+             style="display:{if $item.end_time != '永久有效'}flex{else}none{/if};">
+            <div class="userM_cleft">指定日期：</div>
+            <div class="userM_cright flex_box datetimepicker_date">
+                <input name="end_time" id="datetimepicker_date"
+                       value="{if $item.end_time != '永久有效'}{$item.end_time}{/if}" readonly>
+            </div>
+        </div>
+        <div class="flex_box mb-25">
+            <div class="userM_cleft">会员等级：</div>
+            <div class="userM_cright flex_box">
+                <select name="vip_grade">
+                    <option value="0">普通用户</option>
+                    {if $grade_arr}
+                    {foreach $grade_arr as $it}
+                    <option value="{$it.grade_level}" >{$it.grade_name}
+                    </option>
+                    {/foreach}
+                    {/if}
+                </select>
+            </div>
+        </div>
+        <div>若任意【会员等级】有设置“累计消费”规则，请确认【是否参与累消升级】的配置，仔细阅读提示后，再进行等级修改！</div>
+    </div>
+    <div class="userM_btns flex_box">
+        <div class="btn btnClose_left" onclick="closeEdit()">取消</div>
+        <div class="btn btn-primary ml-15" onclick="sureGrade()">确定</div>
+    </div>
+</div>
+
+<script>
+    $("input[name='alls']").change(function(){
+        let allsChecked = $(this).prop('checked')
+        if (allsChecked == true)
+        {
+            $("input[type='checkbox']").prop('checked',true)
+            $("input[type='checkbox']").parent().addClass('checked')
+        } else {
+            $("input[type='checkbox']").prop('checked',false)
+            $("input[type='checkbox']").parent().removeClass('checked')
+        }
+    })
+
+    $("input[name='wei']").change(function(){
+        let allsChecked = $(this).prop('checked')
+        if (allsChecked == true)
+        {
+            $("input[name='pushs']").prop('checked',true)
+            $("input[name='pushs']").parent().addClass('checked')
+            $("input[name='replys']").prop('checked',true)
+            $("input[name='replys']").parent().addClass('checked')
+        } else {
+            $("input[name='pushs']").prop('checked',false)
+            $("input[name='pushs']").parent().removeClass('checked')
+            $("input[name='replys']").prop('checked',false)
+            $("input[name='replys']").parent().removeClass('checked')
+        }
+    })
+
+
+
+</script>

@@ -1,0 +1,198 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navAlbum" class="navAlbum1">
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box">
+            <div class="portlet-body">
+
+                <div class="input-box mb-20">
+                    {if !$album_info || ($album_info && $album_info.folder_type == 1)}
+                    <div class="btn-group mr-10">
+                        <button id="sample_new" class="btn btn-primary" onclick="addPackage(0, 1, {$album_id})">
+                            新增文件夹
+                        </button>
+                    </div>
+                    <div class="btn-group mr-10">
+                        <button id="sample_editable_1_new" class="btn btn-primary" onclick="addPackage(0, 2, {$album_id})">
+                            新增相册
+                        </button>
+                    </div>
+                    {/if}
+
+                    {if $album_info && $album_info.folder_type == 1}
+                    
+                    {/if}
+                </div>
+
+
+
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>名称</th>
+                        <th>缩略图</th>
+                        <th>子文件数</th>
+                        <th>类型</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {if $lists}
+                    {foreach $lists as $item}
+                    <tr>
+                        <td><a href="javascript:;" data-clipboard-text="{$item.id}" onclick="copyid({$item.id})" class="badge badge-gray js-clip{$item.id}">{$item.id}</a></td>
+                        <td>{$item.folder_name}</td>
+                        <td>
+                            <img class="list_pro_img" src="{if $item.new_thumb}{$item.new_thumb}{else}/image/noimage_1.png{/if}" />
+                        </td>
+                        <td>{$item.SonCount}</td>
+                        <td>
+                            {if $item.folder_type == 1}
+                            <span class="btn btn-sm btn-outline-primary mb-5">文件夹</span>
+                            {else}
+                            <span class="btn btn-sm btn-outline-danger mb-5">相册</span>
+                            {/if}
+                        </td>
+                        <td>
+                            {if $item.folder_type == 2}
+                            <a class="btn btn-outline-primary" href="{:Url('AlbumController/exampleAlbumPic')}?album_id={$item.id}">查看</a>
+                            {else}
+                            <a class="btn btn-outline-primary" href="{:Url('AlbumController/exampleAlbum')}?album_id={$item.id}">查看</a>
+                            {/if}
+                            <button class="btn btn-outline-success" onclick="addPackage('{$item.id}', '{$item.folder_type}', '{$item.pid}')">编辑</button>
+                            <a class="btn btn-outline-danger" onclick="return confirm('该删除操作不可逆，请谨慎操作！'); return false;" href="{:Url('AlbumController/deleteExampleAlbumFolder')}?album_id={$item.id}">
+                                删除
+                            </a>
+                        </td>
+                    </tr>
+                    {/foreach}
+                    {/if}
+                    </tbody>
+                </table>
+
+                <!-- 分页 -->
+                <div class="fenye_bottomBox">
+                    <div class="fenye_left">
+                        一共查询到<font color="red" style="padding:0 10px;">{$lists->total()}</font>条数据
+                    </div>
+                    <div class="fenye_right">
+                        {$lists|raw}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function addPackage(fid, type=1, pid=0){
+        if(fid){
+            $.ajax({
+                url:"{:Url('index/AlbumController/editCate')}",
+                type:"GET",
+                dataType:'json',
+                data:{
+                    appletid: 1,
+                    fid: fid,
+                },
+                success:function(result){
+                    if(result.code == 1){
+                        $("#sort").val(result.data.sort)
+                        $("#cate_name").val(result.data.folder_name)
+                        $("#folder_type").val(result.data.folder_type)
+                        $("#pid").val(result.data.pid)
+                        showContent(fid)
+                    }else{
+                        alert(result.msg)
+                    }
+                }
+            })
+        }else{
+            $("#sort_num").val(0)
+            $("#cate_name").val('')
+            $("#folder_type").val(type)
+            $("#pid").val(pid)
+            showContent(fid)
+        }
+    }
+
+    function showContent(fid){
+        layer.open({
+            type: 1,
+            content: $('#checkOut'),
+            title: ["信息", "text-align:center;padding:0;font-weight:600;font-size:17px"],
+            area: ["800px", "300px"],
+            btn: ["确定", "取消"],
+            btnAlign: 'c',
+            closeBtn: 0,
+            success: function () {
+                console.log('确定')
+            },
+            yes: function (index){
+                var sort = $("#sort").val()
+                var cate_name = $("#cate_name").val()
+                var folder_type = $("#folder_type").val()
+                var pid = $("#pid").val()
+                if(!cate_name){
+                    alert('请输入名称')
+                    return false
+                }
+                $.ajax({
+                    url:"{:Url('index/AlbumController/saveCate')}",
+                    type:"post",
+                    dataType:'json',
+                    data:{
+                        appletid: 1,
+                        fid: fid,
+                        sort: sort,
+                        cate_name: cate_name,
+                        folder_type: folder_type,
+                        pid: pid,
+                    },
+                    success:function(result){
+                        if(result.code == 1){
+                            layer.msg("操作成功！", {
+                                time: 1000,
+                            });
+                            setTimeout(() => {
+                                location.reload()
+                            }, 1000);
+                        }else{
+                            alert(result.msg)
+                        }
+                    }
+                })
+            }
+        })
+    }
+</script>
+
+{include file="public/foot_more" /}
+
+<div id="checkOut" class="form-horizontal" style="display: none;padding-top: 40px;">
+    <input type="hidden" name="folder_type" id="folder_type">
+    <input type="hidden" name="pid" id="pid">
+    <div class="control-group">
+        <label class="control-label">排序：</label>
+        <div class="controls">
+            <div class="controls-content controls-content-input-group">
+                <input name="sort" id="sort" type="number" min="0" step="1" class="controls-content" style="width: 60%;" value="0"/>
+                <span class="help-block">数字越大越靠前</span>
+            </div>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">名称：</label>
+        <div class="controls">
+            <div class="controls-content controls-content-input-group">
+                <input name="cate_name" id="cate_name" type="text" class="controls-content" style="width: 60%;" value=""/>
+                <span class="help-block">名称</span>
+            </div>
+        </div>
+    </div>
+</div>

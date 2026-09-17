@@ -15,11 +15,9 @@ import {
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import SafeIcon from '@/components/common/SafeIcon.vue'
-import FallbackImage from '@/components/common/FallbackImage.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { pcApi } from '@/lib/api'
 import { mapProduct } from '@/lib/jfyuntu-mappers'
-import { navigateToInternal } from '@/navigation'
 import type { ProductVO } from '@/data/ProductService'
 import { toast } from 'vue-sonner'
 
@@ -191,30 +189,22 @@ const handleCopyCombined = async () => {
   }
 }
 
-const handleToggleUpload = () => {
-  if (uploadEnabled.value && passwordEnabled.value && !password.value) {
+const handleToggleUpload = (checked: boolean) => {
+  uploadEnabled.value = checked
+  if (checked && passwordEnabled.value && !password.value) {
     password.value = generatePassword()
   }
 }
 
-const toggleUploadEnabled = () => {
-  uploadEnabled.value = !uploadEnabled.value
-  handleToggleUpload()
-}
-
 // 切换密码启用
-const handleTogglePassword = () => {
-  if (passwordEnabled.value) {
+const handleTogglePassword = (checked: boolean) => {
+  passwordEnabled.value = checked
+  if (checked) {
     uploadEnabled.value = true
     if (!password.value) {
       password.value = generatePassword()
     }
   }
-}
-
-const togglePasswordEnabled = () => {
-  passwordEnabled.value = !passwordEnabled.value
-  handleTogglePassword()
 }
 
 // 刷新密码
@@ -280,7 +270,7 @@ const handleCancel = () => {
     emit('cancel')
     return
   }
-  navigateToInternal('./product-management')
+  window.location.href = './product-management.html'
 }
 
 // 查看产品
@@ -289,7 +279,7 @@ const handleViewProduct = () => {
     emit('view-product', currentProductId.value)
     return
   }
-  navigateToInternal(`./share-home?productId=${currentProductId.value}`)
+  window.location.href = `./share-home.html?productId=${currentProductId.value}`
 }
 
 onMounted(() => {
@@ -334,16 +324,18 @@ const expireLabel = computed(() => {
         <div class="space-y-4">
           <Card class="surface-raised">
             <CardContent class="flex items-center gap-4 p-4">
-              <FallbackImage
-                :src="productData?.coverUrl"
-                :candidates="productData?.coverUrlCandidates"
+              <img
+                v-if="productData?.coverUrl"
+                :src="productData.coverUrl"
                 :alt="productData?.name || '产品封面'"
                 class="h-16 w-16 rounded-lg object-cover bg-muted"
+              />
+              <div
+                v-else
+                class="h-16 w-16 rounded-lg bg-muted flex items-center justify-center shrink-0"
               >
-                <div class="h-16 w-16 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                  <SafeIcon name="Image" :size="22" class="text-muted-foreground" />
-                </div>
-              </FallbackImage>
+                <SafeIcon name="Image" :size="22" class="text-muted-foreground" />
+              </div>
               <div class="min-w-0 flex-1">
                 <h3 class="text-item-title font-medium truncate">{{ productData?.name || '未命名产品' }}</h3>
                 <p class="text-caption mt-1 line-clamp-1">{{ productData?.intro || '暂无产品简介' }}</p>
@@ -401,41 +393,25 @@ const expireLabel = computed(() => {
               <CardDescription>关闭后，此产品协同编辑入口无法访问</CardDescription>
             </CardHeader>
             <CardContent class="space-y-4">
-              <div
-                role="button"
-                tabindex="0"
-                class="flex w-full items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/30"
-                @click="toggleUploadEnabled"
-                @keydown.enter.prevent="toggleUploadEnabled"
-                @keydown.space.prevent="toggleUploadEnabled"
-              >
+              <div class="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
                 <div class="flex items-center gap-2">
                   <Label class="text-label">开启协同编辑入口</Label>
                   <SafeIcon name="UploadCloud" :size="14" class="text-muted-foreground" />
                 </div>
                 <Switch
-                  v-model="uploadEnabled"
-                  @update:model-value="handleToggleUpload"
-                  @click.stop
+                  :checked="uploadEnabled"
+                  @update:checked="handleToggleUpload"
                 />
               </div>
 
-              <div
-                role="button"
-                tabindex="0"
-                class="flex w-full items-center justify-between gap-4 rounded-lg p-3 text-left transition-colors hover:bg-muted/30"
-                @click="togglePasswordEnabled"
-                @keydown.enter.prevent="togglePasswordEnabled"
-                @keydown.space.prevent="togglePasswordEnabled"
-              >
+              <div class="flex items-center justify-between gap-4">
                 <div class="flex items-center gap-2">
                   <Label class="text-label">启用访问密码</Label>
                   <SafeIcon name="Lock" :size="14" class="text-muted-foreground" />
                 </div>
                 <Switch
-                  v-model="passwordEnabled"
-                  @update:model-value="handleTogglePassword"
-                  @click.stop
+                  :checked="passwordEnabled"
+                  @update:checked="handleTogglePassword"
                 />
               </div>
 

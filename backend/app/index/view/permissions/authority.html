@@ -1,0 +1,343 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navPower" class="navPower2">
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box ">
+            <div class="mb-20">
+                <button class="btn btn-primary" onclick="addpart()" >新增角色</button>
+            </div>
+            <div class="portlet-body">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th style="width: 50px">ID</th>
+                        <th style="width: 150px">角色名称</th>
+                        <th style="width: 100px">创建时间</th>
+                        <th style="width: 100px">操作</th>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    {foreach $execute_data as $v}
+                    <tr>
+                        <td>{$v.id}</td>
+                        <td>{$v.authority_name}</td>
+                        <td>{$v->create_time}</td>
+                        <td>
+                            <a class="btn btn-outline-primary" href="javascript:void(0)" onclick="editpart(this)" data-id="{$v.id}">编辑</a>
+                            <a class="btn btn-outline-warning" href="javascript:void(0)" onclick="user_power(this)" data-id="{$v.id}">分配权限</a>
+                            <a class="btn btn-outline-danger" onclick="return confirm('删除角色，确认要删除吗？'); return false;" href="{:Url('PermissionsController/partDel')}?id={$v.id}">删除</a>
+                        </td>
+                    </tr>
+                    {/foreach}
+                    </tbody>
+                </table>
+
+                <!-- 分页 -->
+                <div class="fenye_bottomBox">
+                    <div class="fenye_left">
+                        一共查询到<font color="red" style="padding:0 10px;"></font>条数据
+                    </div>
+                    <div class="fenye_right">
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/layui/layui.js" type="text/javascript" charset="utf-8"></script>
+<link href="/layui/css/layui.css" rel="stylesheet" type="text/css"/>
+<script>
+    layui.use(['layer', 'upload', 'tree'], function () {
+        var layer = layui.layer;
+        var upload = layui.upload;
+        //执行实例
+        var uploadInst = upload.render({
+            elem: '#upicon' //绑定元素
+            , url: "{:Url('UserRole/iconupload')}" //上传接口
+            , done: function (res) {
+                //上传完毕回调
+                $('#icon').attr('src', res.data.src);
+            }
+            , error: function () {
+                //请求异常回调
+            }
+        });
+
+        //执行实例
+        var uploadInst = upload.render({
+            elem: '#upicon_e' //绑定元素
+            , url: "{:Url('UserRole/iconupload')}" //上传接口
+            , done: function (res) {
+                //上传完毕回调
+                $('#icon_e').attr('src', res.data.src);
+            }
+            , error: function () {
+                //请求异常回调
+            }
+        });
+    });
+
+    // 新增管理员异步操作
+    function addpart() {
+        var layer = layui.layer;
+        layer.open({
+            type: 1,
+            title: ['新增角色', 'font-size:18px;'],
+            area: ['500px', '266px'],
+            offset: 'auto',
+            btn: ['确定', '取消'],
+            btnAlign: 'c',
+            shadeClose: true,
+            anim: 5,
+            maxmin: true,
+            scrollbar: false,
+            content: $('#adduser'), //这里content是一个dom
+            yes: function (index, layero) {
+                //按钮【按钮一】的回调
+                var partname = $('#partname').val();
+                if (partname == null || partname == undefined || partname == '') {
+                    layer.msg('角色名称为空,请填写角色名称');
+                    return false;
+                }
+                $.ajax({
+                    url: "{:Url('PermissionsController/saveAuthority')}",
+                    data: {
+                        'partname': partname,
+                    },
+                    type: 'post',
+                    dataType: 'json',
+                    success: function (jsonData) {
+                        if (jsonData.code == 1) {
+                            parent.location.reload();
+                        }else{
+                            alert(jsonData.msg)
+                        }
+                    }
+                })
+            },
+            btn2: function (index, layero) {
+                //按钮【按钮二】的回调
+            }
+        });
+    }
+
+    // 编辑管理员异步操作
+    function editpart(that) {
+        var layer = layui.layer;
+        var id = $(that).attr('data-id');
+        $.ajax({
+            url: "{:Url('PermissionsController/getAuthority')}",
+            data: {
+                'id': id,
+                'appletid': "1"
+            },
+            type: 'post',
+            dataType: 'json',
+            success: function (jsonDatas) {
+                console.log(jsonDatas)
+                if (jsonDatas.code == 1) {
+                    $('#partname_e').val(jsonDatas.data.authority_name);
+                }else{
+                    alert(jsonData.msg)
+                }
+            }
+        })
+        layer.open({
+            type: 1,
+            title: ['编辑角色', 'font-size:18px;'],
+            area: ['500px', '266px'],
+            offset: 'auto',
+            btn: ['确定', '取消'],
+            btnAlign: 'c',
+            shadeClose: true,
+            anim: 5,
+            maxmin: true,
+            scrollbar: false,
+            content: $('#edituser'), //这里content是一个dom
+            yes: function (index, layero) {
+                //按钮【按钮一】的回调
+                var partname = $('#partname_e').val();
+                var appletid = "1";
+
+                console.log()
+
+                if (partname == null || partname == undefined || partname == '') {
+                    layer.msg('角色名称为空,请填写角色名称');
+                    return false;
+                }
+
+                $.ajax({
+                    url: "{:Url('PermissionsController/saveAuthority')}",
+                    data: {
+                        'partname': partname,
+                        'appletid': appletid,
+                        'id': id
+                    },
+                    type: 'post',
+                    dataType: 'json',
+                    success: function (jsonData) {
+                        if (jsonData.code == 1) {
+                            parent.location.reload();
+                        }else{
+                            alert(jsonData.msg)
+                        }
+                    }
+                })
+            },
+            btn2: function (index, layero) {
+                //按钮【按钮二】的回调
+            }
+        });
+    }
+
+    function user_power(that) {
+        var layer = layui.layer;
+        var tree = layui.tree;
+        console.log(tree)
+        var id = $(that).attr('data-id');
+        $.ajax({
+            url: "{:Url('PermissionsController/getAuthorityRuleInfo')}",
+            data: {
+                'id': id,
+                'appletid': "1"
+            },
+            type: 'post',
+            dataType: 'json',
+            success: function (jsonDatas) {
+                if (jsonDatas.code == 1) {
+                    //渲染
+                    var inst1 = tree.render({
+                        elem: '#trees',  //绑定元素
+                        data: jsonDatas.data.all_rule,
+                        showCheckbox: true,
+                        id: 'power'
+                    });
+                    if (jsonDatas.data.info.rule_info) {
+                        tree.setChecked('power', jsonDatas.data.info.rule_info);
+                    }
+                }else{
+                    alert(jsonData.msg)
+                }
+            }
+        })
+        layer.open({
+            type: 1,
+            title: ['分配权限', 'font-size:18px;'],
+            area: ['50%', '500px'],
+            offset: 'auto',
+            btn: ['确定', '取消'],
+            btnAlign: 'c',
+            shadeClose: true,
+            anim: 5,
+            maxmin: true,
+            scrollbar: false,
+            content: $('#userpower'), //这里content是一个dom
+            yes: function (index, layero) {
+                //按钮【按钮一】的回调
+                var power_arr = tree.getChecked('power');
+                var role = setArr(power_arr);
+                var role_parent_child = setArrAll(power_arr);
+                console.log(power_arr)
+                $.ajax({
+                    url: "{:Url('PermissionsController/saveAuthorityRuleInfo')}",
+                    data: {
+                        'role': role,
+                        'id': id,
+                        'role_parent_child': role_parent_child,
+                        'appletid': "1"
+                    },
+                    type: 'post',
+                    dataType: 'json',
+                    success: function (jsonData) {
+                        if (jsonData.code == 1) {
+                            parent.location.reload();
+                        }else{
+                            layer.msg(jsonData.msg)
+                        }
+                    }
+                })
+            },
+            btn2: function (index, layero) {
+                //按钮【按钮二】的回调
+            }
+        });
+    }
+
+    function setArrAll(arr, newArr) {
+
+        newArr = newArr || [];
+
+        arr.forEach(item => {
+
+            (item.id || item.id == 0) && newArr.push(item.id);
+
+            item.children && setArrAll(item.children, newArr);
+
+        })
+
+        return newArr;
+
+    }
+
+    function setArr(jsonObj) {
+        var idArr = [];
+        $.each(jsonObj, function (index, item) {
+            var childrenObj;
+            if (item.children.length == 0) {
+                idArr.push(item.id);
+            } else {
+                childrenObj = childrenSetArr(item.children);
+                idArr.push.apply(idArr, childrenObj);
+            }
+        });
+        return idArr;
+    }
+
+    function childrenSetArr(jsonObj) {
+        var childrenidArr = [];
+        $.each(jsonObj, function (index, item) {
+            childrenidArr.push(item.id);
+        })
+        return childrenidArr;
+    }
+</script>
+{include file="public/foot_more" /}
+<!--新增管理员模板-->
+<div id="adduser" style="display:none;padding: 14px;">
+    <form class="layui-form">
+        <!-- 提示：如果你不想用form，你可以换成div等任何一个普通元素 -->
+        <div class="layui-form-item mt-30">
+            <label class="layui-form-label" style="width:120px;">角色名称</label>
+            <div class="layui-input-block">
+                <input type="text" name="" placeholder="请输入角色名称" autocomplete="off" class="layui-input"
+                       style="max-width:250px" id="partname">
+            </div>
+        </div>
+    </form>
+</div>
+<!--编辑管理员模板-->
+<div id="edituser" style="display:none;padding: 14px;">
+    <form class="layui-form">
+        <!-- 提示：如果你不想用form，你可以换成div等任何一个普通元素 -->
+        <div class="layui-form-item mt-30">
+            <label class="layui-form-label" style="width:120px;">角色名称</label>
+            <div class="layui-input-block">
+                <input type="text" name="" placeholder="请输入角色名称" autocomplete="off" class="layui-input"
+                       style="max-width:250px" id="partname_e">
+            </div>
+        </div>
+    </form>
+</div>
+
+<div id="userpower" style="display:none;padding: 14px;">
+    <div id="trees"></div>
+</div>
+
+

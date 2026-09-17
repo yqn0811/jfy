@@ -1,0 +1,90 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navPower" class="navPower1">
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box">
+            <div class="portlet-body form">
+                <form action="{:Url('PermissionsController/savePermissionsManager')}" id="form_sample_2" class="form-horizontal" method="post" enctype="multipart/form-data" onsubmit = "return checkinfo();">
+                    <input type="hidden" name="m_id" value="{if $info}{$info.id}{/if}">
+
+                    <div class="control-group">
+                        <label class="control-label"><span>*</span>管理员名称</label>
+                        <div class="controls">
+                            <input name="manager_name" id="manager_name" type="text" maxlength="20" class="controls-content" value="{if $info}{$info.manager_name}{/if}">
+                            <span class="help-block">管理员名称</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label"><span>*</span> 角色</label>
+                        <div class="controls">
+                            <select name="authority_id" class="controls-content" id="authority_id">
+                                {volist name="$rule_lists" id="vo"}
+                                <option value="{$vo['id']}" {if $info}{if $info.authority_id==$vo['id']}selected="selected"{/if}{/if}>{$vo['authority_name']}</option>
+                                {/volist}
+                            </select>
+                            <span class="help-block">管理员所属角色</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label"><span>*</span>管理员账号</label>
+                        <div class="controls">
+                            <input name="user_name" id="user_name" type="text" class="controls-content" value="{if $info}{$info.user_name}{/if}">
+                            <span class="help-block">管理员登录账号</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">管理员密码</label>
+                        <div class="controls">
+                            <input name="user_pwd" id="user_pwd" type="text" maxlength="20" class="controls-content" value="">
+                            <span class="help-block">新增默认为【123456】，编辑时不填表示不修改</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">状态</label>
+                        <div class="controls">
+                            <div class="controls-content">
+                                <label class="radio">
+                                    <input type="radio" name="status" value="1" {if $info}{if $info.status==1}checked=checked{/if}{else}checked=checked{/if}/>
+                                    启用
+                                </label>
+                                <label class="radio">
+                                    <input type="radio" name="status" value="0" {if $info}{if $info.status==0}checked=checked{/if}{/if}/>
+                                    停用
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions form_nobg">
+                        <button type="submit" class="btn btn-primary">确定</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function checkinfo(){
+        var manager_name = $("#manager_name").val();
+        var user_name = $("#user_name").val();
+        if(manager_name == ''){
+            alert('管理员名称不能为空');
+            return false;
+        }
+        if(user_name == ''){
+            alert('管理员账号不能为空');
+            return false;
+        }
+
+    }
+</script>
+
+{include file="public/foot_more" /}

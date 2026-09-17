@@ -1,0 +1,182 @@
+{include file="public/head" /}
+{include file="public/top" /}
+
+<input type="hidden" id="nowhtml" value="navCoupon" class="navCoupon2">
+
+<form class="form-horizontal" action="" method="post">
+    <div class="public_select_search_btn_box">
+        <div class="search_box_title">领取时间:</div>
+        <span class="search_box_content datetimepicker_box">
+				<input placeholder="请选择领取开始时间" type="text" name="start_get" value="{$start_get}" id="datetimepicker" placeholder="" autocomplete="off">
+				<span class="mr-12">至</span>
+				<input placeholder="请选择领取结束时间" type="text" name="end_get" value="{$end_get}" id="end_datetimepicker" placeholder="" autocomplete="off">
+			</span>
+        <div class="search_box_title">使用时间:</div>
+        <span class="search_box_content datetimepicker_box">
+				<input placeholder="请选择使用开始时间" type="text" name="start_use" value="{$start_use}" id="datetimepicker2"  placeholder="" autocomplete="off">
+				<span class="mr-12">至</span>
+				<input placeholder="请选择使用开始时间" type="text" name="end_use" value="{$end_use}" id="end_datetimepicker2" placeholder="" autocomplete="off">
+			</span>
+        <div class="search_box_content">
+            <select id="search_flag" >
+                <!-- 0待使用 1已使用 2已过期 3全部-->
+                <option value="0" {if !$search_flag}selected="selected"{/if}>全部类型</option>
+                <option value="1" {if $search_flag == '1'}selected="selected"{/if}>待使用</option>
+                <option value="2" {if $search_flag == '2'}selected="selected"{/if}>已使用</option>
+                <option value="3" {if $search_flag == '3'}selected="selected"{/if}>已过期</option>
+            </select>
+        </div>
+        <div class="search_box_content">
+            <select id="search_type" >
+                <!-- 0待使用 1已使用 2已过期 3全部-->
+                <option value="1" {if $search_type != ''}{if $search_type == '1'}selected="selected"{/if}selected="selected"{/if}>优惠券标题</option>
+                <option value="2" {if $search_type == '2'}selected="selected"{/if}>手机号</option>
+            </select>
+        </div>
+        <input type="text" id="search_keys" value="{$search_keys}"  class="search_box_content"  placeholder="搜索关键字" autocomplete="off" onkeypress="getKey()">
+        <input type="hidden" id="uid" value="{$uid}">
+        <div   class="btn btn-primary mr-10" id="filter" onclick="search()">搜索</div>
+
+    </div>
+</form>
+
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet box ">
+            <div class="portlet-body">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th style="width: 60px;">ID</th>
+                        <th style="width: 120px">优惠券</th>
+                        <th style="width:250px;">领取人</th>
+                        <th style="width:80px;">类型</th>
+                        <th style="width: 200px;">领取时间</th>
+                        <th style="width: 300px;">有效期</th>
+                        <th style="width: 150px;">状态</th>
+                        <th width="200px;">操作</th>
+                    </tr>
+                    </thead>
+
+                    {if $coupontwo}
+                    {foreach $coupontwo as $item}
+                    <tr>
+                        <td >
+                            {$item.id}
+                        </td>
+                        <td>
+                            {$item.coupon_title}
+                        </td>
+                        <td class="text-left">
+                            <img src="{$item->userInfo['avatar']}" onerror="this.src='/image/nopic.jpg'" class="list_avatar_img align-baseline mr-10" >
+                            <div class="d-inline-block">
+                                <div class="mb-5 flex_box">
+                                    <span class="badge badge-info mr-10">昵称</span>
+                                    <div class="user_nickname">{$item->userInfo['nickname']}</div>
+                                </div>
+                                <div class="mb-5"><span class="badge badge-warning mr-10">手机</span>{$item->userInfo['mobile']}</div>
+                            </div>
+                        </td>
+                        <td>
+                            {if $item.coupon_type == 1}
+                            抵用券
+                            {else}
+                            消费券
+                            {/if}
+                        </td>
+                        <td>
+                            {$item.create_time}
+                        </td>
+                        <td>
+                            {if $item->btime == 0 && $item.etime == 0}
+                                永久有效
+                            {else}
+                                {:date('Y-m-d H:i:s', $item->btime)} - {:date('Y-m-d H:i:s', $item->etime)}
+                            {/if}
+                        </td>
+                        <td>
+                            {if $item.use_status == 1}
+                            <span class="badge badge-success">未使用</span>
+                            {/if}
+                            {if $item.use_status == 2}
+                                {if $item->UseTypeStr}
+                                    {$item->UseTypeStr}
+                                {else}
+                                    {$item->use_info}
+                                {/if}
+                                <br> {:date('Y-m-d H:i:s', $item->use_time)}
+                            {/if}
+                            {if $item.use_status == 3}
+                            <span class="badge badge-danger  ">已过期</span>
+                            {/if}
+                        </td>
+                        <td>
+                            {if $item.use_status == 1}
+                            <a onclick="return confirm('确定核销吗？该操作不可逆，请谨慎操作！'); return false;" href="{:Url('CouponsController/checkUserCoupon')}?id={$item.id}">
+                                <button class="btn btn-outline-primary" type="submit" >核销</button>
+                            </a>
+                            {/if}
+                            {if !$item.remote_coupon_id}
+                            <a onclick="return confirm('该删除操作不可逆，请谨慎操作！'); return false;" href="{:Url('CouponsController/deleteUserCoupon')}?id={$item.id}">
+                                <button class="btn btn-outline-danger" type="submit">删除</button>
+                            </a>
+                            {/if}
+                        </td>
+                    </tr>
+                    {/foreach}
+                    {/if}
+                </table>
+
+                <!-- 分页 -->
+                <div class="fenye_bottomBox">
+                    <div class="fenye_left">
+                         一共查询到<font color="red" style="padding:0 10px;">{$coupontwo->total()}</font>条数据
+                    </div>
+                    <div class="fenye_right">
+                        {$coupontwo|raw}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    function del(){
+        if(confirm('该删除操作不可逆，请谨慎操作?')){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    function hx(){
+        if(confirm('确定核销吗？该操作不可逆，请谨慎操作！')){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    function getKey(){
+        if(event.keyCode == 13){
+            search();
+        }
+    }
+    function search() {
+        var start_get=$("#datetimepicker").val();
+        var end_get=$("#end_datetimepicker").val();
+        var start_use=$("#datetimepicker2").val();
+        var end_use=$("#end_datetimepicker2").val();
+        var search_flag=$("#search_flag").val();
+        var search_type=$("#search_type").val();
+        var search_keys=$("#search_keys").val();
+        var uid = $("#uid").val();
+        location.href = "{:Url('CouponsController/records')}?start_get="+start_get+"&end_get="+end_get+"&start_use="+start_use+"&end_use="+end_use+"&search_flag="+search_flag+'&search_type='+search_type+'&search_keys='+search_keys+'&uid='+uid;
+    }
+
+</script>
+
+
+{include file="public/foot_more" /}
